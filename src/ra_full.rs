@@ -361,11 +361,12 @@ fn allocate_domain_best(
     live: &[InsRegLive],
     dom: RegDom,
     orders: &[GroupOrder],
+    share: bool,
 ) -> Result<(BTreeMap<u8, u8>, FullDomainStats, Vec<String>)> {
     let mut best: Option<(BTreeMap<u8, u8>, FullDomainStats, Vec<String>)> = None;
     let mut first_err = None;
     for &o in orders {
-        match allocate_domain_ordered(xfers, live, dom, o) {
+        match allocate_domain_ordered(xfers, live, dom, o, share) {
             Ok(cand) => {
                 if best.as_ref().is_none_or(|b| cand.1.watermark < b.1.watermark) {
                     best = Some(cand);
@@ -388,6 +389,7 @@ fn allocate_domain_ordered(
     live: &[InsRegLive],
     dom: RegDom,
     group_order: GroupOrder,
+    share: bool,
 ) -> Result<(BTreeMap<u8, u8>, FullDomainStats, Vec<String>)> {
     let (dom_excl, pool_max) = match dom {
         RegDom::R => (255u8, R_POOL_MAX),
@@ -549,7 +551,8 @@ fn allocate_domain_ordered(
             let mut ok = true;
             for &(ob, olen, og) in &occupied {
                 let ohi = ob + olen - 1;
-                if lo <= ohi && ob <= hi && cset.contains(&og) {
+                // `share == false`: no two groups on one register, alive together or not
+                if lo <= ohi && ob <= hi && (!share || cset.contains(&og)) {
                     ok = false;
                     break;
                 }
@@ -841,11 +844,29 @@ pub fn plan_full_kernel_live(
     plive: &[PredInsLive],
     insns: &[Instruction],
 ) -> Result<(crate::ra::RegPlan, FullAllocStats)> {
-    plan_full_kernel_orders(kname, xfers, live, pxfers, plive, insns, &[GroupOrder::FirstLive])
+    plan_full_kernel_orders(kname, xfers, live, pxfers, plive, insns, Placement::NEUTRAL)
+}
+
+/// How the linear scan places the groups of the R and UR domains.
+#[derive(Debug, Clone, Copy)]
+pub struct Placement<'a> {
+    /// The group orders tried; per domain the plan with the lowest watermark is kept.
+    pub orders: &'a [GroupOrder],
+    /// May two groups that are never alive together be given one register?
+    pub share: bool,
+}
+
+impl Placement<'static> {
+    /// The target-neutral pass: first-live order, registers shared.
+    pub const NEUTRAL: Placement<'static> = Placement { orders: &[GroupOrder::FirstLive], share: true };
 }
 
 /// [`plan_full_kernel_live`] over several group orders: per register domain the placement with
 /// the lowest watermark is kept (`ra_target`: a register grid makes the order matter).
+/// `placement.share == false`: every numeral of the R and UR domains keeps a register of its own -- the
+/// renaming is injective, so the result has exactly the register dependencies of the source
+/// (two values on one register would add write-after-read and write-after-write edges the
+/// scheduler must honour). The predicate domains are a permutation of seven either way.
 pub fn plan_full_kernel_orders(
     kname: &str,
     xfers: &[RegXfer],
@@ -853,10 +874,10 @@ pub fn plan_full_kernel_orders(
     pxfers: &[PredXfer],
     plive: &[PredInsLive],
     insns: &[Instruction],
-    orders: &[GroupOrder],
+    placement: Placement,
 ) -> Result<(crate::ra::RegPlan, FullAllocStats)> {
-    let (rmap, rstats, rpins) = allocate_domain_best(xfers, live, RegDom::R, orders)?;
-    let (urmap, ustats, upins) = allocate_domain_best(xfers, live, RegDom::UR, orders)?;
+    let (rmap, rstats, rpins) = allocate_domain_best(xfers, live, RegDom::R, placement.orders, placement.share)?;
+    let (urmap, ustats, upins) = allocate_domain_best(xfers, live, RegDom::UR, placement.orders, placement.share)?;
     let co = build_pred_cosets(pxfers, plive, insns);
     let pconf = pred_conflicts(&co.p);
     let upconf = pred_conflicts(&co.up);

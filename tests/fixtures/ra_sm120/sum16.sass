@@ -1,0 +1,27 @@
+.entry sum16
+    .reg R0-R252
+    .param u64 out
+    .param u64 inp
+    .param u64 fac
+    S2R R0, SR_TID.X ;
+    LDCU.64 UR8, c[0x0][0x358] ;
+    LDC.64 R2, c[0x0][0x380] ;
+    LDC.64 R4, c[0x0][0x388] ;
+    LDC.64 R6, c[0x0][0x390] ;
+    IMAD.WIDE.U32 R8, PT, R0, 0x10, R4 ;
+    IMAD.WIDE.U32 R12, PT, R0, 0x4, R6 ;
+    IMAD.WIDE.U32 R10, PT, R0, 0x4, R2 ;
+    LDG.E.128 R16, desc[UR8][R8.64] ;
+    LDG.E R20, desc[UR8][R12.64] ;
+    ISETP.NE.AND P3, PT, R20, RZ, PT ;
+    POPC R22, R16 ;
+    POPC R23, R17 ;
+    POPC R24, R18 ;
+    POPC R25, R19 ;
+    IADD3 R21, PT, PT, R22, R23, R24 ;
+    IADD3 R21, PT, PT, R21, R25, RZ ;
+    MOV R26, R21 ;
+    @P3 IMAD R26, R21, R20, RZ ;
+    STG.E desc[UR8][R10.64], R26 ;
+    EXIT ;
+.endentry

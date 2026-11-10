@@ -4,6 +4,42 @@ User-visible changes, newest first. Table syncs name the blackwell-isa revision 
 (`tables/SOURCE.json` pins it byte for byte). Numbered `BUG-NNN` entries are the encoder /
 decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `docs/TESTS.md`).
 
+## Unreleased — 2026-11-10 (session RA-1: `cubit ra` on a production sm_120 kernel — the register allocator certified on the sparse-MLA prefill attention kernel; two fixes of the pass, `--target sm120` and `--no-share` opt-in, the default allocation unchanged)
+
+- **`cubit ra` reads the attention kernel.** Every mode refused it (`unknown predicate-role op(s): VIMNMX.S32, FMNMX.FTZ`, then
+  `FSETP`). The Strict predicate families now know the min/max selector (`FMNMX` / `VIMNMX` / `HMNMX2` with one predicate, in
+  the last slot: a use) and `FSETP` (ISETP's shape); Compat keeps the reference's list. Identity on the kernel: zero changed
+  numerals.
+- **The renderer keeps register operand selectors; its proof compares them** (`cubit render`, `ra --mode full`, `ra --mode apply`).
+  `.H1` / `.H0_H0` / `.H1_H1` / `.B0`…`.B3` and the operand modifier flags live in the source text, where the encoder reads
+  them; the renderer printed operands from the structured form and dropped them, and `structural_eq` compared two parses that
+  both lack them. On the kernel's v41 text 608 selectors went and the output still assembled — into another kernel, with a
+  clean scoreboard verifier. A bare register token that carries a suffix chain besides `.reuse` is now re-printed from its
+  source token with only the register name replaced, and the proof fails on a chain that is dropped, moved or changed. Text
+  without selectors renders byte for byte as before.
+- **`cubit ra --mode full|apply --target sm120`** (`src/ra_target.rs`) — the allocation made for the silicon: 64-bit pairs on even
+  registers and quads on multiples of four; the footprints the role table does not carry (the address pair and the descriptor
+  pair of `desc[UR][R.64]`, the pair `CS2R` writes, the two registers of `LDSM.2`); liveness in which a guarded write does not
+  end the life of the value it may overwrite; three group orders, the plan with the lowest watermark kept; the plan audited
+  against the footprints (also a plan given with `--mode apply`); a register read before it is written is an error; `.reg`
+  rewritten to the registers the plan uses; `target`, `regcount`, `peak_live_r` in the report. Without `--target` the pass is
+  what it was — and its plan for this kernel is not sm_120 code (pairs on odd registers; KNOWN_ISSUES A28).
+- **`cubit ra --mode full --no-share`**: every numeral keeps a register of its own — an injective renaming, so the result has the
+  register dependencies of the source and assembles to the same schedule. By default two values that are never alive together
+  may share a register, which saves registers and can add a wait (the second value's write behind a load address or store data
+  the memory pipe has not latched yet).
+- **Measured** (the kernel's two source texts, 2 535 and 1 449 instructions, R0–R125 by hand): re-numbered from zero on
+  R0–R124 (register count 128 as by hand; 126 registers with `--no-share`); `CUBIT_VERIFY` 0 / 0, `CUBIT_DEP_VERIFY` 0, strict
+  round trip complete; every control word equal to the hand-numbered build's; on silicon (RTX PRO 6000 Server and Workstation
+  Edition) output and lse identical on 8 synthetic cases and 8 real-prefill dumps in 30 warm launches and 30 fresh processes,
+  times within ±0.3 % at every shape, as for two further numberings.
+- **The register grid of sm_120 is silicon law** (`tools/ra/`): 38 probe kernels, every multi-register operand off its grid
+  faults the launch (CUDA 715) — 23 of 23, 15 shapes; ptxas is never off it in 1 811 600 census instructions. `cubit asm`
+  takes these words (the BUG-008 guard sees only the 4-operand `IMAD.WIDE` spelling): KNOWN_ISSUES A28.
+- `docs/RA_SYMBOLIC_REGISTERS.md`: how to write a generator with symbolic registers and what the pass guarantees.
+  `tools/ra/ra_equiv.py`: an independent check of a renaming (its own footprints, liveness and control flow).
+  Tests: `tests/ra_sm120_attention.rs`, `ra_sm120_target.rs`, `ra_sm120_target_cli.rs`.
+
 ## Unreleased — 2026-11-10 (session SCH-1: the automatic scheduler on sm_120 — the `CUBIT_SCHED2` failures root-caused and fixed, a pair-latency table measured on sm_120 silicon, ptxas's MMA discipline; every switch opt-in, the default schedule unchanged)
 
 - **`CUBIT_SCHED2`: the scoreboard arming rule — the fix for both silicon failures of the opt-in stall model** (`49f8340`). RULE 2 put the yield flag

@@ -108,7 +108,7 @@ adds the read-barrier coverage probe of the legality oracle (`tools/sched_oracle
 | `roundtrip` | the legacy round trip against `cuobjdump` as the reference disassembler |
 | `encode` / `decode` / `asm-text` | one instruction or a block of text ↔ instruction words |
 | `patch` | disassemble → re-encode → write a patched cubin |
-| `ra`, `sched`, `render` | passes over `.sass` text: windowed register renaming / allocation, list scheduling under a cost model, re-printing from the parsed form |
+| `ra`, `sched`, `render` | passes over `.sass` text: windowed register renaming / allocation (`ra --mode full --target sm120`: registers placed from zero on sm_120's grid, [docs/RA_SYMBOLIC_REGISTERS.md](docs/RA_SYMBOLIC_REGISTERS.md)), list scheduling under a cost model, re-printing from the parsed form |
 | `stallfix` | raise stalls in hand-scheduled windows to measured silicon floors (sm_103a and SM120 rules; [docs/SM120_STALLFIX_PLAN.md](docs/SM120_STALLFIX_PLAN.md)) |
 | `merc-dump` | dump the Mercury (`.nv.capmerc`) companion sections |
 | `info` | table statistics |
@@ -244,6 +244,7 @@ See [docs/PYTHON_API_ARCH_SELECT.md](docs/PYTHON_API_ARCH_SELECT.md).
 - [docs/SM120_CONTROL_OPEX.md](docs/SM120_CONTROL_OPEX.md) — the measured control-code layout and the reserved yield/stall combinations
 - [docs/SM120_ASYNC_IDIOMS.md](docs/SM120_ASYNC_IDIOMS.md) — release / acquire, the async-proxy fences, mbarriers, bulk copies, `setmaxnreg` and votes as ptxas lowers and schedules them on sm_120a, with the measured laws and the scheduler's open items
 - [docs/sasstuning.md](docs/sasstuning.md), [docs/nvcc-kloop-reference.md](docs/nvcc-kloop-reference.md) — scheduling notes for hand-written kernels (measured-on-date markers inside)
+- [docs/RA_SYMBOLIC_REGISTERS.md](docs/RA_SYMBOLIC_REGISTERS.md) — for generator authors: writing a kernel with symbolic registers, what `cubit ra --target sm120` guarantees, the register grid of sm_120
 - [docs/SM120_STALLFIX_PLAN.md](docs/SM120_STALLFIX_PLAN.md), [docs/SCHED_LEGALITY_ORACLE.md](docs/SCHED_LEGALITY_ORACLE.md), [docs/POSTFIX103_STALLFIX.md](docs/POSTFIX103_STALLFIX.md) — scheduling legality
 - [tools/probes/README.md](tools/probes/README.md) — the nvdisasm measurements behind the table rows
 

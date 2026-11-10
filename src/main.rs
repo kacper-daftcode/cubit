@@ -144,6 +144,12 @@ enum Commands {
         /// target-neutral pass.
         #[arg(long)]
         target: Option<String>,
+        /// With --mode full: every register numeral of the source keeps a register of its own
+        /// (values that are never alive together are not put on one register). The result has
+        /// the register dependencies of the source and no other, so it assembles to the same
+        /// schedule; without the flag the allocation uses fewer registers.
+        #[arg(long)]
+        no_share: bool,
     },
     /// Instruction-reordering scheduler pass: list-schedule declared windows of a .sass file under a cost model.
     ///
@@ -375,7 +381,8 @@ fn main() -> Result<()> {
             output,
             report,
             target,
-        } => cmd_ra(&mode, plan.as_deref(), &input, output.as_deref(), report.as_deref(), target.as_deref()),
+            no_share,
+        } => cmd_ra(&mode, plan.as_deref(), &input, output.as_deref(), report.as_deref(), target.as_deref(), no_share),
         Commands::Sched {
             mode,
             table,
@@ -464,9 +471,11 @@ fn cmd_ra(
     output: Option<&Path>,
     report: Option<&Path>,
     target: Option<&str>,
+    no_share: bool,
 ) -> Result<()> {
     let opts = cubit::ra::RaOptions {
         target: target.map(cubit::ra_target::RaTarget::parse).transpose()?,
+        no_share,
     };
     let parsed = match (cubit::ra::parse_mode_kind(mode)?, plan_path) {
         ("identity", None) => cubit::ra::RaMode::Identity,

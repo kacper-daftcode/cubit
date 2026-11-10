@@ -1282,12 +1282,24 @@ pub struct RaOptions {
     /// the register grid, guard-aware liveness, the span audit and the `.reg` rewrite of
     /// [`crate::ra_target`]. `None` = none of it.
     pub target: Option<crate::ra_target::RaTarget>,
+    /// Full allocation only: every R / UR numeral of the source keeps a register of its own
+    /// (an injective renaming). By default two values that are never alive together may be
+    /// given one register, which saves registers and adds a dependency between them that the
+    /// source did not have: the later value is written after the earlier one was read, and
+    /// where that read is a load's address or a store's data -- latched when the memory pipe
+    /// serves the instruction, not at issue -- the scheduler must make the write wait. With
+    /// `no_share` the result has the dependencies of the source and no other: assembled with
+    /// the same switches it gets the same control word on every instruction.
+    pub no_share: bool,
 }
 
 /// [`run_file`] with options.
 pub fn run_file_opts(text: &str, mode: RaMode, opts: &RaOptions) -> Result<RaRun> {
     if opts.target.is_some() && !matches!(mode, RaMode::Full | RaMode::ApplyFile(_)) {
         bail!("ra: --target shapes an allocation: it goes with --mode full or --mode apply");
+    }
+    if opts.no_share && !matches!(mode, RaMode::Full) {
+        bail!("ra: --no-share shapes an allocation: it goes with --mode full");
     }
     let file = crate::sass_file::parse_sass_file_str_strict(text)
         .context("ra: strict parse failed")?;
@@ -1380,7 +1392,7 @@ pub fn run_file_opts(text: &str, mode: RaMode, opts: &RaOptions) -> Result<RaRun
                     &pxfers,
                     &plive,
                     &src_k.instructions,
-                    orders,
+                    crate::ra_full::Placement { orders, share: !opts.no_share },
                 )?;
                 if opts.target.is_some() {
                     // A register that is live at the entry is read on some path before anything

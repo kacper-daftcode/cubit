@@ -11,21 +11,25 @@
 //!
 //! * **The grid.** Every operand that names more than one 32-bit register starts on a multiple
 //!   of its width: 64-bit pairs on even registers, 128-bit quads (and wider) on multiples of
-//!   four. Silicon: an `IMAD.WIDE` whose addend pair starts on an odd register faults the launch
-//!   (BUG-008, CUDA_ERROR_ILLEGAL_INSTRUCTION 715, KNOWN_ISSUES A2); MMA tuples off their grid
-//!   are illegal (BUG-037). Vendor practice: in the sm_120 census (166 nvcc / ptxas cubins,
-//!   1 811 600 instructions) no multi-register operand of any kind is off the grid -- 0 of
-//!   23 339 `IMAD.WIDE` destinations and 18 437 addends, 0 of 22 295 `LDG` and 18 062 `STG`
-//!   address pairs, 0 of 7 009 `LDC.64`, 3 142 `LDG.128`, 13 872 `LDS.128`, 1 768 `STS.128`,
-//!   22 116 `CS2R`, 8 284 + 19 190 `LDSM`, 27 176 `HMMA` (`tools/ra/align_census.py`). Without
-//!   the grid the allocator placed the kernel's address pairs on odd registers and its
-//!   `LDG.E.128` quads on 4k+3: 55 words the strict round trip refuses.
+//!   four. Silicon (RTX PRO 6000 Blackwell, 2026-11-10; `tools/ra/gen_align_probes.py`,
+//!   `align_probes_sm120_20261110.json`): 38 one-warp probe kernels, one shaped instruction
+//!   each -- every one of the 23 with an off-grid base ends the launch with
+//!   CUDA_ERROR_ILLEGAL_INSTRUCTION (715), every one of the 15 controls is exact. Measured
+//!   shapes: the addend pair and the destination pair of `IMAD.WIDE`; the destination of
+//!   `LDC.64`, `LDG.E.64`, `LDS.64`, `CS2R`, `LDSM.2` (odd) and of `LDG.E.128`, `LDS.128`,
+//!   `LDSM.4` (4k+1, 4k+2, 4k+3); the data of `STS.64` / `STS.128`; the address pair of `LDG`
+//!   and `STG`; an odd uniform pair under `LDCU.64` + `desc[UR]`. MMA tuples: BUG-037.
+//!   Vendor practice agrees everywhere: in the sm_120 census (166 nvcc / ptxas cubins,
+//!   1 811 600 instructions) no multi-register operand of any kind is off the grid
+//!   (`tools/ra/align_census.py`). The assembler takes the off-grid words (KNOWN_ISSUES A28);
+//!   without the grid the allocator placed the attention kernel's address pairs on odd
+//!   registers and its `LDG.E.128` quads on 4k+3: 55 words the strict round trip refuses.
 //! * **Hardware footprints the role table does not carry.** `desc[URa][Rb.64]` reads the 64-bit
 //!   address `Rb:Rb+1` and the 64-bit descriptor `URa:URa+1` (the table's `desc_base` width of 1
 //!   is a finding of the sm_103a corpus); `CS2R Rd, <SR>` without `.32` writes the pair
-//!   `Rd:Rd+1` (the vendor's idiom for zeroing a pair: every one of its 22 116 census
-//!   destinations is even; the role table writes a pair only for `SR_*LO` names);
-//!   `LDSM.<..>.2` writes two registers (the role table: `.4` four, anything else one).
+//!   `Rd:Rd+1` (measured by the probes' control: `CS2R R8, SRZ` zeroes R8 and R9; the role
+//!   table writes a pair only for `SR_*LO` names); `LDSM.<..>.2` writes two registers
+//!   (measured likewise; the role table: `.4` four, anything else one).
 //!   A register the model does not see written can be handed to a live value.
 //! * **Guarded writes do not kill.** `@P0 LDG.E.128 R88, ...` leaves `R88..R91` untouched when
 //!   `P0` is false, so the value they held before stays live across the instruction. The shared

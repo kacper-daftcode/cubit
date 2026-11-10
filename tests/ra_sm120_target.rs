@@ -24,7 +24,7 @@ fn set(xs: &[u8]) -> BTreeSet<u8> {
 }
 
 fn sm120() -> RaOptions {
-    RaOptions { target: Some(RaTarget::Sm120) }
+    RaOptions { target: Some(RaTarget::Sm120), ..RaOptions::default() }
 }
 
 fn rplan(run: &cubit::ra::RaRun) -> BTreeMap<u8, u8> {
@@ -215,6 +215,38 @@ fn reg_follows_the_allocation_and_the_shadow_law() {
     let e = run_file_opts(&tight, RaMode::Full, &sm120()).expect_err("regcount 4 cannot hold R2");
     assert!(format!("{e:#}").contains("`.regcount 4`"), "{e:#}");
     assert!(run_file_opts(&src.replace("    .reg R0-R253\n", "    .reg R0-R253\n    .regcount 5\n"), RaMode::Full, &sm120()).is_ok());
+}
+
+#[test]
+fn no_share_keeps_a_register_per_numeral() {
+    let opts = RaOptions { target: Some(RaTarget::Sm120), no_share: true };
+    // the attention kernel: 126 numerals on 126 registers, the footprint of the hand numbering
+    let run = run_file_opts(KERNEL, RaMode::Full, &opts).unwrap();
+    let m = rplan(&run);
+    let homes: BTreeSet<u8> = m.values().copied().collect();
+    assert_eq!((m.len(), homes.len(), *homes.iter().max().unwrap()), (126, 126, 125));
+    assert_eq!(run.report.kernels[0].regcount, Some(128));
+    assert!(run.out_text.contains("    .reg R0-R125\n"));
+    // a kernel written with one numeral per value: sharing packs 24 numerals on 11 registers ...
+    let src = include_str!("fixtures/ra_sm120/sum16.sass");
+    let shared = run_file_opts(src, RaMode::Full, &sm120()).unwrap();
+    let ms = rplan(&shared);
+    assert_eq!((ms.len(), ms.values().collect::<BTreeSet<_>>().len()), (24, 11));
+    // ... and puts the factor on the register the first load's address pair has just left:
+    // the second load must then wait for the first one's address latch
+    assert_eq!(ms[&20], ms[&8], "{ms:?}");
+    // with no_share nothing is merged
+    let apart = run_file_opts(src, RaMode::Full, &opts).unwrap();
+    let ma = rplan(&apart);
+    assert_eq!((ma.len(), ma.values().collect::<BTreeSet<_>>().len()), (24, 24));
+    assert_eq!(apart.report.kernels[0].regcount, Some(32));
+    // the switch is the full allocation's
+    let e = run_file_opts(src, RaMode::Identity, &RaOptions { target: None, no_share: true }).expect_err("identity");
+    assert!(format!("{e:#}").contains("--no-share"), "{e:#}");
+    // without a target it works on the target-neutral model (no grid): the plan stays injective
+    let neutral = run_file_opts(src, RaMode::Full, &RaOptions { target: None, no_share: true }).unwrap();
+    let mn = rplan(&neutral);
+    assert_eq!(mn.values().collect::<BTreeSet<_>>().len(), mn.len());
 }
 
 #[test]

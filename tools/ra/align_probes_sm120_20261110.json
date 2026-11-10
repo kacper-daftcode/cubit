@@ -1,0 +1,403 @@
+{
+ "cs2r_b8": {
+  "shape": "cs2r",
+  "base": 8,
+  "on_grid": true,
+  "verdict": "OK",
+  "words_t0": [
+   0,
+   0,
+   858993459,
+   3735928559,
+   3735928559,
+   3735928559,
+   3735928559,
+   3735928559
+  ]
+ },
+ "imadw_c_b8": {
+  "shape": "imadw_c",
+  "base": 8,
+  "on_grid": true,
+  "verdict": "OK",
+  "words_t0": [
+   822569776,
+   2137449172,
+   3735928559,
+   3735928559,
+   3735928559,
+   3735928559,
+   3735928559,
+   3735928559
+  ]
+ },
+ "imadw_d_b12": {
+  "shape": "imadw_d",
+  "base": 12,
+  "on_grid": true,
+  "verdict": "OK",
+  "words_t0": [
+   822569776,
+   2137449172,
+   3735928559,
+   3735928559,
+   3735928559,
+   3735928559,
+   3735928559,
+   3735928559
+  ]
+ },
+ "ldc64_dst_b8": {
+  "shape": "ldc64_dst",
+  "base": 8,
+  "on_grid": true,
+  "verdict": "OK",
+  "words_t0": [
+   2845835264,
+   31907,
+   3735928559,
+   3735928559,
+   3735928559,
+   3735928559,
+   3735928559,
+   3735928559
+  ]
+ },
+ "ldcu64_desc_b4": {
+  "shape": "ldcu64_desc",
+  "base": 4,
+  "on_grid": true,
+  "verdict": "OK",
+  "words_t0": [
+   822569776,
+   3735928559,
+   3735928559,
+   3735928559,
+   3735928559,
+   3735928559,
+   3735928559,
+   3735928559
+  ]
+ },
+ "ldg128_dst_b8": {
+  "shape": "ldg128_dst",
+  "base": 8,
+  "on_grid": true,
+  "verdict": "OK",
+  "words_t0": [
+   822569776,
+   2137449172,
+   2671936807,
+   3512589366,
+   3735928559,
+   3735928559,
+   3735928559,
+   3735928559
+  ]
+ },
+ "ldg64_dst_b8": {
+  "shape": "ldg64_dst",
+  "base": 8,
+  "on_grid": true,
+  "verdict": "OK",
+  "words_t0": [
+   822569776,
+   2137449172,
+   3735928559,
+   3735928559,
+   3735928559,
+   3735928559,
+   3735928559,
+   3735928559
+  ]
+ },
+ "ldg_addr_b8": {
+  "shape": "ldg_addr",
+  "base": 8,
+  "on_grid": true,
+  "verdict": "OK",
+  "words_t0": [
+   822569776,
+   3735928559,
+   3735928559,
+   3735928559,
+   3735928559,
+   3735928559,
+   3735928559,
+   3735928559
+  ]
+ },
+ "lds128_dst_b16": {
+  "shape": "lds128_dst",
+  "base": 16,
+  "on_grid": true,
+  "verdict": "OK",
+  "words_t0": [
+   822569776,
+   2137449172,
+   2671936807,
+   3512589366,
+   3735928559,
+   3735928559,
+   3735928559,
+   3735928559
+  ]
+ },
+ "lds64_dst_b16": {
+  "shape": "lds64_dst",
+  "base": 16,
+  "on_grid": true,
+  "verdict": "OK",
+  "words_t0": [
+   822569776,
+   2137449172,
+   3735928559,
+   3735928559,
+   3735928559,
+   3735928559,
+   3735928559,
+   3735928559
+  ]
+ },
+ "ldsm2_b8": {
+  "shape": "ldsm2",
+  "base": 8,
+  "on_grid": true,
+  "verdict": "OK (control = the oracle; deterministic True; thread 0 words ['0xeccd6b30', '0xf7230ef1', '0x33333333', '0xdeadbeef'])",
+  "words_t0": [
+   3972885296,
+   4146269937,
+   858993459,
+   3735928559,
+   3735928559,
+   3735928559,
+   3735928559,
+   3735928559
+  ]
+ },
+ "ldsm4_b8": {
+  "shape": "ldsm4",
+  "base": 8,
+  "on_grid": true,
+  "verdict": "OK (control = the oracle; deterministic True; thread 0 words ['0x31076b30', '0x80ca0ef1', '0xcd598c52', '0x546526af'])",
+  "words_t0": [
+   822569776,
+   2160725745,
+   3445197906,
+   1415915183,
+   3735928559,
+   3735928559,
+   3735928559,
+   3735928559
+  ]
+ },
+ "stg_addr_b8": {
+  "shape": "stg_addr",
+  "base": 8,
+  "on_grid": true,
+  "verdict": "OK",
+  "words_t0": [
+   822569776,
+   3735928559,
+   3735928559,
+   3735928559,
+   3735928559,
+   3735928559,
+   3735928559,
+   3735928559
+  ]
+ },
+ "sts128_data_b8": {
+  "shape": "sts128_data",
+  "base": 8,
+  "on_grid": true,
+  "verdict": "OK",
+  "words_t0": [
+   822569776,
+   2137449172,
+   2671936807,
+   3512589366,
+   3735928559,
+   3735928559,
+   3735928559,
+   3735928559
+  ]
+ },
+ "sts64_data_b8": {
+  "shape": "sts64_data",
+  "base": 8,
+  "on_grid": true,
+  "verdict": "OK",
+  "words_t0": [
+   822569776,
+   2137449172,
+   3735928559,
+   3735928559,
+   3735928559,
+   3735928559,
+   3735928559,
+   3735928559
+  ]
+ },
+ "cs2r_b9": {
+  "shape": "cs2r",
+  "base": 9,
+  "on_grid": false,
+  "verdict": "FAULT [CUDA driver error 715 in cuCtxSynchronize] at sync 0",
+  "words_t0": null
+ },
+ "imadw_c_b9": {
+  "shape": "imadw_c",
+  "base": 9,
+  "on_grid": false,
+  "verdict": "FAULT [CUDA driver error 715 in cuCtxSynchronize] at sync 0",
+  "words_t0": null
+ },
+ "imadw_d_b13": {
+  "shape": "imadw_d",
+  "base": 13,
+  "on_grid": false,
+  "verdict": "FAULT [CUDA driver error 715 in cuCtxSynchronize] at sync 0",
+  "words_t0": null
+ },
+ "ldc64_dst_b9": {
+  "shape": "ldc64_dst",
+  "base": 9,
+  "on_grid": false,
+  "verdict": "FAULT [CUDA driver error 715 in cuCtxSynchronize] at sync 0",
+  "words_t0": null
+ },
+ "ldcu64_desc_b5": {
+  "shape": "ldcu64_desc",
+  "base": 5,
+  "on_grid": false,
+  "verdict": "FAULT [CUDA driver error 715 in cuCtxSynchronize] at sync 0",
+  "words_t0": null
+ },
+ "ldg128_dst_b9": {
+  "shape": "ldg128_dst",
+  "base": 9,
+  "on_grid": false,
+  "verdict": "FAULT [CUDA driver error 715 in cuCtxSynchronize] at sync 0",
+  "words_t0": null
+ },
+ "ldg128_dst_b10": {
+  "shape": "ldg128_dst",
+  "base": 10,
+  "on_grid": false,
+  "verdict": "FAULT [CUDA driver error 715 in cuCtxSynchronize] at sync 0",
+  "words_t0": null
+ },
+ "ldg128_dst_b11": {
+  "shape": "ldg128_dst",
+  "base": 11,
+  "on_grid": false,
+  "verdict": "FAULT [CUDA driver error 715 in cuCtxSynchronize] at sync 0",
+  "words_t0": null
+ },
+ "ldg64_dst_b9": {
+  "shape": "ldg64_dst",
+  "base": 9,
+  "on_grid": false,
+  "verdict": "FAULT [CUDA driver error 715 in cuCtxSynchronize] at sync 0",
+  "words_t0": null
+ },
+ "ldg_addr_b9": {
+  "shape": "ldg_addr",
+  "base": 9,
+  "on_grid": false,
+  "verdict": "FAULT [CUDA driver error 715 in cuCtxSynchronize] at sync 0",
+  "words_t0": null
+ },
+ "lds128_dst_b17": {
+  "shape": "lds128_dst",
+  "base": 17,
+  "on_grid": false,
+  "verdict": "FAULT [CUDA driver error 715 in cuCtxSynchronize] at sync 0",
+  "words_t0": null
+ },
+ "lds128_dst_b18": {
+  "shape": "lds128_dst",
+  "base": 18,
+  "on_grid": false,
+  "verdict": "FAULT [CUDA driver error 715 in cuCtxSynchronize] at sync 0",
+  "words_t0": null
+ },
+ "lds128_dst_b19": {
+  "shape": "lds128_dst",
+  "base": 19,
+  "on_grid": false,
+  "verdict": "FAULT [CUDA driver error 715 in cuCtxSynchronize] at sync 0",
+  "words_t0": null
+ },
+ "lds64_dst_b17": {
+  "shape": "lds64_dst",
+  "base": 17,
+  "on_grid": false,
+  "verdict": "FAULT [CUDA driver error 715 in cuCtxSynchronize] at sync 0",
+  "words_t0": null
+ },
+ "ldsm2_b9": {
+  "shape": "ldsm2",
+  "base": 9,
+  "on_grid": false,
+  "verdict": "FAULT [CUDA driver error 715 in cuCtxSynchronize] at sync 0",
+  "words_t0": null
+ },
+ "ldsm4_b9": {
+  "shape": "ldsm4",
+  "base": 9,
+  "on_grid": false,
+  "verdict": "FAULT [CUDA driver error 715 in cuCtxSynchronize] at sync 0",
+  "words_t0": null
+ },
+ "ldsm4_b10": {
+  "shape": "ldsm4",
+  "base": 10,
+  "on_grid": false,
+  "verdict": "FAULT [CUDA driver error 715 in cuCtxSynchronize] at sync 0",
+  "words_t0": null
+ },
+ "ldsm4_b11": {
+  "shape": "ldsm4",
+  "base": 11,
+  "on_grid": false,
+  "verdict": "FAULT [CUDA driver error 715 in cuCtxSynchronize] at sync 0",
+  "words_t0": null
+ },
+ "stg_addr_b9": {
+  "shape": "stg_addr",
+  "base": 9,
+  "on_grid": false,
+  "verdict": "FAULT [CUDA driver error 715 in cuCtxSynchronize] at sync 0",
+  "words_t0": null
+ },
+ "sts128_data_b9": {
+  "shape": "sts128_data",
+  "base": 9,
+  "on_grid": false,
+  "verdict": "FAULT [CUDA driver error 715 in cuCtxSynchronize] at sync 0",
+  "words_t0": null
+ },
+ "sts128_data_b10": {
+  "shape": "sts128_data",
+  "base": 10,
+  "on_grid": false,
+  "verdict": "FAULT [CUDA driver error 715 in cuCtxSynchronize] at sync 0",
+  "words_t0": null
+ },
+ "sts128_data_b11": {
+  "shape": "sts128_data",
+  "base": 11,
+  "on_grid": false,
+  "verdict": "FAULT [CUDA driver error 715 in cuCtxSynchronize] at sync 0",
+  "words_t0": null
+ },
+ "sts64_data_b9": {
+  "shape": "sts64_data",
+  "base": 9,
+  "on_grid": false,
+  "verdict": "FAULT [CUDA driver error 715 in cuCtxSynchronize] at sync 0",
+  "words_t0": null
+ }
+}

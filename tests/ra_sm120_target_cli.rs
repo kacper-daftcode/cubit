@@ -76,6 +76,44 @@ fn the_allocated_kernel_assembles_and_round_trips_only_with_the_target() {
         out.lines().filter_map(|l| l.split("@sched ").nth(1)).flat_map(|s| s.as_bytes()[..7].to_vec()).collect()
     };
     assert_eq!(text(&p("hand.cubin")), text(&p("sm120.cubin")), "the schedule does not depend on the numbering");
+    // one register per numeral: the same again, by construction
+    let (ok, log) = cubit(&["ra", &src, "--mode", "full", "--target", "sm120", "--no-share", "-o", &p("apart.sass"), "--report", &p("apart.json")], &[]);
+    assert!(ok, "{log}");
+    build(&p("apart.sass"), &p("apart.cubin"));
+    let (ok, log) = cubit(&["roundtrip-strict", &p("apart.cubin"), "-t", TABLE], &[]);
+    assert!(ok && log.contains("1454/1454"), "{log}");
+    assert_eq!(text(&p("hand.cubin")), text(&p("apart.cubin")));
+    std::fs::remove_dir_all(&dir).ok();
+}
+
+#[test]
+fn sharing_a_register_can_add_a_wait_and_no_share_cannot() {
+    // fixture sum16.sass: one numeral per value, every pair / quad on its grid -- the source assembles as it is
+    let dir = scratch("share");
+    let src = format!("{FIX}/sum16.sass");
+    let p = |n: &str| dir.join(n).to_str().unwrap().to_string();
+    let control = |sass: &str, cubin: &str| -> Vec<String> {
+        let (ok, log) = cubit(&["asm", sass, "-t", TABLE, "-o", cubin], &[("CUBIT_VERIFY", "1")]);
+        assert!(ok && log.contains("CUBIT_VERIFY: 0 unprotected RAW, 0 broken WAR"), "{log}");
+        let (ok, out) = cubit(&["disassemble", cubin, "-t", TABLE, "--frozen"], &[]);
+        assert!(ok);
+        out.lines().filter_map(|l| l.trim_start().strip_prefix('[')).map(|l| l[..l.find(']').unwrap()].to_string()).collect()
+    };
+    let source = control(&src, &p("src.cubin"));
+    assert_eq!(source.len(), 21);
+    let (ok, log) = cubit(&["ra", &src, "--mode", "full", "--target", "sm120", "-o", &p("shared.sass"), "--report", &p("shared.json")], &[]);
+    assert!(ok, "{log}");
+    let (ok, log) = cubit(&["ra", &src, "--mode", "full", "--target", "sm120", "--no-share", "-o", &p("apart.sass"), "--report", &p("apart.json")], &[]);
+    assert!(ok, "{log}");
+    let shared = control(&p("shared.sass"), &p("shared.cubin"));
+    let apart = control(&p("apart.sass"), &p("apart.cubin"));
+    assert_eq!(apart, source, "an injective renaming keeps the schedule, control word for control word");
+    // shared: the 128-bit load's address pair and the next load's destination are one register --
+    // the first load sets a read barrier, the second waits for it
+    let diff: Vec<usize> = (0..21).filter(|&i| shared[i] != source[i]).collect();
+    assert!(!diff.is_empty() && diff.contains(&8) && diff.contains(&9), "{diff:?}\n{shared:#?}");
+    assert!(source[8].contains(":R-:") && shared[8].contains(":R2:"), "{} / {}", source[8], shared[8]);
+    assert!(source[9].starts_with("B------") && shared[9].starts_with("B--2---"), "{} / {}", source[9], shared[9]);
     std::fs::remove_dir_all(&dir).ok();
 }
 
