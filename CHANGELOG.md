@@ -4,6 +4,57 @@ User-visible changes, newest first. Table syncs name the blackwell-isa revision 
 (`tables/SOURCE.json` pins it byte for byte). Numbered `BUG-NNN` entries are the encoder /
 decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `docs/TESTS.md`).
 
+## Unreleased — 2026-11-10 (sessions CS-1 / CS-2: control classes of the synchronisation words — mbarriers, bulk copies, fences, release / acquire, `setmaxnreg`, collective regions —, the scheduler on the control-flow graph of an nvcc kernel, and the operand laws such a kernel needs; one opt-in switch, the default schedule unchanged)
+
+- **`CUBIT_SYNC_CLASSES=1` (opt-in, sm_120): the synchronisation words have control classes** (`src/sync_class.rs`). Until now a
+  `SYNCS.PHASECHK.TRANS64.TRYWAIT P0, …` left the scheduler without a barrier and its `@!P0 BRA` without a wait — on silicon the branch
+  reads the stale predicate at every stall from 1 to 15 (327 680 of 327 680 consumer thread-launches of the probe): the predicate is a
+  scoreboard result. Under the switch: the phase checks and `USETMAXREG.TRY_ALLOC` set a write barrier their reader waits (arming
+  distance 2); the mbarrier words, the bulk copies and a cache control on one line read their operands late (read barrier, the
+  overwriter waits); the async-proxy fence, the mbarrier init and `SYNCS.CCTL.IVALL` are ordered by tokens the next word of the family
+  waits; `UBLKCP.S.G` / `UTMALDG` are issued at S12 without yield (**below 12 the launch fails**: measured at 1, 2, 4, 8); scoreboard 0
+  belongs to the copy group in a kernel that commits one (`LDGDEPBAR` W0, `UTMACMDFLUSH` R0, `DEPBAR.LE SB0`); the release chain
+  (`MEMBAR` S00 / S06, `ERRBAR` S00, `CGAERRBAR` S06) and the acquire (`CCTL.IVALL` waits the `.STRONG` load); `NANOSLEEP`, `YIELD`,
+  `WARPSYNC`, `ENDCOLLECTIVE` at S05; the collective region of a diverged `shfl.sync` in ptxas's shape (the instruction in front of
+  `WARPSYNC.COLLECTIVE` at S01 / S02 is an illegal-instruction fault). Table and evidence: `docs/SM120_ASYNC_IDIOMS.md`.
+- **The same switch schedules a kernel of nvcc in place** (`src/cfg_flow.rs`): the barrier allocator and the latency legaliser run on
+  the kernel's control-flow graph — out-of-line slow paths behind the last `EXIT` that return with a backward `BRA` are not loops,
+  `BRA.DIV` / `.CONV` fall through, a `BRX` reaches its case blocks, `WARPSYNC.COLLECTIVE R, L` forks — and nothing is inserted (a
+  branch carries its wait itself): the instruction count and the layout hold, so `cubit asm -T` over ptxas's cubin accepts the result
+  without `--allow-stale-metadata`.
+- **What such a kernel needs beyond the classes — five laws of the silicon, each isolated by ONE changed distance on ptxas's own
+  schedule of the served MoE kernels** (wrong bits or a fault; ptxas's minimum from 1.9 M instructions of its schedules):
+  (1) the high half of a 64-bit address base is a use — `LEA.HI.X R5` → `LDG [R4.64]` at 1 cycle is CUDA_ERROR_ILLEGAL_ADDRESS (ptxas:
+  never below 5, 34 581 sites) — and so is the high half of a 64-bit register operand (`IADD.64`, `ISETP.*64`, the `BRX` / `RET`
+  target: 15 681 sites, never below 5); (2) a predicate destination is a result — `LOP3.LUT Pd, Rd, …` had no destination for the
+  scheduler, the guarded instruction stood one cycle behind it: wrong bits (ptxas: 13, 59 084 sites); (3) an MMA holds its source
+  registers against a fixed-latency overwriter — at 2 and at 4 cycles wrong bits, at 6 identical; ptxas keeps 8 (56 723 sites) and sets
+  no read barrier on an MMA, and cubit's read barrier does not replace the distance; (4) a uniform-datapath reader holds its uniform
+  operands against a `UMOV` — `ULEA UR4, UR5, UR4 ; UMOV UR5` at 1 and at 2 cycles is CUDA_ERROR_ILLEGAL_ADDRESS (ptxas: 3, 2 246
+  sites); (5) the entry of a collective region (above). (3) and (4) are write-after-read distances, which no rule of the scheduler
+  and no cell of the latency table covered (`sync_class::hold_operands`, a pass behind the stall model). **Followed as ptxas's
+  practice, not law** (each broken alone gives identical bits): a result has landed 7 / 13 / 29 cycles before a word that changes the
+  warp's thread set and an MMA 14 before a conditional branch (11 controls); control transfers at S05 or more with yield (`BRX` was an
+  ALU instruction for `CUBIT_SCHED2`: S01); a reuse flag only on a word with yield and a stall of 1 or 2 (else the flag is dropped);
+  no wait mask on `LDGSTS` / `SYNCS.ARRIVE` / the re-check / `FENCE` / the never-executed pads.
+- **Where it stands on the served MoE kernels** (cubit's schedule from the plain instruction text, in the served module on the test
+  host, bits against two recorded dumps): **`fc1_kernel_wg<4,1>` — bits identical in 7 of 7 processes, 190 calls, the first
+  mbarrier kernel scheduled by cubit that is right on silicon — at +16.7 % kernel time (4 096 rows; +1.3 % at 256)**;
+  `fc2_kernel_ws<4,1>` — wrong bits, open. The time is the barrier allocator's (ptxas's barriers with cubit's stalls: +1.2 %;
+  cubit's barriers with ptxas's stalls: +17.8 %: 294 of 384 write barriers on scoreboard 0 against ptxas's 119 of 369). Not a
+  production path: KNOWN_ISSUES A29.
+- **Measured, not copied**: `tools/stallfloor/` harness v7 (`sync_probes.cu`, `coll_probe.cu`, `syncfloor_gen.py`, `syncfloor_run.py`
+  with one process per variant for the words whose wrong schedule faults or hangs) and its result files; `tools/sbcheck.py`, a
+  path-aware scoreboard check on the same control-flow graph (0 unprotected reads in ptxas's own 36 kernels of the served MoE cubin,
+  128 528 instructions); `tools/ccdev.py`, the control codes of a schedule that ptxas never puts on the opcode;
+  `tools/stallfloor/war_census.py`, the write-after-read distances of a corpus and what a schedule has below them;
+  `examples/opgaps.rs`, the definitions and uses the scheduler's operand convention misses; `examples/depslack.rs`.
+- **Tests**: `tests/sync_classes.rs` (20) with sixteen fixtures; the cubins origin/main built from them without the switch (default
+  model and `CUBIT_SCHED2` + table) are pinned by sha256 — the default path is byte for byte. Known and left as it is in the default
+  path (KNOWN_ISSUES A29): the operand gaps of the first two laws, no operand hold, a `BRX` at S01 under `CUBIT_SCHED2`, reuse flags
+  kept on re-scheduled words, the convergence-barrier id written into byte 3 of a `BRA` inside a `BSSY` region, the read barrier of a
+  hand-scheduled accumulator store rewritten to 0 in a partly frozen kernel, `BRA.DIV` taken for an unconditional branch by the
+  allocator and by the legaliser.
 ## Unreleased — 2026-11-10 (session SCH-2: two prices of the sm_120 dependency table that were one cycle short — opt-in path only)
 
 - **`CUBIT_SCHED2_LAT=sm120`: the upper register of an `IMAD.WIDE` result is priced apart, and `CS2R → IMAD` is 6**

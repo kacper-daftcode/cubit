@@ -1,0 +1,22 @@
+// CUBIT_SYNC_CLASSES fixture: a result in flight in front of a reconvergence point -- the shape of nvcc's guarded
+// division fallback (`@P0 BRA` around two ALU instructions, `BSYNC.RECONVERGENT` at the join, the reader behind it).
+// The vendor never issues the BSYNC less than 7 cycles behind a register result (practice: see docs/SM120_ASYNC_IDIOMS.md).
+.entry landing
+    .param u64 io
+    LDC.64 R2, c[0x0][0x380] ;
+    LDC R5, c[0x0][0x388] ;
+    LDC R21, c[0x0][0x38c] ;
+    LDC R10, c[0x0][0x390] ;
+    LDCU.64 UR8, c[0x0][0x358] ;
+    MOV R14, RZ ;
+    ISETP.NE.AND P0, PT, R10, RZ, PT ;
+    BSSY.RECONVERGENT B0, L_780 ;
+    @P0 BRA L_770 ;
+    IADD3 R5, PT, PT, -R5, RZ, RZ ;
+    IMAD R14, R5, R21, RZ ;
+L_770:
+    BSYNC.RECONVERGENT B0 ;
+L_780:
+    STG.E desc[UR8][R2.64], R14 ;
+    EXIT ;
+.endentry

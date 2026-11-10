@@ -1,5 +1,5 @@
-//! `CUBIT_SYNC_CLASSES=1` on sm_120 (2026-11-10): control classes of the synchronisation words
-//! (`src/sync_class.rs`, `src/cfg_flow.rs`; docs/SM120_ASYNC_IDIOMS.md).
+//! `CUBIT_SYNC_CLASSES=1` on sm_120 (2026-11-10): control classes of the synchronisation words and
+//! the operand laws of an nvcc kernel (`src/sync_class.rs`, `src/cfg_flow.rs`; docs/SM120_ASYNC_IDIOMS.md).
 //!
 //! What failed: a kernel that talks through mbarriers, bulk copies, the release / acquire chains
 //! or `setmaxnreg` got those words from the scheduler without a barrier and at an ALU stall --
@@ -11,9 +11,17 @@
 //! of backward branches (the code moves under `BRX` tables and under the template's offset
 //! records) and walks the text where the layout needs the control-flow graph.
 //!
+//! With the classes in place the first kernels of nvcc scheduled by cubit (the served MoE `fc1` /
+//! `fc2`) still faulted: the scheduler did not see a predicate destination of `LOP3` nor the high
+//! half of a 64-bit address or operand (the reader stood ONE cycle behind its producer), and it
+//! let an instruction rewrite a register 1 - 2 cycles behind an MMA or a uniform-datapath
+//! instruction that reads it. Each of them alone on ptxas's own schedule is wrong bits or a
+//! fault on silicon (the last five tests in front of the default-path pin).
+//!
 //! Every test pins the property the switch adds; `the_default_path_is_byte_for_byte` pins what
-//! the binary of `c507a7c` (origin/main before this change) built from the same fixtures without
-//! the switch (`*.default.txt`, `*.sched2.txt`, `default_path.sha256`, written by that binary).
+//! origin/main built from the same fixtures without the switch (`*.default.txt`, `*.sched2.txt`,
+//! `default_path.sha256`: written by the binary of `c507a7c` for the first eleven fixtures, by the
+//! binary of `cbe37f4` for the five added with the operand laws; `e0fd6e5` builds all 32).
 
 use std::process::Command;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -31,7 +39,7 @@ const FIX: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/sync_clas
 const SWITCH: (&str, &str) = ("CUBIT_SYNC_CLASSES", "1");
 /// The default stall model and the dependency-aware one (`CUBIT_SCHED2` + the sm_120 table).
 const MODELS: [&[(&str, &str)]; 2] = [&[SWITCH], &[SWITCH, ("CUBIT_SCHED2", "1"), ("CUBIT_SCHED2_LAT", "sm120")]];
-const FIXTURES: [&str; 11] = [
+const FIXTURES: [&str; 16] = [
     "mbar_wait",
     "mbar_sleep",
     "mbar_init",
@@ -43,6 +51,11 @@ const FIXTURES: [&str; 11] = [
     "frozen_store",
     "dispatch",
     "sync_probes",
+    "pred_dest",
+    "wide_operands",
+    "landing",
+    "operand_hold",
+    "line_control",
 ];
 
 #[derive(Debug, Clone)]
@@ -131,6 +144,11 @@ fn nth(b: &Built, pat: &str, n: usize) -> usize {
 
 fn at<'a>(b: &'a Built, pat: &str) -> &'a Line {
     &b.lines[nth(b, pat, 0)]
+}
+
+/// Issue distance from instruction `i` to instruction `j`: the stalls of `i` .. `j - 1`.
+fn dist(b: &Built, i: usize, j: usize) -> u32 {
+    b.lines[i..j].iter().map(|l| l.stall).sum()
 }
 
 /// Instructions of the source (the lines that are not directives, labels or comments).
@@ -387,6 +405,76 @@ fn the_probe_kernels_agree_with_ptxas() {
     }
 }
 
+// ---- what an nvcc kernel needs beyond the classes (found on the served MoE kernels; each one alone on the vendor's
+// ---- own schedule of fc1 was run on silicon: docs/SM120_ASYNC_IDIOMS.md, "Laws")
+
+#[test]
+fn a_predicate_destination_is_a_result() {
+    // `LOP3.LUT P4, RZ, R21, ...` had no destination for the scheduler (operand 0 was the only one it knew) and
+    // the certified `reg_xfer` listed the register behind a predicate destination as a use: the guarded
+    // instruction stood ONE cycle behind its `LOP3` (silicon: wrong bits; the vendor: 13, 0 of 59 084 sites below)
+    let b = build("pred_dest", MODELS[1]);
+    let d = dist(&b, nth(&b, "LOP3.LUT P4", 0), nth(&b, "@P4 IADD3", 0));
+    assert!(d >= 13, "a guard reads the predicate of a `LOP3` {d} cycles behind it (13):\n{}", b.listing);
+    let d = dist(&b, nth(&b, "LOP3.LUT P5, R4", 0), nth(&b, "IADD3 R4", 0));
+    assert!(d >= 4, "the register behind a predicate destination is a definition; its reader stands {d} cycles behind (4):\n{}", b.listing);
+    let d = dist(&b, nth(&b, "UISETP", 0), nth(&b, "BRA.U", 0));
+    assert!(d >= 11, "a branch on a uniform predicate stands {d} cycles behind its `UISETP` (11):\n{}", b.listing);
+    // without the switch the dependency-aware model has no dependency to price there
+    let m = build("pred_dest", &[("CUBIT_SCHED2", "1"), ("CUBIT_SCHED2_LAT", "sm120")]);
+    assert_eq!(dist(&m, nth(&m, "LOP3.LUT P4", 0), nth(&m, "@P4 IADD3", 0)), 1, "the path without the switch changed:\n{}", m.listing);
+}
+
+#[test]
+fn the_high_half_of_a_64_bit_address_and_operand_is_a_use() {
+    // nvcc builds a 64-bit value in two instructions; the consumer names the low register only
+    // (`desc[UR8][R4.64]`, `IADD.64 R28, R28, UR4`). The load was issued one cycle behind the `LEA.HI.X` of its
+    // address (silicon: ILLEGAL_ADDRESS, alone on the vendor's schedule), the add one cycle behind the
+    // `SHF.L.U64.HI` of its operand (wrong bits). The vendor: 5 (0 of 34 581 / 15 681 sites below).
+    let b = build("wide_operands", MODELS[1]);
+    let d = dist(&b, nth(&b, "LEA.HI.X R5", 0), nth(&b, "LDG.E R7", 0));
+    assert!(d >= 5, "the load reads the high half of its address {d} cycles behind the `LEA.HI.X` (5):\n{}", b.listing);
+    let d = dist(&b, nth(&b, "SHF.L.U64.HI R29", 0), nth(&b, "IADD.64 R28", 0));
+    assert!(d >= 5, "the 64-bit add reads the high half of its operand {d} cycles behind its producer (5):\n{}", b.listing);
+}
+
+#[test]
+fn a_result_has_landed_before_a_reconvergence_point() {
+    // the vendor's practice (never less than 7 cycles between a register result and `BSYNC`; on silicon the
+    // rows broken alone give identical bits): the switch follows it in both stall models
+    for env in MODELS {
+        let b = build("landing", env);
+        let d = dist(&b, nth(&b, "IMAD R14", 0), nth(&b, "BSYNC.RECONVERGENT", 0));
+        assert!(d >= 7, "{env:?}: `BSYNC` is issued {d} cycles behind the register result in front of it (7):\n{}", b.listing);
+    }
+}
+
+#[test]
+fn an_overwriter_keeps_the_operand_hold_of_its_reader() {
+    // write-after-read by distance: an ALU instruction that rewrites a fragment register stands 8 cycles behind
+    // the MMA (silicon: wrong bits at 2 and at 4, also behind a read barrier), a `UMOV` 3 cycles behind the
+    // uniform-datapath instruction that reads its target (silicon: ILLEGAL_ADDRESS at 1 and at 2)
+    const PTXAS_MMA: &[(&str, &str)] = &[SWITCH, ("CUBIT_SCHED2", "1"), ("CUBIT_SCHED2_LAT", "sm120"), ("CUBIT_MMA_PTXAS", "1")];
+    let b = build("operand_hold", PTXAS_MMA);
+    let d = dist(&b, nth(&b, "HMMA", 0), nth(&b, "IADD3 R12", 0));
+    assert!(d >= 8, "the overwriter of a fragment register stands {d} cycles behind the MMA (8):\n{}", b.listing);
+    assert!(b.log.contains("overwriters moved behind the operand hold"), "the pass reports what it moved:\n{}", b.log);
+    for env in [MODELS[0], MODELS[1], PTXAS_MMA] {
+        let b = build("operand_hold", env);
+        let d = dist(&b, nth(&b, "ULEA UR4", 0), nth(&b, "UMOV UR5", 0));
+        assert!(d >= 3, "{env:?}: the `UMOV` of a register the `ULEA` reads stands {d} cycles behind it (3):\n{}", b.listing);
+    }
+}
+
+#[test]
+fn a_cache_control_on_one_line_reads_its_address_late() {
+    for env in MODELS {
+        let b = build("line_control", env);
+        let r = at(&b, "CCTL.E.RML2").rb.unwrap_or_else(|| panic!("{env:?}: the line control whose address is rewritten behind it sets no read barrier:\n{}", b.listing));
+        assert!(at(&b, "IADD3 R4").waits(r), "{env:?}: the overwriter of the line's address waits scoreboard {r}:\n{}", b.listing);
+    }
+}
+
 #[test]
 fn the_default_path_is_byte_for_byte() {
     let pins = std::fs::read_to_string(format!("{FIX}/default_path.sha256")).unwrap();
@@ -407,5 +495,5 @@ fn the_default_path_is_byte_for_byte() {
             checked += 1;
         }
     }
-    assert_eq!(checked, 22);
+    assert_eq!(checked, 32);
 }

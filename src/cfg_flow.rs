@@ -21,7 +21,7 @@
 //! order, not from the setter's text position to the waiter's).
 //!
 //! Calibration: a path-aware scoreboard check built on the same graph finds 0 unprotected
-//! reads in ptxas's own schedules of the served MoE cubin (35 kernels, 128 528 instructions).
+//! reads in ptxas's own schedules of the served MoE cubin (36 kernels, 128 528 instructions).
 
 use crate::ir::{Instruction, Operand};
 use crate::scheduling_pass as sp;

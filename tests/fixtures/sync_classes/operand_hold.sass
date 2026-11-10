@@ -1,0 +1,29 @@
+// CUBIT_SYNC_CLASSES fixture: two write-after-read cases the vendor covers by distance, never by a barrier --
+// an ALU instruction rewriting a fragment register of the MMA in front of it (8 cycles), and a `UMOV` rewriting a
+// uniform register the `ULEA` in front of it reads (3 cycles).
+.entry operand_hold
+    .param u64 io
+    LDC.64 R2, c[0x0][0x380] ;
+    LDC R20, c[0x0][0x388] ;
+    LDC R13, c[0x0][0x38c] ;
+    LDCU.64 UR8, c[0x0][0x358] ;
+    MOV R8, RZ ;
+    MOV R9, RZ ;
+    MOV R12, RZ ;
+    MOV R13, RZ ;
+    MOV R4, RZ ;
+    MOV R5, RZ ;
+    MOV R6, RZ ;
+    MOV R7, RZ ;
+    HMMA.16816.F32 R4, R8, R12, R4 ;
+    IADD3 R12, PT, PT, R20, 0x1, RZ ;
+    S2UR UR5, SR_CgaCtaId ;
+    UMOV UR4, 0x400 ;
+    ULEA UR4, UR5, UR4, 0x18 ;
+    UMOV UR5, 0xffffffff ;
+    LEA R16, R13, UR4, 0x3 ;
+    STG.E.64 desc[UR8][R2.64], R4 ;
+    STG.E desc[UR8][R2.64+0x10], R16 ;
+    STG.E desc[UR8][R2.64+0x18], R12 ;
+    EXIT ;
+.endentry

@@ -1,0 +1,16 @@
+// CUBIT_SYNC_CLASSES fixture: a cache control on ONE line (`CCTL.E.RML2 [R4]` behind a `.STRONG` load) reads its
+// address late, like a store; the pointer bump behind it rewrites the address. The vendor sets a read barrier on every
+// such word and the overwriter waits it.
+.entry line_control
+    .param u64 io
+    LDC.64 R4, c[0x0][0x380] ;
+    LDC.64 R2, c[0x0][0x388] ;
+    LDCU.64 UR8, c[0x0][0x358] ;
+    LDG.E.STRONG.GPU R6, desc[UR8][R4.64] ;
+    CCTL.E.RML2 [R4] ;
+    IADD3 R4, PT, PT, R4, 0x40, RZ ;
+    IADD3 R6, PT, PT, R6, 0x1, RZ ;
+    STG.E desc[UR8][R2.64], R6 ;
+    STG.E desc[UR8][R2.64+0x8], R4 ;
+    EXIT ;
+.endentry

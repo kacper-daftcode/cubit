@@ -1,0 +1,10 @@
+[B------:R-:W0:Y:S08] LDC.64 R4, c[0x0][0x380] ;
+[B------:R-:W0:Y:S04] LDC.64 R2, c[0x0][0x388] ;
+[B------:R-:W1:-:S04] LDCU.64 UR8, c[0x0][0x358] ;
+[B01----:R3:W2:Y:S04] LDG.E.STRONG.GPU R6, desc[UR8][R4.64] ;
+[B------:R-:W-:Y:S01] CCTL.E.RML2 [R4] ;
+[B---3--:R-:W-:Y:S01] IADD3 R4, PT, PT, RZ, 0x40, R4 ;
+[B--2---:R-:W-:-:S10] IADD3 R6, PT, PT, RZ, 0x1, R6 ;
+[B------:R-:W-:Y:S04] STG.E desc[UR8][R2.64], R6 ;
+[B------:R-:W-:Y:S04] STG.E desc[UR8][R2.64+0x8], R4 ;
+[B------:R-:W-:Y:S05] EXIT ;

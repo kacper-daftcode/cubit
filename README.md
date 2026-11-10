@@ -97,6 +97,14 @@ results or reads the dependency model does not see (ptxas's predicate-result `LO
 definitions, `BRA.DIV`, split 64-bit pairs) and `CUBIT_SCHED2_STRICT=1` refuses a kernel that has one.
 `CUBIT_DEP_VERIFY=1` reports every fixed-latency dependency below the table on any path, also on a
 frozen kernel (KNOWN_ISSUES A26; the harness and its results: [tools/stallfloor/](tools/stallfloor/README.md)).
+`CUBIT_SYNC_CLASSES=1` gives the synchronisation words their control classes (mbarriers, bulk copies, the async-proxy
+fence, the release / acquire chains, `setmaxnreg`, collective regions), completes the scheduler's operand model for the
+forms nvcc emits (predicate destinations, the high half of a 64-bit address or operand, the operand hold of an MMA and of
+the uniform datapath) and runs the barrier allocator and the latency legaliser on the control-flow graph of an nvcc
+kernel without inserting an instruction — the switch under which a kernel of nvcc is scheduled from its plain
+instruction text and assembled over ptxas's cubin (`asm -T`). Opt-in, sm_120, floors and laws measured on silicon; of the
+two served MoE kernels one gives identical bits (16.7 % slower than ptxas's schedule), the other does not yet
+([docs/SM120_ASYNC_IDIOMS.md](docs/SM120_ASYNC_IDIOMS.md), KNOWN_ISSUES A29).
 `CUBIT_VERIFY=1` runs the read-only scoreboard verifier on every kernel it
 assembles (frozen or scheduled) and prints each unprotected RAW / broken WAR, and each store whose registers are
 rewritten on some path of the flow graph with no wait on the store's read barrier (`STORE PATH`, `CUBIT_VERIFY_PATHS`);

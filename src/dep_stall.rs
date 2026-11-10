@@ -824,6 +824,36 @@ fn needs_of(
         // `@!P0 MOV R12, 0xffffffff` at S01; `IMAD.WIDE` then `MOV` at 1; `FFMA` then `FADD` 240 times
         // at 1), so the pipeline retires them in order whatever their forwarding latency.
     }
+    // CUBIT_SYNC_CLASSES: what has to have landed before a word that changes the warp's thread
+    // set (`BSYNC`, `CALL`, `WARPSYNC.COLLECTIVE`, `NANOSLEEP.SYNCS`, `EXIT`), dispatches through a
+    // register (`BRX`, `RET`) or splits the warp behind a cooperative MMA (a conditional `BRA`):
+    // every fixed-latency result in flight, whether the word reads it or not
+    // (`sync_class::settle_need`: ptxas's distances in the served MoE cubin).
+    if crate::sync_class::enabled() && !t.only_barriers && crate::sync_class::is_settle_word(cons) {
+        for e in st {
+            let (key, d) = (e.0, e.1 as usize);
+            if key >= KEY_RES || d == c {
+                continue;
+            }
+            let prod = &insns[d];
+            let mma = sp::is_warp_mma(prod.opcode.as_str());
+            if !mma && (prod.ctrl.write_bar != 7 || t.is_variable(prod)) {
+                continue;
+            }
+            let what = if mma {
+                crate::sync_class::Landing::Mma
+            } else if (KEY_PRED..KEY_UNI).contains(&key) || key >= KEY_UNI + 64 {
+                crate::sync_class::Landing::Predicate
+            } else {
+                crate::sync_class::Landing::Register
+            };
+            if let Some(l) = crate::sync_class::settle_need(cons, what) {
+                if !out.iter().any(|n| n.def == d && n.need >= l) {
+                    out.push(Need { key, def: d, need: l, kind: "settle", res: None, defaulted: false });
+                }
+            }
+        }
+    }
     out
 }
 

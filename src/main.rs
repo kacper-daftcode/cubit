@@ -5643,6 +5643,17 @@ fn cmd_asm_directive_format(
             }
         }
 
+        // CUBIT_SYNC_CLASSES: an overwriter keeps the vendor's distance behind an MMA that reads
+        // the register (8) and behind a uniform-datapath reader of a `UMOV`'s target (3): these
+        // two write-after-read cases are covered by distance, no barrier holds them
+        // (`sync_class::hold_need`). A stall bump like the ones above: before the OPEX law.
+        if sync_classes && !fully_frozen {
+            let (moved, cycles) = cubit::sync_class::hold_operands(&mut insns_with_ctrl);
+            if moved > 0 {
+                println!("  {}: {} overwriters moved behind the operand hold of their reader ({} cycles)", def.name, moved, cycles);
+            }
+        }
+
         // Post-pass stall bumps (MMA / back-edge settle) run after schedule()
         // and can re-pair a long stall with yield. Reapply the native SM120
         // OPEX law, or the earlier BUG-170 LOP3-only rule on other targets.

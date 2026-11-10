@@ -1,0 +1,20 @@
+// CUBIT_SYNC_CLASSES fixture: destinations the scheduler's own operand convention does not see -- a `LOP3` with a
+// predicate destination (and a register behind it), a uniform compare; each read by the instruction behind it.
+.entry pred_dest
+    .param u64 io
+    LDC.64 R2, c[0x0][0x380] ;
+    LDC R21, c[0x0][0x388] ;
+    LDCU.64 UR8, c[0x0][0x358] ;
+    LDCU UR6, c[0x0][0x38c] ;
+    FMUL R21, R21, 0.5 ;
+    LOP3.LUT P4, RZ, R21, 0x7fffff, RZ, 0xc0, !PT ;
+    @P4 IADD3 R21, PT, PT, R21, 0x800000, RZ ;
+    LOP3.LUT P5, R4, R21, 0xff, RZ, 0xc0, !PT ;
+    IADD3 R4, PT, PT, -R4, 0x7f, RZ ;
+    UISETP.NE.AND UP0, UPT, UR6, 0x3, UPT ;
+    BRA.U UP0, L_x ;
+    MOV R4, RZ ;
+L_x:
+    STG.E desc[UR8][R2.64], R4 ;
+    EXIT ;
+.endentry

@@ -1100,6 +1100,26 @@ fn atom_access_regs(opcode_full: &str) -> u16 {
 }
 
 pub(crate) fn dest_regs(insn: &Instruction) -> Vec<(bool, u16)> {
+    let mut out = dest_regs_plain(insn);
+    // CUBIT_SYNC_CLASSES: the convention below (`dest_regs_plain`) completed by the certified
+    // transfer functions -- a predicate destination of `LOP3`, the register behind it, the second
+    // register of `LDCU.64`, a uniform predicate (`sync_class::certified_xfer`)
+    if crate::sync_class::enabled() && !crate::sync_class::owns_operands(insn) && !is_store(insn.opcode.as_str()) {
+        if let Some((defs, _)) = crate::sync_class::certified_xfer(insn) {
+            for k in defs {
+                if !out.contains(&k) { out.push(k); }
+            }
+        }
+        for p in crate::sync_class::predicate_register_xfer(insn).0 {
+            let k = (false, PRED_KEY + p as u16);
+            if !out.contains(&k) { out.push(k); }
+        }
+    }
+    out
+}
+
+/// The scheduler's own destination convention (see `dest_regs`).
+pub(crate) fn dest_regs_plain(insn: &Instruction) -> Vec<(bool, u16)> {
     let mut out = Vec::new();
     let op = insn.opcode.as_str();
     // CUBIT_SYNC_CLASSES: the words that name their operands themselves write no register
@@ -1236,6 +1256,33 @@ pub(crate) fn dest_regs(insn: &Instruction) -> Vec<(bool, u16)> {
 }
 
 pub(crate) fn src_regs(insn: &Instruction) -> Vec<(bool, u16)> {
+    let mut out = src_regs_plain(insn);
+    // CUBIT_SYNC_CLASSES: the convention below (`src_regs_plain`) completed by the certified
+    // transfer functions, by the high half of a 64-bit address base and the descriptor's second
+    // register ...
+    if crate::sync_class::enabled() && !crate::sync_class::owns_operands(insn) {
+        if let Some((_, uses)) = crate::sync_class::certified_xfer(insn) {
+            for k in uses {
+                if !out.contains(&k) { out.push(k); }
+            }
+        }
+        for p in crate::sync_class::predicate_register_xfer(insn).1 {
+            let k = (false, PRED_KEY + p as u16);
+            if !out.contains(&k) { out.push(k); }
+        }
+        for k in crate::sync_class::wide_address_uses(insn) {
+            if !out.contains(&k) { out.push(k); }
+        }
+        // ... and by the high half of a 64-bit register operand (`IADD.64`, `ISETP.*64`, `BRX`)
+        for k in crate::sync_class::wide_operand_uses(insn) {
+            if !out.contains(&k) { out.push(k); }
+        }
+    }
+    out
+}
+
+/// The scheduler's own source convention (see `src_regs`).
+pub(crate) fn src_regs_plain(insn: &Instruction) -> Vec<(bool, u16)> {
     let mut out = Vec::new();
     let op = insn.opcode.as_str();
     // CUBIT_SYNC_CLASSES: every register operand of these words is a source (the address of
@@ -2240,6 +2287,26 @@ pub fn schedule(insns: &mut [Instruction], table: Option<&IsaTable>) {
                 // a register-indirect branch is a branch: S05 with yield (ptxas: 58 of 58 `BRX`)
                 insns[i].ctrl.stall = insns[i].ctrl.stall.max(crate::sync_class::TRANSFER_STALL);
                 insns[i].ctrl.yield_flag = insns[i].ctrl.stall < 12;
+            } else if !st.dep_lat && insns.get(i + 1).is_some_and(|w| crate::sync_class::is_settle_word(w) && w.opcode != "BRA")
+                && !is_control_flow(op) && !insn_is_store(&insns[i], table)
+            {
+                // without the latency legaliser: the instruction in front of a reconvergence point /
+                // a dispatch carries what has to land (ptxas: S07 in front of BSYNC / CALL, S04 in
+                // front of BRX); with the legaliser the distances hold on every path
+                let dests = dest_regs(&insns[i]);
+                let what = if is_warp_mma(op) {
+                    crate::sync_class::Landing::Mma
+                } else if dests.iter().all(|(u, k)| if *u { *k >= 64 } else { *k >= PRED_KEY }) {
+                    crate::sync_class::Landing::Predicate
+                } else {
+                    crate::sync_class::Landing::Register
+                };
+                if let Some(l) = crate::sync_class::settle_need(&insns[i + 1], what).filter(|_| !dests.is_empty()) {
+                    if !insn_needs_write_bar(&insns[i], table, true) && insns[i].ctrl.stall < l.min(15) {
+                        insns[i].ctrl.stall = l.min(15);
+                        insns[i].ctrl.yield_flag = false; // ptxas: `[-:S07]`
+                    }
+                }
             } else if crate::sync_class::enters_collective(insns, i) {
                 // nothing is in flight when the warp's mask changes (ptxas: S07, no yield)
                 insns[i].ctrl.stall = insns[i].ctrl.stall.max(crate::sync_class::COLLECTIVE_ENTRY_STALL);

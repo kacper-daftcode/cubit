@@ -1,0 +1,14 @@
+[B------:R-:W0:Y:S08] LDC.64 R2, c[0x0][0x380] ;
+[B------:R-:W1:Y:S04] LDC R21, c[0x0][0x388] ;
+[B------:R-:W2:Y:S04] LDCU.64 UR8, c[0x0][0x358] ;
+[B------:R-:W3:Y:S04] LDCU UR6, c[0x0][0x38c] ;
+[B-1----:R-:W-:-:S05] FMUL R21, R21, 0.5 ;
+[B------:R-:W-:Y:S01] LOP3.LUT P4, RZ, R21, 0x7fffff, RZ, 0xc0, !PT ;
+[B------:R-:W-:-:S04] @P4 IADD3 R21, PT, PT, R21, 0x800000, RZ ;
+[B------:R-:W-:Y:S01] LOP3.LUT P5, R4, R21, 0xff, RZ, 0xc0, !PT ;
+[B------:R-:W-:Y:S01] IADD3 R4, PT, PT, -R4, 0x7f, RZ ;
+[B---3--:R-:W-:Y:S01] UISETP.NE.AND UP0, UPT, UR6, 0x3, UPT ;
+[B------:R-:W-:Y:S05] BRA.U UP0, L_c0 ;
+[B------:R-:W-:-:S05] MOV R4, RZ ;
+L_c0:  [B0-2---:R-:W-:Y:S04] STG.E desc[UR8][R2.64], R4 ;
+[B------:R-:W-:Y:S05] EXIT ;

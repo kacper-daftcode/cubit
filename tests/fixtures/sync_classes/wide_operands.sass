@@ -1,0 +1,21 @@
+// CUBIT_SYNC_CLASSES fixture: the HIGH half of a 64-bit address base and of a 64-bit register operand, each built by
+// its own instruction as nvcc does (`LEA ; LEA.HI.X ; LDG [R.64]`, `SHF.L.U64.HI ; IADD.64`). Neither the scheduler's
+// operand convention nor the certified transfer functions list the upper register as a use.
+.entry wide_operands
+    .param u64 io
+    LDC.64 R2, c[0x0][0x380] ;
+    LDC R14, c[0x0][0x388] ;
+    LDC R15, c[0x0][0x38c] ;
+    LDCU.64 UR4, c[0x0][0x390] ;
+    LDCU.64 UR8, c[0x0][0x358] ;
+    IADD3 R14, PT, PT, R14, 0x1, RZ ;
+    IADD3 R15, PT, PT, R15, 0x1, RZ ;
+    SHF.L.U32 R28, R14, 0x2, RZ ;
+    LEA R4, P2, R14, UR4, 0x2 ;
+    LEA.HI.X R5, R14, UR5, R15, 0x2, P2 ;
+    LDG.E R7, desc[UR8][R4.64] ;
+    SHF.L.U64.HI R29, R14, 0x2, R15 ;
+    IADD.64 R28, R28, UR4 ;
+    STG.E desc[UR8][R28.64], R7 ;
+    EXIT ;
+.endentry

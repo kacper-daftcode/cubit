@@ -79,3 +79,48 @@ Reading the numbers. A pair floor is a count of issue cycles of a synchronous pi
 clock; a kernel scheduled from the table is to be bit-checked at the production clock before it ships. The additive model
 (the sum of the stalls from producer to consumer on every control-flow path ≥ the pair's latency) holds on every d1 / d2
 floor measured here and on the 26 floors of 2026-11-03.
+
+## Harness v7 (2026-11-10): the synchronisation words
+
+The words a warp-specialised kernel talks through — mbarriers, bulk copies, the async-proxy fence, the release / acquire
+chains, named barriers, `setmaxnreg`, the collective region of a diverged `shfl.sync` — cannot be written as a one-pair
+probe: their oracle is ptxas itself. `sync_probes.cu` (six kernels) and `coll_probe.cu` (one) are compiled by nvcc 13.0
+for sm_120a; the frozen listing of the cubin is the reference schedule; a variant is the same kernel with ONE control
+field of the word under test changed (its stall, its write / read barrier, the wait of its reader) or one instruction
+replaced by a `NOP` (the positive controls), re-assembled over the nvcc cubin with `cubit asm -T`. Every kernel writes
+one checksum per thread; a thread is wrong when its checksum differs from the reference kernel's. The references are
+re-assembled the same way and must reproduce nvcc's cubin byte for byte.
+
+```
+nvcc -O3 -std=c++20 -gencode arch=compute_120a,code=sm_120a -cubin -o sync_probes.cubin tools/stallfloor/sync_probes.cu
+python3 tools/stallfloor/syncfloor_gen.py --cubit target/release/cubit --table tables/sm120.json.gz \
+    --cubin sync_probes.cubin --out kernels_sync/              # 81 kernels: 6 references + 75 variants, index.json
+python3 tools/stallfloor/syncfloor_run.py kernels_sync/ --probe p_mbar --reps 20 --out floors.json
+python3 tools/stallfloor/syncfloor_run.py kernels_sync/ --probe p_bulk --isolate --out floors.json
+```
+
+`--isolate` runs the reference and every variant in a process of its own with a timeout: a wrong schedule of `UBLKCP`
+faults the context (CUDA_ERROR_LAUNCH_FAILED) and a wrong schedule of `USETMAXREG.TRY_ALLOC` never returns — without it
+the first such variant takes the rest of the sweep with it.
+
+| file | what it holds |
+|---|---|
+| `sync_floors_sm120_20261110_mbar.json`, `..._mbars.json` | `SYNCS.PHASECHK.TRANS64.TRYWAIT` → its branch (spin form) / → `NANOSLEEP.SYNCS` (suspend form), 512 producer and 512 consumer threads per CTA: **without the write barrier 327 680 of 327 680 consumer thread-launches wrong at every stall 1, 2, 3, 4, 5, 6, 8, 10, 12, 15**; with it wrong at S01 with yield, clean at S01 without yield, S02, S03 |
+| `sync_floors_sm120_20261110_setmaxnreg.json` | `USETMAXREG.TRY_ALLOC.CTAPOOL` → `BRA.U !UP0`: **hangs at S01 with its barrier and at S01, S02, S04, S08, S13 without it**; the retry branch at S01 / S02, `DEALLOC` without its write barrier, `WARPSYNC.ALL` at S01: clean |
+| `sync_floors_sm120_20261110_bulk.json` | `UBLKCP.S.G`: **launch failure at stall 1, 2, 4, 8, clean at 12**; the read barriers of the copy / the arrive / the store form / `UTMACMDFLUSH`, the fence's write barrier, `MEMBAR.ALL.CTA` at S01 / S03, `DEPBAR.LE` at S01 / S02 / S04: no wrong word (the probe copies 4 KiB per CTA and iteration; a dropped barrier is not observable with it) |
+| `sync_floors_sm120_20261110_acqrel.json` | a writer CTA releases (`MEMBAR.ALL.GPU ; ERRBAR ; CGAERRBAR ; STG.E.STRONG.GPU`), a reader CTA polls and acquires (`LDG.E.STRONG.GPU ; CCTL.IVALL`): the invalidate dropped — every reader thread wrong; issued before the load's barrier is waited — clean; the chain's stalls at 1 / 3 and the `MEMBAR` dropped — clean (not observable: one writer per flag) |
+| `sync_floors_sm120_20261110_named.json` | the stall behind `BAR.ARV` 1 … 8: clean; control `BAR.SYNC` → `LDS`: wrong at 1 … 5, clean at 6 (the `bar` resource of the table, BUG-479) |
+| `sync_floors_sm120_20261110_coll.json` | the collective region of a diverged `shfl.sync` (`coll_probe.cu`, 24 one-field variants): the instruction in front of `WARPSYNC.COLLECTIVE` at **S01 / S02: fault (CUDA error 715)**, clean from S03; the region's `SHFL` at S01: 248 754 of 655 360 thread-launches wrong, S02 clean; `ENDCOLLECTIVE` without its waits: 205 284 wrong (the reader behind the region waiting instead: clean); the stalls of `WARPSYNC.COLLECTIVE` / `ENDCOLLECTIVE` 1 … 5: clean |
+
+The classes these files stand behind are `src/sync_class.rs` (`CUBIT_SYNC_CLASSES=1`); the table of
+`docs/SM120_ASYNC_IDIOMS.md` says for every word which number is a measured law and which is ptxas's practice.
+
+`war_census.py` is the census of the other direction — write-after-read: how soon behind a reader of a register a
+schedule lets another instruction overwrite it. Built from `depdump` files like `dep_latency_census.py`; with
+`--against corpus.json … -- schedule.dep.jsonl` it lists the sites of a schedule below the corpus's minimum of their
+(reader class, overwriter class). Two of its rows are laws with a silicon run (`docs/SM120_ASYNC_IDIOMS.md`): ptxas keeps
+a fixed-latency overwriter 8 cycles behind an MMA that reads the register (56 723 sites of 1.9 M instructions, 16 524 at
+exactly 8) and a `UMOV` 3 cycles behind a uniform-datapath reader (2 246 sites, none below). The metric is the stall sum
+on the straight-line text and looks only at the overwriter's own wait mask: a pair coupled through a scoreboard (a wait
+on the instruction in front of the overwriter) is listed although it is covered.
+
