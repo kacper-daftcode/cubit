@@ -14,8 +14,15 @@
 //!   while `CUBIT_VERIFY` reported "0 broken WAR" (2026-11-10; the allocator follows the same
 //!   text and placed the wait where only the non-final iterations pass).
 //!
-//! This check walks the control-flow graph instead: from every store that carries a read
-//! barrier, along EVERY path (both outcomes of a conditional branch, loops included), up to the
+//! The asynchronous global -> shared copy (`LDGSTS`) is the same case on its address registers:
+//! it reads the source address pair when the copy is served. The simulation covers it "by
+//! distance" as if it were a global load (three issue cycles), and so passed a schedule that
+//! faults on silicon: the vendor's own kernel with the wait on the copy's read barrier dropped
+//! from `MOV R61, RZ`, nine instructions behind `LDGSTS ... desc[UR8][R60.64]`, ends in
+//! CUDA_ERROR_ILLEGAL_ADDRESS in 3 of 3 processes (2026-11-10).
+//!
+//! This check walks the control-flow graph instead: from every store — and every `LDGSTS` — that
+//! carries a read barrier, along EVERY path (both outcomes of a conditional branch, loops included), up to the
 //! first instruction that writes one of the registers the store reads. A path is protected
 //! when an instruction on it — at or before the overwriter — waits on the store's read barrier.
 //! Every overwriter reached without such a wait is a finding, reported with the smallest issue
@@ -45,7 +52,8 @@ pub struct StorePathFinding {
     pub overwriter: usize,
     /// the lowest register of the store's that the overwriter writes on that path
     pub reg: u8,
-    /// `true`: a data register of the store; `false`: an address register
+    /// `true`: a data register of the store; `false`: an address register (of a store, or of
+    /// an `LDGSTS`: its source address pair or its shared destination base)
     pub data: bool,
     /// the store's read barrier (`None` only in the probe mode: a store without one)
     pub read_bar: Option<u8>,
@@ -253,6 +261,25 @@ impl<'a> Flow<'a> {
     }
 }
 
+/// The registers an `LDGSTS` reads late: the 64-bit source address pair of its descriptor operand
+/// (`desc[URn][Ra.64]` -> Ra, Ra+1) and the base of its shared destination (`[Rb+imm]` -> Rb).
+fn copy_addr_gprs(ins: &Instruction) -> (Vec<u8>, Vec<u8>) {
+    let (mut global, mut shared) = (Vec::new(), Vec::new());
+    for o in &ins.operands {
+        match o {
+            crate::ir::Operand::Desc { base_reg: Some(b), base_reg_suffix, .. } if *b < 255 => {
+                global.push(*b);
+                if base_reg_suffix.as_deref().is_some_and(|x| x.contains("64")) && *b < 254 {
+                    global.push(*b + 1);
+                }
+            }
+            crate::ir::Operand::Addr { base_reg: Some(b), .. } if *b < 255 => shared.push(*b),
+            _ => {}
+        }
+    }
+    (global, shared)
+}
+
 /// The store → overwriter pairs of a scheduled kernel that some path of its flow graph reaches
 /// without a wait on the store's read barrier, sorted by store. `bare_too`: also the stores
 /// that carry no read barrier (every later overwriter of their registers is a finding) — the
@@ -262,7 +289,8 @@ pub fn unwaited_store_overwrites(insns: &[Instruction], bare_too: bool) -> Vec<S
     let flow = Flow::new(insns);
     let mut out = Vec::new();
     for (s, ins) in insns.iter().enumerate() {
-        if !sp::is_store(ins.opcode.as_str()) {
+        let is_copy = ins.opcode == "LDGSTS";
+        if !sp::is_store(ins.opcode.as_str()) && !is_copy {
             continue;
         }
         let rb = ins.ctrl.read_bar;
@@ -271,8 +299,12 @@ pub fn unwaited_store_overwrites(insns: &[Instruction], bare_too: bool) -> Vec<S
             continue;
         }
         let barriers = read_bar.map_or(0, |b| 1u8 << b);
-        let addr = sp::store_addr_gprs(ins);
-        let data = sp::store_data_gprs(ins);
+        let (addr, data) = if is_copy {
+            let (global, shared) = copy_addr_gprs(ins);
+            (global.into_iter().chain(shared).collect(), Vec::new())
+        } else {
+            (sp::store_addr_gprs(ins), sp::store_data_gprs(ins))
+        };
         for (is_data, regs) in [(false, &addr), (true, &data)] {
             // per overwriter: the smallest distance, and the lowest register it reaches it with
             let mut found: HashMap<usize, (u32, u8)> = HashMap::new();
@@ -306,7 +338,13 @@ pub fn unwaited_store_overwrites(insns: &[Instruction], bare_too: bool) -> Vec<S
 /// it — 97 pairs in the 166 listings of the sm_120 census, 8 to 24 issue cycles behind the store
 /// — and never a data register of any store, nor the address pair of a global one (0 pairs).
 pub fn is_shared_store_address(insns: &[Instruction], f: &StorePathFinding) -> bool {
-    !f.data && matches!(insns[f.store].opcode.as_str(), "STS" | "STL")
+    let ins = &insns[f.store];
+    match ins.opcode.as_str() {
+        "STS" | "STL" => !f.data,
+        // the shared destination base of a copy is the same class; its source pair is not
+        "LDGSTS" => copy_addr_gprs(ins).1.contains(&f.reg) && !copy_addr_gprs(ins).0.contains(&f.reg),
+        _ => false,
+    }
 }
 
 /// One line per finding, as `CUBIT_VERIFY` prints it.
@@ -469,5 +507,39 @@ mod tests {
         assert!(is_shared_store_address(&k, &f[0]) && !is_shared_store_address(&k, &f[1]));
         let rep = sp::verify_scoreboard_report(&k, None);
         assert_eq!((rep.store_paths, rep.store_paths_shared_addr), (1, 1));
+    }
+
+    /// The asynchronous copy: the shape of the candidate that passed every offline check and
+    /// faulted on silicon — the upper register of the copy's source address pair rewritten
+    /// with the wait on the copy's read barrier dropped.
+    #[test]
+    fn the_address_pair_of_an_asynchronous_copy_is_read_late() {
+        let lines = [
+            "    [B------:R1:W-:Y:S01] LDGSTS.E.BYPASS.128 [R77+0x1000], desc[UR8][R60.64], P1 ;",
+            "    [B------:R-:W-:Y:S02] IADD.64 R80, R80, UR4 ;",
+            "    [B------:R-:W-:Y:S01] MOV R61, RZ ;",
+            "    [B------:R-:W-:Y:S01] MOV R77, RZ ;",
+            "    [B------:R-:W-:Y:S01] EXIT ;",
+        ];
+        let k = kernel(&lines);
+        // the simulation covers the copy by distance, as if it were a global load
+        assert_eq!(sp::verify_scoreboard_report(&k, None).war, 0);
+        let f = unwaited_store_overwrites(&k, false);
+        assert_eq!(
+            f.iter().map(|x| (x.store, x.overwriter, x.reg, x.data, x.read_bar, x.distance)).collect::<Vec<_>>(),
+            [(0, 2, 61, false, Some(1), 3), (0, 3, 77, false, Some(1), 4)]
+        );
+        // the source pair counts; the shared destination base is the class counted apart
+        assert!(!is_shared_store_address(&k, &f[0]) && is_shared_store_address(&k, &f[1]));
+        let rep = sp::verify_scoreboard_report(&k, None);
+        assert_eq!((rep.store_paths, rep.store_paths_shared_addr), (1, 1));
+        // with the vendor's wait on the overwriter: clean
+        let mut waited = lines;
+        waited[2] = "    [B-1----:R-:W-:Y:S01] MOV R61, RZ ;";
+        assert!(unwaited_store_overwrites(&kernel(&waited), false).is_empty());
+        // the low register of the pair is the same operand
+        let mut low = lines;
+        low[2] = "    [B------:R-:W-:Y:S01] MOV R60, RZ ;";
+        assert_eq!(unwaited_store_overwrites(&kernel(&low), false)[0].reg, 60);
     }
 }

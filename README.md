@@ -106,8 +106,9 @@ instruction text and assembled over ptxas's cubin (`asm -T`). Opt-in, sm_120, fl
 served MoE kernels scheduled this way give identical bits, 16.7 % and 12.7 % slower than ptxas's schedule
 ([docs/SM120_ASYNC_IDIOMS.md](docs/SM120_ASYNC_IDIOMS.md), KNOWN_ISSUES A29).
 `CUBIT_VERIFY=1` runs the read-only scoreboard verifier on every kernel it
-assembles (frozen or scheduled) and prints each unprotected RAW / broken WAR, and each store whose registers are
-rewritten on some path of the flow graph with no wait on the store's read barrier (`STORE PATH`, `CUBIT_VERIFY_PATHS`);
+assembles (frozen or scheduled) and prints each unprotected RAW / broken WAR, and each store or asynchronous copy
+(`LDGSTS`) whose registers are rewritten on some path of the flow graph with no wait on its read barrier (`STORE PATH`,
+`CUBIT_VERIFY_PATHS`);
 `CUBIT_VERIFY_RBPROBE=1`
 adds the read-barrier coverage probe of the legality oracle (`tools/sched_oracle.py`, KNOWN_ISSUES A4).
 

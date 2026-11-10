@@ -83,6 +83,19 @@ decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `
 
 ## Unreleased — 2026-11-10 (session T-27: `CUBIT_VERIFY` checks the read barriers of stores on every path — three unprotected store → overwriter pairs of a production kernel had passed as "0 broken WAR"; batches 6 and 7 of the B300 lane's candidate forms on sm103a / sm100a — `QMUL4` / `QADD4` with their operand selectors, the uniform-source `VIMNMX3` forms, one more scaled F2FP form (57 of 69 refs taken); a test of the suite that failed at random)
 
+- **The same check covers the asynchronous copy `LDGSTS`: its address registers are read when the copy is served** (`src/store_paths.rs`,
+  `the_address_pair_of_an_asynchronous_copy_is_read_late`). Found on silicon by the schedule-search session the same evening: the
+  vendor's own `fc2` kernel with the wait on the copy's read barrier dropped from two instructions — `MOV R61, RZ` nine instructions
+  behind `LDGSTS.E.BYPASS.128 [R77+0x1000], desc[UR8][R60.64], P1` (read barrier 1), and `SEL R57, RZ, 0x1, P5` behind the copy from
+  `[R56.64]` — ends in CUDA_ERROR_ILLEGAL_ADDRESS in 3 of 3 processes, and every offline check had passed the candidate, `CUBIT_VERIFY`
+  included: its simulation covers an `LDGSTS` by distance as if it were a global load (three issue cycles). The path check now walks
+  from every `LDGSTS` that holds a read barrier as it does from a store: the source address pair of `desc[URn][Ra.64]` (both
+  registers) counts in `CUBIT_VERIFY_PATHS: N`; the base of the shared destination is the class counted apart, like a shared store's
+  address. On the two listings of the case: the vendor's schedule 0 pairs; the faulting candidate 4 — `[602] → [611] MOV R61` and
+  `[635] → [645] SEL R57`, the two edits, and two later writers of `R56` that the dropped wait had covered as well. **The vendor's
+  schedules stay clean:** 0 pairs in the 166 listings of the sm_120 census (59 of them hold 3 202 `LDGSTS`). The simulation's "broken
+  WAR" is unchanged (making the copy a late latcher there adds lines on the vendor's own kernel, because it follows the text across an
+  unconditional branch and takes `R77 + 1` for part of the shared address).
 - **`CUBIT_VERIFY` checks the read barriers of stores on every path of the flow graph** (`src/store_paths.rs`; lines `STORE PATH: …` and
   `CUBIT_VERIFY_PATHS: N …`, `VerifyReport.store_paths`; read-only). A store reads its address and data registers when the memory pipe
   serves it, so whoever rewrites one of them must first wait on the store's read barrier (KNOWN_ISSUES A27). The scoreboard simulation
