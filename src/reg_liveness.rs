@@ -309,6 +309,23 @@ pub fn role_class(base_op: &str) -> Option<&'static str> {
     roles_table().base_ops.get(base_op).map(|e| e.cls.as_str())
 }
 
+/// The destination slot of an atomic or a `SYNCS` word (BUG-490): the first top-level register
+/// operand in FRONT of the memory operand (`uniform_too`: a uniform register counts), or, for a
+/// form without a memory operand, the first register operand. The slot is positional: `RZ` /
+/// `URZ` in it returns nothing and defines nothing, and it does not pass the role on -- every
+/// register behind the memory operand is read (the datum of an atomic, the count of an arrive,
+/// the phase of a phase check, the value of an exchange). A word with no register in front of
+/// its memory operand (`SYNCS.PHASECHK P0, [..], R2`) has no slot.
+fn dest_slot(insn: &Instruction, uniform_too: bool) -> Option<usize> {
+    let mem = insn
+        .operands
+        .iter()
+        .position(|o| matches!(o, Operand::Addr { .. } | Operand::Desc { .. }));
+    insn.operands[..mem.unwrap_or(insn.operands.len())]
+        .iter()
+        .position(|o| matches!(o, Operand::Reg { .. }) || (uniform_too && matches!(o, Operand::UReg { .. })))
+}
+
 /// Register transfer sets for one instruction. Roles come from
 /// the operand_roles aux section (M3.5 data); unknown base opcodes
 /// carrying registers stay fail-closed.
@@ -412,16 +429,21 @@ pub fn reg_xfer(insn: &Instruction) -> RegXfer {
                 }
             }
         }
-        // Global atomics WITH return (sig P_R_dARI_R): the first top-level
-        // register after the predicate output is the old-value destination
-        // pair (consumers in R0b read both halves), everything else reads.
+        // Global atomics (sig P_R_dARI_R): the register in the destination
+        // slot (`dest_slot`: behind the predicate output, in front of the
+        // memory operand) is the old-value destination pair (consumers in
+        // R0b read both halves), everything else reads. BUG-490: `RZ` in the
+        // slot returns nothing and defines nothing -- the first register
+        // that is not `RZ` was taken instead, which made the DATA of
+        // `ATOMG … PT, RZ, desc[..][..], R17` a definition and no use.
         "atomg" => {
-            let mut first_reg_seen = false;
-            for o in &insn.operands {
+            let slot = dest_slot(insn, false);
+            for (i, o) in insn.operands.iter().enumerate() {
                 match o {
-                    Operand::Reg { num, .. } if !first_reg_seen && *num != 255 => {
-                        put(&mut x.rdefs, &mut x.spans, *num, 2, RegDom::R, 255, true);
-                        first_reg_seen = true;
+                    Operand::Reg { num, .. } if Some(i) == slot => {
+                        if *num != 255 {
+                            put(&mut x.rdefs, &mut x.spans, *num, 2, RegDom::R, 255, true);
+                        }
                     }
                     Operand::Reg { .. } => use_operand(o, &mut x, w),
                     _ => use_operand(o, &mut x, 1),
@@ -437,11 +459,15 @@ pub fn reg_xfer(insn: &Instruction) -> RegXfer {
         // Shuffle (sig P_R_R_..): destination is the first REGISTER operand
         // (token 0 may be the predicate output), remaining registers read.
         "shfl" => {
+            // (BUG-490: positional -- a shuffle into `RZ` defines nothing and
+            // its sources stay sources.)
             let mut first_reg_seen = false;
             for o in &insn.operands {
                 match o {
-                    Operand::Reg { num, .. } if !first_reg_seen && *num != 255 => {
-                        put(&mut x.rdefs, &mut x.spans, *num, 1, RegDom::R, 255, true);
+                    Operand::Reg { num, .. } if !first_reg_seen => {
+                        if *num != 255 {
+                            put(&mut x.rdefs, &mut x.spans, *num, 1, RegDom::R, 255, true);
+                        }
                         first_reg_seen = true;
                     }
                     _ => {
@@ -506,17 +532,22 @@ pub fn reg_xfer(insn: &Instruction) -> RegXfer {
             }
         }
         // Atomics with register return (ATOM/ATOMS, BUG-118):
-        // the FIRST register operand is the destination (access width from
+        // the register in the destination slot (`dest_slot`: in front of the
+        // memory operand) is the destination (access width from
         // the .64 modifier: ATOM.E.CAS.STRONG.GPU = 32-bit, ATOMS.*.64 =
         // pair); every later register is a use (compare/value operands read
-        // at the same width -- conservative is correct here).
+        // at the same width -- conservative is correct here). BUG-490: `RZ`
+        // in the slot defines nothing; `ATOMS.MAX.S32 RZ, [..], R58` READS
+        // R58 (the first register that is not `RZ` was taken as the
+        // destination).
         "atom" => {
-            let mut first_reg_seen = false;
-            for o in &insn.operands {
+            let slot = dest_slot(insn, false);
+            for (i, o) in insn.operands.iter().enumerate() {
                 match o {
-                    Operand::Reg { num, .. } if !first_reg_seen && *num != 255 => {
-                        put(&mut x.rdefs, &mut x.spans, *num, w, RegDom::R, 255, true);
-                        first_reg_seen = true;
+                    Operand::Reg { num, .. } if Some(i) == slot => {
+                        if *num != 255 {
+                            put(&mut x.rdefs, &mut x.spans, *num, w, RegDom::R, 255, true);
+                        }
                     }
                     Operand::Reg { .. } => use_operand(o, &mut x, w),
                     _ => use_operand(o, &mut x, 1),
@@ -527,14 +558,16 @@ pub fn reg_xfer(insn: &Instruction) -> RegXfer {
         // landing): the first non-zero UREG operand is the destination
         // (UR79 vendor scratch), remaining tracked operands are uses
         // (anchors: "ELECT P0, UR79, PT" / "REDUX.SUM UR79, R6", b9 p08/p10).
+        // (BUG-490: positional -- `URZ` in the slot defines nothing and a
+        // uniform register behind it stays a use.)
         "urdef_first" => {
             let mut ureg_dst_seen = false;
             for o in &insn.operands {
                 match o {
-                    Operand::UReg { num, is_zero, .. }
-                        if !ureg_dst_seen && !is_zero =>
-                    {
-                        put(&mut x.udefs, &mut x.spans, *num, 1, RegDom::UR, 64, true);
+                    Operand::UReg { num, is_zero, .. } if !ureg_dst_seen => {
+                        if !is_zero {
+                            put(&mut x.udefs, &mut x.spans, *num, 1, RegDom::UR, 64, true);
+                        }
                         ureg_dst_seen = true;
                     }
                     _ => use_operand(o, &mut x, 1),
@@ -546,17 +579,25 @@ pub fn reg_xfer(insn: &Instruction) -> RegXfer {
         // operand is the destination state register (SYNCS.ARRIVE.TRANS64
         // [REDACTED-PAIR-lo|RZ], SYNCS.EXCH.64 URZ sink, ...); every later
         // operand is a use (addr brackets, UR state inputs).
+        // BUG-490: the slot is `dest_slot` -- in front of the memory operand,
+        // `RZ` / `URZ` in it defines nothing, and a word without one
+        // (`SYNCS.PHASECHK P0, [..], R2`) defines no register: the register
+        // behind the memory operand is READ (the vendor's text: written
+        // right in front of the word with no other reader 2 502 times, read
+        // behind it before the next write 0 times, in 8 738 sites).
         "syncs" => {
-            let mut dst_seen = false;
-            for o in &insn.operands {
+            let slot = dest_slot(insn, true);
+            for (i, o) in insn.operands.iter().enumerate() {
                 match o {
-                    Operand::Reg { num, .. } if !dst_seen && *num != 255 => {
-                        put(&mut x.rdefs, &mut x.spans, *num, 1, RegDom::R, 255, true);
-                        dst_seen = true;
+                    Operand::Reg { num, .. } if Some(i) == slot => {
+                        if *num != 255 {
+                            put(&mut x.rdefs, &mut x.spans, *num, 1, RegDom::R, 255, true);
+                        }
                     }
-                    Operand::UReg { num, is_zero, .. } if !dst_seen && !is_zero => {
-                        put(&mut x.udefs, &mut x.spans, *num, 1, RegDom::UR, 64, true);
-                        dst_seen = true;
+                    Operand::UReg { num, is_zero, .. } if Some(i) == slot => {
+                        if !is_zero {
+                            put(&mut x.udefs, &mut x.spans, *num, 1, RegDom::UR, 64, true);
+                        }
                     }
                     _ => use_operand(o, &mut x, 1),
                 }

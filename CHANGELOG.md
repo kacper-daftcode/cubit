@@ -4,7 +4,7 @@ User-visible changes, newest first. Table syncs name the blackwell-isa revision 
 (`tables/SOURCE.json` pins it byte for byte). Numbered `BUG-NNN` entries are the encoder /
 decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `docs/TESTS.md`).
 
-## Unreleased — 2026-11-11 (session T-29: write after write — `CUBIT_VERIFY` reports a register whose scoreboarded result is pending and is written again, on every path; under `CUBIT_SYNC_CLASSES` the barrier allocator closes its own schedule under that walk, BUG-489; `CUBIT_VERIFY` checks the source registers of a warp shuffle on every path; the default path byte for byte)
+## Unreleased — 2026-11-11 (session T-29: write after write — `CUBIT_VERIFY` reports a register whose scoreboarded result is pending and is written again, on every path; under `CUBIT_SYNC_CLASSES` the barrier allocator closes its own schedule under that walk, BUG-489; `CUBIT_VERIFY` checks the source registers of a warp shuffle on every path; BUG-490: in the certified transfer sets an atomic or `SYNCS` word that returns nothing reads the register behind its memory operand; the default path byte for byte)
 
 - **`CUBIT_VERIFY` reports write after write on every path** (`store_paths::unwaited_rewrites`; lines `WRITE AFTER WRITE` and
   `CUBIT_VERIFY_WAW`; in `CUBIT_VERIFY_JSON` findings of kind `waw` in the scoreboard list and the counts `scoreboard.waw` /
@@ -66,12 +66,28 @@ decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `
   protects a shuffle's source already; on the default path it does not, the verifier names such a pair, and nothing that
   serves has one. `tests/shfl_source_paths.rs` (3), `tests/ps_s2_sites.rs` (+3, written by session EM-7; 1 red before),
   five unit tests.
-- **A defect met on the way, not repaired here:** the certified transfer function (`reg_liveness::reg_xfer`, the register
-  allocator's) takes the first register operand that is not `RZ` as the destination of an atomic, so for a form that
-  returns nothing — `ATOMG.E.ADD.S32.STRONG.GPU PT, RZ, desc[UR10][R10.64], R17`, `ATOMS.MAX.S32 RZ, [..], R58` — the DATA
-  register is a definition and not a use; under `CUBIT_SYNC_CLASSES` those sets complete the scheduler's operand model
-  too. With them as a producer's result the walk printed 168 pairs in 14 census listings (under the switch as well); for
-  an atomic it therefore reads the scheduler's own convention (BUG-482), and a test pins that (KNOWN_ISSUES A35).
+- **BUG-490 — the certified transfer function took the first register that is not `RZ` for the destination of an atomic,
+  a `SYNCS` word, a shuffle and a uniform-result warp word** (`reg_liveness::reg_xfer`: the sets `cubit ra`, `cubit sched`,
+  `stallfix` and the path walks of `CUBIT_VERIFY` stand on, and under `CUBIT_SYNC_CLASSES` the scheduler's operand model).
+  When the destination slot held `RZ` / `URZ` — a word that returns nothing — or the word has no slot at all, the NEXT
+  register became a definition and was no use, with `known: true`: the datum of `ATOMS.MAX.S32 RZ, [..], R58` and of
+  `ATOMG.E.ADD.S32.STRONG.GPU PT, RZ, desc[UR10][R10.64], R17`, the value of `SYNCS.EXCH.64 URZ, [..], UR4`, the count of
+  `SYNCS.ARRIVE.TRANS64 RZ, [..], R0`, the phase of `SYNCS.PHASECHK.TRANS64.TRYWAIT P0, [..], R2`. To the register
+  allocator a value that only such a word reads was dead from its last other reader on: it shared a register with a
+  value that lives in between. Found by the write-after-write walk above, which printed 168 false pairs in 14 census
+  listings when it took a producer's result from these sets. **Now the slot is positional:** the register in front of the
+  memory operand (the first register operand of a word without one); `RZ` / `URZ` there defines nothing and does not
+  hand the role on; every register behind the memory operand is read. **What the vendor's text says** (the sm_120 census,
+  154 listings, an edge vote inside one basic block; 12 620 registers behind the memory operand of such a word — `ATOMS`
+  3 864, `ATOMG` 18, `SYNCS.ARRIVE` 1 100, `SYNCS.EXCH` 2 670, `SYNCS.PHASECHK` 4 968): written immediately in front of
+  the word with no other reader 4 972 times (a dead write if the word did not read it), read behind the word before the
+  next write 0 times, written again first 3 899 times (a dead definition if the word had defined it). **Reach:** nothing
+  that serves carries such a word — 101 production sources, 160 committed cubins, the attention builds: no atomic, no
+  `SYNCS`, no `ELECT` / `REDUX`, and every shuffle has a real destination — and the default assembly path does not read
+  these sets. cubit's five schedules of the served MoE kernels under `CUBIT_SYNC_CLASSES` are byte for byte what they
+  were; on the vendor's census under the switch 7 false `UNPROTECTED RAW` lines (a reader of the datum behind
+  `ATOMG … PT, RZ`) and 2 false hazard warnings are gone and nothing else moves; without the switch nothing moves.
+  `tests/bug490_zero_destination_slot.rs` (6, 5 red before); KNOWN_ISSUES A37.
 
 ## Unreleased — 2026-11-11 (session SCH-5: the covers of a warp shuffle's source on two card models, write after write, producers of other classes on one write barrier, the yield flag — a tool version and result files only, no source line changes)
 
