@@ -325,6 +325,23 @@ enum Commands {
         #[arg(short, long, default_value = "tables/sm120.json")]
         table: PathBuf,
     },
+    /// Hold a candidate schedule against its seed: two files of `CUBIT_VERIFY_JSON` lines.
+    ///
+    /// For every kernel (the last line of a kernel in a file counts): the findings of the
+    /// candidate whose key -- kind and instruction indices -- the seed does not have, and the
+    /// findings both have that are CLOSER in the candidate (a dependency with a smaller `have`, a
+    /// store whose overwriter stands at a smaller `distance`). Exit code 0 only when there is
+    /// neither, in every kernel of both files; two lines that are not reports of one instruction
+    /// list under one model and one table are not comparable, which is not clean.
+    LegalityDiff {
+        /// The seed's lines (the file `CUBIT_VERIFY_JSON=<file> cubit asm <seed listing>` wrote).
+        seed: PathBuf,
+        /// The candidate's lines.
+        candidate: PathBuf,
+        /// Also write one JSON object per kernel (schema `cubit-legality-diff-1`) to this file.
+        #[arg(long)]
+        json: Option<PathBuf>,
+    },
     /// Assemble several SASS instructions given as one string (labels and branch targets resolved) and print the words.
     AsmText {
         #[arg(short, long, default_value = "tables/sm120.json")]
@@ -452,6 +469,7 @@ fn main() -> Result<()> {
             strict,
         } => cmd_merc_dump(&input, kernel.as_deref(), strict),
         Commands::Info { table } => cmd_info(&table),
+        Commands::LegalityDiff { seed, candidate, json } => cmd_legality_diff(&seed, &candidate, json.as_deref()),
     }
 }
 
@@ -5973,6 +5991,80 @@ fn cmd_asm_directive_format(
         }
     }
     println!("Total:   {total_enc} encoded ({total_fail} failed)");
+    Ok(())
+}
+
+/// `cubit legality-diff`: a candidate's `CUBIT_VERIFY_JSON` lines against its seed's (`legality::compare`).
+fn cmd_legality_diff(seed_path: &Path, cand_path: &Path, json_out: Option<&Path>) -> Result<()> {
+    // kernel -> its last line in the file (the file is appended to), in the order of first appearance
+    let load = |path: &Path| -> Result<Vec<(String, serde_json::Value)>> {
+        let text = std::fs::read_to_string(path).with_context(|| format!("reading {}", path.display()))?;
+        let mut out: Vec<(String, serde_json::Value)> = Vec::new();
+        for (n, l) in text.lines().enumerate().filter(|(_, l)| !l.trim().is_empty()) {
+            let v: serde_json::Value = serde_json::from_str(l).with_context(|| format!("{}: line {} is not JSON", path.display(), n + 1))?;
+            let name = v["kernel"].as_str().with_context(|| format!("{}: line {} names no kernel", path.display(), n + 1))?.to_string();
+            match out.iter_mut().find(|(k, _)| *k == name) {
+                Some(e) => e.1 = v,
+                None => out.push((name, v)),
+            }
+        }
+        Ok(out)
+    };
+    let seed = load(seed_path)?;
+    let cand = load(cand_path)?;
+    if cand.is_empty() {
+        bail!("{}: no kernel line", cand_path.display());
+    }
+    let mut worse = 0usize;
+    let mut objects = Vec::new();
+    let count = |v: &serde_json::Value| -> usize {
+        ["scoreboard", "store_paths", "dep"].iter().map(|l| v[*l]["findings"].as_array().map_or(0, |a| a.len())).sum()
+    };
+    for (name, c) in &cand {
+        let d = match seed.iter().find(|(k, _)| k == name) {
+            Some((_, s)) => {
+                let d = cubit::legality::compare(s, c);
+                println!(
+                    "  {}: LEGALITY-DIFF {} new, {} closer than the seed ({} findings in the seed, {} in the candidate){}",
+                    name,
+                    d.new.len(),
+                    d.closer.len(),
+                    count(s),
+                    count(c),
+                    d.not_comparable.as_ref().map_or(String::new(), |w| format!(" -- NOT COMPARABLE: {w}"))
+                );
+                d
+            }
+            None => {
+                let d = cubit::legality::Difference { not_comparable: Some("the seed has no line for this kernel".to_string()), ..Default::default() };
+                println!("  {name}: LEGALITY-DIFF NOT COMPARABLE: the seed has no line for this kernel");
+                d
+            }
+        };
+        for f in &d.new {
+            println!("    new    {} {}: {}", f.list, f.key, f.text);
+        }
+        for f in &d.closer {
+            println!("    closer {} {}: {} < {} in the seed: {}", f.list, f.key, f.candidate.unwrap_or(0), f.seed.unwrap_or(0), f.text);
+        }
+        if !d.is_clean() {
+            worse += 1;
+        }
+        objects.push(cubit::legality::difference_json(name, &d));
+    }
+    for (name, _) in seed.iter().filter(|(k, _)| !cand.iter().any(|(c, _)| c == k)) {
+        println!("  {name}: LEGALITY-DIFF NOT COMPARABLE: the candidate has no line for this kernel");
+        let d = cubit::legality::Difference { not_comparable: Some("the candidate has no line for this kernel".to_string()), ..Default::default() };
+        objects.push(cubit::legality::difference_json(name, &d));
+        worse += 1;
+    }
+    if let Some(path) = json_out {
+        let text: String = objects.iter().map(|o| format!("{o}\n")).collect();
+        std::fs::write(path, text).with_context(|| format!("writing {}", path.display()))?;
+    }
+    if worse > 0 {
+        bail!("legality-diff: {worse} kernel(s) with a finding the seed does not have, or has farther apart (or not comparable)");
+    }
     Ok(())
 }
 

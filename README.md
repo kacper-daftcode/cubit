@@ -116,6 +116,10 @@ simulation, the stores' read barriers on every path, the fixed-latency dependenc
 finding with its instruction indices (`src/legality.rs`, schema `cubit-legality-1`): a tool that holds a candidate
 schedule against its seed takes the set difference instead of parsing the text. It prints nothing, changes no byte and
 does not need the other two variables.
+`cubit legality-diff <seed.jsonl> <candidate.jsonl>` is that comparison: the findings of the candidate whose key the seed
+does not have, and the findings both have that are closer in the candidate (a dependency with a smaller `have`, a store
+whose overwriter stands at a smaller `distance`) — a candidate that takes a cycle off a pair its seed already reports keeps
+every key. Exit code 0 only when there is neither.
 
 ## Commands
 

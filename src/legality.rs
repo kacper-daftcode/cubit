@@ -12,7 +12,8 @@
 //! The counts are not a verdict. A listing of the vendor's assembler has findings of every class
 //! (its schedules follow rules the checks do not model: the copy bursts, the idioms of
 //! `docs/SM120_ASYNC_IDIOMS.md`); the rule a caller can hold a candidate to is "no finding the
-//! seed does not have" -- and `store_paths.pairs` of a kernel cubit schedules itself is 0.
+//! seed does not have, and none closer than the seed has it" -- [`compare`], the command
+//! `cubit legality-diff` -- and `store_paths.pairs` of a kernel cubit schedules itself is 0.
 
 use crate::dep_stall::{self, DepLatTable};
 use crate::ir::Instruction;
@@ -94,5 +95,135 @@ pub fn report(kernel: &str, insns: &[Instruction], table: Option<&IsaTable>, dep
             "findings": dep,
             "blind": blind,
         },
+    })
+}
+
+// ───────────────────────── a candidate against its seed ─────────────────────────
+
+/// Version of the comparison's layout (`cubit legality-diff --json`).
+pub const DIFF_SCHEMA: &str = "cubit-legality-diff-1";
+
+/// One finding of a candidate that its seed does not have, or has farther apart.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DiffFinding {
+    /// `scoreboard`, `store_paths` or `dep`
+    pub list: &'static str,
+    /// the finding's identity: its kind and its instruction indices (and register)
+    pub key: String,
+    /// the distance the seed has at this key (`None`: the seed has no such finding, or the list carries no distance)
+    pub seed: Option<u64>,
+    /// the candidate's distance at this key
+    pub candidate: Option<u64>,
+    /// the two instructions, as the candidate's line names them
+    pub text: String,
+}
+
+/// What a candidate schedule has that its seed does not.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Difference {
+    /// the two lines are not reports of one kernel under one model and one table: why
+    pub not_comparable: Option<String>,
+    /// findings whose key the seed does not have
+    pub new: Vec<DiffFinding>,
+    /// findings the seed has too, CLOSER in the candidate: a dependency with a smaller `have`, a
+    /// store whose overwriter stands at a smaller `distance`
+    pub closer: Vec<DiffFinding>,
+}
+
+impl Difference {
+    /// Nothing the seed does not have, and nothing closer than the seed has it.
+    pub fn is_clean(&self) -> bool {
+        self.not_comparable.is_none() && self.new.is_empty() && self.closer.is_empty()
+    }
+}
+
+/// The keyed findings of one list of a line: key -> (smallest distance, text).
+fn keyed(line: &Value, list: &'static str) -> std::collections::BTreeMap<String, (Option<u64>, String)> {
+    let mut out: std::collections::BTreeMap<String, (Option<u64>, String)> = std::collections::BTreeMap::new();
+    let Some(findings) = line[list]["findings"].as_array() else { return out };
+    for f in findings {
+        let s = |k: &str| f[k].as_str().unwrap_or("?").to_string();
+        let n = |k: &str| f[k].as_u64().map_or("?".to_string(), |v| v.to_string());
+        let (key, distance, text) = match list {
+            "scoreboard" => (
+                format!("{} [{}] -> [{}] {}", s("kind"), n("other"), n("at"), s("register")),
+                None,
+                format!("{} ; / {} ;", s("other_text").trim_end_matches(';').trim_end(), s("at_text").trim_end_matches(';').trim_end()),
+            ),
+            "store_paths" => (
+                format!("{} [{}] -> [{}] {} ({})", s("class"), n("store"), n("overwriter"), s("register"), s("operand")),
+                f["distance"].as_u64(),
+                format!("{} ; / {} ;", s("store_text").trim_end_matches(';').trim_end(), s("overwriter_text").trim_end_matches(';').trim_end()),
+            ),
+            _ => (format!("{} [{}] -> [{}]", s("kind"), n("producer"), n("consumer")), f["have"].as_u64(), s("text")),
+        };
+        let e = out.entry(key).or_insert((distance, text.clone()));
+        // several findings under one key (a consumer that reads two registers of one producer): the closest
+        if let (Some(d), Some(old)) = (distance, e.0) {
+            if d < old {
+                *e = (Some(d), text);
+            }
+        }
+    }
+    out
+}
+
+/// A candidate's line against its seed's (two lines of `CUBIT_VERIFY_JSON` for one kernel): the
+/// rule a gate can hold a candidate to. The counts of a line are not a verdict -- a listing of the
+/// vendor's assembler has findings of every class -- and "no finding the seed does not have" is
+/// not enough either: a candidate that takes one cycle off a pair the seed ALREADY reports keeps
+/// every key and is one cycle closer to the hazard (12 of 14 such moves on a served kernel left
+/// the three key sets identical). So the rule is: **no new key, and no key closer than the seed
+/// has it** -- a dependency finding's `have`, a store path's `distance`. The scoreboard findings
+/// carry no distance; they are compared by key.
+///
+/// A key is the finding's kind and its instruction indices, so the two lines must be reports of
+/// the same instruction list under the same model: another kernel, instruction count,
+/// `sync_classes` or dependency table is `not_comparable`, never clean.
+pub fn compare(seed: &Value, candidate: &Value) -> Difference {
+    let mut d = Difference::default();
+    for (what, v) in [("seed", seed), ("candidate", candidate)] {
+        if v["schema"].as_str() != Some(SCHEMA) {
+            d.not_comparable = Some(format!("the {what}'s line is not a `{SCHEMA}` line"));
+            return d;
+        }
+    }
+    for (field, what) in [("kernel", "kernel"), ("instructions", "instruction count"), ("sync_classes", "model (`sync_classes`)")] {
+        if seed[field] != candidate[field] {
+            d.not_comparable = Some(format!("another {what}: seed {}, candidate {}", seed[field], candidate[field]));
+            return d;
+        }
+    }
+    if seed["dep"]["table"] != candidate["dep"]["table"] || seed["dep"].get("edition") != candidate["dep"].get("edition") {
+        d.not_comparable = Some("the two lines were made with different dependency tables".to_string());
+        return d;
+    }
+    for list in ["scoreboard", "store_paths", "dep"] {
+        let s = keyed(seed, list);
+        for (key, (cand, text)) in keyed(candidate, list) {
+            match s.get(&key) {
+                None => d.new.push(DiffFinding { list, key, seed: None, candidate: cand, text }),
+                Some((Some(old), _)) if cand.is_some_and(|c| c < *old) => {
+                    d.closer.push(DiffFinding { list, key, seed: Some(*old), candidate: cand, text })
+                }
+                Some(_) => {}
+            }
+        }
+    }
+    d
+}
+
+/// The comparison as one JSON object (`cubit legality-diff --json`).
+pub fn difference_json(kernel: &str, d: &Difference) -> Value {
+    let list = |v: &[DiffFinding]| -> Vec<Value> {
+        v.iter().map(|f| json!({"list": f.list, "key": f.key, "seed": f.seed, "candidate": f.candidate, "text": f.text})).collect()
+    };
+    json!({
+        "schema": DIFF_SCHEMA,
+        "kernel": kernel,
+        "verdict": if d.is_clean() { "clean" } else if d.not_comparable.is_some() { "not-comparable" } else { "worse" },
+        "not_comparable": d.not_comparable,
+        "new": list(&d.new),
+        "closer": list(&d.closer),
     })
 }

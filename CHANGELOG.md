@@ -4,6 +4,24 @@ User-visible changes, newest first. Table syncs name the blackwell-isa revision 
 (`tables/SOURCE.json` pins it byte for byte). Numbered `BUG-NNN` entries are the encoder /
 decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `docs/TESTS.md`).
 
+## Unreleased — 2026-11-11 (session T-28: a candidate schedule is held to its seed by the DISTANCE of every finding, not only by its key — `cubit legality-diff`)
+
+- **`cubit legality-diff <seed.jsonl> <candidate.jsonl>` — the rule a candidate schedule is held to against its seed: no
+  finding the seed does not have, and none CLOSER than the seed has it.** `CUBIT_VERIFY_JSON` gives the findings of the three
+  legality checks with their instruction indices, and the rule of 2026-11-10 was a set difference of the keys (kind + indices):
+  the counts are not a verdict, because a listing of the vendor's assembler has findings of every class. A schedule search
+  then took one cycle off pairs the vendor's schedule ALREADY has below the table — `[225] IMAD.SHL.U32 R6` → `[226] LDC R44,
+  c[0x2][R6]` from 4 to 3, the index of a jump table; `[227] SHF` → `[228] BRX` from 4 to 3 — and the key of such a pair does
+  not change: **12 of 14 one-cycle lowerings on a served kernel left the three key sets identical.** The line always carried
+  the distance; `legality::compare` reads it now: a dependency finding with a smaller `have`, a store path with a smaller
+  `distance` is `closer`, and `closer` refuses a candidate like `new` does (the scoreboard findings carry no distance and are
+  compared by key). All 14 are refused. Every finding of the line counts, whatever its class — a store → overwriter pair on
+  the address register of a shared store, which the count of `CUBIT_VERIFY_PATHS` leaves apart, is `new` when the seed does
+  not have it. Two lines that are not reports of one instruction list under one model and one table (another kernel,
+  instruction count, `sync_classes`, dependency table) are not comparable, and that is not clean either. Exit code 0 only when
+  every kernel of both files is clean; `--json <file>` writes one object per kernel (schema `cubit-legality-diff-1`).
+  `tests/legality_diff.rs`.
+
 ## Unreleased — 2026-11-10 (session SCH-3: the stall-floor probes as one tool with an absolute, host-computed oracle; the store cells of the sm_120 dependency table re-measured — no cell moves; tools and result files only, no source line changes)
 
 - **`tools/stallfloor/probe.py` — one request, one isolated kernel family, an absolute oracle.** A request names a producer and a
