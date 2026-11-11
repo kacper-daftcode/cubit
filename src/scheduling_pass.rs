@@ -4130,6 +4130,51 @@ pub fn verify_scoreboard_report(insns: &[Instruction], table: Option<&IsaTable>)
     run_verify(insns, table, false, false)
 }
 
+/// One finding behind the three classic counts of `CUBIT_VERIFY`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ScoreboardFinding {
+    /// `"raw"` (a variable-latency result read before its write barrier was waited), `"war"` (a
+    /// late operand of a memory operation overwritten before its read barrier was waited) or
+    /// `"recycle-stale"`
+    pub kind: &'static str,
+    /// the reader of the result (`raw`, `recycle-stale`) / the overwriter (`war`)
+    pub at: usize,
+    /// the producer of the result / the memory operation
+    pub other: usize,
+    /// the register as it is printed: `R12`, `P3`, `UR4`, `UP1`
+    pub register: String,
+}
+
+/// The same read-only verification with its findings as data (no printing): the report and one
+/// entry per distinct (kind, instruction pair, register). The counts of the report are per event
+/// of the walk and can exceed the number of entries.
+pub fn verify_scoreboard_findings(insns: &[Instruction], table: Option<&IsaTable>) -> (VerifyReport, Vec<ScoreboardFinding>) {
+    let (rep, keys) = run_verify_keys(insns, table, false, false);
+    let name = |regk: u16| -> String {
+        let (uniform, k) = (regk >> 9 != 0, regk & 0x1ff);
+        match (uniform, k) {
+            (false, k) if k >= PRED_KEY => format!("P{}", k - PRED_KEY),
+            (false, k) => format!("R{k}"),
+            (true, k) if k >= 64 => format!("UP{}", k - 64),
+            (true, k) => format!("UR{k}"),
+        }
+    };
+    let findings = keys
+        .into_iter()
+        .map(|(kind, at, other, regk)| ScoreboardFinding {
+            kind: match kind {
+                0 => "raw",
+                1 => "war",
+                _ => "recycle-stale",
+            },
+            at,
+            other,
+            register: name(regk),
+        })
+        .collect();
+    (rep, findings)
+}
+
 /// The scheduling-legality oracle's read-barrier coverage probe (KNOWN_ISSUES A4,
 /// `tools/sched_oracle.py`): the same read-only verification, but every late-latching
 /// mem-op WITHOUT a read barrier is tracked as if it carried one that nothing ever waits
@@ -4483,6 +4528,19 @@ fn sb_step(
 }
 
 fn run_verify(insns: &[Instruction], table: Option<&IsaTable>, print: bool, rb_probe: bool) -> VerifyReport {
+    run_verify_keys(insns, table, print, rb_probe).0
+}
+
+/// `run_verify` with the keys of its findings: (kind, at, other, register) -- kind 0 an unprotected
+/// RAW (`at` reads the result of `other`), 1 a broken WAR (`at` overwrites a late operand of the
+/// memory operation `other`), 2 recycle-stale (as 0); the register as `(uniform << 9) | key`.
+#[allow(clippy::type_complexity)]
+fn run_verify_keys(
+    insns: &[Instruction],
+    table: Option<&IsaTable>,
+    print: bool,
+    rb_probe: bool,
+) -> (VerifyReport, Vec<(u8, usize, usize, u16)>) {
     use std::collections::{HashMap, HashSet};
     let mut rep = VerifyReport::default();
     let mut seen: HashSet<(u8, usize, usize, u16)> = HashSet::new();
@@ -4588,7 +4646,9 @@ fn run_verify(insns: &[Instruction], table: Option<&IsaTable>, print: bool, rb_p
             );
         }
     }
-    rep
+    let mut keys: Vec<(u8, usize, usize, u16)> = seen.into_iter().collect();
+    keys.sort_unstable();
+    (rep, keys)
 }
 
 // ── Stall-gap insertion for non-standard scheduling classes ──────────────────

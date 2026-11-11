@@ -32,6 +32,7 @@ pub mod elf;
 pub mod elf_builder;
 pub mod encoder;
 pub mod ir;
+pub mod legality;
 pub mod mercury;
 pub mod parser;
 pub mod pred_liveness;

@@ -111,6 +111,11 @@ assembles (frozen or scheduled) and prints each unprotected RAW / broken WAR, an
 `CUBIT_VERIFY_PATHS`);
 `CUBIT_VERIFY_RBPROBE=1`
 adds the read-barrier coverage probe of the legality oracle (`tools/sched_oracle.py`, KNOWN_ISSUES A4).
+`CUBIT_VERIFY_JSON=<file>` appends one JSON line per kernel with the counts of these three checks — the scoreboard
+simulation, the stores' read barriers on every path, the fixed-latency dependencies against the table — and every
+finding with its instruction indices (`src/legality.rs`, schema `cubit-legality-1`): a tool that holds a candidate
+schedule against its seed takes the set difference instead of parsing the text. It prints nothing, changes no byte and
+does not need the other two variables.
 
 ## Commands
 

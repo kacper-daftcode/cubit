@@ -81,8 +81,18 @@ decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `
   `tests/sched2_dep_latency.rs` with the schedule the parent built pinned next to it (three stalls 4 → 5); all four are red on the
   previous table. The default path does not read the table.
 
-## Unreleased — 2026-11-10 (session T-27: `CUBIT_VERIFY` checks the read barriers of stores on every path — three unprotected store → overwriter pairs of a production kernel had passed as "0 broken WAR"; batches 6 and 7 of the B300 lane's candidate forms on sm103a / sm100a — `QMUL4` / `QADD4` with their operand selectors, the uniform-source `VIMNMX3` forms, one more scaled F2FP form (57 of 69 refs taken); a test of the suite that failed at random; the two results of `R2UR Pd, URd, Rs`)
+## Unreleased — 2026-11-10 (session T-27: `CUBIT_VERIFY` checks the read barriers of stores on every path — three unprotected store → overwriter pairs of a production kernel had passed as "0 broken WAR"; batches 6 and 7 of the B300 lane's candidate forms on sm103a / sm100a — `QMUL4` / `QADD4` with their operand selectors, the uniform-source `VIMNMX3` forms, one more scaled F2FP form (57 of 69 refs taken); a test of the suite that failed at random; the two results of `R2UR Pd, URd, Rs`; the legality checks as JSON)
 
+- **`CUBIT_VERIFY_JSON=<file>`: the legality checks as data** (`src/legality.rs`, `tests/verify_json.rs`). `cubit asm` appends one
+  JSON line per kernel (schema `cubit-legality-1`): `scoreboard` (the three counts of the `CUBIT_VERIFY` line, the wrap counts,
+  the unresolved edges, and one finding per distinct kind / reader or overwriter / producer or memory operation / register),
+  `store_paths` (the pairs of `CUBIT_VERIFY_PATHS`, the shared-address class apart, each with store, overwriter, register,
+  operand, read barrier, distance) and `dep` (the four counts of `CUBIT_DEP_VERIFY`, every finding with producer, consumer,
+  have, need, whether the price is a default, and the line of the text report; the blind spots). Read-only: the same bytes and
+  the same output with and without it, no other variable needed. Written for a schedule search that holds each candidate against
+  its seed: on the vendor's own `fc2` (10 / 2 / 233 on the scoreboard line, 96 dependency findings) and the candidate that faulted
+  on silicon, candidate minus seed is exactly the four store pairs and seed minus candidate is empty. `scheduling_pass` gained
+  `verify_scoreboard_findings` (the report plus the findings behind it; `verify_scoreboard_report` is unchanged).
 - **`R2UR Pd, URd, Rs` has two results — the uniform register and a per-thread predicate — and the scheduler saw neither**
   (`dest_regs_plain` / `src_regs_plain` in `src/scheduling_pass.rs`; `tests/r2ur_pred_dest.rs`, fixtures
   `tests/fixtures/r2ur_pred/`). The operand convention takes operand 0 for the destination; operand 0 of this form is a predicate, so

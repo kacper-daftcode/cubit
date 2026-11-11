@@ -5610,6 +5610,22 @@ fn cmd_asm_directive_format(
             }
         }
 
+        // CUBIT_VERIFY_JSON=<file> (read-only): the three legality checks of this kernel -- the scoreboard
+        // simulation, the stores' read barriers on every path, the fixed-latency dependencies against the
+        // table -- as ONE JSON line appended to the file (`src/legality.rs`): the counts the text reports
+        // carry and every finding with its instruction indices. Prints nothing; independent of
+        // CUBIT_VERIFY / CUBIT_DEP_VERIFY.
+        if let Ok(path) = std::env::var("CUBIT_VERIFY_JSON") {
+            use std::io::Write;
+            let dt = match &dep_table {
+                Some(t) => t.clone(),
+                None => cubit::dep_stall::DepLatTable::from_json(cubit::dep_stall::SM120_TABLE)?,
+            };
+            let line = cubit::legality::report(&def.name, &insns_with_ctrl, Some(table), &dt);
+            let mut f = std::fs::OpenOptions::new().create(true).append(true).open(&path)?;
+            writeln!(f, "{line}")?;
+        }
+
         // CUBIT_DEP_CELLS=<file> (read-only): one JSON line per requirement of the table on this kernel
         // -- producer / consumer index and class, operand role, need, the tightest distance the
         // schedule gives it -- for the tools that weigh a schedule's cells by execution count.
