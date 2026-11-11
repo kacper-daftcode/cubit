@@ -1,0 +1,1906 @@
+{
+  "gpu_launches_performed": 0,
+  "image_count": 38,
+  "matching_table_sha256": {
+    "/root/sm103a/pubwave/hidden-b300/fhadd-bf16-production/worktrees/cubit/tables/sm100a.json.gz": "a979f673a3f37b0039d793ce434f062b8584c9d38d148093b2e0b516f44f3219",
+    "/root/sm103a/pubwave/hidden-b300/fhadd-bf16-production/worktrees/cubit/tables/sm103a.json.gz": "cd521b89a7f21da148fbf4f5f18f9243251bbff5ff8ff859af7c8661c036dccb"
+  },
+  "note": "Fresh parsing/re-encoding/disassembly/ELF checks only. No claim of new GPU execution, new native semantics or timing is made by this replay.",
+  "schema_version": 1,
+  "selected_cubins": [
+    {
+      "arch": "sm103a",
+      "case": "plain_f16_h0",
+      "container_log": "cpu-replay/fhadd-sm_103a/plain_f16_h0.container.txt",
+      "container_log_sha256": "b5798574f9c4074eed1f350b098ba3b1cb962c0876cdc76d8594448ffccaeb94",
+      "cubin_sha256": "999466b07aa3be870eb99c8e09b4eab315f86bb8996a823482d6e929ae307ea4",
+      "family": "fhadd",
+      "path": "sources/fhadd-sm_103a/cubins/plain_f16_h0.cubin",
+      "strict_roundtrip": {
+        "command": [
+          "/root/sm103a/pubwave/hidden-b300/fhadd-bf16-production/worktrees/target/release/cubit",
+          "roundtrip-strict",
+          "-t",
+          "/root/sm103a/pubwave/hidden-b300/fhadd-bf16-production/worktrees/cubit/tables/sm103a.json.gz",
+          "/root/sm103a/pubwave/hidden-b300/dual-fp16-silicon-2026-11-11/worktrees/cubit/docs/evidence/dual-fp16-silicon-2026-11-11/sources/fhadd-sm_103a/cubins/plain_f16_h0.cubin"
+        ],
+        "rc": 0,
+        "stderr": "",
+        "stdout": "/root/sm103a/pubwave/hidden-b300/dual-fp16-silicon-2026-11-11/worktrees/cubit/docs/evidence/dual-fp16-silicon-2026-11-11/sources/fhadd-sm_103a/cubins/plain_f16_h0.cubin: 1 sections, 17/17 instructions match; PASS\nSTRICT TOTAL: 1 sections, 17/17 complete 128-bit instructions match; PASS\n"
+      },
+      "vendor_decode_matches_original": true,
+      "whole_container": {
+        "elf": "64-bit ELF: type=ET_EXEC, ABI=8, sm=103a, toolkit=13.3, flags=0x6006702",
+        "exit_instruction_offset": "0x100",
+        "parameter_bank_size": "0x20",
+        "parameters": [
+          {
+            "offset": 0,
+            "ordinal": 0,
+            "size": 8
+          },
+          {
+            "offset": 8,
+            "ordinal": 1,
+            "size": 8
+          },
+          {
+            "offset": 16,
+            "ordinal": 2,
+            "size": 8
+          },
+          {
+            "offset": 24,
+            "ordinal": 3,
+            "size": 8
+          }
+        ]
+      }
+    },
+    {
+      "arch": "sm103a",
+      "case": "plain_f16_h1",
+      "container_log": "cpu-replay/fhadd-sm_103a/plain_f16_h1.container.txt",
+      "container_log_sha256": "31ae9bc505790854165d009034f9dc78da8111965e7a686313d43b92a7e9430a",
+      "cubin_sha256": "6ad11f23e19365ea75600aaec8a8d6979fd6a01d14b793e4b7ce32bb935bc918",
+      "family": "fhadd",
+      "path": "sources/fhadd-sm_103a/cubins/plain_f16_h1.cubin",
+      "strict_roundtrip": {
+        "command": [
+          "/root/sm103a/pubwave/hidden-b300/fhadd-bf16-production/worktrees/target/release/cubit",
+          "roundtrip-strict",
+          "-t",
+          "/root/sm103a/pubwave/hidden-b300/fhadd-bf16-production/worktrees/cubit/tables/sm103a.json.gz",
+          "/root/sm103a/pubwave/hidden-b300/dual-fp16-silicon-2026-11-11/worktrees/cubit/docs/evidence/dual-fp16-silicon-2026-11-11/sources/fhadd-sm_103a/cubins/plain_f16_h1.cubin"
+        ],
+        "rc": 0,
+        "stderr": "",
+        "stdout": "/root/sm103a/pubwave/hidden-b300/dual-fp16-silicon-2026-11-11/worktrees/cubit/docs/evidence/dual-fp16-silicon-2026-11-11/sources/fhadd-sm_103a/cubins/plain_f16_h1.cubin: 1 sections, 17/17 instructions match; PASS\nSTRICT TOTAL: 1 sections, 17/17 complete 128-bit instructions match; PASS\n"
+      },
+      "vendor_decode_matches_original": true,
+      "whole_container": {
+        "elf": "64-bit ELF: type=ET_EXEC, ABI=8, sm=103a, toolkit=13.3, flags=0x6006702",
+        "exit_instruction_offset": "0x100",
+        "parameter_bank_size": "0x20",
+        "parameters": [
+          {
+            "offset": 0,
+            "ordinal": 0,
+            "size": 8
+          },
+          {
+            "offset": 8,
+            "ordinal": 1,
+            "size": 8
+          },
+          {
+            "offset": 16,
+            "ordinal": 2,
+            "size": 8
+          },
+          {
+            "offset": 24,
+            "ordinal": 3,
+            "size": 8
+          }
+        ]
+      }
+    },
+    {
+      "arch": "sm103a",
+      "case": "plain_bf16_h0",
+      "container_log": "cpu-replay/fhadd-sm_103a/plain_bf16_h0.container.txt",
+      "container_log_sha256": "de8bfceb6ee81861574a7907df472678e4daeca36429a8a49dbebc35cfcedb03",
+      "cubin_sha256": "6e1d7809c6e755c5dd387bb3fcbf2fbb6e8a1949ab06abb6a3cb2b8c806d0335",
+      "family": "fhadd",
+      "path": "sources/fhadd-sm_103a/cubins/plain_bf16_h0.cubin",
+      "strict_roundtrip": {
+        "command": [
+          "/root/sm103a/pubwave/hidden-b300/fhadd-bf16-production/worktrees/target/release/cubit",
+          "roundtrip-strict",
+          "-t",
+          "/root/sm103a/pubwave/hidden-b300/fhadd-bf16-production/worktrees/cubit/tables/sm103a.json.gz",
+          "/root/sm103a/pubwave/hidden-b300/dual-fp16-silicon-2026-11-11/worktrees/cubit/docs/evidence/dual-fp16-silicon-2026-11-11/sources/fhadd-sm_103a/cubins/plain_bf16_h0.cubin"
+        ],
+        "rc": 0,
+        "stderr": "",
+        "stdout": "/root/sm103a/pubwave/hidden-b300/dual-fp16-silicon-2026-11-11/worktrees/cubit/docs/evidence/dual-fp16-silicon-2026-11-11/sources/fhadd-sm_103a/cubins/plain_bf16_h0.cubin: 1 sections, 17/17 instructions match; PASS\nSTRICT TOTAL: 1 sections, 17/17 complete 128-bit instructions match; PASS\n"
+      },
+      "vendor_decode_matches_original": true,
+      "whole_container": {
+        "elf": "64-bit ELF: type=ET_EXEC, ABI=8, sm=103a, toolkit=13.3, flags=0x6006702",
+        "exit_instruction_offset": "0x100",
+        "parameter_bank_size": "0x20",
+        "parameters": [
+          {
+            "offset": 0,
+            "ordinal": 0,
+            "size": 8
+          },
+          {
+            "offset": 8,
+            "ordinal": 1,
+            "size": 8
+          },
+          {
+            "offset": 16,
+            "ordinal": 2,
+            "size": 8
+          },
+          {
+            "offset": 24,
+            "ordinal": 3,
+            "size": 8
+          }
+        ]
+      }
+    },
+    {
+      "arch": "sm103a",
+      "case": "plain_bf16_h1",
+      "container_log": "cpu-replay/fhadd-sm_103a/plain_bf16_h1.container.txt",
+      "container_log_sha256": "98cd911921395c46d80b589a16229def49ceab3d0be148ba0558ede27a83e5f9",
+      "cubin_sha256": "bcdbdcd697bb48ac0f5dcc2dd2a0bb68827264e1f3e78a597a59c3fbd178a0ab",
+      "family": "fhadd",
+      "path": "sources/fhadd-sm_103a/cubins/plain_bf16_h1.cubin",
+      "strict_roundtrip": {
+        "command": [
+          "/root/sm103a/pubwave/hidden-b300/fhadd-bf16-production/worktrees/target/release/cubit",
+          "roundtrip-strict",
+          "-t",
+          "/root/sm103a/pubwave/hidden-b300/fhadd-bf16-production/worktrees/cubit/tables/sm103a.json.gz",
+          "/root/sm103a/pubwave/hidden-b300/dual-fp16-silicon-2026-11-11/worktrees/cubit/docs/evidence/dual-fp16-silicon-2026-11-11/sources/fhadd-sm_103a/cubins/plain_bf16_h1.cubin"
+        ],
+        "rc": 0,
+        "stderr": "",
+        "stdout": "/root/sm103a/pubwave/hidden-b300/dual-fp16-silicon-2026-11-11/worktrees/cubit/docs/evidence/dual-fp16-silicon-2026-11-11/sources/fhadd-sm_103a/cubins/plain_bf16_h1.cubin: 1 sections, 17/17 instructions match; PASS\nSTRICT TOTAL: 1 sections, 17/17 complete 128-bit instructions match; PASS\n"
+      },
+      "vendor_decode_matches_original": true,
+      "whole_container": {
+        "elf": "64-bit ELF: type=ET_EXEC, ABI=8, sm=103a, toolkit=13.3, flags=0x6006702",
+        "exit_instruction_offset": "0x100",
+        "parameter_bank_size": "0x20",
+        "parameters": [
+          {
+            "offset": 0,
+            "ordinal": 0,
+            "size": 8
+          },
+          {
+            "offset": 8,
+            "ordinal": 1,
+            "size": 8
+          },
+          {
+            "offset": 16,
+            "ordinal": 2,
+            "size": 8
+          },
+          {
+            "offset": 24,
+            "ordinal": 3,
+            "size": 8
+          }
+        ]
+      }
+    },
+    {
+      "arch": "sm103a",
+      "case": "rm_f16_h0",
+      "container_log": "cpu-replay/fhadd-sm_103a/rm_f16_h0.container.txt",
+      "container_log_sha256": "cd71764e018b78d6ce1d21b0387952fbd4d3a3cbccf3de94d7273051a2265598",
+      "cubin_sha256": "5f86686471a4573643271975a67dd899a2dbade46083893894bf52593df76248",
+      "family": "fhadd",
+      "path": "sources/fhadd-sm_103a/cubins/rm_f16_h0.cubin",
+      "strict_roundtrip": {
+        "command": [
+          "/root/sm103a/pubwave/hidden-b300/fhadd-bf16-production/worktrees/target/release/cubit",
+          "roundtrip-strict",
+          "-t",
+          "/root/sm103a/pubwave/hidden-b300/fhadd-bf16-production/worktrees/cubit/tables/sm103a.json.gz",
+          "/root/sm103a/pubwave/hidden-b300/dual-fp16-silicon-2026-11-11/worktrees/cubit/docs/evidence/dual-fp16-silicon-2026-11-11/sources/fhadd-sm_103a/cubins/rm_f16_h0.cubin"
+        ],
+        "rc": 0,
+        "stderr": "",
+        "stdout": "/root/sm103a/pubwave/hidden-b300/dual-fp16-silicon-2026-11-11/worktrees/cubit/docs/evidence/dual-fp16-silicon-2026-11-11/sources/fhadd-sm_103a/cubins/rm_f16_h0.cubin: 1 sections, 17/17 instructions match; PASS\nSTRICT TOTAL: 1 sections, 17/17 complete 128-bit instructions match; PASS\n"
+      },
+      "vendor_decode_matches_original": true,
+      "whole_container": {
+        "elf": "64-bit ELF: type=ET_EXEC, ABI=8, sm=103a, toolkit=13.3, flags=0x6006702",
+        "exit_instruction_offset": "0x100",
+        "parameter_bank_size": "0x20",
+        "parameters": [
+          {
+            "offset": 0,
+            "ordinal": 0,
+            "size": 8
+          },
+          {
+            "offset": 8,
+            "ordinal": 1,
+            "size": 8
+          },
+          {
+            "offset": 16,
+            "ordinal": 2,
+            "size": 8
+          },
+          {
+            "offset": 24,
+            "ordinal": 3,
+            "size": 8
+          }
+        ]
+      }
+    },
+    {
+      "arch": "sm103a",
+      "case": "rm_f16_h1",
+      "container_log": "cpu-replay/fhadd-sm_103a/rm_f16_h1.container.txt",
+      "container_log_sha256": "a0e96a0d55eed48f3dea11523f2d4d79c97e6b30bf8d2be4f2829d87cbc9e29a",
+      "cubin_sha256": "6d7820f961d80f9f80b205bff78e140e163c6f6a9a86ac2fdb456b9f67b19b40",
+      "family": "fhadd",
+      "path": "sources/fhadd-sm_103a/cubins/rm_f16_h1.cubin",
+      "strict_roundtrip": {
+        "command": [
+          "/root/sm103a/pubwave/hidden-b300/fhadd-bf16-production/worktrees/target/release/cubit",
+          "roundtrip-strict",
+          "-t",
+          "/root/sm103a/pubwave/hidden-b300/fhadd-bf16-production/worktrees/cubit/tables/sm103a.json.gz",
+          "/root/sm103a/pubwave/hidden-b300/dual-fp16-silicon-2026-11-11/worktrees/cubit/docs/evidence/dual-fp16-silicon-2026-11-11/sources/fhadd-sm_103a/cubins/rm_f16_h1.cubin"
+        ],
+        "rc": 0,
+        "stderr": "",
+        "stdout": "/root/sm103a/pubwave/hidden-b300/dual-fp16-silicon-2026-11-11/worktrees/cubit/docs/evidence/dual-fp16-silicon-2026-11-11/sources/fhadd-sm_103a/cubins/rm_f16_h1.cubin: 1 sections, 17/17 instructions match; PASS\nSTRICT TOTAL: 1 sections, 17/17 complete 128-bit instructions match; PASS\n"
+      },
+      "vendor_decode_matches_original": true,
+      "whole_container": {
+        "elf": "64-bit ELF: type=ET_EXEC, ABI=8, sm=103a, toolkit=13.3, flags=0x6006702",
+        "exit_instruction_offset": "0x100",
+        "parameter_bank_size": "0x20",
+        "parameters": [
+          {
+            "offset": 0,
+            "ordinal": 0,
+            "size": 8
+          },
+          {
+            "offset": 8,
+            "ordinal": 1,
+            "size": 8
+          },
+          {
+            "offset": 16,
+            "ordinal": 2,
+            "size": 8
+          },
+          {
+            "offset": 24,
+            "ordinal": 3,
+            "size": 8
+          }
+        ]
+      }
+    },
+    {
+      "arch": "sm103a",
+      "case": "rm_bf16_h0",
+      "container_log": "cpu-replay/fhadd-sm_103a/rm_bf16_h0.container.txt",
+      "container_log_sha256": "35d1ea10a9b722ad550fcd36614155184ced7bccd2cc61489a1625fef2797d41",
+      "cubin_sha256": "184cf0ed46f7ae61f02e51e21ba6f5ffbd7b61ef17178587ca208e7d940d73c5",
+      "family": "fhadd",
+      "path": "sources/fhadd-sm_103a/cubins/rm_bf16_h0.cubin",
+      "strict_roundtrip": {
+        "command": [
+          "/root/sm103a/pubwave/hidden-b300/fhadd-bf16-production/worktrees/target/release/cubit",
+          "roundtrip-strict",
+          "-t",
+          "/root/sm103a/pubwave/hidden-b300/fhadd-bf16-production/worktrees/cubit/tables/sm103a.json.gz",
+          "/root/sm103a/pubwave/hidden-b300/dual-fp16-silicon-2026-11-11/worktrees/cubit/docs/evidence/dual-fp16-silicon-2026-11-11/sources/fhadd-sm_103a/cubins/rm_bf16_h0.cubin"
+        ],
+        "rc": 0,
+        "stderr": "",
+        "stdout": "/root/sm103a/pubwave/hidden-b300/dual-fp16-silicon-2026-11-11/worktrees/cubit/docs/evidence/dual-fp16-silicon-2026-11-11/sources/fhadd-sm_103a/cubins/rm_bf16_h0.cubin: 1 sections, 17/17 instructions match; PASS\nSTRICT TOTAL: 1 sections, 17/17 complete 128-bit instructions match; PASS\n"
+      },
+      "vendor_decode_matches_original": true,
+      "whole_container": {
+        "elf": "64-bit ELF: type=ET_EXEC, ABI=8, sm=103a, toolkit=13.3, flags=0x6006702",
+        "exit_instruction_offset": "0x100",
+        "parameter_bank_size": "0x20",
+        "parameters": [
+          {
+            "offset": 0,
+            "ordinal": 0,
+            "size": 8
+          },
+          {
+            "offset": 8,
+            "ordinal": 1,
+            "size": 8
+          },
+          {
+            "offset": 16,
+            "ordinal": 2,
+            "size": 8
+          },
+          {
+            "offset": 24,
+            "ordinal": 3,
+            "size": 8
+          }
+        ]
+      }
+    },
+    {
+      "arch": "sm103a",
+      "case": "rm_bf16_h1",
+      "container_log": "cpu-replay/fhadd-sm_103a/rm_bf16_h1.container.txt",
+      "container_log_sha256": "0f76d618b8a610a91741373348a9e9889f7b5c1a84555e721b1bcb617f71e607",
+      "cubin_sha256": "26241d88b01fe3208e2bbf554adc13d61661e5bfdf8df647e5cb5795d5df5008",
+      "family": "fhadd",
+      "path": "sources/fhadd-sm_103a/cubins/rm_bf16_h1.cubin",
+      "strict_roundtrip": {
+        "command": [
+          "/root/sm103a/pubwave/hidden-b300/fhadd-bf16-production/worktrees/target/release/cubit",
+          "roundtrip-strict",
+          "-t",
+          "/root/sm103a/pubwave/hidden-b300/fhadd-bf16-production/worktrees/cubit/tables/sm103a.json.gz",
+          "/root/sm103a/pubwave/hidden-b300/dual-fp16-silicon-2026-11-11/worktrees/cubit/docs/evidence/dual-fp16-silicon-2026-11-11/sources/fhadd-sm_103a/cubins/rm_bf16_h1.cubin"
+        ],
+        "rc": 0,
+        "stderr": "",
+        "stdout": "/root/sm103a/pubwave/hidden-b300/dual-fp16-silicon-2026-11-11/worktrees/cubit/docs/evidence/dual-fp16-silicon-2026-11-11/sources/fhadd-sm_103a/cubins/rm_bf16_h1.cubin: 1 sections, 17/17 instructions match; PASS\nSTRICT TOTAL: 1 sections, 17/17 complete 128-bit instructions match; PASS\n"
+      },
+      "vendor_decode_matches_original": true,
+      "whole_container": {
+        "elf": "64-bit ELF: type=ET_EXEC, ABI=8, sm=103a, toolkit=13.3, flags=0x6006702",
+        "exit_instruction_offset": "0x100",
+        "parameter_bank_size": "0x20",
+        "parameters": [
+          {
+            "offset": 0,
+            "ordinal": 0,
+            "size": 8
+          },
+          {
+            "offset": 8,
+            "ordinal": 1,
+            "size": 8
+          },
+          {
+            "offset": 16,
+            "ordinal": 2,
+            "size": 8
+          },
+          {
+            "offset": 24,
+            "ordinal": 3,
+            "size": 8
+          }
+        ]
+      }
+    },
+    {
+      "arch": "sm103a",
+      "case": "rp_f16_h0",
+      "container_log": "cpu-replay/fhadd-sm_103a/rp_f16_h0.container.txt",
+      "container_log_sha256": "3af7b1e9923f801b472304843d0f7ca4d0772ebe064671b88054f44aa74f0682",
+      "cubin_sha256": "3c76852395bbfd67c6b30b51a261a69dc5cfed9943e82236a63b98272c779586",
+      "family": "fhadd",
+      "path": "sources/fhadd-sm_103a/cubins/rp_f16_h0.cubin",
+      "strict_roundtrip": {
+        "command": [
+          "/root/sm103a/pubwave/hidden-b300/fhadd-bf16-production/worktrees/target/release/cubit",
+          "roundtrip-strict",
+          "-t",
+          "/root/sm103a/pubwave/hidden-b300/fhadd-bf16-production/worktrees/cubit/tables/sm103a.json.gz",
+          "/root/sm103a/pubwave/hidden-b300/dual-fp16-silicon-2026-11-11/worktrees/cubit/docs/evidence/dual-fp16-silicon-2026-11-11/sources/fhadd-sm_103a/cubins/rp_f16_h0.cubin"
+        ],
+        "rc": 0,
+        "stderr": "",
+        "stdout": "/root/sm103a/pubwave/hidden-b300/dual-fp16-silicon-2026-11-11/worktrees/cubit/docs/evidence/dual-fp16-silicon-2026-11-11/sources/fhadd-sm_103a/cubins/rp_f16_h0.cubin: 1 sections, 17/17 instructions match; PASS\nSTRICT TOTAL: 1 sections, 17/17 complete 128-bit instructions match; PASS\n"
+      },
+      "vendor_decode_matches_original": true,
+      "whole_container": {
+        "elf": "64-bit ELF: type=ET_EXEC, ABI=8, sm=103a, toolkit=13.3, flags=0x6006702",
+        "exit_instruction_offset": "0x100",
+        "parameter_bank_size": "0x20",
+        "parameters": [
+          {
+            "offset": 0,
+            "ordinal": 0,
+            "size": 8
+          },
+          {
+            "offset": 8,
+            "ordinal": 1,
+            "size": 8
+          },
+          {
+            "offset": 16,
+            "ordinal": 2,
+            "size": 8
+          },
+          {
+            "offset": 24,
+            "ordinal": 3,
+            "size": 8
+          }
+        ]
+      }
+    },
+    {
+      "arch": "sm103a",
+      "case": "rp_f16_h1",
+      "container_log": "cpu-replay/fhadd-sm_103a/rp_f16_h1.container.txt",
+      "container_log_sha256": "d753b265b9df6db5b492b2fa8fd140373dcc18f36247798b1091e447321977a5",
+      "cubin_sha256": "464759a463d01bcb96d2dcdc238cf8702dad4fbc1631e6fb4d72caa7f3c2eb25",
+      "family": "fhadd",
+      "path": "sources/fhadd-sm_103a/cubins/rp_f16_h1.cubin",
+      "strict_roundtrip": {
+        "command": [
+          "/root/sm103a/pubwave/hidden-b300/fhadd-bf16-production/worktrees/target/release/cubit",
+          "roundtrip-strict",
+          "-t",
+          "/root/sm103a/pubwave/hidden-b300/fhadd-bf16-production/worktrees/cubit/tables/sm103a.json.gz",
+          "/root/sm103a/pubwave/hidden-b300/dual-fp16-silicon-2026-11-11/worktrees/cubit/docs/evidence/dual-fp16-silicon-2026-11-11/sources/fhadd-sm_103a/cubins/rp_f16_h1.cubin"
+        ],
+        "rc": 0,
+        "stderr": "",
+        "stdout": "/root/sm103a/pubwave/hidden-b300/dual-fp16-silicon-2026-11-11/worktrees/cubit/docs/evidence/dual-fp16-silicon-2026-11-11/sources/fhadd-sm_103a/cubins/rp_f16_h1.cubin: 1 sections, 17/17 instructions match; PASS\nSTRICT TOTAL: 1 sections, 17/17 complete 128-bit instructions match; PASS\n"
+      },
+      "vendor_decode_matches_original": true,
+      "whole_container": {
+        "elf": "64-bit ELF: type=ET_EXEC, ABI=8, sm=103a, toolkit=13.3, flags=0x6006702",
+        "exit_instruction_offset": "0x100",
+        "parameter_bank_size": "0x20",
+        "parameters": [
+          {
+            "offset": 0,
+            "ordinal": 0,
+            "size": 8
+          },
+          {
+            "offset": 8,
+            "ordinal": 1,
+            "size": 8
+          },
+          {
+            "offset": 16,
+            "ordinal": 2,
+            "size": 8
+          },
+          {
+            "offset": 24,
+            "ordinal": 3,
+            "size": 8
+          }
+        ]
+      }
+    },
+    {
+      "arch": "sm103a",
+      "case": "rp_bf16_h0",
+      "container_log": "cpu-replay/fhadd-sm_103a/rp_bf16_h0.container.txt",
+      "container_log_sha256": "917c18ac3c166d7a80a0c4f67684d606f2a2b95581b746b908a481ea2298b641",
+      "cubin_sha256": "5882900a157febd4c9183aa585fb0f55ecf1a34c6032dc5d8db38130596ea1c8",
+      "family": "fhadd",
+      "path": "sources/fhadd-sm_103a/cubins/rp_bf16_h0.cubin",
+      "strict_roundtrip": {
+        "command": [
+          "/root/sm103a/pubwave/hidden-b300/fhadd-bf16-production/worktrees/target/release/cubit",
+          "roundtrip-strict",
+          "-t",
+          "/root/sm103a/pubwave/hidden-b300/fhadd-bf16-production/worktrees/cubit/tables/sm103a.json.gz",
+          "/root/sm103a/pubwave/hidden-b300/dual-fp16-silicon-2026-11-11/worktrees/cubit/docs/evidence/dual-fp16-silicon-2026-11-11/sources/fhadd-sm_103a/cubins/rp_bf16_h0.cubin"
+        ],
+        "rc": 0,
+        "stderr": "",
+        "stdout": "/root/sm103a/pubwave/hidden-b300/dual-fp16-silicon-2026-11-11/worktrees/cubit/docs/evidence/dual-fp16-silicon-2026-11-11/sources/fhadd-sm_103a/cubins/rp_bf16_h0.cubin: 1 sections, 17/17 instructions match; PASS\nSTRICT TOTAL: 1 sections, 17/17 complete 128-bit instructions match; PASS\n"
+      },
+      "vendor_decode_matches_original": true,
+      "whole_container": {
+        "elf": "64-bit ELF: type=ET_EXEC, ABI=8, sm=103a, toolkit=13.3, flags=0x6006702",
+        "exit_instruction_offset": "0x100",
+        "parameter_bank_size": "0x20",
+        "parameters": [
+          {
+            "offset": 0,
+            "ordinal": 0,
+            "size": 8
+          },
+          {
+            "offset": 8,
+            "ordinal": 1,
+            "size": 8
+          },
+          {
+            "offset": 16,
+            "ordinal": 2,
+            "size": 8
+          },
+          {
+            "offset": 24,
+            "ordinal": 3,
+            "size": 8
+          }
+        ]
+      }
+    },
+    {
+      "arch": "sm103a",
+      "case": "rp_bf16_h1",
+      "container_log": "cpu-replay/fhadd-sm_103a/rp_bf16_h1.container.txt",
+      "container_log_sha256": "69217cec05001d9863c7ea09444b5f9db422cdc55646fc7fa9f474a5b3dacda7",
+      "cubin_sha256": "44a917bdab31837e7ccdf93fbb0d2c319880d81d77aa05a793e529330465c1d5",
+      "family": "fhadd",
+      "path": "sources/fhadd-sm_103a/cubins/rp_bf16_h1.cubin",
+      "strict_roundtrip": {
+        "command": [
+          "/root/sm103a/pubwave/hidden-b300/fhadd-bf16-production/worktrees/target/release/cubit",
+          "roundtrip-strict",
+          "-t",
+          "/root/sm103a/pubwave/hidden-b300/fhadd-bf16-production/worktrees/cubit/tables/sm103a.json.gz",
+          "/root/sm103a/pubwave/hidden-b300/dual-fp16-silicon-2026-11-11/worktrees/cubit/docs/evidence/dual-fp16-silicon-2026-11-11/sources/fhadd-sm_103a/cubins/rp_bf16_h1.cubin"
+        ],
+        "rc": 0,
+        "stderr": "",
+        "stdout": "/root/sm103a/pubwave/hidden-b300/dual-fp16-silicon-2026-11-11/worktrees/cubit/docs/evidence/dual-fp16-silicon-2026-11-11/sources/fhadd-sm_103a/cubins/rp_bf16_h1.cubin: 1 sections, 17/17 instructions match; PASS\nSTRICT TOTAL: 1 sections, 17/17 complete 128-bit instructions match; PASS\n"
+      },
+      "vendor_decode_matches_original": true,
+      "whole_container": {
+        "elf": "64-bit ELF: type=ET_EXEC, ABI=8, sm=103a, toolkit=13.3, flags=0x6006702",
+        "exit_instruction_offset": "0x100",
+        "parameter_bank_size": "0x20",
+        "parameters": [
+          {
+            "offset": 0,
+            "ordinal": 0,
+            "size": 8
+          },
+          {
+            "offset": 8,
+            "ordinal": 1,
+            "size": 8
+          },
+          {
+            "offset": 16,
+            "ordinal": 2,
+            "size": 8
+          },
+          {
+            "offset": 24,
+            "ordinal": 3,
+            "size": 8
+          }
+        ]
+      }
+    },
+    {
+      "arch": "sm103a",
+      "case": "rz_f16_h0",
+      "container_log": "cpu-replay/fhadd-sm_103a/rz_f16_h0.container.txt",
+      "container_log_sha256": "8e7f1226acce3c591afd3034ec1dffe53f2705241972317819c5f2aea8327ed3",
+      "cubin_sha256": "395a7b1a8ccaa72329468ed1ecd8004fa8329501f6fce5f5ce9a4a6dc555df03",
+      "family": "fhadd",
+      "path": "sources/fhadd-sm_103a/cubins/rz_f16_h0.cubin",
+      "strict_roundtrip": {
+        "command": [
+          "/root/sm103a/pubwave/hidden-b300/fhadd-bf16-production/worktrees/target/release/cubit",
+          "roundtrip-strict",
+          "-t",
+          "/root/sm103a/pubwave/hidden-b300/fhadd-bf16-production/worktrees/cubit/tables/sm103a.json.gz",
+          "/root/sm103a/pubwave/hidden-b300/dual-fp16-silicon-2026-11-11/worktrees/cubit/docs/evidence/dual-fp16-silicon-2026-11-11/sources/fhadd-sm_103a/cubins/rz_f16_h0.cubin"
+        ],
+        "rc": 0,
+        "stderr": "",
+        "stdout": "/root/sm103a/pubwave/hidden-b300/dual-fp16-silicon-2026-11-11/worktrees/cubit/docs/evidence/dual-fp16-silicon-2026-11-11/sources/fhadd-sm_103a/cubins/rz_f16_h0.cubin: 1 sections, 17/17 instructions match; PASS\nSTRICT TOTAL: 1 sections, 17/17 complete 128-bit instructions match; PASS\n"
+      },
+      "vendor_decode_matches_original": true,
+      "whole_container": {
+        "elf": "64-bit ELF: type=ET_EXEC, ABI=8, sm=103a, toolkit=13.3, flags=0x6006702",
+        "exit_instruction_offset": "0x100",
+        "parameter_bank_size": "0x20",
+        "parameters": [
+          {
+            "offset": 0,
+            "ordinal": 0,
+            "size": 8
+          },
+          {
+            "offset": 8,
+            "ordinal": 1,
+            "size": 8
+          },
+          {
+            "offset": 16,
+            "ordinal": 2,
+            "size": 8
+          },
+          {
+            "offset": 24,
+            "ordinal": 3,
+            "size": 8
+          }
+        ]
+      }
+    },
+    {
+      "arch": "sm103a",
+      "case": "rz_f16_h1",
+      "container_log": "cpu-replay/fhadd-sm_103a/rz_f16_h1.container.txt",
+      "container_log_sha256": "3f10635e6caf92ce4118d9f329df9c00cb0b7573410b723d781d9056e030189b",
+      "cubin_sha256": "5dd456bcea876d0e7fc7d9b66f94b246171f247a58078f21c1d8ecacc00812dd",
+      "family": "fhadd",
+      "path": "sources/fhadd-sm_103a/cubins/rz_f16_h1.cubin",
+      "strict_roundtrip": {
+        "command": [
+          "/root/sm103a/pubwave/hidden-b300/fhadd-bf16-production/worktrees/target/release/cubit",
+          "roundtrip-strict",
+          "-t",
+          "/root/sm103a/pubwave/hidden-b300/fhadd-bf16-production/worktrees/cubit/tables/sm103a.json.gz",
+          "/root/sm103a/pubwave/hidden-b300/dual-fp16-silicon-2026-11-11/worktrees/cubit/docs/evidence/dual-fp16-silicon-2026-11-11/sources/fhadd-sm_103a/cubins/rz_f16_h1.cubin"
+        ],
+        "rc": 0,
+        "stderr": "",
+        "stdout": "/root/sm103a/pubwave/hidden-b300/dual-fp16-silicon-2026-11-11/worktrees/cubit/docs/evidence/dual-fp16-silicon-2026-11-11/sources/fhadd-sm_103a/cubins/rz_f16_h1.cubin: 1 sections, 17/17 instructions match; PASS\nSTRICT TOTAL: 1 sections, 17/17 complete 128-bit instructions match; PASS\n"
+      },
+      "vendor_decode_matches_original": true,
+      "whole_container": {
+        "elf": "64-bit ELF: type=ET_EXEC, ABI=8, sm=103a, toolkit=13.3, flags=0x6006702",
+        "exit_instruction_offset": "0x100",
+        "parameter_bank_size": "0x20",
+        "parameters": [
+          {
+            "offset": 0,
+            "ordinal": 0,
+            "size": 8
+          },
+          {
+            "offset": 8,
+            "ordinal": 1,
+            "size": 8
+          },
+          {
+            "offset": 16,
+            "ordinal": 2,
+            "size": 8
+          },
+          {
+            "offset": 24,
+            "ordinal": 3,
+            "size": 8
+          }
+        ]
+      }
+    },
+    {
+      "arch": "sm103a",
+      "case": "rz_bf16_h0",
+      "container_log": "cpu-replay/fhadd-sm_103a/rz_bf16_h0.container.txt",
+      "container_log_sha256": "e0b228663d64cee65df195ad33fd7e3d9e2f05822e76071dc6d4dd87e6d99566",
+      "cubin_sha256": "71b844bbc79b2acedd25ca9f151caa1531a59bb5993930ac075f6b3e4f3720af",
+      "family": "fhadd",
+      "path": "sources/fhadd-sm_103a/cubins/rz_bf16_h0.cubin",
+      "strict_roundtrip": {
+        "command": [
+          "/root/sm103a/pubwave/hidden-b300/fhadd-bf16-production/worktrees/target/release/cubit",
+          "roundtrip-strict",
+          "-t",
+          "/root/sm103a/pubwave/hidden-b300/fhadd-bf16-production/worktrees/cubit/tables/sm103a.json.gz",
+          "/root/sm103a/pubwave/hidden-b300/dual-fp16-silicon-2026-11-11/worktrees/cubit/docs/evidence/dual-fp16-silicon-2026-11-11/sources/fhadd-sm_103a/cubins/rz_bf16_h0.cubin"
+        ],
+        "rc": 0,
+        "stderr": "",
+        "stdout": "/root/sm103a/pubwave/hidden-b300/dual-fp16-silicon-2026-11-11/worktrees/cubit/docs/evidence/dual-fp16-silicon-2026-11-11/sources/fhadd-sm_103a/cubins/rz_bf16_h0.cubin: 1 sections, 17/17 instructions match; PASS\nSTRICT TOTAL: 1 sections, 17/17 complete 128-bit instructions match; PASS\n"
+      },
+      "vendor_decode_matches_original": true,
+      "whole_container": {
+        "elf": "64-bit ELF: type=ET_EXEC, ABI=8, sm=103a, toolkit=13.3, flags=0x6006702",
+        "exit_instruction_offset": "0x100",
+        "parameter_bank_size": "0x20",
+        "parameters": [
+          {
+            "offset": 0,
+            "ordinal": 0,
+            "size": 8
+          },
+          {
+            "offset": 8,
+            "ordinal": 1,
+            "size": 8
+          },
+          {
+            "offset": 16,
+            "ordinal": 2,
+            "size": 8
+          },
+          {
+            "offset": 24,
+            "ordinal": 3,
+            "size": 8
+          }
+        ]
+      }
+    },
+    {
+      "arch": "sm103a",
+      "case": "rz_bf16_h1",
+      "container_log": "cpu-replay/fhadd-sm_103a/rz_bf16_h1.container.txt",
+      "container_log_sha256": "1f9e3433063f226755efccf8125001a8a2da7183a25f6bc4868c56da0da847f8",
+      "cubin_sha256": "bc3eafeab4744e67e799f6439bff806e345fbf8893fc38a244dab7eb7da0810c",
+      "family": "fhadd",
+      "path": "sources/fhadd-sm_103a/cubins/rz_bf16_h1.cubin",
+      "strict_roundtrip": {
+        "command": [
+          "/root/sm103a/pubwave/hidden-b300/fhadd-bf16-production/worktrees/target/release/cubit",
+          "roundtrip-strict",
+          "-t",
+          "/root/sm103a/pubwave/hidden-b300/fhadd-bf16-production/worktrees/cubit/tables/sm103a.json.gz",
+          "/root/sm103a/pubwave/hidden-b300/dual-fp16-silicon-2026-11-11/worktrees/cubit/docs/evidence/dual-fp16-silicon-2026-11-11/sources/fhadd-sm_103a/cubins/rz_bf16_h1.cubin"
+        ],
+        "rc": 0,
+        "stderr": "",
+        "stdout": "/root/sm103a/pubwave/hidden-b300/dual-fp16-silicon-2026-11-11/worktrees/cubit/docs/evidence/dual-fp16-silicon-2026-11-11/sources/fhadd-sm_103a/cubins/rz_bf16_h1.cubin: 1 sections, 17/17 instructions match; PASS\nSTRICT TOTAL: 1 sections, 17/17 complete 128-bit instructions match; PASS\n"
+      },
+      "vendor_decode_matches_original": true,
+      "whole_container": {
+        "elf": "64-bit ELF: type=ET_EXEC, ABI=8, sm=103a, toolkit=13.3, flags=0x6006702",
+        "exit_instruction_offset": "0x100",
+        "parameter_bank_size": "0x20",
+        "parameters": [
+          {
+            "offset": 0,
+            "ordinal": 0,
+            "size": 8
+          },
+          {
+            "offset": 8,
+            "ordinal": 1,
+            "size": 8
+          },
+          {
+            "offset": 16,
+            "ordinal": 2,
+            "size": 8
+          },
+          {
+            "offset": 24,
+            "ordinal": 3,
+            "size": 8
+          }
+        ]
+      }
+    },
+    {
+      "arch": "sm103a",
+      "case": "plain_bf16_h1_replay",
+      "container_log": "cpu-replay/fhadd-sm_103a/plain_bf16_h1_replay.container.txt",
+      "container_log_sha256": "98cd911921395c46d80b589a16229def49ceab3d0be148ba0558ede27a83e5f9",
+      "cubin_sha256": "bcdbdcd697bb48ac0f5dcc2dd2a0bb68827264e1f3e78a597a59c3fbd178a0ab",
+      "family": "fhadd",
+      "path": "sources/fhadd-sm_103a/cubins/plain_bf16_h1_replay.cubin",
+      "strict_roundtrip": {
+        "command": [
+          "/root/sm103a/pubwave/hidden-b300/fhadd-bf16-production/worktrees/target/release/cubit",
+          "roundtrip-strict",
+          "-t",
+          "/root/sm103a/pubwave/hidden-b300/fhadd-bf16-production/worktrees/cubit/tables/sm103a.json.gz",
+          "/root/sm103a/pubwave/hidden-b300/dual-fp16-silicon-2026-11-11/worktrees/cubit/docs/evidence/dual-fp16-silicon-2026-11-11/sources/fhadd-sm_103a/cubins/plain_bf16_h1_replay.cubin"
+        ],
+        "rc": 0,
+        "stderr": "",
+        "stdout": "/root/sm103a/pubwave/hidden-b300/dual-fp16-silicon-2026-11-11/worktrees/cubit/docs/evidence/dual-fp16-silicon-2026-11-11/sources/fhadd-sm_103a/cubins/plain_bf16_h1_replay.cubin: 1 sections, 17/17 instructions match; PASS\nSTRICT TOTAL: 1 sections, 17/17 complete 128-bit instructions match; PASS\n"
+      },
+      "vendor_decode_matches_original": true,
+      "whole_container": {
+        "elf": "64-bit ELF: type=ET_EXEC, ABI=8, sm=103a, toolkit=13.3, flags=0x6006702",
+        "exit_instruction_offset": "0x100",
+        "parameter_bank_size": "0x20",
+        "parameters": [
+          {
+            "offset": 0,
+            "ordinal": 0,
+            "size": 8
+          },
+          {
+            "offset": 8,
+            "ordinal": 1,
+            "size": 8
+          },
+          {
+            "offset": 16,
+            "ordinal": 2,
+            "size": 8
+          },
+          {
+            "offset": 24,
+            "ordinal": 3,
+            "size": 8
+          }
+        ]
+      }
+    },
+    {
+      "arch": "sm103a",
+      "case": "plain_f16_h0",
+      "container_log": "cpu-replay/hset2-sm_103a/plain_f16_h0.container.txt",
+      "container_log_sha256": "b2176dc2a2cd0aa81c07a66a81c384f89fa9d98b5087764dcdd351098b375a91",
+      "cubin_sha256": "6330ea54abd7804d8df6328cc05dc549cb33e21dcb12e05455cae4e0ce4fd454",
+      "family": "hset2",
+      "path": "sources/hset-sm_103a/cubins/plain_f16_h0.cubin",
+      "strict_roundtrip": {
+        "command": [
+          "/root/sm103a/pubwave/hidden-b300/fhadd-bf16-production/worktrees/target/release/cubit",
+          "roundtrip-strict",
+          "-t",
+          "/root/sm103a/pubwave/hidden-b300/fhadd-bf16-production/worktrees/cubit/tables/sm103a.json.gz",
+          "/root/sm103a/pubwave/hidden-b300/dual-fp16-silicon-2026-11-11/worktrees/cubit/docs/evidence/dual-fp16-silicon-2026-11-11/sources/hset-sm_103a/cubins/plain_f16_h0.cubin"
+        ],
+        "rc": 0,
+        "stderr": "",
+        "stdout": "/root/sm103a/pubwave/hidden-b300/dual-fp16-silicon-2026-11-11/worktrees/cubit/docs/evidence/dual-fp16-silicon-2026-11-11/sources/hset-sm_103a/cubins/plain_f16_h0.cubin: 1 sections, 17/17 instructions match; PASS\nSTRICT TOTAL: 1 sections, 17/17 complete 128-bit instructions match; PASS\n"
+      },
+      "vendor_decode_matches_original": true,
+      "whole_container": {
+        "elf": "64-bit ELF: type=ET_EXEC, ABI=8, sm=103a, toolkit=13.3, flags=0x6006702",
+        "exit_instruction_offset": "0x100",
+        "parameter_bank_size": "0x20",
+        "parameters": [
+          {
+            "offset": 0,
+            "ordinal": 0,
+            "size": 8
+          },
+          {
+            "offset": 8,
+            "ordinal": 1,
+            "size": 8
+          },
+          {
+            "offset": 16,
+            "ordinal": 2,
+            "size": 8
+          },
+          {
+            "offset": 24,
+            "ordinal": 3,
+            "size": 8
+          }
+        ]
+      }
+    },
+    {
+      "arch": "sm103a",
+      "case": "plain_bf16_h0",
+      "container_log": "cpu-replay/hset2-sm_103a/plain_bf16_h0.container.txt",
+      "container_log_sha256": "52034cbfaa0ebb1fb604434d88a4df573f0bddc912615eeca2c9c326e0e3992d",
+      "cubin_sha256": "5bd26bd0e3fd6ac6bb193685b0e657970dc7e4b1d09d5fcd441e157d48b2b716",
+      "family": "hset2",
+      "path": "sources/hset-sm_103a/cubins/plain_bf16_h0.cubin",
+      "strict_roundtrip": {
+        "command": [
+          "/root/sm103a/pubwave/hidden-b300/fhadd-bf16-production/worktrees/target/release/cubit",
+          "roundtrip-strict",
+          "-t",
+          "/root/sm103a/pubwave/hidden-b300/fhadd-bf16-production/worktrees/cubit/tables/sm103a.json.gz",
+          "/root/sm103a/pubwave/hidden-b300/dual-fp16-silicon-2026-11-11/worktrees/cubit/docs/evidence/dual-fp16-silicon-2026-11-11/sources/hset-sm_103a/cubins/plain_bf16_h0.cubin"
+        ],
+        "rc": 0,
+        "stderr": "",
+        "stdout": "/root/sm103a/pubwave/hidden-b300/dual-fp16-silicon-2026-11-11/worktrees/cubit/docs/evidence/dual-fp16-silicon-2026-11-11/sources/hset-sm_103a/cubins/plain_bf16_h0.cubin: 1 sections, 17/17 instructions match; PASS\nSTRICT TOTAL: 1 sections, 17/17 complete 128-bit instructions match; PASS\n"
+      },
+      "vendor_decode_matches_original": true,
+      "whole_container": {
+        "elf": "64-bit ELF: type=ET_EXEC, ABI=8, sm=103a, toolkit=13.3, flags=0x6006702",
+        "exit_instruction_offset": "0x100",
+        "parameter_bank_size": "0x20",
+        "parameters": [
+          {
+            "offset": 0,
+            "ordinal": 0,
+            "size": 8
+          },
+          {
+            "offset": 8,
+            "ordinal": 1,
+            "size": 8
+          },
+          {
+            "offset": 16,
+            "ordinal": 2,
+            "size": 8
+          },
+          {
+            "offset": 24,
+            "ordinal": 3,
+            "size": 8
+          }
+        ]
+      }
+    },
+    {
+      "arch": "sm100a",
+      "case": "plain_f16_h0",
+      "container_log": "cpu-replay/fhadd-sm_100a/plain_f16_h0.container.txt",
+      "container_log_sha256": "5a5bf952a9e3ee6f31cd76edbf323c698b54022f4053155f2217a8a50b4f3de7",
+      "cubin_sha256": "9c47725de2c224049c5e3925720f50e02a2683b60153bd6f82d281ac83bfca1d",
+      "family": "fhadd",
+      "path": "sources/fhadd-sm_100a/cubins/plain_f16_h0.cubin",
+      "strict_roundtrip": {
+        "command": [
+          "/root/sm103a/pubwave/hidden-b300/fhadd-bf16-production/worktrees/target/release/cubit",
+          "roundtrip-strict",
+          "-t",
+          "/root/sm103a/pubwave/hidden-b300/fhadd-bf16-production/worktrees/cubit/tables/sm100a.json.gz",
+          "/root/sm103a/pubwave/hidden-b300/dual-fp16-silicon-2026-11-11/worktrees/cubit/docs/evidence/dual-fp16-silicon-2026-11-11/sources/fhadd-sm_100a/cubins/plain_f16_h0.cubin"
+        ],
+        "rc": 0,
+        "stderr": "",
+        "stdout": "/root/sm103a/pubwave/hidden-b300/dual-fp16-silicon-2026-11-11/worktrees/cubit/docs/evidence/dual-fp16-silicon-2026-11-11/sources/fhadd-sm_100a/cubins/plain_f16_h0.cubin: 1 sections, 17/17 instructions match; PASS\nSTRICT TOTAL: 1 sections, 17/17 complete 128-bit instructions match; PASS\n"
+      },
+      "vendor_decode_matches_original": true,
+      "whole_container": {
+        "elf": "64-bit ELF: type=ET_EXEC, ABI=8, sm=100a, toolkit=13.3, flags=0x600640a",
+        "exit_instruction_offset": "0x100",
+        "parameter_bank_size": "0x20",
+        "parameters": [
+          {
+            "offset": 0,
+            "ordinal": 0,
+            "size": 8
+          },
+          {
+            "offset": 8,
+            "ordinal": 1,
+            "size": 8
+          },
+          {
+            "offset": 16,
+            "ordinal": 2,
+            "size": 8
+          },
+          {
+            "offset": 24,
+            "ordinal": 3,
+            "size": 8
+          }
+        ]
+      }
+    },
+    {
+      "arch": "sm100a",
+      "case": "plain_f16_h1",
+      "container_log": "cpu-replay/fhadd-sm_100a/plain_f16_h1.container.txt",
+      "container_log_sha256": "51d71988f294f5566076eebefa633b6ee40ec6a420de94c3605f3f0d7bd4152a",
+      "cubin_sha256": "25aa70d70b1a6f5747f1e94cf4b4adae1681e6a8a1ab9f3c65f14c1e13f0415d",
+      "family": "fhadd",
+      "path": "sources/fhadd-sm_100a/cubins/plain_f16_h1.cubin",
+      "strict_roundtrip": {
+        "command": [
+          "/root/sm103a/pubwave/hidden-b300/fhadd-bf16-production/worktrees/target/release/cubit",
+          "roundtrip-strict",
+          "-t",
+          "/root/sm103a/pubwave/hidden-b300/fhadd-bf16-production/worktrees/cubit/tables/sm100a.json.gz",
+          "/root/sm103a/pubwave/hidden-b300/dual-fp16-silicon-2026-11-11/worktrees/cubit/docs/evidence/dual-fp16-silicon-2026-11-11/sources/fhadd-sm_100a/cubins/plain_f16_h1.cubin"
+        ],
+        "rc": 0,
+        "stderr": "",
+        "stdout": "/root/sm103a/pubwave/hidden-b300/dual-fp16-silicon-2026-11-11/worktrees/cubit/docs/evidence/dual-fp16-silicon-2026-11-11/sources/fhadd-sm_100a/cubins/plain_f16_h1.cubin: 1 sections, 17/17 instructions match; PASS\nSTRICT TOTAL: 1 sections, 17/17 complete 128-bit instructions match; PASS\n"
+      },
+      "vendor_decode_matches_original": true,
+      "whole_container": {
+        "elf": "64-bit ELF: type=ET_EXEC, ABI=8, sm=100a, toolkit=13.3, flags=0x600640a",
+        "exit_instruction_offset": "0x100",
+        "parameter_bank_size": "0x20",
+        "parameters": [
+          {
+            "offset": 0,
+            "ordinal": 0,
+            "size": 8
+          },
+          {
+            "offset": 8,
+            "ordinal": 1,
+            "size": 8
+          },
+          {
+            "offset": 16,
+            "ordinal": 2,
+            "size": 8
+          },
+          {
+            "offset": 24,
+            "ordinal": 3,
+            "size": 8
+          }
+        ]
+      }
+    },
+    {
+      "arch": "sm100a",
+      "case": "plain_bf16_h0",
+      "container_log": "cpu-replay/fhadd-sm_100a/plain_bf16_h0.container.txt",
+      "container_log_sha256": "8200b5303469c77fca0742734e3c95badc55dc459ed2599f49fbaf1a5c90fb4a",
+      "cubin_sha256": "02a63c357e0af4aeeef552709a3fa23eb1e54974a17cac6f047932fefe3e3783",
+      "family": "fhadd",
+      "path": "sources/fhadd-sm_100a/cubins/plain_bf16_h0.cubin",
+      "strict_roundtrip": {
+        "command": [
+          "/root/sm103a/pubwave/hidden-b300/fhadd-bf16-production/worktrees/target/release/cubit",
+          "roundtrip-strict",
+          "-t",
+          "/root/sm103a/pubwave/hidden-b300/fhadd-bf16-production/worktrees/cubit/tables/sm100a.json.gz",
+          "/root/sm103a/pubwave/hidden-b300/dual-fp16-silicon-2026-11-11/worktrees/cubit/docs/evidence/dual-fp16-silicon-2026-11-11/sources/fhadd-sm_100a/cubins/plain_bf16_h0.cubin"
+        ],
+        "rc": 0,
+        "stderr": "",
+        "stdout": "/root/sm103a/pubwave/hidden-b300/dual-fp16-silicon-2026-11-11/worktrees/cubit/docs/evidence/dual-fp16-silicon-2026-11-11/sources/fhadd-sm_100a/cubins/plain_bf16_h0.cubin: 1 sections, 17/17 instructions match; PASS\nSTRICT TOTAL: 1 sections, 17/17 complete 128-bit instructions match; PASS\n"
+      },
+      "vendor_decode_matches_original": true,
+      "whole_container": {
+        "elf": "64-bit ELF: type=ET_EXEC, ABI=8, sm=100a, toolkit=13.3, flags=0x600640a",
+        "exit_instruction_offset": "0x100",
+        "parameter_bank_size": "0x20",
+        "parameters": [
+          {
+            "offset": 0,
+            "ordinal": 0,
+            "size": 8
+          },
+          {
+            "offset": 8,
+            "ordinal": 1,
+            "size": 8
+          },
+          {
+            "offset": 16,
+            "ordinal": 2,
+            "size": 8
+          },
+          {
+            "offset": 24,
+            "ordinal": 3,
+            "size": 8
+          }
+        ]
+      }
+    },
+    {
+      "arch": "sm100a",
+      "case": "plain_bf16_h1",
+      "container_log": "cpu-replay/fhadd-sm_100a/plain_bf16_h1.container.txt",
+      "container_log_sha256": "fe76772399f1ee992a3108e32e2dd51af4b3be482ead8bdcfd8e12fe58308086",
+      "cubin_sha256": "1796c1adbd65aa841168b399c8241b841ef670590c78f2e10f5e3e4be199a2d7",
+      "family": "fhadd",
+      "path": "sources/fhadd-sm_100a/cubins/plain_bf16_h1.cubin",
+      "strict_roundtrip": {
+        "command": [
+          "/root/sm103a/pubwave/hidden-b300/fhadd-bf16-production/worktrees/target/release/cubit",
+          "roundtrip-strict",
+          "-t",
+          "/root/sm103a/pubwave/hidden-b300/fhadd-bf16-production/worktrees/cubit/tables/sm100a.json.gz",
+          "/root/sm103a/pubwave/hidden-b300/dual-fp16-silicon-2026-11-11/worktrees/cubit/docs/evidence/dual-fp16-silicon-2026-11-11/sources/fhadd-sm_100a/cubins/plain_bf16_h1.cubin"
+        ],
+        "rc": 0,
+        "stderr": "",
+        "stdout": "/root/sm103a/pubwave/hidden-b300/dual-fp16-silicon-2026-11-11/worktrees/cubit/docs/evidence/dual-fp16-silicon-2026-11-11/sources/fhadd-sm_100a/cubins/plain_bf16_h1.cubin: 1 sections, 17/17 instructions match; PASS\nSTRICT TOTAL: 1 sections, 17/17 complete 128-bit instructions match; PASS\n"
+      },
+      "vendor_decode_matches_original": true,
+      "whole_container": {
+        "elf": "64-bit ELF: type=ET_EXEC, ABI=8, sm=100a, toolkit=13.3, flags=0x600640a",
+        "exit_instruction_offset": "0x100",
+        "parameter_bank_size": "0x20",
+        "parameters": [
+          {
+            "offset": 0,
+            "ordinal": 0,
+            "size": 8
+          },
+          {
+            "offset": 8,
+            "ordinal": 1,
+            "size": 8
+          },
+          {
+            "offset": 16,
+            "ordinal": 2,
+            "size": 8
+          },
+          {
+            "offset": 24,
+            "ordinal": 3,
+            "size": 8
+          }
+        ]
+      }
+    },
+    {
+      "arch": "sm100a",
+      "case": "rm_f16_h0",
+      "container_log": "cpu-replay/fhadd-sm_100a/rm_f16_h0.container.txt",
+      "container_log_sha256": "bd59da364a7ab23a667fb332b8155c4011d36fe0e97c03b9f4cfbcd0de4766db",
+      "cubin_sha256": "611e45a06975db121de11839bc2cc2045a5f7312de5f2cf9db1af864bcb6d752",
+      "family": "fhadd",
+      "path": "sources/fhadd-sm_100a/cubins/rm_f16_h0.cubin",
+      "strict_roundtrip": {
+        "command": [
+          "/root/sm103a/pubwave/hidden-b300/fhadd-bf16-production/worktrees/target/release/cubit",
+          "roundtrip-strict",
+          "-t",
+          "/root/sm103a/pubwave/hidden-b300/fhadd-bf16-production/worktrees/cubit/tables/sm100a.json.gz",
+          "/root/sm103a/pubwave/hidden-b300/dual-fp16-silicon-2026-11-11/worktrees/cubit/docs/evidence/dual-fp16-silicon-2026-11-11/sources/fhadd-sm_100a/cubins/rm_f16_h0.cubin"
+        ],
+        "rc": 0,
+        "stderr": "",
+        "stdout": "/root/sm103a/pubwave/hidden-b300/dual-fp16-silicon-2026-11-11/worktrees/cubit/docs/evidence/dual-fp16-silicon-2026-11-11/sources/fhadd-sm_100a/cubins/rm_f16_h0.cubin: 1 sections, 17/17 instructions match; PASS\nSTRICT TOTAL: 1 sections, 17/17 complete 128-bit instructions match; PASS\n"
+      },
+      "vendor_decode_matches_original": true,
+      "whole_container": {
+        "elf": "64-bit ELF: type=ET_EXEC, ABI=8, sm=100a, toolkit=13.3, flags=0x600640a",
+        "exit_instruction_offset": "0x100",
+        "parameter_bank_size": "0x20",
+        "parameters": [
+          {
+            "offset": 0,
+            "ordinal": 0,
+            "size": 8
+          },
+          {
+            "offset": 8,
+            "ordinal": 1,
+            "size": 8
+          },
+          {
+            "offset": 16,
+            "ordinal": 2,
+            "size": 8
+          },
+          {
+            "offset": 24,
+            "ordinal": 3,
+            "size": 8
+          }
+        ]
+      }
+    },
+    {
+      "arch": "sm100a",
+      "case": "rm_f16_h1",
+      "container_log": "cpu-replay/fhadd-sm_100a/rm_f16_h1.container.txt",
+      "container_log_sha256": "6b31c735f3ce8b266f73d680478680f11b70e7ad0d9c1b5a5dfdf11af03f91c7",
+      "cubin_sha256": "84ee2f4f2e584894e97bbc232ab476c6376dc9d120ea6ffbd50c2e37382bc1ea",
+      "family": "fhadd",
+      "path": "sources/fhadd-sm_100a/cubins/rm_f16_h1.cubin",
+      "strict_roundtrip": {
+        "command": [
+          "/root/sm103a/pubwave/hidden-b300/fhadd-bf16-production/worktrees/target/release/cubit",
+          "roundtrip-strict",
+          "-t",
+          "/root/sm103a/pubwave/hidden-b300/fhadd-bf16-production/worktrees/cubit/tables/sm100a.json.gz",
+          "/root/sm103a/pubwave/hidden-b300/dual-fp16-silicon-2026-11-11/worktrees/cubit/docs/evidence/dual-fp16-silicon-2026-11-11/sources/fhadd-sm_100a/cubins/rm_f16_h1.cubin"
+        ],
+        "rc": 0,
+        "stderr": "",
+        "stdout": "/root/sm103a/pubwave/hidden-b300/dual-fp16-silicon-2026-11-11/worktrees/cubit/docs/evidence/dual-fp16-silicon-2026-11-11/sources/fhadd-sm_100a/cubins/rm_f16_h1.cubin: 1 sections, 17/17 instructions match; PASS\nSTRICT TOTAL: 1 sections, 17/17 complete 128-bit instructions match; PASS\n"
+      },
+      "vendor_decode_matches_original": true,
+      "whole_container": {
+        "elf": "64-bit ELF: type=ET_EXEC, ABI=8, sm=100a, toolkit=13.3, flags=0x600640a",
+        "exit_instruction_offset": "0x100",
+        "parameter_bank_size": "0x20",
+        "parameters": [
+          {
+            "offset": 0,
+            "ordinal": 0,
+            "size": 8
+          },
+          {
+            "offset": 8,
+            "ordinal": 1,
+            "size": 8
+          },
+          {
+            "offset": 16,
+            "ordinal": 2,
+            "size": 8
+          },
+          {
+            "offset": 24,
+            "ordinal": 3,
+            "size": 8
+          }
+        ]
+      }
+    },
+    {
+      "arch": "sm100a",
+      "case": "rm_bf16_h0",
+      "container_log": "cpu-replay/fhadd-sm_100a/rm_bf16_h0.container.txt",
+      "container_log_sha256": "a9cb8e6a7b5bd4c139bcc52fa3508c53dfd51c6e6633f15052514f314ce2eafc",
+      "cubin_sha256": "45b4b4791796caf6f97e16c717785aa8d107475dff305989fbfc382ad3e9d2a8",
+      "family": "fhadd",
+      "path": "sources/fhadd-sm_100a/cubins/rm_bf16_h0.cubin",
+      "strict_roundtrip": {
+        "command": [
+          "/root/sm103a/pubwave/hidden-b300/fhadd-bf16-production/worktrees/target/release/cubit",
+          "roundtrip-strict",
+          "-t",
+          "/root/sm103a/pubwave/hidden-b300/fhadd-bf16-production/worktrees/cubit/tables/sm100a.json.gz",
+          "/root/sm103a/pubwave/hidden-b300/dual-fp16-silicon-2026-11-11/worktrees/cubit/docs/evidence/dual-fp16-silicon-2026-11-11/sources/fhadd-sm_100a/cubins/rm_bf16_h0.cubin"
+        ],
+        "rc": 0,
+        "stderr": "",
+        "stdout": "/root/sm103a/pubwave/hidden-b300/dual-fp16-silicon-2026-11-11/worktrees/cubit/docs/evidence/dual-fp16-silicon-2026-11-11/sources/fhadd-sm_100a/cubins/rm_bf16_h0.cubin: 1 sections, 17/17 instructions match; PASS\nSTRICT TOTAL: 1 sections, 17/17 complete 128-bit instructions match; PASS\n"
+      },
+      "vendor_decode_matches_original": true,
+      "whole_container": {
+        "elf": "64-bit ELF: type=ET_EXEC, ABI=8, sm=100a, toolkit=13.3, flags=0x600640a",
+        "exit_instruction_offset": "0x100",
+        "parameter_bank_size": "0x20",
+        "parameters": [
+          {
+            "offset": 0,
+            "ordinal": 0,
+            "size": 8
+          },
+          {
+            "offset": 8,
+            "ordinal": 1,
+            "size": 8
+          },
+          {
+            "offset": 16,
+            "ordinal": 2,
+            "size": 8
+          },
+          {
+            "offset": 24,
+            "ordinal": 3,
+            "size": 8
+          }
+        ]
+      }
+    },
+    {
+      "arch": "sm100a",
+      "case": "rm_bf16_h1",
+      "container_log": "cpu-replay/fhadd-sm_100a/rm_bf16_h1.container.txt",
+      "container_log_sha256": "ef6b72284e09b03c0e131a55608b4dfb5ed06e26246aa89334b48766770984df",
+      "cubin_sha256": "e046ac7b0921be117e21127a2e438c775db8550ab6c8de40cc281555aa0d3c60",
+      "family": "fhadd",
+      "path": "sources/fhadd-sm_100a/cubins/rm_bf16_h1.cubin",
+      "strict_roundtrip": {
+        "command": [
+          "/root/sm103a/pubwave/hidden-b300/fhadd-bf16-production/worktrees/target/release/cubit",
+          "roundtrip-strict",
+          "-t",
+          "/root/sm103a/pubwave/hidden-b300/fhadd-bf16-production/worktrees/cubit/tables/sm100a.json.gz",
+          "/root/sm103a/pubwave/hidden-b300/dual-fp16-silicon-2026-11-11/worktrees/cubit/docs/evidence/dual-fp16-silicon-2026-11-11/sources/fhadd-sm_100a/cubins/rm_bf16_h1.cubin"
+        ],
+        "rc": 0,
+        "stderr": "",
+        "stdout": "/root/sm103a/pubwave/hidden-b300/dual-fp16-silicon-2026-11-11/worktrees/cubit/docs/evidence/dual-fp16-silicon-2026-11-11/sources/fhadd-sm_100a/cubins/rm_bf16_h1.cubin: 1 sections, 17/17 instructions match; PASS\nSTRICT TOTAL: 1 sections, 17/17 complete 128-bit instructions match; PASS\n"
+      },
+      "vendor_decode_matches_original": true,
+      "whole_container": {
+        "elf": "64-bit ELF: type=ET_EXEC, ABI=8, sm=100a, toolkit=13.3, flags=0x600640a",
+        "exit_instruction_offset": "0x100",
+        "parameter_bank_size": "0x20",
+        "parameters": [
+          {
+            "offset": 0,
+            "ordinal": 0,
+            "size": 8
+          },
+          {
+            "offset": 8,
+            "ordinal": 1,
+            "size": 8
+          },
+          {
+            "offset": 16,
+            "ordinal": 2,
+            "size": 8
+          },
+          {
+            "offset": 24,
+            "ordinal": 3,
+            "size": 8
+          }
+        ]
+      }
+    },
+    {
+      "arch": "sm100a",
+      "case": "rp_f16_h0",
+      "container_log": "cpu-replay/fhadd-sm_100a/rp_f16_h0.container.txt",
+      "container_log_sha256": "e4ebb1f72c139a88455e61dc0d699067a7086cd22f0891d03fe3829115198fb2",
+      "cubin_sha256": "3297e050a7deb30ce7618d5bbf23f35b8bf78e54835d67440fc81716f72636fe",
+      "family": "fhadd",
+      "path": "sources/fhadd-sm_100a/cubins/rp_f16_h0.cubin",
+      "strict_roundtrip": {
+        "command": [
+          "/root/sm103a/pubwave/hidden-b300/fhadd-bf16-production/worktrees/target/release/cubit",
+          "roundtrip-strict",
+          "-t",
+          "/root/sm103a/pubwave/hidden-b300/fhadd-bf16-production/worktrees/cubit/tables/sm100a.json.gz",
+          "/root/sm103a/pubwave/hidden-b300/dual-fp16-silicon-2026-11-11/worktrees/cubit/docs/evidence/dual-fp16-silicon-2026-11-11/sources/fhadd-sm_100a/cubins/rp_f16_h0.cubin"
+        ],
+        "rc": 0,
+        "stderr": "",
+        "stdout": "/root/sm103a/pubwave/hidden-b300/dual-fp16-silicon-2026-11-11/worktrees/cubit/docs/evidence/dual-fp16-silicon-2026-11-11/sources/fhadd-sm_100a/cubins/rp_f16_h0.cubin: 1 sections, 17/17 instructions match; PASS\nSTRICT TOTAL: 1 sections, 17/17 complete 128-bit instructions match; PASS\n"
+      },
+      "vendor_decode_matches_original": true,
+      "whole_container": {
+        "elf": "64-bit ELF: type=ET_EXEC, ABI=8, sm=100a, toolkit=13.3, flags=0x600640a",
+        "exit_instruction_offset": "0x100",
+        "parameter_bank_size": "0x20",
+        "parameters": [
+          {
+            "offset": 0,
+            "ordinal": 0,
+            "size": 8
+          },
+          {
+            "offset": 8,
+            "ordinal": 1,
+            "size": 8
+          },
+          {
+            "offset": 16,
+            "ordinal": 2,
+            "size": 8
+          },
+          {
+            "offset": 24,
+            "ordinal": 3,
+            "size": 8
+          }
+        ]
+      }
+    },
+    {
+      "arch": "sm100a",
+      "case": "rp_f16_h1",
+      "container_log": "cpu-replay/fhadd-sm_100a/rp_f16_h1.container.txt",
+      "container_log_sha256": "2773747851a5aa1d906bb9be05f9192e1379bcccc559401eb47ba3e5333ed058",
+      "cubin_sha256": "38a0ca6c597ecab556253fc9244f942475be086340c95785ae6433ee23a1ebbc",
+      "family": "fhadd",
+      "path": "sources/fhadd-sm_100a/cubins/rp_f16_h1.cubin",
+      "strict_roundtrip": {
+        "command": [
+          "/root/sm103a/pubwave/hidden-b300/fhadd-bf16-production/worktrees/target/release/cubit",
+          "roundtrip-strict",
+          "-t",
+          "/root/sm103a/pubwave/hidden-b300/fhadd-bf16-production/worktrees/cubit/tables/sm100a.json.gz",
+          "/root/sm103a/pubwave/hidden-b300/dual-fp16-silicon-2026-11-11/worktrees/cubit/docs/evidence/dual-fp16-silicon-2026-11-11/sources/fhadd-sm_100a/cubins/rp_f16_h1.cubin"
+        ],
+        "rc": 0,
+        "stderr": "",
+        "stdout": "/root/sm103a/pubwave/hidden-b300/dual-fp16-silicon-2026-11-11/worktrees/cubit/docs/evidence/dual-fp16-silicon-2026-11-11/sources/fhadd-sm_100a/cubins/rp_f16_h1.cubin: 1 sections, 17/17 instructions match; PASS\nSTRICT TOTAL: 1 sections, 17/17 complete 128-bit instructions match; PASS\n"
+      },
+      "vendor_decode_matches_original": true,
+      "whole_container": {
+        "elf": "64-bit ELF: type=ET_EXEC, ABI=8, sm=100a, toolkit=13.3, flags=0x600640a",
+        "exit_instruction_offset": "0x100",
+        "parameter_bank_size": "0x20",
+        "parameters": [
+          {
+            "offset": 0,
+            "ordinal": 0,
+            "size": 8
+          },
+          {
+            "offset": 8,
+            "ordinal": 1,
+            "size": 8
+          },
+          {
+            "offset": 16,
+            "ordinal": 2,
+            "size": 8
+          },
+          {
+            "offset": 24,
+            "ordinal": 3,
+            "size": 8
+          }
+        ]
+      }
+    },
+    {
+      "arch": "sm100a",
+      "case": "rp_bf16_h0",
+      "container_log": "cpu-replay/fhadd-sm_100a/rp_bf16_h0.container.txt",
+      "container_log_sha256": "0461175e377f14dcf7913f7fa72ae9f064075d0d5b27c02142e309406e165fcd",
+      "cubin_sha256": "3ea850fc255679f54c438bcb55922cdb0280dbfd6553ecad6e4bae27e7a09861",
+      "family": "fhadd",
+      "path": "sources/fhadd-sm_100a/cubins/rp_bf16_h0.cubin",
+      "strict_roundtrip": {
+        "command": [
+          "/root/sm103a/pubwave/hidden-b300/fhadd-bf16-production/worktrees/target/release/cubit",
+          "roundtrip-strict",
+          "-t",
+          "/root/sm103a/pubwave/hidden-b300/fhadd-bf16-production/worktrees/cubit/tables/sm100a.json.gz",
+          "/root/sm103a/pubwave/hidden-b300/dual-fp16-silicon-2026-11-11/worktrees/cubit/docs/evidence/dual-fp16-silicon-2026-11-11/sources/fhadd-sm_100a/cubins/rp_bf16_h0.cubin"
+        ],
+        "rc": 0,
+        "stderr": "",
+        "stdout": "/root/sm103a/pubwave/hidden-b300/dual-fp16-silicon-2026-11-11/worktrees/cubit/docs/evidence/dual-fp16-silicon-2026-11-11/sources/fhadd-sm_100a/cubins/rp_bf16_h0.cubin: 1 sections, 17/17 instructions match; PASS\nSTRICT TOTAL: 1 sections, 17/17 complete 128-bit instructions match; PASS\n"
+      },
+      "vendor_decode_matches_original": true,
+      "whole_container": {
+        "elf": "64-bit ELF: type=ET_EXEC, ABI=8, sm=100a, toolkit=13.3, flags=0x600640a",
+        "exit_instruction_offset": "0x100",
+        "parameter_bank_size": "0x20",
+        "parameters": [
+          {
+            "offset": 0,
+            "ordinal": 0,
+            "size": 8
+          },
+          {
+            "offset": 8,
+            "ordinal": 1,
+            "size": 8
+          },
+          {
+            "offset": 16,
+            "ordinal": 2,
+            "size": 8
+          },
+          {
+            "offset": 24,
+            "ordinal": 3,
+            "size": 8
+          }
+        ]
+      }
+    },
+    {
+      "arch": "sm100a",
+      "case": "rp_bf16_h1",
+      "container_log": "cpu-replay/fhadd-sm_100a/rp_bf16_h1.container.txt",
+      "container_log_sha256": "74bfe667be6834a89664121ee3bf99a566bad72f7d75e8f90f1082d820bb95da",
+      "cubin_sha256": "945015e3ca84c3140b106fab63040bb0b1e6ac6e8eccdb6d1a8f45446207441b",
+      "family": "fhadd",
+      "path": "sources/fhadd-sm_100a/cubins/rp_bf16_h1.cubin",
+      "strict_roundtrip": {
+        "command": [
+          "/root/sm103a/pubwave/hidden-b300/fhadd-bf16-production/worktrees/target/release/cubit",
+          "roundtrip-strict",
+          "-t",
+          "/root/sm103a/pubwave/hidden-b300/fhadd-bf16-production/worktrees/cubit/tables/sm100a.json.gz",
+          "/root/sm103a/pubwave/hidden-b300/dual-fp16-silicon-2026-11-11/worktrees/cubit/docs/evidence/dual-fp16-silicon-2026-11-11/sources/fhadd-sm_100a/cubins/rp_bf16_h1.cubin"
+        ],
+        "rc": 0,
+        "stderr": "",
+        "stdout": "/root/sm103a/pubwave/hidden-b300/dual-fp16-silicon-2026-11-11/worktrees/cubit/docs/evidence/dual-fp16-silicon-2026-11-11/sources/fhadd-sm_100a/cubins/rp_bf16_h1.cubin: 1 sections, 17/17 instructions match; PASS\nSTRICT TOTAL: 1 sections, 17/17 complete 128-bit instructions match; PASS\n"
+      },
+      "vendor_decode_matches_original": true,
+      "whole_container": {
+        "elf": "64-bit ELF: type=ET_EXEC, ABI=8, sm=100a, toolkit=13.3, flags=0x600640a",
+        "exit_instruction_offset": "0x100",
+        "parameter_bank_size": "0x20",
+        "parameters": [
+          {
+            "offset": 0,
+            "ordinal": 0,
+            "size": 8
+          },
+          {
+            "offset": 8,
+            "ordinal": 1,
+            "size": 8
+          },
+          {
+            "offset": 16,
+            "ordinal": 2,
+            "size": 8
+          },
+          {
+            "offset": 24,
+            "ordinal": 3,
+            "size": 8
+          }
+        ]
+      }
+    },
+    {
+      "arch": "sm100a",
+      "case": "rz_f16_h0",
+      "container_log": "cpu-replay/fhadd-sm_100a/rz_f16_h0.container.txt",
+      "container_log_sha256": "5cadba3eda6397526510a7af129135ed6cbb534f3465f3e44306f33e897c02a8",
+      "cubin_sha256": "791288bf0a88d21d4c8f179c81b330f7c08af2e6dd5a739cc0e787656dfa5832",
+      "family": "fhadd",
+      "path": "sources/fhadd-sm_100a/cubins/rz_f16_h0.cubin",
+      "strict_roundtrip": {
+        "command": [
+          "/root/sm103a/pubwave/hidden-b300/fhadd-bf16-production/worktrees/target/release/cubit",
+          "roundtrip-strict",
+          "-t",
+          "/root/sm103a/pubwave/hidden-b300/fhadd-bf16-production/worktrees/cubit/tables/sm100a.json.gz",
+          "/root/sm103a/pubwave/hidden-b300/dual-fp16-silicon-2026-11-11/worktrees/cubit/docs/evidence/dual-fp16-silicon-2026-11-11/sources/fhadd-sm_100a/cubins/rz_f16_h0.cubin"
+        ],
+        "rc": 0,
+        "stderr": "",
+        "stdout": "/root/sm103a/pubwave/hidden-b300/dual-fp16-silicon-2026-11-11/worktrees/cubit/docs/evidence/dual-fp16-silicon-2026-11-11/sources/fhadd-sm_100a/cubins/rz_f16_h0.cubin: 1 sections, 17/17 instructions match; PASS\nSTRICT TOTAL: 1 sections, 17/17 complete 128-bit instructions match; PASS\n"
+      },
+      "vendor_decode_matches_original": true,
+      "whole_container": {
+        "elf": "64-bit ELF: type=ET_EXEC, ABI=8, sm=100a, toolkit=13.3, flags=0x600640a",
+        "exit_instruction_offset": "0x100",
+        "parameter_bank_size": "0x20",
+        "parameters": [
+          {
+            "offset": 0,
+            "ordinal": 0,
+            "size": 8
+          },
+          {
+            "offset": 8,
+            "ordinal": 1,
+            "size": 8
+          },
+          {
+            "offset": 16,
+            "ordinal": 2,
+            "size": 8
+          },
+          {
+            "offset": 24,
+            "ordinal": 3,
+            "size": 8
+          }
+        ]
+      }
+    },
+    {
+      "arch": "sm100a",
+      "case": "rz_f16_h1",
+      "container_log": "cpu-replay/fhadd-sm_100a/rz_f16_h1.container.txt",
+      "container_log_sha256": "d8cf79d161b7aa60bfb4988d9dc9ea50bb7167967a2d52da4fe96b58d9e2cd84",
+      "cubin_sha256": "87c8f932e7eaedd5b9d215b23164f11762166686fbab14403c48c6809e69dc5e",
+      "family": "fhadd",
+      "path": "sources/fhadd-sm_100a/cubins/rz_f16_h1.cubin",
+      "strict_roundtrip": {
+        "command": [
+          "/root/sm103a/pubwave/hidden-b300/fhadd-bf16-production/worktrees/target/release/cubit",
+          "roundtrip-strict",
+          "-t",
+          "/root/sm103a/pubwave/hidden-b300/fhadd-bf16-production/worktrees/cubit/tables/sm100a.json.gz",
+          "/root/sm103a/pubwave/hidden-b300/dual-fp16-silicon-2026-11-11/worktrees/cubit/docs/evidence/dual-fp16-silicon-2026-11-11/sources/fhadd-sm_100a/cubins/rz_f16_h1.cubin"
+        ],
+        "rc": 0,
+        "stderr": "",
+        "stdout": "/root/sm103a/pubwave/hidden-b300/dual-fp16-silicon-2026-11-11/worktrees/cubit/docs/evidence/dual-fp16-silicon-2026-11-11/sources/fhadd-sm_100a/cubins/rz_f16_h1.cubin: 1 sections, 17/17 instructions match; PASS\nSTRICT TOTAL: 1 sections, 17/17 complete 128-bit instructions match; PASS\n"
+      },
+      "vendor_decode_matches_original": true,
+      "whole_container": {
+        "elf": "64-bit ELF: type=ET_EXEC, ABI=8, sm=100a, toolkit=13.3, flags=0x600640a",
+        "exit_instruction_offset": "0x100",
+        "parameter_bank_size": "0x20",
+        "parameters": [
+          {
+            "offset": 0,
+            "ordinal": 0,
+            "size": 8
+          },
+          {
+            "offset": 8,
+            "ordinal": 1,
+            "size": 8
+          },
+          {
+            "offset": 16,
+            "ordinal": 2,
+            "size": 8
+          },
+          {
+            "offset": 24,
+            "ordinal": 3,
+            "size": 8
+          }
+        ]
+      }
+    },
+    {
+      "arch": "sm100a",
+      "case": "rz_bf16_h0",
+      "container_log": "cpu-replay/fhadd-sm_100a/rz_bf16_h0.container.txt",
+      "container_log_sha256": "dfe6619e9eabed65751d64e32c22c490b640983581d8d7ccf329678e22c0dc22",
+      "cubin_sha256": "f1669d6696881dc2ba3b0c38df4c27d09fae00b8d7fb01d92a5daed2b5533488",
+      "family": "fhadd",
+      "path": "sources/fhadd-sm_100a/cubins/rz_bf16_h0.cubin",
+      "strict_roundtrip": {
+        "command": [
+          "/root/sm103a/pubwave/hidden-b300/fhadd-bf16-production/worktrees/target/release/cubit",
+          "roundtrip-strict",
+          "-t",
+          "/root/sm103a/pubwave/hidden-b300/fhadd-bf16-production/worktrees/cubit/tables/sm100a.json.gz",
+          "/root/sm103a/pubwave/hidden-b300/dual-fp16-silicon-2026-11-11/worktrees/cubit/docs/evidence/dual-fp16-silicon-2026-11-11/sources/fhadd-sm_100a/cubins/rz_bf16_h0.cubin"
+        ],
+        "rc": 0,
+        "stderr": "",
+        "stdout": "/root/sm103a/pubwave/hidden-b300/dual-fp16-silicon-2026-11-11/worktrees/cubit/docs/evidence/dual-fp16-silicon-2026-11-11/sources/fhadd-sm_100a/cubins/rz_bf16_h0.cubin: 1 sections, 17/17 instructions match; PASS\nSTRICT TOTAL: 1 sections, 17/17 complete 128-bit instructions match; PASS\n"
+      },
+      "vendor_decode_matches_original": true,
+      "whole_container": {
+        "elf": "64-bit ELF: type=ET_EXEC, ABI=8, sm=100a, toolkit=13.3, flags=0x600640a",
+        "exit_instruction_offset": "0x100",
+        "parameter_bank_size": "0x20",
+        "parameters": [
+          {
+            "offset": 0,
+            "ordinal": 0,
+            "size": 8
+          },
+          {
+            "offset": 8,
+            "ordinal": 1,
+            "size": 8
+          },
+          {
+            "offset": 16,
+            "ordinal": 2,
+            "size": 8
+          },
+          {
+            "offset": 24,
+            "ordinal": 3,
+            "size": 8
+          }
+        ]
+      }
+    },
+    {
+      "arch": "sm100a",
+      "case": "rz_bf16_h1",
+      "container_log": "cpu-replay/fhadd-sm_100a/rz_bf16_h1.container.txt",
+      "container_log_sha256": "9e6972411fb838d003d9731289857d211adce5e69bf4340117e3c870c533ddc7",
+      "cubin_sha256": "28d5fe848ebed669761b967d814336bc9e6ba4b6694f290e8694e30a9d401e52",
+      "family": "fhadd",
+      "path": "sources/fhadd-sm_100a/cubins/rz_bf16_h1.cubin",
+      "strict_roundtrip": {
+        "command": [
+          "/root/sm103a/pubwave/hidden-b300/fhadd-bf16-production/worktrees/target/release/cubit",
+          "roundtrip-strict",
+          "-t",
+          "/root/sm103a/pubwave/hidden-b300/fhadd-bf16-production/worktrees/cubit/tables/sm100a.json.gz",
+          "/root/sm103a/pubwave/hidden-b300/dual-fp16-silicon-2026-11-11/worktrees/cubit/docs/evidence/dual-fp16-silicon-2026-11-11/sources/fhadd-sm_100a/cubins/rz_bf16_h1.cubin"
+        ],
+        "rc": 0,
+        "stderr": "",
+        "stdout": "/root/sm103a/pubwave/hidden-b300/dual-fp16-silicon-2026-11-11/worktrees/cubit/docs/evidence/dual-fp16-silicon-2026-11-11/sources/fhadd-sm_100a/cubins/rz_bf16_h1.cubin: 1 sections, 17/17 instructions match; PASS\nSTRICT TOTAL: 1 sections, 17/17 complete 128-bit instructions match; PASS\n"
+      },
+      "vendor_decode_matches_original": true,
+      "whole_container": {
+        "elf": "64-bit ELF: type=ET_EXEC, ABI=8, sm=100a, toolkit=13.3, flags=0x600640a",
+        "exit_instruction_offset": "0x100",
+        "parameter_bank_size": "0x20",
+        "parameters": [
+          {
+            "offset": 0,
+            "ordinal": 0,
+            "size": 8
+          },
+          {
+            "offset": 8,
+            "ordinal": 1,
+            "size": 8
+          },
+          {
+            "offset": 16,
+            "ordinal": 2,
+            "size": 8
+          },
+          {
+            "offset": 24,
+            "ordinal": 3,
+            "size": 8
+          }
+        ]
+      }
+    },
+    {
+      "arch": "sm100a",
+      "case": "plain_bf16_h1_replay",
+      "container_log": "cpu-replay/fhadd-sm_100a/plain_bf16_h1_replay.container.txt",
+      "container_log_sha256": "fe76772399f1ee992a3108e32e2dd51af4b3be482ead8bdcfd8e12fe58308086",
+      "cubin_sha256": "1796c1adbd65aa841168b399c8241b841ef670590c78f2e10f5e3e4be199a2d7",
+      "family": "fhadd",
+      "path": "sources/fhadd-sm_100a/cubins/plain_bf16_h1_replay.cubin",
+      "strict_roundtrip": {
+        "command": [
+          "/root/sm103a/pubwave/hidden-b300/fhadd-bf16-production/worktrees/target/release/cubit",
+          "roundtrip-strict",
+          "-t",
+          "/root/sm103a/pubwave/hidden-b300/fhadd-bf16-production/worktrees/cubit/tables/sm100a.json.gz",
+          "/root/sm103a/pubwave/hidden-b300/dual-fp16-silicon-2026-11-11/worktrees/cubit/docs/evidence/dual-fp16-silicon-2026-11-11/sources/fhadd-sm_100a/cubins/plain_bf16_h1_replay.cubin"
+        ],
+        "rc": 0,
+        "stderr": "",
+        "stdout": "/root/sm103a/pubwave/hidden-b300/dual-fp16-silicon-2026-11-11/worktrees/cubit/docs/evidence/dual-fp16-silicon-2026-11-11/sources/fhadd-sm_100a/cubins/plain_bf16_h1_replay.cubin: 1 sections, 17/17 instructions match; PASS\nSTRICT TOTAL: 1 sections, 17/17 complete 128-bit instructions match; PASS\n"
+      },
+      "vendor_decode_matches_original": true,
+      "whole_container": {
+        "elf": "64-bit ELF: type=ET_EXEC, ABI=8, sm=100a, toolkit=13.3, flags=0x600640a",
+        "exit_instruction_offset": "0x100",
+        "parameter_bank_size": "0x20",
+        "parameters": [
+          {
+            "offset": 0,
+            "ordinal": 0,
+            "size": 8
+          },
+          {
+            "offset": 8,
+            "ordinal": 1,
+            "size": 8
+          },
+          {
+            "offset": 16,
+            "ordinal": 2,
+            "size": 8
+          },
+          {
+            "offset": 24,
+            "ordinal": 3,
+            "size": 8
+          }
+        ]
+      }
+    },
+    {
+      "arch": "sm100a",
+      "case": "plain_f16_h0",
+      "container_log": "cpu-replay/hset2-sm_100a/plain_f16_h0.container.txt",
+      "container_log_sha256": "995ca5d2b259b83df5e54d2a08ecf11dfa1bf7a5e073200dcc5f4d4055bc2260",
+      "cubin_sha256": "15fb47857d41b5cc4058f9de2e34e1df109af47293ae840f6358c128b864ea4d",
+      "family": "hset2",
+      "path": "sources/hset-sm_100a/cubins/plain_f16_h0.cubin",
+      "strict_roundtrip": {
+        "command": [
+          "/root/sm103a/pubwave/hidden-b300/fhadd-bf16-production/worktrees/target/release/cubit",
+          "roundtrip-strict",
+          "-t",
+          "/root/sm103a/pubwave/hidden-b300/fhadd-bf16-production/worktrees/cubit/tables/sm100a.json.gz",
+          "/root/sm103a/pubwave/hidden-b300/dual-fp16-silicon-2026-11-11/worktrees/cubit/docs/evidence/dual-fp16-silicon-2026-11-11/sources/hset-sm_100a/cubins/plain_f16_h0.cubin"
+        ],
+        "rc": 0,
+        "stderr": "",
+        "stdout": "/root/sm103a/pubwave/hidden-b300/dual-fp16-silicon-2026-11-11/worktrees/cubit/docs/evidence/dual-fp16-silicon-2026-11-11/sources/hset-sm_100a/cubins/plain_f16_h0.cubin: 1 sections, 17/17 instructions match; PASS\nSTRICT TOTAL: 1 sections, 17/17 complete 128-bit instructions match; PASS\n"
+      },
+      "vendor_decode_matches_original": true,
+      "whole_container": {
+        "elf": "64-bit ELF: type=ET_EXEC, ABI=8, sm=100a, toolkit=13.3, flags=0x600640a",
+        "exit_instruction_offset": "0x100",
+        "parameter_bank_size": "0x20",
+        "parameters": [
+          {
+            "offset": 0,
+            "ordinal": 0,
+            "size": 8
+          },
+          {
+            "offset": 8,
+            "ordinal": 1,
+            "size": 8
+          },
+          {
+            "offset": 16,
+            "ordinal": 2,
+            "size": 8
+          },
+          {
+            "offset": 24,
+            "ordinal": 3,
+            "size": 8
+          }
+        ]
+      }
+    },
+    {
+      "arch": "sm100a",
+      "case": "plain_bf16_h0",
+      "container_log": "cpu-replay/hset2-sm_100a/plain_bf16_h0.container.txt",
+      "container_log_sha256": "3949598c89029bf6d24724b7ede71c9d12b986573b4ebb33c839ae385ef33e85",
+      "cubin_sha256": "6eea091c0e261a94cc94f81f12e97bd8a19a7cf8fe4ddd6fbcf1e6baed3d32ee",
+      "family": "hset2",
+      "path": "sources/hset-sm_100a/cubins/plain_bf16_h0.cubin",
+      "strict_roundtrip": {
+        "command": [
+          "/root/sm103a/pubwave/hidden-b300/fhadd-bf16-production/worktrees/target/release/cubit",
+          "roundtrip-strict",
+          "-t",
+          "/root/sm103a/pubwave/hidden-b300/fhadd-bf16-production/worktrees/cubit/tables/sm100a.json.gz",
+          "/root/sm103a/pubwave/hidden-b300/dual-fp16-silicon-2026-11-11/worktrees/cubit/docs/evidence/dual-fp16-silicon-2026-11-11/sources/hset-sm_100a/cubins/plain_bf16_h0.cubin"
+        ],
+        "rc": 0,
+        "stderr": "",
+        "stdout": "/root/sm103a/pubwave/hidden-b300/dual-fp16-silicon-2026-11-11/worktrees/cubit/docs/evidence/dual-fp16-silicon-2026-11-11/sources/hset-sm_100a/cubins/plain_bf16_h0.cubin: 1 sections, 17/17 instructions match; PASS\nSTRICT TOTAL: 1 sections, 17/17 complete 128-bit instructions match; PASS\n"
+      },
+      "vendor_decode_matches_original": true,
+      "whole_container": {
+        "elf": "64-bit ELF: type=ET_EXEC, ABI=8, sm=100a, toolkit=13.3, flags=0x600640a",
+        "exit_instruction_offset": "0x100",
+        "parameter_bank_size": "0x20",
+        "parameters": [
+          {
+            "offset": 0,
+            "ordinal": 0,
+            "size": 8
+          },
+          {
+            "offset": 8,
+            "ordinal": 1,
+            "size": 8
+          },
+          {
+            "offset": 16,
+            "ordinal": 2,
+            "size": 8
+          },
+          {
+            "offset": 24,
+            "ordinal": 3,
+            "size": 8
+          }
+        ]
+      }
+    }
+  ],
+  "strict_instruction_comparisons": 646,
+  "tool_provenance_commands": {
+    "cubit": {
+      "command": [
+        "/root/sm103a/pubwave/hidden-b300/fhadd-bf16-production/worktrees/target/release/cubit",
+        "--version"
+      ],
+      "rc": 0,
+      "stderr": "",
+      "stdout": "cubit 0.2.0\n"
+    },
+    "cuobjdump": {
+      "command": [
+        "/usr/local/cuda/bin/cuobjdump",
+        "--version"
+      ],
+      "rc": 0,
+      "stderr": "",
+      "stdout": "cuobjdump: NVIDIA (R) fat binary listing tool\nCopyright (c) 2005-2026 NVIDIA Corporation\nBuilt on Tue_Jun_09_02:43:40_PM_PDT_2026\nCuda compilation tools, release 13.3, V13.3.73\nBuild cuda_13.3.r13.3/compiler.38244171_0\n"
+    },
+    "nvdisasm": {
+      "command": [
+        "/usr/local/cuda/bin/nvdisasm",
+        "--version"
+      ],
+      "rc": 0,
+      "stderr": "",
+      "stdout": "nvdisasm: NVIDIA (R) CUDA disassembler\nCopyright (c) 2005-2026 NVIDIA Corporation\nBuilt on Tue_Jun_09_02:42:28_PM_PDT_2026\nCuda compilation tools, release 13.3, V13.3.73\nBuild cuda_13.3.r13.3/compiler.38244171_0\n"
+    }
+  },
+  "unique_cubin_sha256": 36,
+  "verdict": "PASS_CPU_STRICT_AND_WHOLE_CONTAINER"
+}

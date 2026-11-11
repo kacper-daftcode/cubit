@@ -1,0 +1,19 @@
+{
+  "audit_verdict": "SEMANTICS_PASS_SCOPED_NON_SAT",
+  "shared_core_winning_representations": [
+    "wide"
+  ],
+  "core_variants": 16,
+  "outputs_per_case": 352,
+  "core_raw_outputs": 5632,
+  "replay_raw_outputs": 352,
+  "raw_replay_exact": true,
+  "special_semantics": "NaN/Inf class and Inf sign only; payload bits retained, no universal NaN law",
+  "excluded": [
+    "SAT",
+    "sign/absolute/reuse fields",
+    "timing",
+    "SM100 execution"
+  ],
+  "foreign_gpu_timing_inference": "none"
+}

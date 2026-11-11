@@ -1,0 +1,1259 @@
+{
+  "fhadd": {
+    "both_architecture_total_launches": 374,
+    "canonical_raw_observation_sha256": {
+      "sm100a": "079cc0b092252439b71a51627d0c87e1861277809e0fc41d1de400a1f0d28a21",
+      "sm103a": "079cc0b092252439b71a51627d0c87e1861277809e0fc41d1de400a1f0d28a21"
+    },
+    "cross_architecture_matched_values_per_arch": 5984,
+    "cross_architecture_zero_value_differences": true,
+    "per_arch": {
+      "sm100a": {
+        "cases": [
+          {
+            "cubin_sha256": "9c47725de2c224049c5e3925720f50e02a2683b60153bd6f82d281ac83bfca1d",
+            "launches": 11,
+            "path": "raw-sm100a/plain_f16_h0.json",
+            "raw_outputs": 352,
+            "raw_sha256": "a6d488150c03893e4adf4448083e549d4477a149e875752c04379467abedb681",
+            "representations": {
+              "low_ones": {
+                "checked": 300,
+                "mismatches": 300
+              },
+              "low_zero": {
+                "checked": 300,
+                "mismatches": 285
+              },
+              "replicated": {
+                "checked": 300,
+                "mismatches": 285
+              },
+              "wide": {
+                "checked": 300,
+                "mismatches": 0
+              }
+            },
+            "semantics": {
+              "finite": 300,
+              "inf": 10,
+              "nan": 42
+            },
+            "vendor_text": "FHADD R10, R2, R4",
+            "word": "003fca000002000000000004020a7221"
+          },
+          {
+            "cubin_sha256": "25aa70d70b1a6f5747f1e94cf4b4adae1681e6a8a1ab9f3c65f14c1e13f0415d",
+            "launches": 11,
+            "path": "raw-sm100a/plain_f16_h1.json",
+            "raw_outputs": 352,
+            "raw_sha256": "c1fba31bcb379903c9a72ca6f9cc3dd6acb7602c4ca3ca48dda27c24fc8450f0",
+            "representations": {
+              "low_ones": {
+                "checked": 300,
+                "mismatches": 300
+              },
+              "low_zero": {
+                "checked": 300,
+                "mismatches": 300
+              },
+              "replicated": {
+                "checked": 300,
+                "mismatches": 300
+              },
+              "wide": {
+                "checked": 300,
+                "mismatches": 0
+              }
+            },
+            "semantics": {
+              "finite": 300,
+              "inf": 9,
+              "nan": 43
+            },
+            "vendor_text": "FHADD R10, R2.H1, R4",
+            "word": "003fca00000a000000000004020a7221"
+          },
+          {
+            "cubin_sha256": "02a63c357e0af4aeeef552709a3fa23eb1e54974a17cac6f047932fefe3e3783",
+            "launches": 11,
+            "path": "raw-sm100a/plain_bf16_h0.json",
+            "raw_outputs": 352,
+            "raw_sha256": "eef5146031a4c10f62f28de6587c2b6d88a8fe3ca5b6608a76c3e0e12412960f",
+            "representations": {
+              "low_ones": {
+                "checked": 300,
+                "mismatches": 300
+              },
+              "low_zero": {
+                "checked": 300,
+                "mismatches": 296
+              },
+              "replicated": {
+                "checked": 300,
+                "mismatches": 296
+              },
+              "wide": {
+                "checked": 300,
+                "mismatches": 0
+              }
+            },
+            "semantics": {
+              "finite": 300,
+              "inf": 10,
+              "nan": 42
+            },
+            "vendor_text": "FHADD.BF16 R10, R2, R4",
+            "word": "003fca000006000000000004020a7221"
+          },
+          {
+            "cubin_sha256": "1796c1adbd65aa841168b399c8241b841ef670590c78f2e10f5e3e4be199a2d7",
+            "launches": 11,
+            "path": "raw-sm100a/plain_bf16_h1.json",
+            "raw_outputs": 352,
+            "raw_sha256": "b97f32c010fe08fffabcc5c7d84a6167eff41c537d8f266ae2a30ece1b49f359",
+            "representations": {
+              "low_ones": {
+                "checked": 300,
+                "mismatches": 300
+              },
+              "low_zero": {
+                "checked": 300,
+                "mismatches": 300
+              },
+              "replicated": {
+                "checked": 300,
+                "mismatches": 300
+              },
+              "wide": {
+                "checked": 300,
+                "mismatches": 0
+              }
+            },
+            "semantics": {
+              "finite": 300,
+              "inf": 9,
+              "nan": 43
+            },
+            "vendor_text": "FHADD.BF16 R10, R2.H1, R4",
+            "word": "003fca00000e000000000004020a7221"
+          },
+          {
+            "cubin_sha256": "611e45a06975db121de11839bc2cc2045a5f7312de5f2cf9db1af864bcb6d752",
+            "launches": 11,
+            "path": "raw-sm100a/rm_f16_h0.json",
+            "raw_outputs": 352,
+            "raw_sha256": "3ab49af4d572a35be558b20909ba4911f956a8250f9030e57c7e0cf6ca9f6cc6",
+            "representations": {
+              "low_ones": {
+                "checked": 300,
+                "mismatches": 300
+              },
+              "low_zero": {
+                "checked": 300,
+                "mismatches": 300
+              },
+              "replicated": {
+                "checked": 300,
+                "mismatches": 300
+              },
+              "wide": {
+                "checked": 300,
+                "mismatches": 0
+              }
+            },
+            "semantics": {
+              "finite": 300,
+              "inf": 10,
+              "nan": 42
+            },
+            "vendor_text": "FHADD.RM R10, R2, R4",
+            "word": "003fca000002400000000004020a7221"
+          },
+          {
+            "cubin_sha256": "84ee2f4f2e584894e97bbc232ab476c6376dc9d120ea6ffbd50c2e37382bc1ea",
+            "launches": 11,
+            "path": "raw-sm100a/rm_f16_h1.json",
+            "raw_outputs": 352,
+            "raw_sha256": "8661a232e69bbde118b2a3c20555f80950c8e69e3658edee44b705d73eebd4c4",
+            "representations": {
+              "low_ones": {
+                "checked": 300,
+                "mismatches": 300
+              },
+              "low_zero": {
+                "checked": 300,
+                "mismatches": 300
+              },
+              "replicated": {
+                "checked": 300,
+                "mismatches": 300
+              },
+              "wide": {
+                "checked": 300,
+                "mismatches": 0
+              }
+            },
+            "semantics": {
+              "finite": 300,
+              "inf": 9,
+              "nan": 43
+            },
+            "vendor_text": "FHADD.RM R10, R2.H1, R4",
+            "word": "003fca00000a400000000004020a7221"
+          },
+          {
+            "cubin_sha256": "45b4b4791796caf6f97e16c717785aa8d107475dff305989fbfc382ad3e9d2a8",
+            "launches": 11,
+            "path": "raw-sm100a/rm_bf16_h0.json",
+            "raw_outputs": 352,
+            "raw_sha256": "da2098e522d2415321d22275d77340490513a1daeb9727a660db86d3280f35b5",
+            "representations": {
+              "low_ones": {
+                "checked": 300,
+                "mismatches": 300
+              },
+              "low_zero": {
+                "checked": 300,
+                "mismatches": 300
+              },
+              "replicated": {
+                "checked": 300,
+                "mismatches": 300
+              },
+              "wide": {
+                "checked": 300,
+                "mismatches": 0
+              }
+            },
+            "semantics": {
+              "finite": 300,
+              "inf": 10,
+              "nan": 42
+            },
+            "vendor_text": "FHADD.BF16.RM R10, R2, R4",
+            "word": "003fca000006400000000004020a7221"
+          },
+          {
+            "cubin_sha256": "e046ac7b0921be117e21127a2e438c775db8550ab6c8de40cc281555aa0d3c60",
+            "launches": 11,
+            "path": "raw-sm100a/rm_bf16_h1.json",
+            "raw_outputs": 352,
+            "raw_sha256": "0d972561bd97b636071bb75050f62eb1a87c41ebca7a3992caa08f5feaf11f74",
+            "representations": {
+              "low_ones": {
+                "checked": 300,
+                "mismatches": 300
+              },
+              "low_zero": {
+                "checked": 300,
+                "mismatches": 300
+              },
+              "replicated": {
+                "checked": 300,
+                "mismatches": 300
+              },
+              "wide": {
+                "checked": 300,
+                "mismatches": 0
+              }
+            },
+            "semantics": {
+              "finite": 300,
+              "inf": 9,
+              "nan": 43
+            },
+            "vendor_text": "FHADD.BF16.RM R10, R2.H1, R4",
+            "word": "003fca00000e400000000004020a7221"
+          },
+          {
+            "cubin_sha256": "3297e050a7deb30ce7618d5bbf23f35b8bf78e54835d67440fc81716f72636fe",
+            "launches": 11,
+            "path": "raw-sm100a/rp_f16_h0.json",
+            "raw_outputs": 352,
+            "raw_sha256": "6a597e67b04597c805edb63009dcf6192a020f477b522f5d6bb7097e517556ec",
+            "representations": {
+              "low_ones": {
+                "checked": 300,
+                "mismatches": 300
+              },
+              "low_zero": {
+                "checked": 300,
+                "mismatches": 285
+              },
+              "replicated": {
+                "checked": 300,
+                "mismatches": 285
+              },
+              "wide": {
+                "checked": 300,
+                "mismatches": 0
+              }
+            },
+            "semantics": {
+              "finite": 300,
+              "inf": 10,
+              "nan": 42
+            },
+            "vendor_text": "FHADD.RP R10, R2, R4",
+            "word": "003fca000002800000000004020a7221"
+          },
+          {
+            "cubin_sha256": "38a0ca6c597ecab556253fc9244f942475be086340c95785ae6433ee23a1ebbc",
+            "launches": 11,
+            "path": "raw-sm100a/rp_f16_h1.json",
+            "raw_outputs": 352,
+            "raw_sha256": "482111a22ad878433dc6c423fdc67b58b2055075f83bb4caa4b07c88154fb541",
+            "representations": {
+              "low_ones": {
+                "checked": 300,
+                "mismatches": 300
+              },
+              "low_zero": {
+                "checked": 300,
+                "mismatches": 300
+              },
+              "replicated": {
+                "checked": 300,
+                "mismatches": 300
+              },
+              "wide": {
+                "checked": 300,
+                "mismatches": 0
+              }
+            },
+            "semantics": {
+              "finite": 300,
+              "inf": 9,
+              "nan": 43
+            },
+            "vendor_text": "FHADD.RP R10, R2.H1, R4",
+            "word": "003fca00000a800000000004020a7221"
+          },
+          {
+            "cubin_sha256": "3ea850fc255679f54c438bcb55922cdb0280dbfd6553ecad6e4bae27e7a09861",
+            "launches": 11,
+            "path": "raw-sm100a/rp_bf16_h0.json",
+            "raw_outputs": 352,
+            "raw_sha256": "ddd569639a7c0fc739d7222bb8a6be1c45b8c79c84da9025d782d6a4eec6de7f",
+            "representations": {
+              "low_ones": {
+                "checked": 300,
+                "mismatches": 300
+              },
+              "low_zero": {
+                "checked": 300,
+                "mismatches": 296
+              },
+              "replicated": {
+                "checked": 300,
+                "mismatches": 296
+              },
+              "wide": {
+                "checked": 300,
+                "mismatches": 0
+              }
+            },
+            "semantics": {
+              "finite": 300,
+              "inf": 10,
+              "nan": 42
+            },
+            "vendor_text": "FHADD.BF16.RP R10, R2, R4",
+            "word": "003fca000006800000000004020a7221"
+          },
+          {
+            "cubin_sha256": "945015e3ca84c3140b106fab63040bb0b1e6ac6e8eccdb6d1a8f45446207441b",
+            "launches": 11,
+            "path": "raw-sm100a/rp_bf16_h1.json",
+            "raw_outputs": 352,
+            "raw_sha256": "58138e1595190f278f4656d9232457d0ddea824ba666f3f35d19dc89232ff498",
+            "representations": {
+              "low_ones": {
+                "checked": 300,
+                "mismatches": 300
+              },
+              "low_zero": {
+                "checked": 300,
+                "mismatches": 300
+              },
+              "replicated": {
+                "checked": 300,
+                "mismatches": 300
+              },
+              "wide": {
+                "checked": 300,
+                "mismatches": 0
+              }
+            },
+            "semantics": {
+              "finite": 300,
+              "inf": 9,
+              "nan": 43
+            },
+            "vendor_text": "FHADD.BF16.RP R10, R2.H1, R4",
+            "word": "003fca00000e800000000004020a7221"
+          },
+          {
+            "cubin_sha256": "791288bf0a88d21d4c8f179c81b330f7c08af2e6dd5a739cc0e787656dfa5832",
+            "launches": 11,
+            "path": "raw-sm100a/rz_f16_h0.json",
+            "raw_outputs": 352,
+            "raw_sha256": "7df0ab2b486152841dc4805f0fd01a490f1ffb1ffee262a7edbca9768b179c4e",
+            "representations": {
+              "low_ones": {
+                "checked": 300,
+                "mismatches": 300
+              },
+              "low_zero": {
+                "checked": 300,
+                "mismatches": 285
+              },
+              "replicated": {
+                "checked": 300,
+                "mismatches": 285
+              },
+              "wide": {
+                "checked": 300,
+                "mismatches": 0
+              }
+            },
+            "semantics": {
+              "finite": 300,
+              "inf": 10,
+              "nan": 42
+            },
+            "vendor_text": "FHADD.RZ R10, R2, R4",
+            "word": "003fca000002c00000000004020a7221"
+          },
+          {
+            "cubin_sha256": "87c8f932e7eaedd5b9d215b23164f11762166686fbab14403c48c6809e69dc5e",
+            "launches": 11,
+            "path": "raw-sm100a/rz_f16_h1.json",
+            "raw_outputs": 352,
+            "raw_sha256": "91dd6eae86b5b52ab3a86172c6db1b015af45ac53604ca75942e6ed951629775",
+            "representations": {
+              "low_ones": {
+                "checked": 300,
+                "mismatches": 300
+              },
+              "low_zero": {
+                "checked": 300,
+                "mismatches": 300
+              },
+              "replicated": {
+                "checked": 300,
+                "mismatches": 300
+              },
+              "wide": {
+                "checked": 300,
+                "mismatches": 0
+              }
+            },
+            "semantics": {
+              "finite": 300,
+              "inf": 9,
+              "nan": 43
+            },
+            "vendor_text": "FHADD.RZ R10, R2.H1, R4",
+            "word": "003fca00000ac00000000004020a7221"
+          },
+          {
+            "cubin_sha256": "f1669d6696881dc2ba3b0c38df4c27d09fae00b8d7fb01d92a5daed2b5533488",
+            "launches": 11,
+            "path": "raw-sm100a/rz_bf16_h0.json",
+            "raw_outputs": 352,
+            "raw_sha256": "042e9f461e114b2319dfbe73c1d3c1f79eb78896b54154c0282dae108b13bd6d",
+            "representations": {
+              "low_ones": {
+                "checked": 300,
+                "mismatches": 300
+              },
+              "low_zero": {
+                "checked": 300,
+                "mismatches": 296
+              },
+              "replicated": {
+                "checked": 300,
+                "mismatches": 296
+              },
+              "wide": {
+                "checked": 300,
+                "mismatches": 0
+              }
+            },
+            "semantics": {
+              "finite": 300,
+              "inf": 10,
+              "nan": 42
+            },
+            "vendor_text": "FHADD.BF16.RZ R10, R2, R4",
+            "word": "003fca000006c00000000004020a7221"
+          },
+          {
+            "cubin_sha256": "28d5fe848ebed669761b967d814336bc9e6ba4b6694f290e8694e30a9d401e52",
+            "launches": 11,
+            "path": "raw-sm100a/rz_bf16_h1.json",
+            "raw_outputs": 352,
+            "raw_sha256": "7dfaaddd86ba3162b32a49039deea4c88a58763fd0e421fcd4f7231455171927",
+            "representations": {
+              "low_ones": {
+                "checked": 300,
+                "mismatches": 300
+              },
+              "low_zero": {
+                "checked": 300,
+                "mismatches": 300
+              },
+              "replicated": {
+                "checked": 300,
+                "mismatches": 300
+              },
+              "wide": {
+                "checked": 300,
+                "mismatches": 0
+              }
+            },
+            "semantics": {
+              "finite": 300,
+              "inf": 9,
+              "nan": 43
+            },
+            "vendor_text": "FHADD.BF16.RZ R10, R2.H1, R4",
+            "word": "003fca00000ec00000000004020a7221"
+          },
+          {
+            "cubin_sha256": "1796c1adbd65aa841168b399c8241b841ef670590c78f2e10f5e3e4be199a2d7",
+            "launches": 11,
+            "path": "raw-sm100a/plain_bf16_h1_replay.json",
+            "raw_outputs": 352,
+            "raw_sha256": "bb030cc81e84790b7bf3ae422b6f7472b5a9948e7af9de70180a03de7df71650",
+            "representations": {
+              "low_ones": {
+                "checked": 300,
+                "mismatches": 300
+              },
+              "low_zero": {
+                "checked": 300,
+                "mismatches": 300
+              },
+              "replicated": {
+                "checked": 300,
+                "mismatches": 300
+              },
+              "wide": {
+                "checked": 300,
+                "mismatches": 0
+              }
+            },
+            "semantics": {
+              "finite": 300,
+              "inf": 9,
+              "nan": 43
+            },
+            "vendor_text": "FHADD.BF16 R10, R2.H1, R4",
+            "word": "003fca00000e000000000004020a7221"
+          }
+        ],
+        "core_semantics": {
+          "finite": 4800,
+          "inf": 152,
+          "nan": 680
+        },
+        "representations": {
+          "low_ones": {
+            "checked": 4800,
+            "mismatches": 4800
+          },
+          "low_zero": {
+            "checked": 4800,
+            "mismatches": 4743
+          },
+          "replicated": {
+            "checked": 4800,
+            "mismatches": 4743
+          },
+          "wide": {
+            "checked": 4800,
+            "mismatches": 0
+          }
+        }
+      },
+      "sm103a": {
+        "cases": [
+          {
+            "cubin_sha256": "999466b07aa3be870eb99c8e09b4eab315f86bb8996a823482d6e929ae307ea4",
+            "launches": 11,
+            "path": "raw-sm103a/plain_f16_h0.json",
+            "raw_outputs": 352,
+            "raw_sha256": "711a43722b0a98a78f8292c9d7d47ddd7bfd67294e08ed1486cd7bbd97207536",
+            "representations": {
+              "low_ones": {
+                "checked": 300,
+                "mismatches": 300
+              },
+              "low_zero": {
+                "checked": 300,
+                "mismatches": 285
+              },
+              "replicated": {
+                "checked": 300,
+                "mismatches": 285
+              },
+              "wide": {
+                "checked": 300,
+                "mismatches": 0
+              }
+            },
+            "semantics": {
+              "finite": 300,
+              "inf": 10,
+              "nan": 42
+            },
+            "vendor_text": "FHADD R10, R2, R4",
+            "word": "003fca000002000000000004020a7221"
+          },
+          {
+            "cubin_sha256": "6ad11f23e19365ea75600aaec8a8d6979fd6a01d14b793e4b7ce32bb935bc918",
+            "launches": 11,
+            "path": "raw-sm103a/plain_f16_h1.json",
+            "raw_outputs": 352,
+            "raw_sha256": "93db14de7f4c339d5515e059a854668dfc1ca3cb687b76bebb2becc78c538e7e",
+            "representations": {
+              "low_ones": {
+                "checked": 300,
+                "mismatches": 300
+              },
+              "low_zero": {
+                "checked": 300,
+                "mismatches": 300
+              },
+              "replicated": {
+                "checked": 300,
+                "mismatches": 300
+              },
+              "wide": {
+                "checked": 300,
+                "mismatches": 0
+              }
+            },
+            "semantics": {
+              "finite": 300,
+              "inf": 9,
+              "nan": 43
+            },
+            "vendor_text": "FHADD R10, R2.H1, R4",
+            "word": "003fca00000a000000000004020a7221"
+          },
+          {
+            "cubin_sha256": "6e1d7809c6e755c5dd387bb3fcbf2fbb6e8a1949ab06abb6a3cb2b8c806d0335",
+            "launches": 11,
+            "path": "raw-sm103a/plain_bf16_h0.json",
+            "raw_outputs": 352,
+            "raw_sha256": "6d9d256823ab76fce7b2b32f5a70ee5146f1b07a461d26c031d26e2fcb9c6915",
+            "representations": {
+              "low_ones": {
+                "checked": 300,
+                "mismatches": 300
+              },
+              "low_zero": {
+                "checked": 300,
+                "mismatches": 296
+              },
+              "replicated": {
+                "checked": 300,
+                "mismatches": 296
+              },
+              "wide": {
+                "checked": 300,
+                "mismatches": 0
+              }
+            },
+            "semantics": {
+              "finite": 300,
+              "inf": 10,
+              "nan": 42
+            },
+            "vendor_text": "FHADD.BF16 R10, R2, R4",
+            "word": "003fca000006000000000004020a7221"
+          },
+          {
+            "cubin_sha256": "bcdbdcd697bb48ac0f5dcc2dd2a0bb68827264e1f3e78a597a59c3fbd178a0ab",
+            "launches": 11,
+            "path": "raw-sm103a/plain_bf16_h1.json",
+            "raw_outputs": 352,
+            "raw_sha256": "5d77cc250f010d5db2d0a4dc7093b9cee27c056829c9a0e382ddbc205fff76cc",
+            "representations": {
+              "low_ones": {
+                "checked": 300,
+                "mismatches": 300
+              },
+              "low_zero": {
+                "checked": 300,
+                "mismatches": 300
+              },
+              "replicated": {
+                "checked": 300,
+                "mismatches": 300
+              },
+              "wide": {
+                "checked": 300,
+                "mismatches": 0
+              }
+            },
+            "semantics": {
+              "finite": 300,
+              "inf": 9,
+              "nan": 43
+            },
+            "vendor_text": "FHADD.BF16 R10, R2.H1, R4",
+            "word": "003fca00000e000000000004020a7221"
+          },
+          {
+            "cubin_sha256": "5f86686471a4573643271975a67dd899a2dbade46083893894bf52593df76248",
+            "launches": 11,
+            "path": "raw-sm103a/rm_f16_h0.json",
+            "raw_outputs": 352,
+            "raw_sha256": "795e17d8a970298bc613293d57b7b7935abee92ac0d62b381aeacbae20417fce",
+            "representations": {
+              "low_ones": {
+                "checked": 300,
+                "mismatches": 300
+              },
+              "low_zero": {
+                "checked": 300,
+                "mismatches": 300
+              },
+              "replicated": {
+                "checked": 300,
+                "mismatches": 300
+              },
+              "wide": {
+                "checked": 300,
+                "mismatches": 0
+              }
+            },
+            "semantics": {
+              "finite": 300,
+              "inf": 10,
+              "nan": 42
+            },
+            "vendor_text": "FHADD.RM R10, R2, R4",
+            "word": "003fca000002400000000004020a7221"
+          },
+          {
+            "cubin_sha256": "6d7820f961d80f9f80b205bff78e140e163c6f6a9a86ac2fdb456b9f67b19b40",
+            "launches": 11,
+            "path": "raw-sm103a/rm_f16_h1.json",
+            "raw_outputs": 352,
+            "raw_sha256": "bf25bbf85a96d20102c154e573b0ebf3a0edb61d6f5381e88b6314a15f93530f",
+            "representations": {
+              "low_ones": {
+                "checked": 300,
+                "mismatches": 300
+              },
+              "low_zero": {
+                "checked": 300,
+                "mismatches": 300
+              },
+              "replicated": {
+                "checked": 300,
+                "mismatches": 300
+              },
+              "wide": {
+                "checked": 300,
+                "mismatches": 0
+              }
+            },
+            "semantics": {
+              "finite": 300,
+              "inf": 9,
+              "nan": 43
+            },
+            "vendor_text": "FHADD.RM R10, R2.H1, R4",
+            "word": "003fca00000a400000000004020a7221"
+          },
+          {
+            "cubin_sha256": "184cf0ed46f7ae61f02e51e21ba6f5ffbd7b61ef17178587ca208e7d940d73c5",
+            "launches": 11,
+            "path": "raw-sm103a/rm_bf16_h0.json",
+            "raw_outputs": 352,
+            "raw_sha256": "b2da5eff1690cdede2f270f3a73525fa076df61fc2c7c18bf3cedcd8abbf9e63",
+            "representations": {
+              "low_ones": {
+                "checked": 300,
+                "mismatches": 300
+              },
+              "low_zero": {
+                "checked": 300,
+                "mismatches": 300
+              },
+              "replicated": {
+                "checked": 300,
+                "mismatches": 300
+              },
+              "wide": {
+                "checked": 300,
+                "mismatches": 0
+              }
+            },
+            "semantics": {
+              "finite": 300,
+              "inf": 10,
+              "nan": 42
+            },
+            "vendor_text": "FHADD.BF16.RM R10, R2, R4",
+            "word": "003fca000006400000000004020a7221"
+          },
+          {
+            "cubin_sha256": "26241d88b01fe3208e2bbf554adc13d61661e5bfdf8df647e5cb5795d5df5008",
+            "launches": 11,
+            "path": "raw-sm103a/rm_bf16_h1.json",
+            "raw_outputs": 352,
+            "raw_sha256": "986207cc091521cdc071cb7d3eb7b30eb75d87abcac22c337b87b600c3cf4a52",
+            "representations": {
+              "low_ones": {
+                "checked": 300,
+                "mismatches": 300
+              },
+              "low_zero": {
+                "checked": 300,
+                "mismatches": 300
+              },
+              "replicated": {
+                "checked": 300,
+                "mismatches": 300
+              },
+              "wide": {
+                "checked": 300,
+                "mismatches": 0
+              }
+            },
+            "semantics": {
+              "finite": 300,
+              "inf": 9,
+              "nan": 43
+            },
+            "vendor_text": "FHADD.BF16.RM R10, R2.H1, R4",
+            "word": "003fca00000e400000000004020a7221"
+          },
+          {
+            "cubin_sha256": "3c76852395bbfd67c6b30b51a261a69dc5cfed9943e82236a63b98272c779586",
+            "launches": 11,
+            "path": "raw-sm103a/rp_f16_h0.json",
+            "raw_outputs": 352,
+            "raw_sha256": "fd25866f937a04b590a4ad85e31a61558a3d702d959f0e8be220cafe2fa5489d",
+            "representations": {
+              "low_ones": {
+                "checked": 300,
+                "mismatches": 300
+              },
+              "low_zero": {
+                "checked": 300,
+                "mismatches": 285
+              },
+              "replicated": {
+                "checked": 300,
+                "mismatches": 285
+              },
+              "wide": {
+                "checked": 300,
+                "mismatches": 0
+              }
+            },
+            "semantics": {
+              "finite": 300,
+              "inf": 10,
+              "nan": 42
+            },
+            "vendor_text": "FHADD.RP R10, R2, R4",
+            "word": "003fca000002800000000004020a7221"
+          },
+          {
+            "cubin_sha256": "464759a463d01bcb96d2dcdc238cf8702dad4fbc1631e6fb4d72caa7f3c2eb25",
+            "launches": 11,
+            "path": "raw-sm103a/rp_f16_h1.json",
+            "raw_outputs": 352,
+            "raw_sha256": "4eb6bcd6f4d956a4369df6738ce7e0c8fe0676d360ecb884011cadcd5f89af59",
+            "representations": {
+              "low_ones": {
+                "checked": 300,
+                "mismatches": 300
+              },
+              "low_zero": {
+                "checked": 300,
+                "mismatches": 300
+              },
+              "replicated": {
+                "checked": 300,
+                "mismatches": 300
+              },
+              "wide": {
+                "checked": 300,
+                "mismatches": 0
+              }
+            },
+            "semantics": {
+              "finite": 300,
+              "inf": 9,
+              "nan": 43
+            },
+            "vendor_text": "FHADD.RP R10, R2.H1, R4",
+            "word": "003fca00000a800000000004020a7221"
+          },
+          {
+            "cubin_sha256": "5882900a157febd4c9183aa585fb0f55ecf1a34c6032dc5d8db38130596ea1c8",
+            "launches": 11,
+            "path": "raw-sm103a/rp_bf16_h0.json",
+            "raw_outputs": 352,
+            "raw_sha256": "17e005d786efd587a8882b80be2cb49aaee29027479187dd5f3a173a40575302",
+            "representations": {
+              "low_ones": {
+                "checked": 300,
+                "mismatches": 300
+              },
+              "low_zero": {
+                "checked": 300,
+                "mismatches": 296
+              },
+              "replicated": {
+                "checked": 300,
+                "mismatches": 296
+              },
+              "wide": {
+                "checked": 300,
+                "mismatches": 0
+              }
+            },
+            "semantics": {
+              "finite": 300,
+              "inf": 10,
+              "nan": 42
+            },
+            "vendor_text": "FHADD.BF16.RP R10, R2, R4",
+            "word": "003fca000006800000000004020a7221"
+          },
+          {
+            "cubin_sha256": "44a917bdab31837e7ccdf93fbb0d2c319880d81d77aa05a793e529330465c1d5",
+            "launches": 11,
+            "path": "raw-sm103a/rp_bf16_h1.json",
+            "raw_outputs": 352,
+            "raw_sha256": "c3ab244f5c589f93f75603256d4184261c82f1c2e68129fa27f65aa2af651440",
+            "representations": {
+              "low_ones": {
+                "checked": 300,
+                "mismatches": 300
+              },
+              "low_zero": {
+                "checked": 300,
+                "mismatches": 300
+              },
+              "replicated": {
+                "checked": 300,
+                "mismatches": 300
+              },
+              "wide": {
+                "checked": 300,
+                "mismatches": 0
+              }
+            },
+            "semantics": {
+              "finite": 300,
+              "inf": 9,
+              "nan": 43
+            },
+            "vendor_text": "FHADD.BF16.RP R10, R2.H1, R4",
+            "word": "003fca00000e800000000004020a7221"
+          },
+          {
+            "cubin_sha256": "395a7b1a8ccaa72329468ed1ecd8004fa8329501f6fce5f5ce9a4a6dc555df03",
+            "launches": 11,
+            "path": "raw-sm103a/rz_f16_h0.json",
+            "raw_outputs": 352,
+            "raw_sha256": "c46217af29b80c4d6fe3cc7cb2f7d39841f8469d52172a47b435ad5c66ecb281",
+            "representations": {
+              "low_ones": {
+                "checked": 300,
+                "mismatches": 300
+              },
+              "low_zero": {
+                "checked": 300,
+                "mismatches": 285
+              },
+              "replicated": {
+                "checked": 300,
+                "mismatches": 285
+              },
+              "wide": {
+                "checked": 300,
+                "mismatches": 0
+              }
+            },
+            "semantics": {
+              "finite": 300,
+              "inf": 10,
+              "nan": 42
+            },
+            "vendor_text": "FHADD.RZ R10, R2, R4",
+            "word": "003fca000002c00000000004020a7221"
+          },
+          {
+            "cubin_sha256": "5dd456bcea876d0e7fc7d9b66f94b246171f247a58078f21c1d8ecacc00812dd",
+            "launches": 11,
+            "path": "raw-sm103a/rz_f16_h1.json",
+            "raw_outputs": 352,
+            "raw_sha256": "19ea1dc10eb448721be8cfd25efb29f176f1bd2f4b636b54988941b04ded7a8a",
+            "representations": {
+              "low_ones": {
+                "checked": 300,
+                "mismatches": 300
+              },
+              "low_zero": {
+                "checked": 300,
+                "mismatches": 300
+              },
+              "replicated": {
+                "checked": 300,
+                "mismatches": 300
+              },
+              "wide": {
+                "checked": 300,
+                "mismatches": 0
+              }
+            },
+            "semantics": {
+              "finite": 300,
+              "inf": 9,
+              "nan": 43
+            },
+            "vendor_text": "FHADD.RZ R10, R2.H1, R4",
+            "word": "003fca00000ac00000000004020a7221"
+          },
+          {
+            "cubin_sha256": "71b844bbc79b2acedd25ca9f151caa1531a59bb5993930ac075f6b3e4f3720af",
+            "launches": 11,
+            "path": "raw-sm103a/rz_bf16_h0.json",
+            "raw_outputs": 352,
+            "raw_sha256": "912165ed896ce19cb020c26eb5898536a00ab3f800d24113b4b1131374b55ceb",
+            "representations": {
+              "low_ones": {
+                "checked": 300,
+                "mismatches": 300
+              },
+              "low_zero": {
+                "checked": 300,
+                "mismatches": 296
+              },
+              "replicated": {
+                "checked": 300,
+                "mismatches": 296
+              },
+              "wide": {
+                "checked": 300,
+                "mismatches": 0
+              }
+            },
+            "semantics": {
+              "finite": 300,
+              "inf": 10,
+              "nan": 42
+            },
+            "vendor_text": "FHADD.BF16.RZ R10, R2, R4",
+            "word": "003fca000006c00000000004020a7221"
+          },
+          {
+            "cubin_sha256": "bc3eafeab4744e67e799f6439bff806e345fbf8893fc38a244dab7eb7da0810c",
+            "launches": 11,
+            "path": "raw-sm103a/rz_bf16_h1.json",
+            "raw_outputs": 352,
+            "raw_sha256": "8c59ca244f144b1fc0690afd32181c44d4999c77272584b54fe9bfeb4333a0cf",
+            "representations": {
+              "low_ones": {
+                "checked": 300,
+                "mismatches": 300
+              },
+              "low_zero": {
+                "checked": 300,
+                "mismatches": 300
+              },
+              "replicated": {
+                "checked": 300,
+                "mismatches": 300
+              },
+              "wide": {
+                "checked": 300,
+                "mismatches": 0
+              }
+            },
+            "semantics": {
+              "finite": 300,
+              "inf": 9,
+              "nan": 43
+            },
+            "vendor_text": "FHADD.BF16.RZ R10, R2.H1, R4",
+            "word": "003fca00000ec00000000004020a7221"
+          },
+          {
+            "cubin_sha256": "bcdbdcd697bb48ac0f5dcc2dd2a0bb68827264e1f3e78a597a59c3fbd178a0ab",
+            "launches": 11,
+            "path": "raw-sm103a/plain_bf16_h1_replay.json",
+            "raw_outputs": 352,
+            "raw_sha256": "8d884905a703ee1e255d76499e3a91265bcb1f183d0bb49d15a1a906a8e1927d",
+            "representations": {
+              "low_ones": {
+                "checked": 300,
+                "mismatches": 300
+              },
+              "low_zero": {
+                "checked": 300,
+                "mismatches": 300
+              },
+              "replicated": {
+                "checked": 300,
+                "mismatches": 300
+              },
+              "wide": {
+                "checked": 300,
+                "mismatches": 0
+              }
+            },
+            "semantics": {
+              "finite": 300,
+              "inf": 9,
+              "nan": 43
+            },
+            "vendor_text": "FHADD.BF16 R10, R2.H1, R4",
+            "word": "003fca00000e000000000004020a7221"
+          }
+        ],
+        "core_semantics": {
+          "finite": 4800,
+          "inf": 152,
+          "nan": 680
+        },
+        "representations": {
+          "low_ones": {
+            "checked": 4800,
+            "mismatches": 4800
+          },
+          "low_zero": {
+            "checked": 4800,
+            "mismatches": 4743
+          },
+          "replicated": {
+            "checked": 4800,
+            "mismatches": 4743
+          },
+          "wide": {
+            "checked": 4800,
+            "mismatches": 0
+          }
+        }
+      }
+    },
+    "per_arch_counts": {
+      "core_cases": 16,
+      "core_launches": 176,
+      "core_outputs": 5632,
+      "replay_cases": 1,
+      "replay_launches": 11,
+      "replay_outputs": 352,
+      "total_launches": 187
+    },
+    "replay_is_duplicate_not_core_coverage": true
+  },
+  "final_gpu_telemetry": {
+    "sm100a": {
+      "timestamped_final_record": "gpu-final-sm100a.json",
+      "zero_MiB_and_no_compute_apps": true
+    },
+    "sm103a": {
+      "timestamped_final_record": "gpu-final-sm103a.json",
+      "zero_MiB_and_no_compute_apps": true
+    }
+  },
+  "gpu_launches_performed_by_this_audit": 0,
+  "hset2": {
+    "all_model_falsification_runs_are_separate_from_accepted_A_eq_B_scope": true,
+    "cross_architecture": {
+      "bf16": {
+        "mirrored_batches_with_A_eq_B_per_arch": 11,
+        "mirrored_digest_default_json_batches": {
+          "sm100a": "29f6928725e23e426b6b616cd518e7fafcdaf5c1ec715b19e72a453dd1db74db",
+          "sm103a": "29f6928725e23e426b6b616cd518e7fafcdaf5c1ec715b19e72a453dd1db74db"
+        },
+        "mirrored_digest_packed_u32le": {
+          "sm100a": "6d708ae82e7d5aad89a63766389365e5a7b9163ee0271dcc3c02171d447b0c72",
+          "sm103a": "6d708ae82e7d5aad89a63766389365e5a7b9163ee0271dcc3c02171d447b0c72"
+        },
+        "mirrored_outputs_per_arch": 352,
+        "non_mirrored_digest_packed_u32le": {
+          "sm100a": "374e9a24e5e9f32fddd9a83e7418fe2f3c0d99648f9834d7ad0ceada65049ba8",
+          "sm103a": "374e9a24e5e9f32fddd9a83e7418fe2f3c0d99648f9834d7ad0ceada65049ba8"
+        },
+        "non_mirrored_outputs_per_arch": 352,
+        "zero_cross_architecture_value_differences": true
+      },
+      "f16": {
+        "mirrored_batches_with_A_eq_B_per_arch": 11,
+        "mirrored_digest_default_json_batches": {
+          "sm100a": "8cced12a7cd50ea1f782d181f3bbc6f02b1bfe02f25b5c2d2261fe6422cb2943",
+          "sm103a": "8cced12a7cd50ea1f782d181f3bbc6f02b1bfe02f25b5c2d2261fe6422cb2943"
+        },
+        "mirrored_digest_packed_u32le": {
+          "sm100a": "6ad8bf38170ce8be55741c0bd84cf2fff909b3f23cd26d8e688f39e328e5875a",
+          "sm103a": "6ad8bf38170ce8be55741c0bd84cf2fff909b3f23cd26d8e688f39e328e5875a"
+        },
+        "mirrored_outputs_per_arch": 352,
+        "non_mirrored_digest_packed_u32le": {
+          "sm100a": "bbd953f5e5119347c7bb52f7b81098aeab306ed29341898f19a44db2b5209982",
+          "sm103a": "bbd953f5e5119347c7bb52f7b81098aeab306ed29341898f19a44db2b5209982"
+        },
+        "non_mirrored_outputs_per_arch": 352,
+        "zero_cross_architecture_value_differences": true
+      }
+    },
+    "mirrored_launches_per_arch": 22,
+    "non_mirrored_model_falsification_launches_per_arch": 22,
+    "per_arch_rejected_model": {
+      "sm100a": {
+        "non_mirrored_naive_equality_model_rejected": {
+          "bf16": {
+            "checked_outputs": 352,
+            "details": "hset-evaluation.json",
+            "model_mismatches": 40
+          },
+          "f16": {
+            "checked_outputs": 352,
+            "details": "hset-evaluation.json",
+            "model_mismatches": 9
+          }
+        }
+      },
+      "sm103a": {
+        "non_mirrored_naive_equality_model_rejected": {
+          "bf16": {
+            "checked_outputs": 352,
+            "details": "hset-evaluation.json",
+            "model_mismatches": 40
+          },
+          "f16": {
+            "checked_outputs": 352,
+            "details": "hset-evaluation.json",
+            "model_mismatches": 9
+          }
+        }
+      }
+    },
+    "semantics_verdict": "OPEN_NO_EQ_SEMANTIC_CLAIM"
+  },
+  "metadata_caveats": [
+    "audit-sm100a.json retains an inherited 'SM100 execution' exclusion; raw-sm100a and hset-eq-raw contain native B200 completed execution records.",
+    "The FHADD semantic claim is non-SAT and limited to measured F16/BF16 H0/H1 and FP32-wide output with exercised rounding variants.",
+    "NaN payload is not universalized. SAT, unused fields, timing, cache and other forms remain unmeasured.",
+    "HSET2 non-mirrored runs reject only the stated naive mask model; the A=B runs are raw SILICON-EFFECT observations, not an EQ theorem.",
+    "Legacy hset-dual-execution.json sha256_outputs hashes nested JSON arrays of hex strings, not packed raw bytes; both mirrored serializations are separately reported above."
+  ],
+  "schema_version": 1,
+  "verdict": "PASS_OFFLINE_AUDIT_OF_CACHED_GPU_OBSERVATIONS"
+}

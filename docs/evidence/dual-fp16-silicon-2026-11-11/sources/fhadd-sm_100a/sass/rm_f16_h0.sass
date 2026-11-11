@@ -1,0 +1,25 @@
+.entry unpack_probe
+    .reg R0-R13
+    .regcount 16
+    .param u64 p0 offset=0x0
+    .param u64 p1 offset=0x8
+    .param u64 p2 offset=0x10
+    .param u64 p3 offset=0x18
+    LDC R1, c[0x0][0x37c] ;
+    S2R R13, SR_TID.X ;
+    LDC.64 R2, c[0x0][0x380] ;
+    LDCU.64 UR4, c[0x0][0x358] ;
+    LDC.64 R4, c[0x0][0x388] ;
+    LDC.64 R6, c[0x0][0x390] ;
+    LDC.64 R8, c[0x0][0x398] ;
+    IMAD.WIDE.U32 R2, R13, 0x8, R2 ;
+    IMAD.WIDE.U32 R4, R13, 0x8, R4 ;
+    LDG.E.64 R2, desc[UR4][R2.64] ;
+    LDG.E.64 R4, desc[UR4][R4.64] ;
+    IMAD.WIDE.U32 R6, R13, 0x4, R6 ;
+    IMAD.WIDE.U32 R8, R13, 0x4, R8 ;
+    FHADD.RM R10, R2, R4 ;
+    STG.E desc[UR4][R6.64], R10 ;
+    STG.E desc[UR4][R8.64], R5 ;
+    EXIT ;
+.endentry

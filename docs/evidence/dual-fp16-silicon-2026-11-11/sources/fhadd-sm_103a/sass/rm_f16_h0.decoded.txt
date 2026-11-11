@@ -1,0 +1,38 @@
+	.target	sm_103a
+
+	.elftype	@"ET_EXEC"
+
+
+//--------------------- .text.unpack_probe        --------------------------
+	.section	.text.unpack_probe,"ax",@progbits
+	.align	128
+        .global         unpack_probe
+        .type           unpack_probe,@function
+        .size           unpack_probe,(.L_x_0 - unpack_probe)
+        .other          unpack_probe,@"STO_CUDA_ENTRY STV_DEFAULT"
+unpack_probe:
+.text.unpack_probe:
+        /*0000*/                   LDC R1, c[0x0][0x37c] ;
+        /*0010*/                   S2R R13, SR_TID.X ;
+        /*0020*/                   LDC.64 R2, c[0x0][0x380] ;
+        /*0030*/                   LDCU.64 UR4, c[0x0][0x358] ;
+        /*0040*/                   LDC.64 R4, c[0x0][0x388] ;
+        /*0050*/                   LDC.64 R6, c[0x0][0x390] ;
+        /*0060*/                   LDC.64 R8, c[0x0][0x398] ;
+        /*0070*/                   IMAD.WIDE.U32 R2, R13, 0x8, R2 ;
+        /*0080*/                   IMAD.WIDE.U32 R4, R13, 0x8, R4 ;
+        /*0090*/                   LDG.E.64 R2, desc[UR4][R2.64] ;
+        /*00a0*/                   LDG.E.64 R4, desc[UR4][R4.64] ;
+        /*00b0*/                   IMAD.WIDE.U32 R6, R13, 0x4, R6 ;
+        /*00c0*/                   IMAD.WIDE.U32 R8, R13, 0x4, R8 ;
+        /*00d0*/                   FHADD.RM R10, R2, R4 ;
+        /*00e0*/                   STG.E desc[UR4][R6.64], R10 ;
+        /*00f0*/                   STG.E desc[UR4][R8.64], R5 ;
+        /*0100*/                   EXIT ;
+.L_x_0:
+
+
+//--------------------- SYMBOLS --------------------------
+
+	.type		.nv.reservedSmem.offset0,@object
+	.size		.nv.reservedSmem.offset0,0x4

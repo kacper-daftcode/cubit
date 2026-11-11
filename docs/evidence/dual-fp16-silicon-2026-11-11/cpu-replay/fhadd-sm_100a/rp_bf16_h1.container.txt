@@ -1,0 +1,312 @@
+
+64-bit ELF: type=ET_EXEC, ABI=8, sm=100a, toolkit=13.3, flags=0x600640a
+Sections:
+Index Offset   Size ES Align                      Type    Flags Link     Info Name
+    1     40    1c5  0  1                       STRTAB        0    0        0 .shstrtab
+    2    205    162  0  1                       STRTAB        0    0        0 .strtab
+    3    368     f0 18  8                       SYMTAB        0    2        a .symtab
+    4    458     68  0  1                     PROGBITS        0    0        0 .debug_frame
+    5    4c0     a8  0  4                         NOTE  2000000    0        0 .note.nv.tkinfo
+    6    568     20  0  4                         NOTE  1000040    5        8 .note.nv.cuinfo
+    7    588     24  0  4                    CUDA_INFO        0    3        0 .nv.info
+    8    5ac     24  0  4             CUDA_COMPAT_INFO        0    0        0 .nv.compat
+    9    5d0     84  0  4                    CUDA_INFO       40    3        c .nv.info.unpack_probe
+    a    654     20  8  4               CUDA_CALLGRAPH        0    3        0 .nv.callgraph
+    b    678     18 18  8                         RELA       40    3        4 .rela.debug_frame
+    c    700    110  0 80                     PROGBITS        6    3        8 .text.unpack_probe
+    d    810     40  0  1                       NOBITS        3    0        0 .nv.shared.reserved.0
+    e    810    3a0  0  4                     PROGBITS       42    0        c .nv.constant0.unpack_probe
+    f    bb0    102  0 10                 CUDA_CAPMERC 10000000   15        8 .nv.capmerc.text.unpack_probe
+   10    cb2     70  0  1                     PROGBITS 10000000    0        0 .nv.merc.debug_frame
+   11    d24     24  0  4                    CUDA_INFO 10000000   15        0 .nv.merc.nv.info
+   12    d48     8c  0  4                    CUDA_INFO 10000040   15        f .nv.merc.nv.info.unpack_probe
+   13    dd8     18 18  8                         RELA 10000040   15       10 .nv.merc.rela.debug_frame
+   14    df0      0  0  1         CUDA_RESERVED_SHARED 10000003    0        0 .nv.merc.nv.shared.reserved.0
+   15    df0     d8 18  8                       SYMTAB 10000000    2        8 .nv.merc.symtab
+
+.section .strtab
+
+.section .shstrtab
+
+.section .symtab
+ index           value           size      info    other  shndx    name  
+   0               0               0        0        0      0     (null)
+ 0x1               0               0      0x3        0    0x5     .note.nv.tkinfo
+ 0x2               0               0      0x3        0    0x6     .note.nv.cuinfo
+ 0x3               0               0      0x3        0    0xc     .text.unpack_probe
+ 0x4            0x40             0x4     0x21        0      0     .nv.reservedSmem.offset0
+ 0x5            0x40               0     0x20     0xa0    0xd     __nv_reservedSMEM_offset_0_alias
+ 0x6               0               0      0x3        0    0x4     .debug_frame
+ 0x7               0               0      0x3        0    0xa     .nv.callgraph
+ 0x8               0           0x110     0x12     0x10    0xc     unpack_probe
+ 0x9               0               0      0x3        0    0xe     .nv.constant0.unpack_probe
+
+
+.nv.shared.reserved.0
+   No data to be dumped. 
+
+
+.nv.constant0.unpack_probe
+0x00000000 0x00000000 0x00000000 0x00000000
+0x00000000 0x00000000 0x00000000 0x00000000
+0x00000000 0x00000000 0x00000000 0x00000000
+0x00000000 0x00000000 0x00000000 0x00000000
+0x00000000 0x00000000 0x00000000 0x00000000
+0x00000000 0x00000000 0x00000000 0x00000000
+0x00000000 0x00000000 0x00000000 0x00000000
+0x00000000 0x00000000 0x00000000 0x00000000
+0x00000000 0x00000000 0x00000000 0x00000000
+0x00000000 0x00000000 0x00000000 0x00000000
+0x00000000 0x00000000 0x00000000 0x00000000
+0x00000000 0x00000000 0x00000000 0x00000000
+0x00000000 0x00000000 0x00000000 0x00000000
+0x00000000 0x00000000 0x00000000 0x00000000
+0x00000000 0x00000000 0x00000000 0x00000000
+0x00000000 0x00000000 0x00000000 0x00000000
+0x00000000 0x00000000 0x00000000 0x00000000
+0x00000000 0x00000000 0x00000000 0x00000000
+0x00000000 0x00000000 0x00000000 0x00000000
+0x00000000 0x00000000 0x00000000 0x00000000
+0x00000000 0x00000000 0x00000000 0x00000000
+0x00000000 0x00000000 0x00000000 0x00000000
+0x00000000 0x00000000 0x00000000 0x00000000
+0x00000000 0x00000000 0x00000000 0x00000000
+0x00000000 0x00000000 0x00000000 0x00000000
+0x00000000 0x00000000 0x00000000 0x00000000
+0x00000000 0x00000000 0x00000000 0x00000000
+0x00000000 0x00000000 0x00000000 0x00000000
+0x00000000 0x00000000 0x00000000 0x00000000
+0x00000000 0x00000000 0x00000000 0x00000000
+0x00000000 0x00000000 0x00000000 0x00000000
+0x00000000 0x00000000 0x00000000 0x00000000
+0x00000000 0x00000000 0x00000000 0x00000000
+0x00000000 0x00000000 0x00000000 0x00000000
+0x00000000 0x00000000 0x00000000 0x00000000
+0x00000000 0x00000000 0x00000000 0x00000000
+0x00000000 0x00000000 0x00000000 0x00000000
+0x00000000 0x00000000 0x00000000 0x00000000
+0x00000000 0x00000000 0x00000000 0x00000000
+0x00000000 0x00000000 0x00000000 0x00000000
+0x00000000 0x00000000 0x00000000 0x00000000
+0x00000000 0x00000000 0x00000000 0x00000000
+0x00000000 0x00000000 0x00000000 0x00000000
+0x00000000 0x00000000 0x00000000 0x00000000
+0x00000000 0x00000000 0x00000000 0x00000000
+0x00000000 0x00000000 0x00000000 0x00000000
+0x00000000 0x00000000 0x00000000 0x00000000
+0x00000000 0x00000000 0x00000000 0x00000000
+0x00000000 0x00000000 0x00000000 0x00000000
+0x00000000 0x00000000 0x00000000 0x00000000
+0x00000000 0x00000000 0x00000000 0x00000000
+0x00000000 0x00000000 0x00000000 0x00000000
+0x00000000 0x00000000 0x00000000 0x00000000
+0x00000000 0x00000000 0x00000000 0x00000000
+0x00000000 0x00000000 0x00000000 0x00000000
+0x00000000 0x00000000 0x00000000 0x00000000
+0x00000000 0x00000000 0x00000000 0x00000000
+0x00000000 0x00000000 0x00000000 0x00000000
+
+
+
+.section .note.nv.tkinfo
+Entry: 1
+  Owner                  Data size        Description
+  NVIDIA Corp            144              NVIDIA CUDA Toolkit Information
+	Note Version: 2
+	Tool Name: ptxas
+	Tool Version: Cuda compilation tools, release 13.1, V13.1.115
+	Tool Branch: Build cuda_13.1.r13.1/compiler.37061995_0
+	Tool Command Line Arguments: -arch sm_120 -m 64 
+
+
+.section .note.nv.cuinfo
+Entry: 1
+  Owner                  Data size        Description
+  NVIDIA Corp            8                NVIDIA CUDA Information
+	Note Version: 2
+	CUDA Virtual SM: sm_100
+	CUDA Tool Kit Version: 13.3
+
+
+.nv.info
+	<0x1>
+	Attribute:	EIATTR_REGCOUNT
+	Format:	EIFMT_SVAL
+	Value:	function: unpack_probe(0x8)	register count: 16
+	<0x2>
+	Attribute:	EIATTR_FRAME_SIZE
+	Format:	EIFMT_SVAL
+	Value:	function: unpack_probe(0x8)	frame size: 0x0
+	<0x3>
+	Attribute:	EIATTR_MIN_STACK_SIZE
+	Format:	EIFMT_SVAL
+	Value:	function: unpack_probe(0x8)	min stack size: 0x0
+
+
+.nv.compat
+	<0x1>
+	Attribute:	EICOMPAT_ATTR_CUDA_ACCELERATOR_TARGET
+	Format:	EIFMT_BVAL
+	Value:	0x1
+	<0x2>
+	Attribute:	EICOMPAT_ATTR_ISA_CLASS
+	Format:	EIFMT_BVAL
+	Value:	0x1
+	<0x3>
+	Attribute:	EICOMPAT_ATTR_INST_TCGEN05_MMA
+	Format:	EIFMT_BVAL
+	Value:	0x5
+	<0x4>
+	Attribute:	EICOMPAT_ATTR_MERCURY_ISA_MAJOR_MINOR_VERSION_V2
+	Format:	EIFMT_HVAL
+	Value:	1.1
+	<0x5>
+	Attribute:	EICOMPAT_ATTR_MERCURY_ISA_MAJOR_MINOR_VERSION_V1
+	Format:	EIFMT_HVAL
+	Value:	1.1
+	<0x6>
+	Attribute:	EICOMPAT_ATTR_INST_TENSORMAP_V1
+	Format:	EIFMT_BVAL
+	Value:	0x0
+	<0x7>
+	Attribute:	EICOMPAT_ATTR_CAN_FASTPATH_FINALIZE
+	Format:	EIFMT_SVAL
+	Value:	0x9 0x0 
+
+
+.nv.info.unpack_probe
+	<0x1>
+	Attribute:	EIATTR_LANGUAGE
+	Format:	EIFMT_SVAL
+	Value:	Language:	 PTX
+
+	<0x2>
+	Attribute:	EIATTR_CUDA_API_VERSION
+	Format:	EIFMT_SVAL
+	Value:	0x85 
+	<0x3>
+	Attribute:	EIATTR_KPARAM_INFO
+	Format:	EIFMT_SVAL
+	Value:	Index : 0x0	Ordinal : 0x3	Offset  : 0x18	Size    : 0x8
+		Pointee's logAlignment : 0x0	Space : 0x0	cbank : 0x1f	Parameter Space : CBANK	
+	<0x4>
+	Attribute:	EIATTR_KPARAM_INFO
+	Format:	EIFMT_SVAL
+	Value:	Index : 0x0	Ordinal : 0x2	Offset  : 0x10	Size    : 0x8
+		Pointee's logAlignment : 0x0	Space : 0x0	cbank : 0x1f	Parameter Space : CBANK	
+	<0x5>
+	Attribute:	EIATTR_KPARAM_INFO
+	Format:	EIFMT_SVAL
+	Value:	Index : 0x0	Ordinal : 0x1	Offset  : 0x8	Size    : 0x8
+		Pointee's logAlignment : 0x0	Space : 0x0	cbank : 0x1f	Parameter Space : CBANK	
+	<0x6>
+	Attribute:	EIATTR_KPARAM_INFO
+	Format:	EIFMT_SVAL
+	Value:	Index : 0x0	Ordinal : 0x0	Offset  : 0x0	Size    : 0x8
+		Pointee's logAlignment : 0x0	Space : 0x0	cbank : 0x1f	Parameter Space : CBANK	
+	<0x7>
+	Attribute:	EIATTR_SPARSE_MMA_MASK
+	Format:	EIFMT_HVAL
+	Value:	0x0
+	<0x8>
+	Attribute:	EIATTR_MAXREG_COUNT
+	Format:	EIFMT_HVAL
+	Value:	0xff
+	<0x9>
+	Attribute:	EIATTR_MERCURY_ISA_VERSION
+	Format:	EIFMT_HVAL
+	Value:	1.1
+	<0x10>
+	Attribute:	EIATTR_VRC_CTA_INIT_COUNT
+	Format:	EIFMT_BVAL
+	Value:	0x0
+	<0x11>
+	Attribute:	EIATTR_EXIT_INSTR_OFFSETS
+	Format:	EIFMT_SVAL
+	Value:	0x100 
+	<0x12>
+	Attribute:	EIATTR_CBANK_PARAM_SIZE
+	Format:	EIFMT_HVAL
+	Value:	0x20
+	<0x13>
+	Attribute:	EIATTR_PARAM_CBANK
+	Format:	EIFMT_SVAL
+	Value:	0x9 0x200380 
+	<0x14>
+	Attribute:	EIATTR_SW_WAR
+	Format:	EIFMT_SVAL
+	Value:	0x8 
+	<0x15>
+	Attribute:	EIATTR_NVSAL_SW_WAR
+	Format:	EIFMT_HVAL
+	Value:	 0x1
+
+
+.nv.callgraph
+ <0,-1>
+ <0,-2>
+ <0,-3>
+ <0,-4>
+
+
+.text.unpack_probe
+lmem=0	smem=0
+0xff017b82 0x0000df00 0x00000800 0x000fe800
+0x000d7919 0x00000000 0x00002100 0x000e2800
+0xff027b82 0x0000e000 0x00000a00 0x000e6800
+0xff0477ac 0x00006b00 0x08000a00 0x000ea800
+0xff047b82 0x0000e200 0x00000a00 0x000ee800
+0xff067b82 0x0000e400 0x00000a00 0x000ee800
+0xff087b82 0x0000e600 0x00000a00 0x000ef000
+0x0d027825 0x00000008 0x078e0002 0x003fcc00
+0x0d047825 0x00000008 0x078e0004 0x008fcc00
+0x02027981 0x00000004 0x0c1e1b00 0x004e2800
+0x04047981 0x00000004 0x0c1e1b00 0x000e6800
+0x0d067825 0x00000004 0x078e0006 0x000fcc00
+0x0d087825 0x00000004 0x078e0008 0x000fcc00
+0x020a7221 0x00000004 0x000e8000 0x003fca00
+0x06007986 0x0000000a 0x0c101904 0x000fc800
+0x08007986 0x00000005 0x0c101904 0x000fc800
+0x0000794d 0x00000000 0x03800000 0x000fca00
+
+
+.section .debug_frame
+decodeDebugFrame, frameBuf 0xffffffff, total_length 104
+CIE length 36, cie_id -1
+version 3
+augmentation slen 1
+augmentation 
+code_align_factor slen 1
+data_align_factor slen 1
+ Debug Frame Common Information Entry
+  length:                 36
+  CIE_id :                -1
+  version:                3
+  augmentation:           
+  code align factor:      4
+  data align factor:      -4
+  return address register 0xffffffff
+  initial instructions: 19 bytes, ptr = 0x8080810c, frameBuf = 0xffffffff
+  DW_CFA_def_cfa register R1, offset 0
+  DW_CFA_same_value R255
+  DW_CFA_same_value R1
+  DW_CFA_nop
+  DW_CFA_nop
+  DW_CFA_nop
+ Debug Frame Description Entry
+  length:                 44
+  CIE_pointer:            0
+  initial_location:       0x0
+  address_range:          0x110
+  function:               unpack_probe
+  instructions: 20 bytes
+  DW_CFA_advance_loc4 delta 64
+  DW_CFA_advance_loc4 delta 4
+  DW_CFA_def_cfa register R1, offset 0
+  DW_CFA_nop
+  DW_CFA_nop
+  DW_CFA_nop
+  DW_CFA_nop
+
+.section .rela.debug_frame	RELA
+0x44    unpack_probe    R_CUDA_64    0x0

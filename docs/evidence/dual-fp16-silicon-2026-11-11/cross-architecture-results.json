@@ -1,0 +1,51 @@
+{
+  "scope": "16 core forms per arch plus one repeat of plain_bf16_h1; no performance claim",
+  "core_observations_per_arch": 5632,
+  "replay_observations_per_arch": 352,
+  "total_observations_per_arch": 5984,
+  "record_metadata_preserved_separately": true,
+  "exact_value_differences": [],
+  "zero_output_differences": true,
+  "raw_observation_sha256": {
+    "sm103a": "079cc0b092252439b71a51627d0c87e1861277809e0fc41d1de400a1f0d28a21",
+    "sm100a": "079cc0b092252439b71a51627d0c87e1861277809e0fc41d1de400a1f0d28a21"
+  },
+  "audit_sm103a": {
+    "audit_verdict": "SEMANTICS_PASS_SCOPED_NON_SAT",
+    "shared_core_winning_representations": [
+      "wide"
+    ],
+    "core_variants": 16,
+    "outputs_per_case": 352,
+    "core_raw_outputs": 5632,
+    "replay_raw_outputs": 352,
+    "raw_replay_exact": true,
+    "special_semantics": "NaN/Inf class and Inf sign only; payload bits retained, no universal NaN law",
+    "excluded": [
+      "SAT",
+      "sign/absolute/reuse fields",
+      "timing",
+      "SM100 execution"
+    ],
+    "foreign_gpu_timing_inference": "none"
+  },
+  "audit_sm100a": {
+    "audit_verdict": "SEMANTICS_PASS_SCOPED_NON_SAT",
+    "shared_core_winning_representations": [
+      "wide"
+    ],
+    "core_variants": 16,
+    "outputs_per_case": 352,
+    "core_raw_outputs": 5632,
+    "replay_raw_outputs": 352,
+    "raw_replay_exact": true,
+    "special_semantics": "NaN/Inf class and Inf sign only; payload bits retained, no universal NaN law",
+    "excluded": [
+      "SAT",
+      "sign/absolute/reuse fields",
+      "timing",
+      "SM100 execution"
+    ],
+    "foreign_gpu_timing_inference": "none"
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "scope": "HSET2.EQ.AND and BF16_V2.BF, exact raw cross-architecture comparison; no generalized Eq semantic claim",
+  "arches": {
+    "sm103a": {
+      "f16": 352,
+      "bf16": 352
+    },
+    "sm100a": {
+      "f16": 352,
+      "bf16": 352
+    }
+  },
+  "pairs": {
+    "f16": {
+      "observations_per_arch": 352,
+      "output_differences": [],
+      "sha256_outputs": "8cced12a7cd50ea1f782d181f3bbc6f02b1bfe02f25b5c2d2261fe6422cb2943",
+      "echo_checks": true
+    },
+    "bf16": {
+      "observations_per_arch": 352,
+      "output_differences": [],
+      "sha256_outputs": "29f6928725e23e426b6b616cd518e7fafcdaf5c1ec715b19e72a453dd1db74db",
+      "echo_checks": true
+    }
+  }
+}

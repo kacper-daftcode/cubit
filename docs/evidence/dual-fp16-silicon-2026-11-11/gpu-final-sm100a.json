@@ -1,0 +1,22 @@
+[
+  {
+    "command": [
+      "nvidia-smi",
+      "--query-gpu=timestamp,index,name,uuid,driver_version,memory.used,memory.total,utilization.gpu",
+      "--format=csv,noheader"
+    ],
+    "rc": 0,
+    "stdout": "2026/11/11 12:02:48.571, 0, NVIDIA B200, GPU-3f5b81bb-42fb-ce89-a24e-d8ab881dd372, 580.178.04, 0 MiB, 183359 MiB, 0 %\n",
+    "stderr": ""
+  },
+  {
+    "command": [
+      "nvidia-smi",
+      "--query-compute-apps=gpu_uuid,pid,process_name,used_memory",
+      "--format=csv,noheader"
+    ],
+    "rc": 0,
+    "stdout": "",
+    "stderr": ""
+  }
+]
