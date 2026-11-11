@@ -56,7 +56,7 @@ import subprocess
 import sys
 import time
 
-TOOL = "probe.py 9 (2026-11-11)"
+TOOL = "probe.py 11 (2026-11-11)"
 HERE = pathlib.Path(__file__).resolve().parent
 SEED = 0x12345
 REPEAT = 256
@@ -138,6 +138,8 @@ def data_producer(name, rd):
     if name == "CS2R":         # the pair form `CS2R Rn, SRZ`: R(d+1):Rd = 0; both registers hold the iteration's inputs until it lands
         return ([Ins(f"MOV {r}, R4 ;", ("mov", r, "R4")), Ins(f"MOV R{rd + 1}, R5 ;", ("mov", f"R{rd + 1}", "R5"))],
                 f"CS2R {r}, SRZ ;", ("zero2", r), "CS2R")
+    if name == "LEA":          # Ra + (Ra << 2), the form whose arithmetic the LEA consumer ran with
+        return [], f"LEA {r}, R4, R4, 0x2 ;", ("mad", r, "R4", 5, "RZ"), "LEA"
     if name == "IMAD.WIDE":    # the pair R(d+1):Rd = R4 * R5
         return [], f"IMAD.WIDE.U32 {r}, R4, R5, RZ ;", ("mulw", r, "R4", "R5"), "IMAD.WIDE"
     raise SystemExit(f"unknown data producer {name!r} (probe.py list)")
@@ -147,7 +149,7 @@ def P2_LT():
     return Ins("ISETP.LT.U32.AND P2, PT, R4, R5, PT ;", ("ltu", "P2", "R4", "R5"))
 
 
-DATA_PRODUCERS = ["IADD3", "IMAD", "LOP3", "MOV", "SHF", "FADD", "FMUL", "SEL", "F2FP.SAT", "IADD3.neg", "PRMT", "IMAD.SHL", "IADD.64", "IMAD.WIDE", "CS2R"]
+DATA_PRODUCERS = ["IADD3", "IMAD", "LOP3", "MOV", "SHF", "FADD", "FMUL", "SEL", "F2FP.SAT", "IADD3.neg", "PRMT", "IMAD.SHL", "IADD.64", "IMAD.WIDE", "CS2R", "LEA"]
 PAIR_PRODUCERS = {"IADD.64", "IMAD.WIDE", "CS2R"}      # they write R(d) and R(d+1)
 
 
@@ -214,6 +216,8 @@ RAW_CONSUMERS = {
     "IADD.64.r1h": ("data", 6, "IADD.64", "r1h", "the HIGH word of the first operand pair of IADD.64 (the producer writes a pair)"),
     "LEA.r1": ("data", 6, "LEA", "r1", "both operands of LEA Rd, Ra, Ra, 2"),
     "SHF.L.U64.HI.r1": ("data", 6, "SHF", "r1", "the operand PAIR of SHF.L.U64.HI (the producer writes a pair)"),
+    "IMAD.WIDE.r3": ("data", 6, "IMAD.WIDE", "r3", "the LOW word of the 64-bit addend of IMAD.WIDE"),
+    "IMAD.WIDE.r3h": ("data", 7, "IMAD.WIDE", "r3h", "the HIGH word of the 64-bit addend of IMAD.WIDE"),
     "UIADD3.u1": ("udata", 6, "UIADD3", "u1", "the uniform addend of UIADD3"),
     "MOV.u1": ("udata", 6, "MOV", "u1", "the uniform source of MOV R, UR"),
 }
@@ -288,6 +292,11 @@ def body_raw(req, d, front):
         raise SystemExit(f"{cons}: the producer must write a register pair ({', '.join(sorted(PAIR_PRODUCERS))})")
     if prod == "CS2R" and rd % 2:
         raise SystemExit("CS2R: the pair form is built on an even register only (not the last register of STS.128)")
+    if cons.startswith("IMAD.WIDE.r3"):
+        if prod in PAIR_PRODUCERS:
+            raise SystemExit(f"{cons}: the producer writes ONE word of the addend pair (not {prod})")
+        # the other word of the addend pair R7:R6 is the iteration's own, set long before
+        pre = pre + [Ins("MOV R6, R5 ;", ("mov", "R6", "R5")) if cons == "IMAD.WIDE.r3h" else Ins("MOV R7, R5 ;", ("mov", "R7", "R5"))]
     b += pre
     b += front_ins(front, False)
     dst = ["UR6"] if what == "udata" else [f"R{rd}", f"R{rd + 1}"] if prod in PAIR_PRODUCERS else [f"R{rd}"]
@@ -333,6 +342,9 @@ def body_raw(req, d, front):
         # (a 64-bit pair sits on an EVEN register: `IADD.64 R13, ...` is "Misaligned Register", Xid 13, at the first launch)
         b += [Ins("IADD.64 R24, R6, 0x4 ;", ("add64i", "R24", "R6", 4), tag="C"),
               Ins("MOV R8, R24 ;" if cons == "IADD.64.r1" else "MOV R8, R25 ;", ("mov", "R8", "R24" if cons == "IADD.64.r1" else "R25")), ADD10()]
+    elif cons in ("IMAD.WIDE.r3", "IMAD.WIDE.r3h"):      # R25:R24 = R4 * R5 + R7:R6; the low (r3) or the high (r3h) word reaches the checksum
+        b += [Ins("IMAD.WIDE.U32 R24, R4, R5, R6 ;", ("madw", "R24", "R4", "R5", "R6"), tag="C"),
+              Ins("MOV R8, R24 ;" if cons == "IMAD.WIDE.r3" else "MOV R8, R25 ;", ("mov", "R8", "R24" if cons == "IMAD.WIDE.r3" else "R25")), ADD10()]
     elif cons == "SHF.L.U64.HI.r1":      # R8 = the high word of (R7:R6) << 3
         b += [Ins("SHF.L.U64.HI R8, R6, 0x3, R7 ;", ("shl64hi", "R8", "R6", 3, "R7"), tag="C"), ADD10()]
     elif cons == "UIADD3.u1":
@@ -347,7 +359,7 @@ def body_raw(req, d, front):
     return b
 
 
-ORD_PAIRS = [("LDS", "LDS"), ("LDS", "LDSM"), ("LDS", "LDG"), ("LDS128", "LDS"), ("LDG", "LDS"), ("LDG", "LDG")]
+ORD_PAIRS = [("LDS", "LDS"), ("LDS", "LDSM"), ("LDS", "LDG"), ("LDS128", "LDS"), ("LDG", "LDS"), ("LDG", "LDG"), ("LDS", "LDS128")]
 
 
 def body_ord(req, d, front, variant):
@@ -363,6 +375,14 @@ def body_ord(req, d, front, variant):
     wb0 = "0" if ctl else "-"
     cw = "01" if ctl else "1"
     b = []
+    # "far": the younger SHARED load reads another line of the CTA's shared memory, 1 KB away (another thread's 64 bytes:
+    # R14 = R9 ^ 0x400, always inside the 64 KB the kernel declares); what it brings is not used and not modelled
+    far = bool(req.get("far"))
+    if far and younger not in ("LDS", "LDS128", "LDSM"):
+        raise SystemExit("ord: `far` is for a younger SHARED load (LDS, LDS128, LDSM)")
+    ybase = "R14" if far else "R9"
+    if far:
+        b.append(Ins("LOP3.LUT R14, R9, 0x400, RZ, 0x3c, !PT ;", ("xor", "R14", "R9", 0x400)))
     # what the older load brings changes every iteration (a store with read barrier 3, waited by the fold); its destination
     # holds a marker (b) until the load lands
     if older == "LDS":
@@ -384,9 +404,11 @@ def body_ord(req, d, front, variant):
         b.append(Ins("LDG.E R6, desc[UR4][R16.64] ;", ("ldg", "R6", "R16"), ctl=C(s, wb=wb0), tag="P", dst=["R6"]))
     b += fill
     if younger == "LDS":
-        b.append(Ins("LDS R8, [R9+0x30] ;", ("lds", "R8", "R9", 0x30, 1), ctl=C(ys, wb="1")))
+        b.append(Ins(f"LDS R8, [{ybase}+0x30] ;", ("poison", "R8", 1) if far else ("lds", "R8", "R9", 0x30, 1), ctl=C(ys, wb="1")))
+    elif younger == "LDS128":      # another access width than the older load (only behind an older LDS: R24-R27 are free there)
+        b.append(Ins(f"LDS.128 R24, [{ybase}+0x30] ;", ("poison", "R24", 4), ctl=C(ys, wb="1")))
     elif younger == "LDSM":
-        b.append(Ins("LDSM.16.M88.4 R24, [R9+0x30] ;", ("poison", "R24", 4), ctl=C(ys, wb="1")))
+        b.append(Ins(f"LDSM.16.M88.4 R24, [{ybase}+0x30] ;", ("poison", "R24", 4), ctl=C(ys, wb="1")))
     else:
         b.append(Ins("LDG.E R8, desc[UR4][R18.64] ;", ("ldg", "R8", "R18"), ctl=C(ys, wb="1")))
     if older == "LDS128":
@@ -849,6 +871,11 @@ def model(req, mode, gids=None, scalar=False):
             v = get(sem[2]).astype(np.uint64) * get(sem[3]).astype(np.uint64)
             R[sem[1]] = (v & np.uint64(0xFFFFFFFF)).astype(U)
             R[reg(sem[1], 1)] = (v >> np.uint64(32)).astype(U)
+        elif op == "madw":          # the pair R(d+1):Rd = Ra * Rb + R(c+1):Rc (mod 2^64)
+            v = (get(sem[2]).astype(np.uint64) * get(sem[3]).astype(np.uint64)
+                 + (get(sem[4]).astype(np.uint64) | (get(reg(sem[4], 1)).astype(np.uint64) << np.uint64(32))))
+            R[sem[1]] = (v & np.uint64(0xFFFFFFFF)).astype(U)
+            R[reg(sem[1], 1)] = (v >> np.uint64(32)).astype(U)
         elif op == "base":
             R[sem[1]] = np.zeros(n, U)
         elif op == "gaddr":
@@ -987,6 +1014,9 @@ def _scalar(gid, pro, body, mode):
             R[sem[1]] = ((get(sem[4]) << sem[3]) | (get(sem[2]) >> (32 - sem[3]))) & M
         elif op == "mulw":
             v = get(sem[2]) * get(sem[3])
+            R[sem[1]], R[reg(sem[1], 1)] = v & M, v >> 32
+        elif op == "madw":
+            v = (get(sem[2]) * get(sem[3]) + (get(sem[4]) | (get(reg(sem[4], 1)) << 32))) & 0xFFFFFFFFFFFFFFFF
             R[sem[1]], R[reg(sem[1], 1)] = v & M, v >> 32
         elif op == "base":
             R[sem[1]] = 0
@@ -1138,7 +1168,8 @@ def pair_text(r):
                 + ("first MMA + a NOP of one cycle + fillers" if r["via"] == "nop" else "the first MMA's stall + fillers") + ")")
     if r["kind"] == "ord":
         return (f"{r['older']} without a write barrier, read behind the wait on a younger {r['younger']}'s barrier "
-                f"(the younger load at stall {r.get('younger_stall', 2)} in front of the reader)")
+                f"(the younger load at stall {r.get('younger_stall', 2)} in front of the reader"
+                + ("; the younger load reads ANOTHER line of shared memory, 1 KB away)" if r.get("far") else ")"))
     return f"{r['store']} <- {r['overwriter']} (unwaited rewrite behind a bare store)"
 
 
@@ -1822,6 +1853,8 @@ def cmd_selftest(_args):
                 continue
             if prod == "CS2R" and RAW_CONSUMERS[cons][1] % 2:
                 continue
+            if cons.startswith("IMAD.WIDE.r3") and prod in PAIR_PRODUCERS:
+                continue
             r = normalise({"id": "selftest", "kind": "raw", "producer": prod, "consumer": cons})
             for mode in modes_of(r):
                 v = model(r, mode, gids=gids)
@@ -1855,8 +1888,8 @@ def cmd_selftest(_args):
                 assert np.array_equal(model(rf, "good", gids=gids), got["good"]), (var, fr)
                 assert [int(x) for x in got["good"]] == model(rf, "good", gids=gids, scalar=True), (var, fr)
                 n += 1
-    for older, younger in ORD_PAIRS:
-        r = normalise({"id": "selftest", "kind": "ord", "older": older, "younger": younger})
+    for older, younger, far in [(o, y, False) for o, y in ORD_PAIRS] + [("LDS", "LDS", True), ("LDS", "LDS128", True), ("LDS", "LDSM", True)]:
+        r = normalise({"id": "selftest", "kind": "ord", "older": older, "younger": younger, "far": far})
         g, st = model(r, "good", gids=gids), model(r, "stale", gids=gids)
         assert [int(x) for x in g] == model(r, "good", gids=gids, scalar=True) and [int(x) for x in st] == model(r, "stale", gids=gids, scalar=True)
         assert not np.array_equal(g, st), (older, younger)

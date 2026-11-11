@@ -36,6 +36,12 @@ decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `
   thread from one line, one CTA per SM: 0 of 1.9 × 10^8 thread-launches each for `LDS`–`LDS`, `LDS`–`LDSM`, `LDS.128`–`LDS`,
   `LDG`–`LDG` — and does NOT widen the batching key (same opcode, same width, same address stream): the counter-examples in the
   comment of the load batching (shared loads 1 KB apart at 2 CTAs per SM, global loads of different streams) are not re-measured.
+  With TWO loads in flight the order inside the shared pipe also held at 2 CTAs per SM when the younger load reads another line
+  1 KB away or is 16 bytes wide (`probe_sm120_20261111_b12.json`: 0 of 2.9 × 10^8 thread-launches in each of four shapes; `_b10`:
+  the in-line pairs and the load-overwriter pairs on the 2-CTA grid, 0 again) — a count per shape, not a wider key.
+- **The upper register of an `IMAD.WIDE` addend (role `r3h`) has a floor of its own: 3** (`probe_sm120_20261111_b11.json`; `MOV`,
+  `IADD3`, `SHF`, `LEA`; the lower register in the same batch: 5, as known). The cell 4, whose basis was the vendor's census,
+  holds with one cycle to spare.
 - **Write-after-read behind a bare store, swept to 900 cycles with the number of late iterations**: a shared store's data is
   right from 450 – 600 cycles under load, a global store's with 32 warps and 15 stores in front not at 900; the tail is one
   iteration of 256 in a few threads. A load that rewrites a shared store's ADDRESS register never reached it either.
