@@ -4,6 +4,17 @@ User-visible changes, newest first. Table syncs name the blackwell-isa revision 
 (`tables/SOURCE.json` pins it byte for byte). Numbered `BUG-NNN` entries are the encoder /
 decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `docs/TESTS.md`).
 
+## Unreleased — 2026-11-11 (session T-32: three sentences in KNOWN_ISSUES — A40's count is the simulation's, A41's open forms are measured, A42's evidence is in the tree)
+
+- **Documents only — no source, no table, no test.** A40 and the BUG-491 section below: m-tile fc1's broken WAR
+  272 → 276 are lines of the scoreboard simulation, which walks the words in text order — not places on a path; the
+  path walk of the rule (`STORE PATH`) reports 0 for that kernel in every view. A41: the forms it left open are
+  measured on two card models (`tools/stallfloor/probe_sm120_20261111_b40.json` and its `_ws_` files) — the 64-bit
+  `CS2R R, SR_GLOBALTIMERLO` has floor 6 like `SRZ`, under the entry's 7; `CS2R.32 R, SR_CgaSize` → `IMAD` has floor
+  5, one cycle under the cell and the default 6; no new cell. A42: the accumulator's evidence is
+  `tools/stallfloor/probe_sm120_20261111_b44.json`, and the `_ws_` files of `_b43` / `_b44` read the same holds on
+  a card of the Workstation Edition, alone and at its 400-W limit.
+
 ## Unreleased — 2026-11-11 (session T-31: KNOWN_ISSUES A42 — the measured holds of a tensor instruction's operand registers)
 
 - **Measurements beside an existing rule, no code:** against a fixed-latency rewrite the ACCUMULATOR of a tensor
@@ -33,7 +44,7 @@ decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `
   their `CS2R` words, no stall: 36 control words in the persistent kernel, 68 in fc1, 36 in fc2, 114 in m-tile fc1,
   48 in m-tile fc2. Every count of the checks on them is unchanged but m-tile fc1's broken WAR (272 → 276: three
   sites the schedule before the fix has too, counted now; one that an accidental wait used to cover — the class of
-  that schedule's other 272). Of cubit's `CUBIT_SYNC_CLASSES` schedules of the vendor's 749 census kernels 323 change (311 with `CUBIT_SCHED2_MEMSTALL=table`): what the path walks had reported about the second register of a `CS2R` is closed by the allocator — store → overwriter pairs 146 → 16, rewritten sources of a shuffle 20 → 0 — and the simulation counts what it now sees: broken WAR 3 119 → 3 205 (more in 57 kernels, fewer in 18), recycle-stale 6 971 → 6 921; unprotected RAW, write after write and the four classes of the dependency table do not move.
+  that schedule's other 272). All 276 are lines of the scoreboard simulation, which walks the words in text order — not places on a path: the path walk of the rule (`STORE PATH`) reports 0 for that kernel in every view. Of cubit's `CUBIT_SYNC_CLASSES` schedules of the vendor's 749 census kernels 323 change (311 with `CUBIT_SCHED2_MEMSTALL=table`): what the path walks had reported about the second register of a `CS2R` is closed by the allocator — store → overwriter pairs 146 → 16, rewritten sources of a shuffle 20 → 0 — and the simulation counts what it now sees: broken WAR 3 119 → 3 205 (more in 57 kernels, fewer in 18), recycle-stale 6 971 → 6 921; unprotected RAW, write after write and the four classes of the dependency table do not move.
 - The register allocator reads the certified function: on every target a 64-bit `CS2R` is a span of two registers
   now (the sm_120 target had the pair in its footprints since BUG-488). The sm_120 plan of the attention kernel is
   unchanged; its target-neutral plan has other homes for the same groups.
