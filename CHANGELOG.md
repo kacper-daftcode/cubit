@@ -4,6 +4,22 @@ User-visible changes, newest first. Table syncs name the blackwell-isa revision 
 (`tables/SOURCE.json` pins it byte for byte). Numbered `BUG-NNN` entries are the encoder /
 decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `docs/TESTS.md`).
 
+## Unreleased — 2026-11-11 (pull-request pair cubit #4 + blackwell-isa #2 of the B300 lane: the measured register-result forms of `HSET2` — 384 modifier groups — and `FHADD` — 16 — on sm103a / sm100a)
+
+- **Tables vendored from blackwell-isa `033b50d`: 400 measured rows per table** — the lane's three table commits re-applied
+  row for row on top of the two batches of the served K3.1 kernels (sm103a 555 → 556 forms, 37 545 → 37 943 rows; sm100a
+  554 → 555, 37 539 → 37 937; sm120 / sm121a unchanged; **rows without `_src` 336 → 334 on each**). **`HSET2[.BF16_V2][.BF]
+  .<cmp>[.FTZ].<bool> Rd, Ra, Rb, Pc`** (`HSET2_R_R_R_P`): 384 measured modifier groups replace the two harvest groups that
+  had no tag (`AND,EQ`, `AND,BF,BF16_V2,EQ`) and add 382 — exact fields, guard, registers, the measured reuse flags (bits
+  122 and 124; 123 stays closed); `HSET2_R_R_FI_FI_P` is unchanged. **`FHADD[...] Rd, Ra, Rb`** (`FHADD_R_R_R`, a new key on
+  these two tables): 16 measured modifier groups. Every mask is exactly its fields.
+- **Engine — the lane's change as written** (printer +10): the modifiers of `HSET2` print in the vendor's order — `BF16_V2`,
+  `BF`, the comparison, `FTZ`, the boolean. sm120's only `HSET2` group (`AND,EQ` of the immediate form) names none of them.
+- `tests/hidden_b300_hset2_rrr.rs` (2), `tests/hidden_b300_fhadd_bf16.rs` (2) over four fixtures (1 632 + 1 222 records per
+  target, nvdisasm 13.3); the two rows of `tests/sm10{3,0}a_rows_half.rs` that documented the untagged groups say
+  "re-measured since". The gatekeeper named every fixture word again with nvdisasm 13.1: 5 650 of 5 650 recorded texts identical, 58 of 58 negatives not named.
+  Encoding evidence only in these rows: no GPU execution, no numerical semantics, no timing.
+
 ## Unreleased — 2026-11-11 (pull-request pair cubit #6 + blackwell-isa #4 of the B300 lane: the FlashKDA forms on sm103a / sm100a — `MOVM.16.MT88`, the `UTMALDG.1D` descriptor form, `UBLKCP.G.S`, the RC byte of `F2FP.BF16.F32.PACK_AB Rd, Ra, URb`)
 
 - **Tables vendored from blackwell-isa `306d13d`: batch 2 of the lane's K3.1 served-kernel forms** — the lane's three

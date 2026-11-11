@@ -1355,6 +1355,16 @@ fn mod_priority_for(base: &str, m: &str) -> u8 {
             _ => {}
         }
     }
+    // HSET2 register-result ordering, measured over the full 384-group B300
+    // matrix on nvdisasm 13.3: BF16_V2, BF, comparison, FTZ, boolean.
+    if base == "HSET2" {
+        match m {
+            "BF16_V2" => return 0,
+            "BF" => return 1,
+            "F" | "T" => return 2,
+            _ => {}
+        }
+    }
     // HSETP2.BF16_V2.NEU.AND — the vector-width modifier precedes the comparison
     // in nvdisasm output for the half-precision setp family.
     if m == "BF16_V2" && matches!(base, "HSETP" | "HSETP2") {
