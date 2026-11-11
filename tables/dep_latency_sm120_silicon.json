@@ -1,0 +1,11 @@
+{
+ "schema": "cubit-dep-edition-1",
+ "edition": "sm120-silicon",
+ "arch": "sm_120",
+ "base": "dep_latency_sm120.json",
+ "comment": "The 'silicon' edition of the sm_120 dependency table: the table of `base` with LOWER numbers in exactly the entries listed here, each resting on silicon evidence committed beside it. It is never the default: it is read only when asked for by name (CUBIT_SCHED2_LAT=sm120-silicon for the scheduler, CUBIT_DEP_TABLE=sm120-silicon for the read-only checks). An entry = { id, the target (cells: producer / consumer / role of an existing cell of the base table; resources: resource / first / second member class; holds: the name of a write-after-read hold), floor, floor_basis ('wrong-below': a wrong result was measured below the floor in the same family; 'interlock': floor 1, no smaller distance exists), L = floor + 1, evidence: [ { file: tools/stallfloor/silicon/<digest>.json, sha256, request: <request id in the file> } ] }. The evidence of ONE entry must hold the Server Edition card and at least two Workstation Edition cards (each digest names its card in conditions.card), each of those in two clock states -- the mean SM clock at 2.8 GHz or more (short runs, the power cap not binding), and the card under its 400 W cap with a sustained load beside the probe (median draw 380 W or more) -- and every run must show the floor measured there and at least 1e8 thread-launches right at the entry's own distance L, with clean controls. witnesses: [ { file, sha256 } ] -- the floors of the four production cards (schema cubit-dep-witness-1), recorded beside an edition that has an entry; no cell lies below any of them + 1. `src/dep_edition.rs` refuses anything less; `tests/dep_edition_silicon.rs` pins every entry to its evidence files. An edition without entries prices every kernel exactly like the base table.",
+ "cells": [],
+ "resources": [],
+ "holds": [],
+ "witnesses": []
+}

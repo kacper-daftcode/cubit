@@ -146,6 +146,14 @@ pub struct DepLatTable {
     pub only_barriers: bool,
     /// Added to every register / predicate latency (`CUBIT_SCHED2_MARGIN`, default 0 with a table).
     pub margin: u8,
+    /// An edition applied on top of the table (`dep_edition`): its name and the number of its
+    /// entries. `None` for every table that is not an edition -- the default path.
+    pub edition: Option<(String, usize)>,
+    /// Spacing of a resource for ONE pair of member classes (resource index, first, second), set
+    /// by an edition only; empty otherwise, and then `resource_spacing` alone prices a spacing.
+    resource_pairs: HashMap<(usize, String, String), u8>,
+    /// The write-after-read holds an edition carries (name, cycles); empty otherwise.
+    pub edition_holds: Vec<(String, u8)>,
 }
 
 /// The bundled sm_120 table (ptxas census + silicon floors; see its `provenance`).
@@ -178,6 +186,9 @@ impl DepLatTable {
             barrier_arm: j.barrier_arm.map(|b| b.cycles).unwrap_or(0),
             only_barriers: false,
             margin: 0,
+            edition: None,
+            resource_pairs: HashMap::new(),
+            edition_holds: Vec::new(),
         })
     }
 
@@ -197,11 +208,16 @@ impl DepLatTable {
             barrier_arm: cycles,
             only_barriers: true,
             margin: 0,
+            edition: None,
+            resource_pairs: HashMap::new(),
+            edition_holds: Vec::new(),
         }
     }
 
-    /// `CUBIT_SCHED2_LAT`: unset / empty / `0` = off; `sm120` = the bundled table; anything
-    /// else = the path of a table file. `CUBIT_SCHED2_MARGIN` adds to every latency.
+    /// `CUBIT_SCHED2_LAT`: unset / empty / `0` = off; `sm120` = the bundled table;
+    /// `sm120-silicon` = the bundled table under its 'silicon' edition (`dep_edition`: opt-in by
+    /// this name only); anything else = the path of a table file. `CUBIT_SCHED2_MARGIN` adds to
+    /// every latency.
     pub fn from_env() -> anyhow::Result<Option<Self>> {
         let v = match std::env::var("CUBIT_SCHED2_LAT") {
             Ok(v) if !v.is_empty() && v != "0" => v,
@@ -209,6 +225,8 @@ impl DepLatTable {
         };
         let mut t = if v == "sm120" || v == "1" {
             Self::from_json(SM120_TABLE)?
+        } else if v == crate::dep_edition::SM120_SILICON_NAME {
+            crate::dep_edition::load_bundled()?
         } else {
             let text = std::fs::read_to_string(&v)
                 .map_err(|e| anyhow::anyhow!("CUBIT_SCHED2_LAT: cannot read {v}: {e}"))?;
@@ -216,6 +234,92 @@ impl DepLatTable {
         };
         t.margin = std::env::var("CUBIT_SCHED2_MARGIN").ok().and_then(|s| s.parse().ok()).unwrap_or(0);
         Ok(Some(t))
+    }
+
+    /// The table of the READ-ONLY checks (`CUBIT_DEP_VERIFY`, `CUBIT_VERIFY_JSON`,
+    /// `CUBIT_DEP_CELLS`). `CUBIT_DEP_TABLE=<sm120 | sm120-silicon | path>` (opt-in) names it --
+    /// the way to check a frozen listing against a table the scheduler did not run with
+    /// (`CUBIT_SCHED2_LAT` is refused without `CUBIT_SCHED2`). Unset / empty / `0`: the
+    /// scheduler's table when there is one, else the bundled sm_120 table, as before.
+    /// `target_sm`: the ISA table's SM number; a table named by the variable must be of that
+    /// architecture.
+    pub fn for_checks(scheduler: Option<&Self>, target_sm: u32) -> anyhow::Result<Self> {
+        match std::env::var("CUBIT_DEP_TABLE") {
+            Ok(v) if !v.is_empty() && v != "0" => {
+                let t = if v == "sm120" {
+                    Self::from_json(SM120_TABLE)?
+                } else if v == crate::dep_edition::SM120_SILICON_NAME {
+                    crate::dep_edition::load_bundled()?
+                } else {
+                    let text = std::fs::read_to_string(&v)
+                        .map_err(|e| anyhow::anyhow!("CUBIT_DEP_TABLE: cannot read {v}: {e}"))?;
+                    Self::from_json(&text)?
+                };
+                if !t.arch_matches(target_sm) {
+                    anyhow::bail!(
+                        "CUBIT_DEP_TABLE: the dependency-latency table is for {} but the ISA table is SM{target_sm} -- latencies are measured per architecture",
+                        t.arch
+                    );
+                }
+                Ok(t)
+            }
+            _ => match scheduler {
+                Some(t) => Ok(t.clone()),
+                None => Self::from_json(SM120_TABLE),
+            },
+        }
+    }
+
+    /// What the read-only checks print for the table: its `arch`, and behind it the edition
+    /// when one is applied (never for the default table: that text does not change).
+    pub fn label(&self) -> String {
+        match &self.edition {
+            None => self.arch.clone(),
+            Some((name, n)) => format!("{} edition {name} ({n} entries)", self.arch),
+        }
+    }
+
+    /// Today's number of one pair cell (`cells`; not the `result_high` cells).
+    pub(crate) fn cell_l(&self, producer: &str, consumer: &str, role: &str) -> Option<u8> {
+        self.cells.get(&(producer.to_string(), consumer.to_string(), role.to_string())).copied()
+    }
+
+    /// An edition lowers ONE pair cell. Nothing else may follow it down: a role `<r>h` that had
+    /// no cell of its own borrowed this one (`latency`), so it gets today's number as its own
+    /// cell first; `any_role` (the price of a read the role scan cannot resolve) keeps today's
+    /// maximum of the pair.
+    pub(crate) fn lower_cell(&mut self, producer: &str, consumer: &str, role: &str, l: u8) {
+        let key = |r: &str| (producer.to_string(), consumer.to_string(), r.to_string());
+        if let Some(today) = self.cells.get(&key(role)).copied() {
+            if !role.ends_with('h') {
+                self.cells.entry(key(&format!("{role}h"))).or_insert(today);
+            }
+            self.cells.insert(key(role), l);
+        }
+    }
+
+    /// Resource index and today's spacing behind a holder of class `first` (`None`: no such
+    /// resource, or `first` is not a member of it).
+    pub(crate) fn resource_member_spacing(&self, resource: &str, first: &str) -> Option<(usize, u8)> {
+        let ri = self.resources.iter().position(|r| r.name == resource)?;
+        let r = &self.resources[ri];
+        if !r.members.iter().any(|m| m == first) {
+            return None;
+        }
+        let l = match r.spacing_by_first.as_ref().and_then(|by| by.get(first)) {
+            Some(v) => *v,
+            None => r.spacing.unwrap_or(1),
+        };
+        Some((ri, l))
+    }
+
+    pub(crate) fn is_resource_member(&self, ri: usize, class: &str) -> bool {
+        self.resources[ri].members.iter().any(|m| m == class)
+    }
+
+    /// An edition lowers the spacing of ONE pair of member classes of a resource.
+    pub(crate) fn set_resource_pair(&mut self, ri: usize, first: &str, second: &str, l: u8) {
+        self.resource_pairs.insert((ri, first.to_string(), second.to_string()), l);
     }
 
     /// The table's `arch` (`sm_120`, `sm_103a`, ...) names the SM number of the ISA table in use.
@@ -358,6 +462,31 @@ impl DepLatTable {
             }
         }
         best
+    }
+
+    /// `resource_spacing`, with the one difference an edition can make: a pair of member classes
+    /// it names keeps ITS spacing instead of the resource's (a `then` spacing of another resource
+    /// the holder belongs to still applies). Without an edition entry: `resource_spacing`.
+    fn resource_spacing_between(&self, prod: &Instruction, cons: &Instruction, ri: usize) -> u8 {
+        let base = self.resource_spacing(prod, ri);
+        if self.resource_pairs.is_empty() {
+            return base;
+        }
+        let Some(l) = self.resource_pairs.get(&(ri, dep_class(prod), dep_class(cons))) else {
+            return base;
+        };
+        let r = &self.resources[ri];
+        let (class, op) = (dep_class(prod), prod.opcode.as_str());
+        let mut best = (*l).max(1);
+        for other in self.resources.iter() {
+            if !other.members.iter().any(|m| m == &class || m == op) {
+                continue;
+            }
+            if let Some(v) = other.then.as_ref().and_then(|then| then.get(&r.name)) {
+                best = best.max(*v);
+            }
+        }
+        best.min(base)
     }
 }
 
@@ -799,7 +928,7 @@ fn needs_of(
         if key >= KEY_RES {
             let ri = (key - KEY_RES) as usize;
             if sem[c].res_uses.contains(&ri) {
-                out.push(Need { key, def: d, need: t.resource_spacing(prod, ri), kind: "resource", res: Some(ri), defaulted: false });
+                out.push(Need { key, def: d, need: t.resource_spacing_between(prod, cons, ri), kind: "resource", res: Some(ri), defaulted: false });
             }
             continue;
         }

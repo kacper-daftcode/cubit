@@ -25,6 +25,7 @@
 pub mod cfg_flow;
 pub mod ctrl_class;
 pub mod decoder;
+pub mod dep_edition;
 pub mod dep_stall;
 pub mod directives;
 pub mod eiattr;

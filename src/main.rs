@@ -5591,10 +5591,8 @@ fn cmd_asm_directive_format(
         // below its latency of the table (CUBIT_SCHED2_LAT, default the bundled sm_120 table) on some
         // control-flow path -- the fixed-latency half of the legality oracle with the pair table.
         if std::env::var("CUBIT_DEP_VERIFY").is_ok() {
-            let dt = match &dep_table {
-                Some(t) => t.clone(),
-                None => cubit::dep_stall::DepLatTable::from_json(cubit::dep_stall::SM120_TABLE)?,
-            };
+            // CUBIT_DEP_TABLE=<name | path> (opt-in) names the table of the read-only checks; unset: as before
+            let dt = cubit::dep_stall::DepLatTable::for_checks(dep_table.as_ref(), table.target_sm())?;
             let viol = cubit::dep_stall::check(&insns_with_ctrl, &dt);
             let cells = viol.iter().filter(|v| !v.defaulted && v.kind == "raw").count();
             let arm = viol.iter().filter(|v| v.kind == "barrier-arm").count();
@@ -5602,7 +5600,7 @@ fn cmd_asm_directive_format(
             let dflt = viol.iter().filter(|v| v.defaulted).count();
             println!(
                 "  {}: DEP_VERIFY {} below a table cell, {} waits closer than the arming distance to their barrier's setter, {} below a resource spacing, {} below a default ({} instructions, table {})",
-                def.name, cells, arm, res, dflt, insns_with_ctrl.len(), dt.arch
+                def.name, cells, arm, res, dflt, insns_with_ctrl.len(), dt.label()
             );
             let lim: usize = std::env::var("CUBIT_DEP_VERIFY").ok().and_then(|s| s.parse().ok()).filter(|n| *n > 1).unwrap_or(20);
             for v in viol.iter().filter(|v| !v.defaulted && v.kind == "raw").take(lim) {
@@ -5635,10 +5633,7 @@ fn cmd_asm_directive_format(
         // CUBIT_VERIFY / CUBIT_DEP_VERIFY.
         if let Ok(path) = std::env::var("CUBIT_VERIFY_JSON") {
             use std::io::Write;
-            let dt = match &dep_table {
-                Some(t) => t.clone(),
-                None => cubit::dep_stall::DepLatTable::from_json(cubit::dep_stall::SM120_TABLE)?,
-            };
+            let dt = cubit::dep_stall::DepLatTable::for_checks(dep_table.as_ref(), table.target_sm())?;
             let line = cubit::legality::report(&def.name, &insns_with_ctrl, Some(table), &dt);
             let mut f = std::fs::OpenOptions::new().create(true).append(true).open(&path)?;
             writeln!(f, "{line}")?;
@@ -5649,10 +5644,7 @@ fn cmd_asm_directive_format(
         // schedule gives it -- for the tools that weigh a schedule's cells by execution count.
         if let Ok(path) = std::env::var("CUBIT_DEP_CELLS") {
             use std::io::Write;
-            let dt = match &dep_table {
-                Some(t) => t.clone(),
-                None => cubit::dep_stall::DepLatTable::from_json(cubit::dep_stall::SM120_TABLE)?,
-            };
+            let dt = cubit::dep_stall::DepLatTable::for_checks(dep_table.as_ref(), table.target_sm())?;
             let mut f = std::fs::OpenOptions::new().create(true).append(true).open(&path)?;
             for e in cubit::dep_stall::usage(&insns_with_ctrl, &dt) {
                 writeln!(

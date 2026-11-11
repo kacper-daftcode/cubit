@@ -97,6 +97,11 @@ results or reads the dependency model does not see (ptxas's predicate-result `LO
 definitions, `BRA.DIV`, split 64-bit pairs) and `CUBIT_SCHED2_STRICT=1` refuses a kernel that has one.
 `CUBIT_DEP_VERIFY=1` reports every fixed-latency dependency below the table on any path, also on a
 frozen kernel (KNOWN_ISSUES A26; the harness and its results: [tools/stallfloor/](tools/stallfloor/README.md)).
+`CUBIT_DEP_TABLE=<sm120 | sm120-silicon | path>` names the table of the read-only checks (a frozen listing has no scheduler
+switch to name it with), and `sm120-silicon` — there and in `CUBIT_SCHED2_LAT` — is the 'silicon' edition of the table: the
+same table with a lower number in the entries that have silicon evidence on both card models
+(`tables/dep_latency_sm120_silicon.json`, [tools/stallfloor/silicon/](tools/stallfloor/silicon/README.md)). It is never read
+unless named, and it has no entry yet: today it prices like the default table.
 `CUBIT_SYNC_CLASSES=1` gives the synchronisation words their control classes (mbarriers, bulk copies, the async-proxy
 fence, the release / acquire chains, `setmaxnreg`, collective regions), completes the scheduler's operand model for the
 forms nvcc emits (predicate destinations, the high half of a 64-bit address or operand, the operand hold of an MMA and of

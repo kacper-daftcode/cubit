@@ -4,7 +4,7 @@ User-visible changes, newest first. Table syncs name the blackwell-isa revision 
 (`tables/SOURCE.json` pins it byte for byte). Numbered `BUG-NNN` entries are the encoder /
 decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `docs/TESTS.md`).
 
-## Unreleased — 2026-11-11 (session T-28: a candidate schedule is held to its seed by the DISTANCE of every finding, not only by its key — `cubit legality-diff`)
+## Unreleased — 2026-11-11 (session T-28: a candidate schedule is held to its seed by the DISTANCE of every finding, not only by its key — `cubit legality-diff`; the mechanics of a 'silicon' edition of the sm_120 dependency table — opt-in by name, shipped with no entry; the default table and every default path byte for byte)
 
 - **`cubit legality-diff <seed.jsonl> <candidate.jsonl>` — the rule a candidate schedule is held to against its seed: no
   finding the seed does not have, and none CLOSER than the seed has it.** `CUBIT_VERIFY_JSON` gives the findings of the three
@@ -21,6 +21,34 @@ decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `
   instruction count, `sync_classes`, dependency table) are not comparable, and that is not clean either. Exit code 0 only when
   every kernel of both files is clean; `--json <file>` writes one object per kernel (schema `cubit-legality-diff-1`).
   `tests/legality_diff.rs`.
+
+- **`tables/dep_latency_sm120_silicon.json` — an edition of the dependency table, read only when named.** The table of
+  `CUBIT_SCHED2_LAT=sm120` is the vendor assembler's practice, raised where silicon asked for more; the probes of
+  `tools/stallfloor/` also find floors BELOW some of its numbers (two block-scaled MMAs of a warp are right from 1, the row says
+  16). Such a number is only as good as its evidence, so it does not go into the table: it goes into an edition — the same table
+  with a lower number in exactly the entries the file lists (`src/dep_edition.rs`). `CUBIT_SCHED2_LAT=sm120-silicon` gives it to
+  the scheduler (with `CUBIT_SCHED2`, like every table), and the new `CUBIT_DEP_TABLE=<sm120 | sm120-silicon | path>` names the
+  table of the read-only checks (`CUBIT_DEP_VERIFY`, `CUBIT_VERIFY_JSON`, `CUBIT_DEP_CELLS`) — until now a frozen listing could
+  only be checked against the default table, because `CUBIT_SCHED2_LAT` is refused without `CUBIT_SCHED2`. The check's line
+  names the edition (`table sm_120 edition sm120-silicon (N entries)`); the JSON line gains `dep.edition` under it and only
+  under it. Unset, nothing changes: the same table, the same lines, the same bytes.
+- **The rule an entry is held to is code, not a convention.** `L` = measured floor + 1; the floor has a wrong result below it
+  in the same family, or is the declared interlock at 1; an entry names an existing cell, one pair of member classes of a
+  resource, or a hold, and never raises it; a role that borrowed a lowered cell (`r3h` from `r3`) keeps today's number. The
+  evidence — probe digests under `tools/stallfloor/silicon/`, each named with its sha256 — must hold the Server Edition card
+  and at least two Workstation Edition cards (the floor of a model is the maximum over its cards: two cards of one model were
+  measured one cycle apart on events of the order of 10^-4), each of those in two clock states — the SM clock at 2.8 GHz or
+  more, and the card at its 400 W cap under load; every run with the floor right at the four occupancies (and at the served
+  grids for a tensor row), clean controls, nothing wrong at or above the floor, and 10^8 thread-launches right at the entry's
+  own distance. An edition with an entry also records the floors of four production cards beside it (`witnesses`), and no
+  cell lies below any of them + 1. `tests/dep_edition_silicon.rs` refuses an entry without its files, with an altered file,
+  with one card model, with one card of the Workstation model, with one clock state, with fewer thread-launches, without its
+  positive control, without its witnesses, below a witness — a test per way of falling short
+  ([tools/stallfloor/silicon/README.md](tools/stallfloor/silicon/README.md)).
+- **It ships with no entry:** none of the floors measured so far has the evidence the rule asks for. An edition without entries prices every
+  kernel like the default table — pinned on the read-only check of two frozen listings and on the scheduler's build of eight
+  sources, identical under both names. The write-after-read holds are a section of the format under the same rule; they are
+  validated and carried, and the scheduler does not read them yet.
 
 ## Unreleased — 2026-11-10 (session SCH-3: the stall-floor probes as one tool with an absolute, host-computed oracle; the store cells of the sm_120 dependency table re-measured — no cell moves; tools and result files only, no source line changes)
 

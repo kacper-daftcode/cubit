@@ -74,7 +74,7 @@ pub fn report(kernel: &str, insns: &[Instruction], table: Option<&IsaTable>, dep
         .map(|(i, why)| json!({"at": i, "text": text(insns, *i), "why": why}))
         .collect();
 
-    json!({
+    let mut line = json!({
         "schema": SCHEMA,
         "kernel": kernel,
         "instructions": insns.len(),
@@ -95,7 +95,12 @@ pub fn report(kernel: &str, insns: &[Instruction], table: Option<&IsaTable>, dep
             "findings": dep,
             "blind": blind,
         },
-    })
+    });
+    // an edition of the table (`dep_edition`, opt-in by name) is named; without one the line is as before
+    if let Some((name, entries)) = &dep_table.edition {
+        line["dep"]["edition"] = json!({"name": name, "entries": entries});
+    }
+    line
 }
 
 // ───────────────────────── a candidate against its seed ─────────────────────────
