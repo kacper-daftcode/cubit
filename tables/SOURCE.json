@@ -1,6 +1,6 @@
 {
   "schema": 2,
-  "repository": "/srv/k31-depth-loop/mirrors/blackwell-isa",
+  "repository": "https://github.com/kacper-daftcode/blackwell-isa",
   "base_revision": "ff1c320524269718e93dab28532400927583091f",
   "tables": {
     "sm120.json": {
