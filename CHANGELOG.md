@@ -360,6 +360,18 @@ decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `
   A load (`LDS`, `LDSM.16.M88.4`) that rewrites a register of an `HMMA`'s A or B fragment is right from the next issue cycle on:
   0 of 4 885 171 200 at 1 … 8 and 45, where a fixed-latency `MOV` on the A fragment is wrong at 2 and 4. Each on a card of the
   Server Edition and on a card of the Workstation Edition alone and at its 400-W limit.
+- **`probe.py` 24: a fixed-latency producer in front of ONE operand register of a tensor instruction, relative consumers, and the
+  hold of each register of the A quad** (`_b40` … `_b43`; selftest 3 296; a card of the Server Edition, one clock state). Kind `raw`
+  learns tensor consumers — a register of the accumulator, of the A quad, of the B pair of a `QMMA.SF` / `HMMA` with uniform
+  fragments — and relative consumers for content the host does not know (the uniform operand of a `QMMA.SF`, the `CS2R` forms
+  that read a special register); every request has a positive control of its own, and a class whose control is not wrong has no
+  result. The dependency table prices every one of these pairs by its default 7 and no floor is above it: the accumulator behind
+  the 64-bit `CS2R` and behind `MOV` 1 (0 not right of 735 846 400 thread-launches in each of five requests), `FMUL` → the
+  accumulator of an `HMMA` 2, the B pair behind the immediate-mask `LOP3` 2, the uniform operand behind `UMOV` 1, the A quad behind
+  `MOV` 6, 1, 5, 1 for its four registers. The hold of the A quad BEHIND the instruction is 1, 5, 1, 6: the fourth register is held
+  one cycle longer than the second, on which the hold of 5 had been measured (a rewrite 5 cycles behind: not right in 27 238 016 of
+  36 792 320; the verifier's 8 covers it). `CS2R.32 R, SR_CgaSize` → `IMAD`: floor 5, one cycle under the 64-bit forms (`SRZ`, the
+  timer: 6).
 
 ## Unreleased — 2026-11-11 (session SCH-4: the stall-floor probes on grids that hold two CTAs per SM and on production's card model in two clock states — tools and result files only, no source line changes)
 
