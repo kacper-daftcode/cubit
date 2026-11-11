@@ -175,6 +175,21 @@ pub(crate) fn store_addr_gprs(insn: &Instruction) -> Vec<u8> {
     out
 }
 
+/// BUG-489: does the barrier allocator close its schedule under `store_paths::unwaited_rewrites`
+/// -- a second writer of a pending result that its scans do not see (two loads of one batch
+/// into one register, a fixed-latency overwriter between two batch-mates, a producer issued
+/// again by its own loop) waits the producer's write barrier? Under `CUBIT_SYNC_CLASSES` yes;
+/// on the default path no: it stays byte for byte what it was, and the verifier names such a
+/// pair. `CUBIT_WAW_WAIT=1` turns the pass on there too, `CUBIT_WAW_WAIT=0` off under the
+/// switch (the allocator as it was until 2026-11-11, for an A/B measurement).
+pub fn waw_wait_enabled() -> bool {
+    match std::env::var("CUBIT_WAW_WAIT").ok().as_deref() {
+        Some("0") => false,
+        Some("1") => true,
+        _ => crate::sync_class::enabled(),
+    }
+}
+
 /// CUBIT_SCHED2 load memory-class, used to batch consecutive same-class loads onto
 /// one (counting) write barrier. 2 = shared/predictable (LDS/LDSM/LDL — fixed,
 /// in-order latency); 1 = global/variable (LDG/LDC/LD/… — variable latency).
@@ -3404,6 +3419,9 @@ pub fn reallocate_barriers(insns: &mut [Instruction], table: Option<&IsaTable>) 
                 if is_control_flow(opj) { break; }
                 // stop if this insn consumes a value already loaded by the group
                 if reads[j].iter().any(|r| gd.contains(r)) { break; }
+                // (an instruction that WRITES one of them again does not end the batch: under
+                // CUBIT_SYNC_CLASSES it is made to wait by the pass at the end of this function,
+                // BUG-489; on the default path `CUBIT_VERIFY` names the pair)
                 let prodj = insn_needs_write_bar(&insns[j], table, true)
                     && !is_warp_mma(opj) && can_wb[j] && !insns[j].hand_sched;
                 if prodj {
@@ -3959,6 +3977,40 @@ pub fn reallocate_barriers(insns: &mut [Instruction], table: Option<&IsaTable>) 
         }
     }
 
+    // ---- BUG-489: write after write the scans above do not see ----
+    // A register whose scoreboarded result is pending, written again on some path with no wait
+    // on the producer's write barrier:
+    //  * the second load of a batch into a register the batch already produced -- the batch
+    //    loop ends at a READER of the group's results, not at a second writer (the persistent
+    //    MoE kernel: `LDC.64 R28, c[0x0][0x388]` ... `@P0 LDC.64 R28, c[0x0][0x3b8]`, both on
+    //    one barrier with no wait between; ptxas: `[W3]` ... `[B---3--:W1]`);
+    //  * a fixed-latency overwriter between two batch-mates -- the scan for a group's first
+    //    consumers starts behind its last setter;
+    //  * a producer issued again by its own loop when nobody read or rewrote its last result
+    //    on the way round -- that scan ends back at the setter.
+    // Outside those the overwriter of a pending result is a waiter already (BUG-485). Here the
+    // schedule is closed under the verifier's own walk of the flow graph
+    // (`store_paths::unwaited_rewrites`; predicates are correlated along a path, so writers
+    // under complementary guards -- `@P2 LDG ... R14` / `@!P2 LDG ... R14`, one of them
+    // executes, ptxas keeps them on one barrier -- are no pair): the second writer waits the
+    // producer's write barrier. Only waits are added; a wait is legal wherever it stands. A
+    // writer that cannot carry one is left to `CUBIT_VERIFY`, which reports the pair.
+    // Under `CUBIT_SYNC_CLASSES` (or `CUBIT_WAW_WAIT=1`); the default path is not touched.
+    if waw_wait_enabled() {
+        for f in crate::store_paths::unwaited_rewrites(insns) {
+            let w = f.writer;
+            if insns[w].hand_sched {
+                continue;
+            }
+            if !can_wait[w] && try_make_waitable(&mut insns[w]) {
+                can_wait[w] = true;
+            }
+            if can_wait[w] {
+                insns[w].ctrl.wait_mask |= 1 << f.write_bar;
+            }
+        }
+    }
+
     if std::env::var("CUBIT_VERIFY").is_ok() {
         verify_scoreboard(insns, table);
     }
@@ -4008,6 +4060,13 @@ pub struct VerifyReport {
     /// vendor's assembler rewrites those registers from 8 issue cycles behind the store without
     /// a wait (97 pairs in the sm_120 census; 0 on a data register, 0 on a global store)
     pub store_paths_shared_addr: usize,
+    /// producer -> second writer pairs: a register whose scoreboarded result is pending, written
+    /// again on some path of the flow graph with no wait on the producer's write barrier
+    /// (`store_paths::unwaited_rewrites`; not part of the three classic counts)
+    pub waw: usize,
+    /// such pairs of a shared-memory load and a shuffle without a write barrier — not in `waw`:
+    /// the one shape the vendor's assembler leaves without a wait (3 pairs in the sm_120 census)
+    pub waw_shuffle_into_load: usize,
 }
 
 /// BUG-370: classification of a statically UNRESOLVABLE control-flow edge,
@@ -4134,10 +4193,14 @@ pub fn verify_scoreboard_report(insns: &[Instruction], table: Option<&IsaTable>)
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ScoreboardFinding {
     /// `"raw"` (a variable-latency result read before its write barrier was waited), `"war"` (a
-    /// late operand of a memory operation overwritten before its read barrier was waited) or
-    /// `"recycle-stale"`
+    /// late operand of a memory operation overwritten before its read barrier was waited),
+    /// `"recycle-stale"`; and, from the walk of the flow graph and outside the three counts,
+    /// `"waw"` (a register whose scoreboarded result is pending, written again with no wait on
+    /// the producer's write barrier) or `"waw-shuffle-into-load"` (that on the one shape the
+    /// vendor's assembler leaves unwaited, counted apart)
     pub kind: &'static str,
-    /// the reader of the result (`raw`, `recycle-stale`) / the overwriter (`war`)
+    /// the reader of the result (`raw`, `recycle-stale`) / the overwriter (`war`) / the second
+    /// writer (`waw`)
     pub at: usize,
     /// the producer of the result / the memory operation
     pub other: usize,
@@ -4165,7 +4228,9 @@ pub fn verify_scoreboard_findings(insns: &[Instruction], table: Option<&IsaTable
             kind: match kind {
                 0 => "raw",
                 1 => "war",
-                _ => "recycle-stale",
+                2 => "recycle-stale",
+                3 => "waw",
+                _ => "waw-shuffle-into-load",
             },
             at,
             other,
@@ -4533,7 +4598,9 @@ fn run_verify(insns: &[Instruction], table: Option<&IsaTable>, print: bool, rb_p
 
 /// `run_verify` with the keys of its findings: (kind, at, other, register) -- kind 0 an unprotected
 /// RAW (`at` reads the result of `other`), 1 a broken WAR (`at` overwrites a late operand of the
-/// memory operation `other`), 2 recycle-stale (as 0); the register as `(uniform << 9) | key`.
+/// memory operation `other`), 2 recycle-stale (as 0), 3 write after write (`at` writes a register
+/// whose result of `other` is pending; 4: that on the shuffle-into-load shape); the register as
+/// `(uniform << 9) | key`.
 #[allow(clippy::type_complexity)]
 fn run_verify_keys(
     insns: &[Instruction],
@@ -4619,14 +4686,37 @@ fn run_verify_keys(
     rep.store_paths = paths.len();
     rep.store_paths_bare = paths.iter().filter(|f| f.read_bar.is_none()).count();
     rep.store_paths_shared_addr = shared_addr.len();
+    // Write after write on every path of the flow graph (`store_paths::unwaited_rewrites`): the
+    // simulation above drops a pending result silently when its register is written again.
+    // Reported next to the three counts, not inside them.
+    let (shuffle_into_load, rewrites): (Vec<_>, Vec<_>) = crate::store_paths::unwaited_rewrites(insns)
+        .into_iter()
+        .partition(|f| crate::store_paths::is_shuffle_into_shared_load(insns, f));
+    rep.waw = rewrites.len();
+    rep.waw_shuffle_into_load = shuffle_into_load.len();
     if print {
         for f in &paths {
             eprintln!("{}", crate::store_paths::describe(insns, f));
+        }
+        for f in &rewrites {
+            eprintln!("{}", crate::store_paths::describe_rewrite(insns, f));
         }
         eprintln!(
             "CUBIT_VERIFY: {} unprotected RAW, {} broken WAR, {} recycle-stale",
             rep.raw, rep.war, rep.recycle
         );
+        if rep.waw > 0 {
+            eprintln!(
+                "CUBIT_VERIFY_WAW: {} pending result(s) written again on a path with no wait on the producer's write barrier; not in the counts above",
+                rep.waw
+            );
+        }
+        if rep.waw_shuffle_into_load > 0 {
+            eprintln!(
+                "CUBIT_VERIFY_WAW: + {} such pair(s) of a shared-memory load and a shuffle without a write barrier into one register of its result (not counted: the vendor's assembler leaves that shape without a wait)",
+                rep.waw_shuffle_into_load
+            );
+        }
         if rep.store_paths > 0 {
             eprintln!(
                 "CUBIT_VERIFY_PATHS: {} store -> overwriter pair(s) reached on a path with no wait on the store's read barrier ({} of them on a store without one); not in the counts above",
@@ -4647,6 +4737,10 @@ fn run_verify_keys(
         }
     }
     let mut keys: Vec<(u8, usize, usize, u16)> = seen.into_iter().collect();
+    // kind 3: write after write (`at` writes a register whose result of `other` is pending);
+    // kind 4: the same on the vendor's shuffle-into-load shape, counted apart
+    keys.extend(rewrites.iter().map(|f| (3u8, f.writer, f.producer, f.reg as u16)));
+    keys.extend(shuffle_into_load.iter().map(|f| (4u8, f.writer, f.producer, f.reg as u16)));
     keys.sort_unstable();
     (rep, keys)
 }

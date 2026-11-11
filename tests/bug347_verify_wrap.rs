@@ -158,10 +158,16 @@ fn t347_2_nested_good_shape_stays_silent() {
     for tab in [t120(), t103()] {
         let insns = pipeline(HOLE, &tab);
         let rep = verify_scoreboard_report(&insns, Some(&tab));
+        // BUG-489 (2026-11-11): the write-after-write walk names what the default allocator
+        // leaves in this shape -- the inner loop issues its load again while the last result is
+        // pending (nobody reads it inside the loop): a pair of the load with itself. It is
+        // closed under CUBIT_SYNC_CLASSES / CUBIT_WAW_WAIT=1 (tests/bug489_waw_in_a_batch.rs);
+        // the default path stays byte for byte. Everything else is silent, as before.
+        assert_eq!(rep.waw, 1, "the inner load issued again with its last result pending");
         assert_eq!(
-            rep,
+            cubit::scheduling_pass::VerifyReport { waw: 0, ..rep },
             Default::default(),
-            "allocator-good nested-wrap output must not produce any finding"
+            "allocator-good nested-wrap output must not produce any other finding"
         );
     }
 }

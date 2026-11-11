@@ -114,12 +114,17 @@ served MoE kernels scheduled this way give identical bits, 16.7 % and 12.7 % slo
 assembles (frozen or scheduled) and prints each unprotected RAW / broken WAR, and each store or asynchronous copy
 (`LDGSTS`) whose registers are rewritten on some path of the flow graph with no wait on its read barrier (`STORE PATH`,
 `CUBIT_VERIFY_PATHS`; a dispatch — `BRX` — is followed into every block only a register-indirect branch can reach, a
-return ends the walk);
+return ends the walk), and each register whose scoreboarded result is still pending when an instruction writes it again on
+some path with no wait on the producer's write barrier (`WRITE AFTER WRITE`, `CUBIT_VERIFY_WAW`; writers under
+complementary guards are no pair). Under `CUBIT_SYNC_CLASSES` the barrier allocator closes its own schedule under that
+walk — such a writer waits (BUG-489; `CUBIT_WAW_WAIT=1` does the same on the default path, which is otherwise byte for
+byte what it was; `CUBIT_WAW_WAIT=0` is the allocator as it was);
 `CUBIT_VERIFY_RBPROBE=1`
 adds the read-barrier coverage probe of the legality oracle (`tools/sched_oracle.py`, KNOWN_ISSUES A4).
 `CUBIT_VERIFY_JSON=<file>` appends one JSON line per kernel with the counts of these three checks — the scoreboard
 simulation, the stores' read barriers on every path, the fixed-latency dependencies against the table — and every
-finding with its instruction indices (`src/legality.rs`, schema `cubit-legality-1`): a tool that holds a candidate
+finding with its instruction indices (`src/legality.rs`, schema `cubit-legality-1`; a write-after-write pair is a finding
+of kind `waw` in the scoreboard list, beside its three counts): a tool that holds a candidate
 schedule against its seed takes the set difference instead of parsing the text. It prints nothing, changes no byte and
 does not need the other two variables.
 `cubit legality-diff <seed.jsonl> <candidate.jsonl>` is that comparison: the findings of the candidate whose key the seed

@@ -1,0 +1,11 @@
+.entry ps_s2_waw_vendor
+    .reg R0-R31
+    .param u64 out offset=0x0
+    [B------:R-:W1:Y:S01] LDCU.64 UR6, c[0x0][0x358] ;
+    [B------:R-:W0:Y:S08] LDC.64 R30, c[0x0][0x380] ;
+    [B------:R-:W3:Y:S08] LDC.64 R28, c[0x0][0x388] ;
+    [B0-----:R-:W-:-:S13] ISETP.NE.U32.AND P0, PT, R30, RZ, PT ;
+    [B---3--:R-:W5:Y:S04] @P0 LDC.64 R28, c[0x0][0x3b8] ;
+    [B-1---5:R-:W-:Y:S02] STG.E desc[UR6][R30.64], R28 ;
+    [B------:R-:W-:Y:S05] EXIT ;
+.endentry

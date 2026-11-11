@@ -247,11 +247,16 @@ impl<'a> Flow<'a> {
     /// The overwriters of `reg` reached from store `s` on a path without a wait on one of
     /// `barriers`, each with the smallest issue distance of such a path.
     fn walk(&self, s: usize, reg: u8, barriers: u8, correlate: bool) -> Option<Vec<(usize, u32)>> {
+        self.walk_from(s, reg, barriers, correlate, Facts::default())
+    }
+
+    /// [`Flow::walk`] with the predicate values that are known when `s` has executed.
+    fn walk_from(&self, s: usize, reg: u8, barriers: u8, correlate: bool, facts: Facts) -> Option<Vec<(usize, u32)>> {
         let mut found: HashMap<usize, u32> = HashMap::new();
         let mut seen: HashSet<(usize, Facts)> = HashSet::new();
         let mut heap: BinaryHeap<Reverse<(u32, usize, Facts)>> = BinaryHeap::new();
         let d0 = self.insns[s].ctrl.stall as u32;
-        for (j, f) in self.succ(s, Facts::default(), correlate) {
+        for (j, f) in self.succ(s, facts, correlate) {
             heap.push(Reverse((d0, j, f)));
         }
         while let Some(Reverse((d, i, f))) = heap.pop() {
@@ -387,6 +392,135 @@ pub fn describe(insns: &[Instruction], f: &StorePathFinding) -> String {
             Some(b) => format!("barrier {b}"),
             None => "anything".to_string(),
         },
+    )
+}
+
+// ───────────────────────── write after write ─────────────────────────
+
+/// A pending result written again: a producer that carries a write barrier, and an instruction
+/// that writes one of its result registers on a path with no wait on that barrier between them.
+///
+/// The producer's writeback is asynchronous. A second writer of the register that does not wait
+/// for it leaves the order of the two writes to the pipes: a fixed-latency word's value can be
+/// overwritten by the older result landing behind it, and two results in flight for one
+/// register land in whatever order they complete. The vendor's assembler makes the second
+/// writer wait on the first's write barrier (the persistent MoE kernel: `[W3] LDC.64 R28,
+/// c[0x0][0x388]` … `[B---3--:W1] @P0 LDC.64 R28, c[0x0][0x3b8]`); what it leaves without a
+/// wait is a pair of writers under complementary guards — `@P2 LDG … R14` / `@!P2 LDG … R14`,
+/// of which one executes — and that is not a pair here either: the walk starts with the
+/// producer's guard known to hold, so a writer under the opposite guard does not write until
+/// an instruction rewrites the predicate.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RewriteFinding {
+    /// index of the producer (it carries the write barrier)
+    pub producer: usize,
+    /// index of the instruction that writes `reg` again
+    pub writer: usize,
+    /// the lowest result register of the producer that the writer writes on that path
+    pub reg: u8,
+    /// the producer's write barrier
+    pub write_bar: u8,
+    /// the writer's own write barrier (`None`: its result is not scoreboarded)
+    pub writer_bar: Option<u8>,
+    /// the smallest issue distance (sum of the stall counts from the producer) of such a path
+    pub distance: u32,
+}
+
+/// The producer → second writer pairs of a scheduled kernel: for every instruction that carries
+/// a write barrier and writes general registers, the instructions that write one of those
+/// registers again on a path of the flow graph with no wait on that barrier (the walk of the
+/// stores' read barriers, with the same predicate correlation, dispatches and limits). A
+/// producer reached again by its own loop with nobody having waited is a pair with itself.
+pub fn unwaited_rewrites(insns: &[Instruction]) -> Vec<RewriteFinding> {
+    let flow = Flow::new(insns);
+    let mut out = Vec::new();
+    for (s, ins) in insns.iter().enumerate() {
+        let wb = ins.ctrl.write_bar;
+        if wb >= sp::NUM_BARRIERS as u8 {
+            continue;
+        }
+        // the registers whose result is pending: what the instruction writes (`gpr_dests`) —
+        // except for an atomic. The certified transfer function takes the first register
+        // operand that is not `RZ` as an atomic's destination, so for a form that returns
+        // nothing (`ATOMG … PT, RZ, [..], R17`) the DATA register is among its definitions, in
+        // the register allocator's footprints and, under `CUBIT_SYNC_CLASSES`, in the
+        // scheduler's completed model too; the scheduler's own convention has the family right
+        // (BUG-482): the register behind the predicate, at the access width, nothing for `RZ`.
+        let mut regs: Vec<u8> = if matches!(ins.opcode.as_str(), "ATOM" | "ATOMG" | "ATOMS") {
+            sp::dest_regs_plain(ins)
+                .into_iter()
+                .filter(|(u, r)| !*u && *r < sp::PRED_KEY)
+                .map(|(_, r)| r as u8)
+                .collect()
+        } else {
+            gpr_dests(ins)
+        };
+        regs.sort_unstable();
+        regs.dedup();
+        if regs.is_empty() {
+            continue;
+        }
+        // the producer has executed: its guard held
+        let start = guard_need(ins).map_or(Facts::default(), |(n, need)| Facts::default().with(n, need));
+        let mut found: HashMap<usize, (u32, u8)> = HashMap::new();
+        for r in regs {
+            let hits = flow
+                .walk_from(s, r, 1u8 << wb, true, start)
+                .or_else(|| flow.walk_from(s, r, 1u8 << wb, false, start))
+                .unwrap_or_default();
+            for (o, d) in hits {
+                let e = found.entry(o).or_insert((d, r));
+                if d < e.0 {
+                    *e = (d, r);
+                }
+            }
+        }
+        let mut rows: Vec<(usize, (u32, u8))> = found.into_iter().collect();
+        rows.sort();
+        for (o, (d, r)) in rows {
+            let ob = insns[o].ctrl.write_bar;
+            out.push(RewriteFinding {
+                producer: s,
+                writer: o,
+                reg: r,
+                write_bar: wb,
+                writer_bar: (ob < sp::NUM_BARRIERS as u8).then_some(ob),
+                distance: d,
+            });
+        }
+    }
+    out
+}
+
+/// A `SHFL` without a write barrier that writes one register of a shared-memory load in flight.
+/// `CUBIT_VERIFY` counts these apart: it is the one shape the vendor's assembler leaves without
+/// a wait — 3 pairs in the 166 listings of the sm_120 census, one in each of three kernels of
+/// one family: `[W2] LDS.128 R32, [R89+UR5]` and, 4 issue cycles behind it, `SHFL.IDX PT, R35,
+/// R25, R23, 0x1f` with no write barrier (two of the three carry no barrier at all, one a read
+/// barrier) into the quad's fourth register; nothing between the two names a register of the
+/// quad. The vendor's practice; the stall-floor probes of 2026-11-11 measured the shape right
+/// from distance 1 on one card model (a shared load and a shuffle are served in order).
+/// cubit's allocator never issues a shuffle without a write barrier.
+pub fn is_shuffle_into_shared_load(insns: &[Instruction], f: &RewriteFinding) -> bool {
+    f.writer_bar.is_none() && insns[f.writer].opcode == "SHFL" && insns[f.producer].opcode == "LDS"
+}
+
+/// One line per pair, as `CUBIT_VERIFY` prints it.
+pub fn describe_rewrite(insns: &[Instruction], f: &RewriteFinding) -> String {
+    format!(
+        "  WRITE AFTER WRITE: insn[{}] {} (write barrier {}) R{} <- written again by insn[{}] {} ({}) {} issue cycles later on a path with no wait on barrier {}",
+        f.producer,
+        insns[f.producer].opcode_full,
+        f.write_bar,
+        f.reg,
+        f.writer,
+        insns[f.writer].opcode_full,
+        match f.writer_bar {
+            Some(b) => format!("write barrier {b}: two results in flight"),
+            None => "no write barrier".to_string(),
+        },
+        f.distance,
+        f.write_bar,
     )
 }
 
@@ -633,5 +767,157 @@ mod tests {
         let f = unwaited_store_overwrites(&k, false);
         assert_eq!(f.iter().map(|x| (x.overwriter, x.reg, x.data, x.distance)).collect::<Vec<_>>(), [(2, 1, false, 3), (1, 11, true, 1)]);
         assert!(is_shared_store_address(&k, &f[0]) && !is_shared_store_address(&k, &f[1]));
+    }
+
+    // ───────────── write after write ─────────────
+
+    fn rewrites(k: &[Instruction]) -> Vec<(usize, usize, u8, u8, Option<u8>, u32)> {
+        unwaited_rewrites(k).iter().map(|x| (x.producer, x.writer, x.reg, x.write_bar, x.writer_bar, x.distance)).collect()
+    }
+
+    /// The shape of the persistent MoE kernel as cubit scheduled it until 2026-11-11: two loads of
+    /// one constant line into one register on ONE write barrier, the second guarded, no wait
+    /// between. (The vendor's schedule of the same words: `[W3]` … `[B---3--:W1]`.)
+    const TWO_IN_FLIGHT: &[&str] = &[
+        "    [B------:R-:W5:Y:S04] LDC.64 R28, c[0x0][0x388] ;",
+        "    [B------:R-:W-:-:S06] ISETP.NE.AND P0, PT, R58, RZ, PT ;",
+        "    [B------:R-:W5:Y:S08] @P0 LDC.64 R30, c[0x0][0x3b0] ;",
+        "    [B------:R-:W5:Y:S04] @P0 LDC.64 R28, c[0x0][0x3b8] ;",
+        "    [B-----5:R-:W-:-:S01] IADD.64 R80, R28, R80 ;",
+        "    [B------:R-:W-:-:S01] EXIT ;",
+    ];
+
+    #[test]
+    fn two_results_in_flight_for_one_register_are_a_pair() {
+        let k = kernel(TWO_IN_FLIGHT);
+        // the scoreboard simulation drops the pending result silently: nothing in the three counts
+        let rep = sp::verify_scoreboard_report(&k, None);
+        assert_eq!((rep.raw, rep.war, rep.recycle), (0, 0, 0));
+        // LDC.64 S04 + ISETP S06 + LDC.64 S08 = 18 issue cycles; the lower register of the pair
+        assert_eq!(rewrites(&k), [(0, 3, 28, 5, Some(5), 18)]);
+        assert_eq!((rep.waw, rep.waw_shuffle_into_load), (1, 0));
+        let line = describe_rewrite(&k, &unwaited_rewrites(&k)[0]);
+        assert!(line.contains("WRITE AFTER WRITE: insn[0] LDC.64 (write barrier 5) R28 <- written again by insn[3] LDC.64 (write barrier 5: two results in flight) 18 issue cycles later"), "{line}");
+        // the vendor's form: the second producer waits on the first's barrier
+        let mut waited = TWO_IN_FLIGHT.to_vec();
+        waited[0] = "    [B------:R-:W3:Y:S04] LDC.64 R28, c[0x0][0x388] ;";
+        waited[3] = "    [B---3--:R-:W5:Y:S04] @P0 LDC.64 R28, c[0x0][0x3b8] ;";
+        assert!(rewrites(&kernel(&waited)).is_empty());
+        assert_eq!(sp::verify_scoreboard_report(&kernel(&waited), None).waw, 0);
+    }
+
+    #[test]
+    fn writers_under_complementary_guards_are_no_pair() {
+        // one of the two executes (the vendor's census: 1 070 such pairs of loads on one barrier)
+        let lines = [
+            "    [B------:R-:W5:Y:S04] @P2 LDG.E.CONSTANT R14, desc[UR10][R10.64] ;",
+            "    [B------:R-:W-:-:S01] NOP ;",
+            "    [B------:R-:W5:Y:S01] @!P2 LDG.E.CONSTANT R14, desc[UR10][R8.64] ;",
+            "    [B-----5:R-:W-:-:S01] IADD3 R15, PT, PT, R14, 0x1, RZ ;",
+            "    [B------:R-:W-:-:S01] EXIT ;",
+        ];
+        assert!(rewrites(&kernel(&lines)).is_empty());
+        // ... until an instruction between them rewrites the predicate: then both may execute
+        let mut rewritten = lines;
+        rewritten[1] = "    [B------:R-:W-:-:S01] ISETP.NE.AND P2, PT, R4, RZ, PT ;";
+        assert_eq!(rewrites(&kernel(&rewritten)), [(0, 2, 14, 5, Some(5), 5)]);
+        // the same guard on both, or a guard on the second only: both execute
+        let mut same = lines;
+        same[2] = "    [B------:R-:W5:Y:S01] @P2 LDG.E.CONSTANT R14, desc[UR10][R8.64] ;";
+        assert_eq!(rewrites(&kernel(&same)), [(0, 2, 14, 5, Some(5), 5)]);
+    }
+
+    #[test]
+    fn a_fixed_latency_writer_of_a_pending_register_is_a_pair_and_a_wait_on_any_path_position_clears_it() {
+        let lines = [
+            "    [B------:R-:W1:-:S01] LDG.E R4, desc[UR4][R2.64] ;",
+            "    [B------:R-:W-:-:S02] IADD3 R5, PT, PT, R6, 0x1, RZ ;",
+            "    [B------:R-:W-:-:S01] MOV R4, RZ ;",
+            "    [B------:R-:W-:-:S01] EXIT ;",
+        ];
+        assert_eq!(rewrites(&kernel(&lines)), [(0, 2, 4, 1, None, 3)]);
+        // the writer itself waits
+        let mut w = lines;
+        w[2] = "    [B-1----:R-:W-:-:S01] MOV R4, RZ ;";
+        assert!(rewrites(&kernel(&w)).is_empty());
+        // an instruction between them waits (a reader of the result, or anything else)
+        let mut w = lines;
+        w[1] = "    [B-1----:R-:W-:-:S02] IADD3 R5, PT, PT, R4, 0x1, RZ ;";
+        assert!(rewrites(&kernel(&w)).is_empty());
+    }
+
+    #[test]
+    fn the_rewrite_walk_is_path_sensitive_and_a_loop_reaches_the_producer_itself() {
+        // the wait stands on one arm only: the pair is reached through the taken branch
+        let k = kernel(&[
+            "    [B------:R-:W1:-:S01] LDG.E R4, desc[UR4][R2.64] ;",
+            "    [B------:R-:W-:-:S01] @P3 BRA L_skip ;",
+            "    [B-1----:R-:W-:-:S01] IADD3 R5, PT, PT, R4, 0x1, RZ ;",
+            "L_skip:",
+            "    [B------:R-:W-:-:S01] MOV R4, RZ ;",
+            "    [B------:R-:W-:-:S01] EXIT ;",
+        ]);
+        assert_eq!(rewrites(&k), [(0, 3, 4, 1, None, 2)]);
+        // a producer reached again by its own loop with nobody having waited: a pair with itself
+        let lines = [
+            "L_top:",
+            "    [B------:R-:W3:-:S02] LDS R5, [R6] ;",
+            "    [B------:R-:W-:-:S01] IADD3 R6, PT, PT, R6, 0x4, RZ ;",
+            "    [B------:R-:W-:-:S01] @P0 BRA L_top ;",
+            "    [B---3--:R-:W-:-:S01] MOV R7, R5 ;",
+            "    [B------:R-:W-:-:S01] EXIT ;",
+        ];
+        assert_eq!(rewrites(&kernel(&lines)), [(0, 0, 5, 3, Some(3), 4)]);
+        // ... unless it waits on its own barrier before it issues again
+        let mut w = lines;
+        w[1] = "    [B---3--:R-:W3:-:S02] LDS R5, [R6] ;";
+        assert!(rewrites(&kernel(&w)).is_empty());
+    }
+
+    #[test]
+    fn a_shuffle_without_a_write_barrier_into_a_shared_load_is_counted_apart_and_an_atomic_without_a_result_has_no_pending_register() {
+        // the vendor's one unwaited shape (3 in the sm_120 census): a shuffle without a write
+        // barrier into the fourth register of a shared-memory quad in flight
+        let lines = [
+            "    [B------:R-:W2:Y:S01] LDS.128 R32, [R89+UR5] ;",
+            "    [B------:R-:W-:Y:S03] MOV R29, RZ ;",
+            "    [B------:R-:W-:Y:S01] SHFL.IDX PT, R35, R25, R23, 0x1f ;",
+            "    [B--2---:R-:W-:Y:S01] MOV R8, R32 ;",
+            "    [B------:R-:W-:-:S01] EXIT ;",
+        ];
+        let k = kernel(&lines);
+        assert_eq!(rewrites(&k), [(0, 2, 35, 2, None, 4)]);
+        assert!(is_shuffle_into_shared_load(&k, &unwaited_rewrites(&k)[0]));
+        let rep = sp::verify_scoreboard_report(&k, None);
+        assert_eq!((rep.waw, rep.waw_shuffle_into_load), (0, 1));
+        // the third census site: the shuffle carries a read barrier, and still no write barrier
+        let mut r = lines;
+        r[2] = "    [B------:R3:W-:Y:S02] SHFL.IDX PT, R35, R27, R115, 0x1f ;";
+        let k = kernel(&r);
+        assert!(is_shuffle_into_shared_load(&k, &unwaited_rewrites(&k)[0]));
+        // behind a global load the same shuffle is a pair like any other writer
+        let mut g = lines;
+        g[0] = "    [B------:R-:W2:Y:S01] LDG.E.128 R32, desc[UR4][R2.64] ;";
+        let k = kernel(&g);
+        assert!(!is_shuffle_into_shared_load(&k, &unwaited_rewrites(&k)[0]));
+        let rep = sp::verify_scoreboard_report(&k, None);
+        assert_eq!((rep.waw, rep.waw_shuffle_into_load), (1, 0));
+        // an atomic that returns nothing (`RZ`) leaves no register pending: its DATA register,
+        // which the register allocator's footprint lists as written, may be rewritten at once
+        let k = kernel(&[
+            "    [B------:R0:W5:Y:S02] ATOMG.E.ADD.S32.STRONG.GPU PT, RZ, desc[UR10][R10.64], R17 ;",
+            "    [B------:R-:W-:Y:S01] IADD3 R17, PT, PT, R27, -0x2, RZ ;",
+            "    [B------:R-:W-:Y:S01] IADD3 R18, PT, PT, R27, -0x4, RZ ;",
+            "    [B------:R-:W-:-:S01] EXIT ;",
+        ]);
+        assert!(rewrites(&k).is_empty());
+        // ... and one that returns a register leaves exactly that register pending
+        let k = kernel(&[
+            "    [B------:R-:W2:Y:S01] ATOMG.E.ADD.S32.STRONG.GPU PT, R9, desc[UR10][R6.64], R11 ;",
+            "    [B------:R-:W-:-:S05] IADD3 R10, PT, PT, R3, -0x1, RZ ;",
+            "    [B------:R-:W-:-:S01] MOV R9, RZ ;",
+            "    [B------:R-:W-:-:S01] EXIT ;",
+        ]);
+        assert_eq!(rewrites(&k), [(0, 2, 9, 2, None, 6)]);
     }
 }

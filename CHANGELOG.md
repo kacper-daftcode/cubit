@@ -4,6 +4,53 @@ User-visible changes, newest first. Table syncs name the blackwell-isa revision 
 (`tables/SOURCE.json` pins it byte for byte). Numbered `BUG-NNN` entries are the encoder /
 decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `docs/TESTS.md`).
 
+## Unreleased — 2026-11-11 (session T-29: write after write — `CUBIT_VERIFY` reports a register whose scoreboarded result is pending and is written again, on every path; under `CUBIT_SYNC_CLASSES` the barrier allocator closes its own schedule under that walk, BUG-489; the default path byte for byte)
+
+- **`CUBIT_VERIFY` reports write after write on every path** (`store_paths::unwaited_rewrites`; lines `WRITE AFTER WRITE` and
+  `CUBIT_VERIFY_WAW`; in `CUBIT_VERIFY_JSON` findings of kind `waw` in the scoreboard list and the counts `scoreboard.waw` /
+  `scoreboard.waw_shuffle_into_load`; `cubit legality-diff` compares them by key like every scoreboard finding). The
+  scoreboard simulation dropped a pending result silently when its register was written again: a schedule with two results
+  in flight for one register passed with every count at 0. The walk is the store walk's — the flow graph, predicates
+  correlated along a path, a dispatch followed, a return ends it — from every instruction that carries a write barrier and
+  writes general registers to the instructions that write one of them again with no wait on that barrier on the way. It
+  starts with the producer's guard known to hold, so a writer under the complementary guard is no pair until the predicate
+  is rewritten (`@P2 LDG … R14` / `@!P2 LDG … R14`: one of the two executes); a producer reached again by its own loop
+  with nobody having waited is a pair with itself. Beside the three classic counts, not inside them; read-only.
+  **What it says about the vendor's own text** (the sm_120 census: 166 listings, 12 of them empty, 752 kernels): 3 pairs of
+  ONE shape — a `SHFL.IDX` without a write barrier into the fourth register of an `LDS.128` that is in flight 4 issue
+  cycles before it, one in each of three kernels of one family. That shape is counted apart (`CUBIT_VERIFY_WAW: + N`, kind
+  `waw-shuffle-into-load`) and no pair line is printed for it: the census has 0 pairs, the vendor's five schedules of the
+  served MoE kernels 0 — under either operand model. **What silicon says** (the stall-floor probes of the same day, one
+  card model; their result file is not in this repository yet): with the second writer waiting on the first's barrier the
+  result is right every time; a fixed-latency second writer that does not wait leaves the FIRST writer's value at every
+  distance tried, up to 90 cycles, behind a pending `LDS` / `LDG` / `S2R` / `SHFL` once an SM runs 8 warps or more (behind
+  a constant-bank load it is right from 45); two producers of one in-order unit that do not wait — `LDS` ← `LDS`, `LDG` ←
+  `LDG`, `SHFL` ← `LDS` and the vendor's `LDS.128` ← `SHFL` — are right from distance 1, across the two memory pipes they
+  are not. The shape of the site below, two constant-bank loads into one register, is not measured (KNOWN_ISSUES A35).
+- **BUG-489 — the barrier allocator left three shapes of write after write without a wait.** Outside them an overwriter of a
+  pending result has waited like a reader since BUG-485. (1) Two loads of one batch into one register: consecutive loads of
+  one opcode, width and address line share a write barrier, and the batch loop ends at a READER of the group's results, not
+  at a second writer. Found in cubit's own schedule of a served kernel under `CUBIT_SYNC_CLASSES`: a default and its
+  guarded override, `LDC.64 R28, c[0x0][0x388]` … `@P0 LDC.64 R28, c[0x0][0x3b8]`, both on barrier 5 with no wait between —
+  two results in flight for one register, ordered by nothing but the pipe; ptxas schedules the same two words `[W3]` …
+  `[B---3--:W1]`. (2) A fixed-latency overwriter standing between two batch-mates: the scan for a group's first consumers
+  starts behind its last setter. (3) A producer issued again by its own loop when nobody read or rewrote its last result
+  on the way round: that scan ends back at the producer. **Fix, under `CUBIT_SYNC_CLASSES`** (the switch under which the
+  pair was found): the allocator's last pass closes the schedule under the verifier's walk — every second writer it finds
+  waits the producer's write barrier. Only waits are added, and only where the walk finds a pair; writers under
+  complementary guards stay as they were. **The default path is byte for byte what it was** — there the verifier names
+  such a pair and `CUBIT_WAW_WAIT=1` turns the pass on; `CUBIT_WAW_WAIT=0` turns it off under the switch (the allocator as
+  it was, for an A/B measurement). **What moves:** of cubit's five schedules of the served MoE kernels one control word
+  (the second load waits the barrier before it sets it again: `[B-----5:R-:W5]`); the other four schedules are
+  byte-identical, and nothing built without the switch changes. `tests/bug489_waw_in_a_batch.rs` (8, all red before),
+  `tests/ps_s2_sites.rs` (3, written by session EM-7 as failing-first tests; 1 red before).
+- **A defect met on the way, not repaired here:** the certified transfer function (`reg_liveness::reg_xfer`, the register
+  allocator's) takes the first register operand that is not `RZ` as the destination of an atomic, so for a form that
+  returns nothing — `ATOMG.E.ADD.S32.STRONG.GPU PT, RZ, desc[UR10][R10.64], R17`, `ATOMS.MAX.S32 RZ, [..], R58` — the DATA
+  register is a definition and not a use; under `CUBIT_SYNC_CLASSES` those sets complete the scheduler's operand model
+  too. With them as a producer's result the walk printed 168 pairs in 14 census listings (under the switch as well); for
+  an atomic it therefore reads the scheduler's own convention (BUG-482), and a test pins that (KNOWN_ISSUES A35).
+
 ## Unreleased — 2026-11-11 (session SCH-4: the stall-floor probes on grids that hold two CTAs per SM and on production's card model in two clock states — tools and result files only, no source line changes)
 
 - **`tools/stallfloor/probe.py` 12 – 15.** The shared memory a probe kernel declares is per grid: `c2w9s` (49 152 B per CTA) and `c4w8`
