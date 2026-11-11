@@ -4,6 +4,33 @@ User-visible changes, newest first. Table syncs name the blackwell-isa revision 
 (`tables/SOURCE.json` pins it byte for byte). Numbered `BUG-NNN` entries are the encoder /
 decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `docs/TESTS.md`).
 
+## Unreleased — 2026-11-11 (session SCH-4: the stall-floor probes on grids that hold two CTAs per SM and on production's card model in two clock states — tools and result files only, no source line changes)
+
+- **`tools/stallfloor/probe.py` 12 – 14.** The shared memory a probe kernel declares is per grid: `c2w9s` (49 152 B per CTA) and `c4w8`
+  (24 576 B) really hold two and four CTAs per SM — `c2w9` never did (the label correction of the same day, KNOWN_ISSUES A31) —, and
+  the runner records the launch → synchronize time per kernel, from which co-residency is read (`probe_sm120_20261111_b14.json`:
+  376 CTAs take 246.7 µs with 65 536 B each and 129.0 µs with 49 152 B, against 128.5 µs for 188). **`probe.py run` refuses outside a
+  container**: it opens a CUDA context on device 0, which on a shared machine is somebody else's card (`PROBE_FAKE=1 | 2` for a CPU
+  rehearsal, `PROBE_ALLOW_HOST=1` where device 0 is yours). New `ord` shapes: N = 2 … 8 shared loads in flight behind one wait
+  (`nload`, `place`, `barrier`; the reader takes every register within N / 2 cycles of its wake-up; `barrier: none` is the positive
+  control), two loads on ONE write barrier (`older_barrier: same`), the younger load on the same base register 0x200 away
+  (`far: off`), a guarded younger load (`younger_guard`), pairs with `LDS.64` and `LDS.U16`; `gen` refuses a 64-bit data pair on an
+  odd register. Selftest 939 models.
+- **A write barrier counts its producers; the eight-load counter-example of the load batching did not reproduce; the allocator is
+  unchanged** (KNOWN_ISSUES A32; `probe_sm120_20261111_b16.json`, `_b18.json`). A global and a shared load of one thread on one write
+  barrier: 0 not right of 241 361 920 thread-launches per pair, while the same pair with the older load bare is not right in
+  97.5 – 100 %. N shared loads behind one wait, also eight `LDS` 1 KB apart on one barrier at 2 CTAs per SM: 0 of 2.1 × 10^9, the
+  positive control 100 %. A bare load covered by a younger load's barrier in the shapes of a vendor-compiled serving kernel
+  (`LDS.64`, `LDS.U16`, a guarded younger load with its guard true and false): 0 of 3.0 × 10^9.
+- **The MMA rows on production's card model, two cards, two clock states** (`probe_sm120_20261111_b<n>_ws_<card>_{alone,capped}.json`):
+  two `QMMA.SF` of a warp right from 1, the A-fragment hold 5 (wrong at 1 – 4), the B fragment 1 — the Server card's numbers on two
+  cards of the Workstation Edition, alone (busy clock mean 2 708 – 2 864 MHz) and at the 400-W limit beside a sustained load (400 W
+  median, 2 286 – 2 449 MHz); 0 not right of 110 376 960 thread-launches at the floor and at floor + 1 per request in every run
+  (`_b13`); the same on the served grid 2 × 9 as it really is and on `g32` (`_b14`, `_b17`). The digests carry `conditions.card`,
+  `power_median_w`, the clock percentiles and the state's name. The load family (`_b16`, `_b18`) and the grids of `_b14` read the
+  same on both cards in both states. The fast state (busy clock mean ≥ 2 800 MHz) was reached on one of the two cards only. No
+  table and no edition entry changes with these files.
+
 ## Unreleased — 2026-11-11 (session T-28: a candidate schedule is held to its seed by the DISTANCE of every finding, not only by its key — `cubit legality-diff`; the mechanics of a 'silicon' edition of the sm_120 dependency table — opt-in by name, shipped with no entry; `cubit asm` refuses a kernel with a multi-register operand off its grid on sm_120 — BUG-488; every other default path byte for byte)
 
 - **`cubit legality-diff <seed.jsonl> <candidate.jsonl>` — the rule a candidate schedule is held to against its seed: no

@@ -56,22 +56,28 @@ import subprocess
 import sys
 import time
 
-TOOL = "probe.py 11 (2026-11-11)"
+TOOL = "probe.py 14 (2026-11-11)"
 HERE = pathlib.Path(__file__).resolve().parent
 SEED = 0x12345
 REPEAT = 256
 SMEM = 65536
 # occupancy: name -> (CTAs, threads per CTA); the output buffer keeps 1 024 words per CTA (gid = ctaid * 1024 + tid)
 GEOM = {"w1": (188, 32), "w2": (188, 64), "w4": (188, 128), "w8": (188, 256), "w16": (188, 512), "w32": (188, 1024),
-        "g32": (32, 1024), "g8": (32, 256), "w12": (188, 384), "c2w9": (376, 288)}
+        "g32": (32, 1024), "g8": (32, 256), "w12": (188, 384), "c2w9": (376, 288), "w9": (188, 288), "c2w9s": (376, 288), "c4w8": (752, 256)}
+# shared memory per CTA (bytes) where it is not SMEM. An SM of these cards has 102 400 B (sharedMemPerMultiprocessor): a
+# kernel that declares 65 536 B has ONE CTA resident per SM whatever the grid says - `c2w9` (376 CTAs) ran as two waves of
+# 188 and was called "2 CTAs per SM" until 2026-11-11. `c2w9s` declares 49 152 B: two CTAs fit an SM, three do not.
+SMEM_OF = {"c2w9s": 49152, "c4w8": 24576}      # c4w8: four CTAs fit an SM (98 304 B), five do not
+SMEM_PER_SM = 102400
+SMEM_PER_CTA_MAX = 101376
 OCC = {"w1": "1 warp per SM (188 CTAs x 32)", "w2": "2 warps per SM (188 x 64)", "w4": "4 warps per SM (188 x 128)",
        "w8": "8 warps per SM (188 x 256)", "w16": "16 warps per SM (188 x 512)", "w32": "32 warps per SM (188 x 1 024)",
        "g32": "32 warps on each of 32 SMs (32 x 1 024)", "g8": "8 warps on each of 32 SMs (32 x 256)",
        "w12": "12 warps per SM (188 x 384)",
-       # c2w9: every kernel of this tool declares 65 536 B of shared memory and an SM of these cards has 102 400 B, so ONE
-       # CTA is resident per SM and the 376 CTAs run in two waves. Until 2026-11-11 this grid was described as "2 CTAs of
-       # 9 warps per SM" - it never was. A grid that really holds two CTAs needs at most 51 200 B per CTA.
-       "c2w9": "9 warps per SM, ONE CTA resident per SM (376 x 288 in two waves: 65 536 B of shared memory per CTA)"}
+       "c2w9": "9 warps per SM, ONE CTA resident per SM (376 x 288 in two waves: 65 536 B of shared memory per CTA)",
+       "w9": "9 warps per SM (188 x 288)",
+       "c2w9s": "2 CTAs of 9 warps per SM (376 x 288; 49 152 B of shared memory per CTA)",
+       "c4w8": "4 CTAs of 8 warps per SM (752 x 256; 24 576 B of shared memory per CTA)"}
 NGID = 188 * 1024
 DEF_CUBIT = str(HERE.parent.parent / "target" / "release" / "cubit")
 DEF_TABLE = str(HERE.parent.parent / "tables" / "sm120.json.gz")
@@ -363,29 +369,116 @@ def body_raw(req, d, front):
     return b
 
 
-ORD_PAIRS = [("LDS", "LDS"), ("LDS", "LDSM"), ("LDS", "LDG"), ("LDS128", "LDS"), ("LDG", "LDS"), ("LDG", "LDG"), ("LDS", "LDS128")]
+ORD_PAIRS = [("LDS", "LDS"), ("LDS", "LDSM"), ("LDS", "LDG"), ("LDS128", "LDS"), ("LDG", "LDS"), ("LDG", "LDG"), ("LDS", "LDS128"),
+             ("LDS", "LDS64"), ("LDS64", "LDS64"), ("LDS64", "LDS"), ("LDSU16", "LDS"), ("LDSU16", "LDS128")]
+
+
+def far_layout(threads):
+    """the second region of a CTA's shared memory, behind the threads' 64-byte slots: word k of a thread = FARBASE +
+    k * STRIDE + tid * 4, STRIDE >= 1 KB and >= one word per thread. -> (farbase, stride)"""
+    stride = max(0x400, (threads * 4 + 0xFF) & ~0xFF)
+    return threads * 64, stride
+
+
+def smem_of(req, occ):
+    """the shared memory the kernels of a request declare on a grid"""
+    ctas, threads = GEOM[occ]
+    smem = SMEM_OF.get(occ, SMEM)
+    if req.get("kind") == "ord" and req.get("far") == "off" and threads * 64 + 0x240 > smem:
+        raise SystemExit(f"{req['id']}: far = \"off\" does not fit the grid {occ} (the last thread's younger load would leave the {smem} B it declares)")
+    if req.get("kind") == "ord" and req.get("nload") and req.get("place") == "far":
+        fb, st = far_layout(threads)
+        need = fb + int(req["nload"]) * st
+        if need > smem:
+            if occ in SMEM_OF:
+                raise SystemExit(f"{req['id']}: {need} B of shared memory do not fit the grid {occ} ({smem} B per CTA)")
+            smem = (need + 0xFFF) & ~0xFFF
+    if smem > SMEM_PER_CTA_MAX:
+        raise SystemExit(f"{req['id']}: {smem} B of shared memory per CTA (the card allows {SMEM_PER_CTA_MAX})")
+    return smem
+
+
+def body_ordn(req, d, front, variant):
+    """N shared loads of one thread in flight (`nload` 2..8), d issue cycles apart, and ONE wait of the reader:
+    `barrier` last = only the youngest load carries the write barrier (the vendor's cover of bare loads), all = every
+    load carries the SAME barrier (cubit's allocator records stale reads for eight such loads 1 KB apart at >= 2 CTAs
+    per SM). `place` near = words 0..N-1 of the thread's own 64 bytes, one base register; base2 = the same words, every
+    second load through another base register (R7 = R9); far = N words STRIDE (>= 1 KB) apart in the second region of
+    the CTA's shared memory (the thread's own words, written once in the prologue). Every destination holds a marker
+    that changes each iteration until its load lands. From version 13 the reader takes ALL N registers within N / 2
+    cycles of its wake-up (pairs summed at stall 1 into R6 / R8 / R12 / R13, weighed afterwards); version 12 read the
+    oldest register at the wake-up and each further one 15 cycles later - a tight test of the oldest load only.
+    `barrier` none = the POSITIVE CONTROL: no load carries a barrier and the reader does not wait (it must be wrong).
+    variant ctl: every load is waited before the next is issued (must be right at every distance)."""
+    n, place, bar = int(req["nload"]), req["place"], req["barrier"]
+    ys = int(req.get("younger_stall", 2))
+    ctl = variant == "ctl"
+    _fb, stride = far_layout(int(req.get("_threads", 1024)))
+    b = [Ins(f"MOV R{24 + k}, R5 ;", ("mov", f"R{24 + k}", "R5")) for k in range(n)]
+    if place == "base2":
+        b.append(Ins("MOV R7, R9 ;", ("mov", "R7", "R9")))
+    b += front_ins(front, False)
+    for k in range(n):
+        last = k == n - 1
+        if place == "far":
+            text, sem = f"LDS R{24 + k}, [R14{('+0x%x' % (k * stride)) if k else ''}] ;", ("ldsf", f"R{24 + k}", k)
+        else:
+            base = "R7" if (place == "base2" and k % 2) else "R9"
+            text, sem = f"LDS R{24 + k}, [{base}{('+0x%x' % (4 * k)) if k else ''}] ;", ("lds", f"R{24 + k}", "R9", 4 * k, 1)
+        if ctl:
+            b.append(Ins(text, sem, ctl=C(1, wb="0"), tag="P", dst=[f"R{24 + k}"]))
+            b.append(Ins("IADD3 R15, PT, PT, R15, 0x1, RZ ;", ("nop",), ctl=C(ys if last else d, wait="0")))
+        else:
+            wb = "1" if (bar != "none" and (last or bar == "all")) else "-"
+            b.append(Ins(text, sem, ctl=C(ys if last else d, wb=wb), tag="P", dst=[f"R{24 + k}"]))
+    cw = "0" if ctl else "" if bar == "none" else "1"
+    tmp = ["R6", "R8", "R12", "R13"]
+    for j in range((n + 1) // 2):      # the snapshots: one issue cycle apart, the first on the wait
+        a, c = 24 + 2 * j, 24 + 2 * j + 1
+        ct = C(1, wait=cw) if j == 0 else C(1)
+        if c < 24 + n:
+            b.append(Ins(f"IADD3 {tmp[j]}, PT, PT, R{a}, R{c}, RZ ;", ("add", tmp[j], f"R{a}", f"R{c}"), ctl=ct, tag="C"))
+        else:
+            b.append(Ins(f"MOV {tmp[j]}, R{a} ;", ("mov", tmp[j], f"R{a}"), ctl=ct, tag="C"))
+    b.append(PAD())
+    b.append(Ins(f"IMAD R6, R6, 0x3, RZ ;", ("mad", "R6", "R6", 3, "RZ")))
+    for j in range(1, (n + 1) // 2):
+        b.append(Ins(f"IMAD R6, {tmp[j]}, 0x{2 * j + 3:x}, R6 ;", ("mad", "R6", tmp[j], 2 * j + 3, "R6")))
+    b.append(Ins("IADD3 R10, PT, PT, R10, R6, RZ ;", ("add", "R10", "R10", "R6")))
+    return b
 
 
 def body_ord(req, d, front, variant):
     """an OLDER load without a write barrier, d issue cycles in front of a YOUNGER load that carries one; the reader of the
     older load's result waits only on the younger load's barrier. variant ctl: the older load carries barrier 0 and the
     reader waits on it too (must be right at every distance)."""
+    if req.get("nload"):
+        return body_ordn(req, d, front, variant)
     older, younger = req["older"], req["younger"]
     if (older, younger) not in ORD_PAIRS:
         raise SystemExit(f"ord: older {older!r} / younger {younger!r} not in the catalogue (probe.py list)")
     s, fill = split_distance(d)
     ys = int(req.get("younger_stall", 2))
     ctl = variant == "ctl"
-    wb0 = "0" if ctl else "-"
+    # "older_barrier": "same" = the older load carries the SAME write barrier as the younger one (two producers on one
+    # scoreboard, one wait): right at every distance if the scoreboard COUNTS its producers, stale like the bare older
+    # load if it only follows the last one
+    wb0 = "0" if ctl else "1" if req.get("older_barrier") == "same" else "-"
     cw = "01" if ctl else "1"
     b = []
     # "far": the younger SHARED load reads another line of the CTA's shared memory, 1 KB away (another thread's 64 bytes:
     # R14 = R9 ^ 0x400, always inside the 64 KB the kernel declares); what it brings is not used and not modelled
-    far = bool(req.get("far"))
-    if far and younger not in ("LDS", "LDS128", "LDSM"):
-        raise SystemExit("ord: `far` is for a younger SHARED load (LDS, LDS128, LDSM)")
-    ybase = "R14" if far else "R9"
-    if far:
+    # "far": "off" (version 14) = the younger shared load on the SAME base register, 0x200 bytes away (another line; inside
+    # the declared shared memory: `gen` refuses a grid where the last thread's address would not be)
+    far = req.get("far")
+    if far and younger not in ("LDS", "LDS128", "LDSM", "LDS64"):
+        raise SystemExit("ord: `far` is for a younger SHARED load (LDS, LDS128, LDSM, LDS64)")
+    ybase = "R14" if far is True else "R9"
+    yoff = 0x230 if far == "off" else 0x30
+    # "younger_guard": the younger load under a predicate - true (P0) or false (P3: the load does not happen; what its
+    # write barrier then does for the reader's wait is the question)
+    yg = {"true": "@P0 ", "false": "@P3 "}.get(req.get("younger_guard"), "")
+    if far is True:
         b.append(Ins("LOP3.LUT R14, R9, 0x400, RZ, 0x3c, !PT ;", ("xor", "R14", "R9", 0x400)))
     # what the older load brings changes every iteration (a store with read barrier 3, waited by the fold); its destination
     # holds a marker (b) until the load lands
@@ -393,6 +486,16 @@ def body_ord(req, d, front, variant):
         b += [Ins("STS [R9+0x20], R4 ;", ("sts", "R9", 0x20, "R4", 1), ctl=C(rb="3")), Ins("MOV R6, R5 ;", ("mov", "R6", "R5"))]
         b += front_ins(front, False)
         b.append(Ins("LDS R6, [R9+0x20] ;", ("lds", "R6", "R9", 0x20, 1), ctl=C(s, wb=wb0), tag="P", dst=["R6"]))
+    elif older == "LDSU16":      # 16 bits, zero-extended
+        b += [Ins("STS [R9+0x20], R4 ;", ("sts", "R9", 0x20, "R4", 1), ctl=C(rb="3")), Ins("MOV R6, R5 ;", ("mov", "R6", "R5"))]
+        b += front_ins(front, False)
+        b.append(Ins("LDS.U16 R6, [R9+0x20] ;", ("ldsu16", "R6", "R9", 0x20), ctl=C(s, wb=wb0), tag="P", dst=["R6"]))
+    elif older == "LDS64":
+        b += [Ins("MOV R26, R4 ;", ("mov", "R26", "R4")), Ins("MOV R27, R5 ;", ("mov", "R27", "R5")),
+              Ins("STS.64 [R9+0x20], R26 ;", ("sts", "R9", 0x20, "R26", 2), ctl=C(rb="3")),
+              Ins("MOV R28, R5 ;", ("mov", "R28", "R5")), Ins("MOV R29, R5 ;", ("mov", "R29", "R5"))]
+        b += front_ins(front, False)
+        b.append(Ins("LDS.64 R28, [R9+0x20] ;", ("lds", "R28", "R9", 0x20, 2), ctl=C(s, wb=wb0), tag="P", dst=["R28", "R29"]))
     elif older == "LDS128":
         b += [Ins("MOV R24, R4 ;", ("mov", "R24", "R4")), Ins("MOV R25, R5 ;", ("mov", "R25", "R5")),
               Ins("LOP3.LUT R26, R4, 0x33cc33cc, RZ, 0x3c, !PT ;", ("xor", "R26", "R4", 0x33cc33cc)),
@@ -408,14 +511,18 @@ def body_ord(req, d, front, variant):
         b.append(Ins("LDG.E R6, desc[UR4][R16.64] ;", ("ldg", "R6", "R16"), ctl=C(s, wb=wb0), tag="P", dst=["R6"]))
     b += fill
     if younger == "LDS":
-        b.append(Ins(f"LDS R8, [{ybase}+0x30] ;", ("poison", "R8", 1) if far else ("lds", "R8", "R9", 0x30, 1), ctl=C(ys, wb="1")))
-    elif younger == "LDS128":      # another access width than the older load (only behind an older LDS: R24-R27 are free there)
-        b.append(Ins(f"LDS.128 R24, [{ybase}+0x30] ;", ("poison", "R24", 4), ctl=C(ys, wb="1")))
+        b.append(Ins(f"{yg}LDS R8, [{ybase}+0x{yoff:x}] ;", ("poison", "R8", 1) if (far or yg) else ("lds", "R8", "R9", 0x30, 1), ctl=C(ys, wb="1")))
+    elif younger == "LDS128":      # another access width than the older load (only behind an older LDS / LDS.U16: R24-R27 are free there)
+        b.append(Ins(f"{yg}LDS.128 R24, [{ybase}+0x{yoff:x}] ;", ("poison", "R24", 4), ctl=C(ys, wb="1")))
+    elif younger == "LDS64":       # (R30:R31: free behind every older form that pairs with it)
+        b.append(Ins(f"{yg}LDS.64 R30, [{ybase}+0x{yoff:x}] ;", ("poison", "R30", 2), ctl=C(ys, wb="1")))
     elif younger == "LDSM":
-        b.append(Ins(f"LDSM.16.M88.4 R24, [{ybase}+0x30] ;", ("poison", "R24", 4), ctl=C(ys, wb="1")))
+        b.append(Ins(f"{yg}LDSM.16.M88.4 R24, [{ybase}+0x{yoff:x}] ;", ("poison", "R24", 4), ctl=C(ys, wb="1")))
     else:
         b.append(Ins("LDG.E R8, desc[UR4][R18.64] ;", ("ldg", "R8", "R18"), ctl=C(ys, wb="1")))
-    if older == "LDS128":
+    if older == "LDS64":
+        b.append(Ins("IADD3 R13, PT, PT, R28, R29, RZ ;", ("add", "R13", "R28", "R29"), ctl=C(wait=cw), tag="C"))
+    elif older == "LDS128":
         b.append(Ins("IADD3 R13, PT, PT, R28, R31, RZ ;", ("add", "R13", "R28", "R31"), ctl=C(wait=cw), tag="C"))
     else:
         b.append(Ins("MOV R13, R6 ;", ("mov", "R13", "R6"), ctl=C(wait=cw), tag="C"))
@@ -702,6 +809,18 @@ def prologue(req, ctas):
               Ins("IADD3 R13, PT, PT, R9, 0x20, RZ ;", ("add", "R13", "R9", 0x20))]
     else:
         p.append(Ins("MOV R6, RZ ;", ("mov", "R6", 0)))
+    if req["kind"] == "ord" and req.get("younger_guard"):
+        p += [Ins("ISETP.EQ.U32.AND P0, PT, RZ, RZ, PT ;", ("nop",)), Ins("ISETP.NE.U32.AND P3, PT, RZ, RZ, PT ;", ("nop",))]
+    if req["kind"] == "ord" and req.get("nload") and req.get("place") == "far":
+        # R14 = the thread's word in the second region; word k := a per-thread constant (a store with read barrier 5, waited)
+        fb, stride = far_layout(int(req.get("_threads", 1024)))
+        p += [Ins("IMAD R14, R0, 0x4, RZ ;", ("nop",)), Ins(f"IADD3 R14, PT, PT, R14, 0x{fb:x}, RZ ;", ("nop",))]
+        for k in range(int(req["nload"])):
+            c = (0x9e3779b1 * (k + 1)) & 0xFFFFFFFF
+            p += [Ins(f"IADD3 R13, PT, PT, R20, 0x{c:x}, RZ ;", ("add", "R13", "R20", c)),
+                  Ins(f"STS [R14{('+0x%x' % (k * stride)) if k else ''}], R13 ;", ("stsf", k, "R13"), ctl=C(rb="5")),
+                  Ins("IADD3 R15, PT, PT, R15, 0x1, RZ ;", ("nop",), ctl=C(wait="5"))]
+        p += [PAD(), PAD()]
     return p
 
 
@@ -732,6 +851,12 @@ def misaligned(text):
                 for n in regs(o):
                     if n % 2:
                         bad.append(f"{op}: a 64-bit pair on R{n}")
+        if op.startswith(("LDS.64", "STS.64", "LDG.E.64", "STG.E.64")):
+            for o in ops:
+                if "[" not in o:
+                    for n in regs(o):
+                        if n % 2:
+                            bad.append(f"{op}: a 64-bit data pair on R{n}")
         if ".128" in op or op.startswith("LDSM"):
             for o in ops:
                 if "[" not in o:
@@ -746,8 +871,8 @@ def misaligned(text):
     return bad
 
 
-def kernel_text(name, req, ctas, body):
-    lines = [f".entry {name}", "    .reg R0-R31", "    .regcount 40", "    .param ptr out", "    .param u32 seed", f"    .shared smem[{SMEM}]"]
+def kernel_text(name, req, ctas, body, smem=SMEM):
+    lines = [f".entry {name}", "    .reg R0-R31", "    .regcount 40", "    .param ptr out", "    .param u32 seed", f"    .shared smem[{smem}]"]
     lines += [f"    {i.line()}" for i in prologue(req, ctas)]
     lines.append("L_loop:")
     lines += [f"    {i.line()}" for i in body]
@@ -792,6 +917,7 @@ def model(req, mode, gids=None, scalar=False):
     R = {"R0": (gids % 1024).astype(U), "R1": (gids // 1024).astype(U), "R4": np.full(n, SEED, U),
          "R17": np.zeros(n, U), "R19": np.zeros(n, U), "RZ": np.zeros(n, U)}
     mem = np.zeros((n, 16), U)
+    farmem = np.zeros((n, 16), U)
     G = np.zeros((n, 2), U)
     rows = np.arange(n)
     consts = {}
@@ -898,9 +1024,16 @@ def model(req, mode, gids=None, scalar=False):
             w = (a >> U(2)).astype(np.int64)
             for k in range(sem[4]):
                 R[reg(sem[1], k)] = mem[rows, w + k]
+        elif op == "ldsu16":        # 16 bits of the thread's slot, zero-extended
+            a = get(sem[2]) + U(sem[3])
+            R[sem[1]] = mem[rows, (a >> U(2)).astype(np.int64)] & U(0xFFFF)
         elif op == "poison":
             for k in range(sem[2]):
                 R[reg(sem[1], k)] = None
+        elif op == "stsf":          # word k of the thread's far region
+            farmem[rows, sem[1]] = get(sem[2])
+        elif op == "ldsf":
+            R[sem[1]] = farmem[rows, sem[2]].copy()
         elif op == "stg":
             G[rows, get(sem[1]).astype(np.int64)] = get(sem[2])
         elif op == "ldg":
@@ -915,7 +1048,7 @@ def model(req, mode, gids=None, scalar=False):
         old, deferred = {}, None
         for k, i in enumerate(body):
             if mode == "stale" and i.tag == "P":
-                old = {r: R[r] for r in i.dst if r in R}
+                old.update({r: R[r] for r in i.dst if r in R})      # (several producers in front of one reader: all stale)
                 ex(i.sem)
             elif mode == "stale" and i.tag == "C":
                 cur = {r: R[r] for r in old}
@@ -945,7 +1078,7 @@ def _scalar(gid, pro, body, mode):
     """the same semantics on Python integers, one thread"""
     M = 0xFFFFFFFF
     R = {"R0": gid % 1024, "R1": gid // 1024, "R4": SEED, "R17": 0, "R19": 0, "RZ": 0}
-    mem, G = [0] * 16, [0, 0]
+    mem, farmem, G = [0] * 16, [0] * 16, [0, 0]
 
     def get(x):
         if isinstance(x, int):
@@ -1036,9 +1169,15 @@ def _scalar(gid, pro, body, mode):
             assert a % 4 == 0 and a + 4 * sem[4] <= 64, sem
             for k in range(sem[4]):
                 R[reg(sem[1], k)] = mem[a // 4 + k]
+        elif op == "ldsu16":
+            R[sem[1]] = mem[((get(sem[2]) + sem[3]) & M) // 4] & 0xFFFF
         elif op == "poison":
             for k in range(sem[2]):
                 R[reg(sem[1], k)] = None
+        elif op == "stsf":
+            farmem[sem[1]] = get(sem[2])
+        elif op == "ldsf":
+            R[sem[1]] = farmem[sem[2]]
         elif op == "stg":
             G[get(sem[1])] = get(sem[2])
         elif op == "ldg":
@@ -1053,7 +1192,7 @@ def _scalar(gid, pro, body, mode):
         old, deferred = {}, None
         for k, i in enumerate(body):
             if mode == "stale" and i.tag == "P":
-                old = {r: R[r] for r in i.dst if r in R}
+                old.update({r: R[r] for r in i.dst if r in R})
                 ex(i.sem)
             elif mode == "stale" and i.tag == "C":
                 cur = {r: R[r] for r in old}
@@ -1123,6 +1262,24 @@ def normalise(req):
         r.setdefault("controls", True)
         r.setdefault("control_distances", "1,6,15,30,60,105")
     elif r.get("kind") == "ord":
+        if r.get("nload"):
+            r.setdefault("older", "LDS")
+            r.setdefault("younger", "LDS")
+            r.setdefault("place", "near")
+            r.setdefault("barrier", "last")
+            r.setdefault("distances", "1-4,8,15")
+            if not (isinstance(r["nload"], int) and 2 <= r["nload"] <= 8) or (r["older"], r["younger"]) != ("LDS", "LDS") \
+                    or r["place"] not in ("near", "far", "base2") or r["barrier"] not in ("last", "all", "none") or r.get("far") \
+                    or r.get("older_barrier"):
+                raise SystemExit(f"{r['id']}: an N-load request is older = younger = LDS, nload 2..8, place near | far | base2, barrier last | all | none")
+        if r.get("older_barrier") not in (None, "same"):
+            raise SystemExit(f"{r['id']}: older_barrier is \"same\" or absent")
+        if r.get("far") not in (None, False, True, "off") or r.get("younger_guard") not in (None, "true", "false"):
+            raise SystemExit(f"{r['id']}: far is true | \"off\" (the same base register, 0x200 away), younger_guard is \"true\" | \"false\"")
+        if r.get("younger_guard") and r.get("younger") == "LDG":
+            raise SystemExit(f"{r['id']}: a guarded younger load is a shared load")
+            if max(parse_distances(r["distances"])) > 15:
+                raise SystemExit(f"{r['id']}: the loads of an N-load request are at most 15 cycles apart (one stall, no fillers)")
         if (r.get("older"), r.get("younger")) not in ORD_PAIRS:
             raise SystemExit(f"{r['id']}: older {r.get('older')!r} / younger {r.get('younger')!r} not in the catalogue (probe.py list)")
         r.setdefault("distances", "1-15,20,30")
@@ -1170,10 +1327,22 @@ def pair_text(r):
     if r["kind"] == "mma":
         return (f"{MMA_FORMS[r['form']]} -> the same, issue spacing ({MMA_VARIANTS[r['variant']]}; "
                 + ("first MMA + a NOP of one cycle + fillers" if r["via"] == "nop" else "the first MMA's stall + fillers") + ")")
+    if r["kind"] == "ord" and r.get("nload"):
+        where = {"near": "words of the thread's own line, one base register", "base2": "words of the thread's own line, every second load through another base register",
+                 "far": "words >= 1 KB apart in the CTA's shared memory"}[r["place"]]
+        return (f"{r['nload']} LDS of one thread in flight, ONE wait of the reader ({where}; "
+                + {"last": "only the youngest load carries the write barrier", "all": "every load on the SAME write barrier",
+                   "none": "POSITIVE CONTROL: no barrier and no wait - expect 0 % good"}[r["barrier"]] + ")")
+    if r["kind"] == "ord" and r.get("older_barrier") == "same":
+        return (f"{r['older']} and a younger {r['younger']} on ONE write barrier, one wait of the reader "
+                f"(the younger load at stall {r.get('younger_stall', 2)} in front of the reader)")
     if r["kind"] == "ord":
         return (f"{r['older']} without a write barrier, read behind the wait on a younger {r['younger']}'s barrier "
                 f"(the younger load at stall {r.get('younger_stall', 2)} in front of the reader"
-                + ("; the younger load reads ANOTHER line of shared memory, 1 KB away)" if r.get("far") else ")"))
+                + ("; the younger load on the SAME base register, 0x200 bytes away" if r.get("far") == "off"
+                   else "; the younger load reads ANOTHER line of shared memory, 1 KB away" if r.get("far") else "")
+                + ({"true": "; the younger load under a guard that is TRUE", "false": "; the younger load under a guard that is FALSE (it does not happen)"}
+                   .get(r.get("younger_guard"), "")) + ")")
     return f"{r['store']} <- {r['overwriter']} (unwaited rewrite behind a bare store)"
 
 
@@ -1238,17 +1407,19 @@ def cmd_gen(args):
             variants = ["bare"] + (["ctl"] if r.get("controls") else [])
         for occ in r["occupancy"]:
             ctas, threads = GEOM[occ]
+            smem = smem_of(r, occ)
+            rk = dict(r, _threads=threads)      # (the far shape of kind ord lays its second region out by the CTA's thread count)
             for front in r["front"]:
                 for v in variants:
                     dl = r["distance_list"] if v in ("bare", "raw") else parse_distances(r["control_distances"])
                     for dist in dl:
                         name = f"{r['id']}_{v}_{occ}_{front_id(front)}_d{dist:04d}"
-                        body = (body_raw(r, dist, front) if r["kind"] == "raw" else body_ord(r, dist, front, v) if r["kind"] == "ord"
+                        body = (body_raw(r, dist, front) if r["kind"] == "raw" else body_ord(rk, dist, front, v) if r["kind"] == "ord"
                                 else body_mma(r, dist, front) if r["kind"] == "mma"
                                 else body_war(r, dist, front, v))
-                        (d / "k" / f"{name}.sass").write_text(kernel_text(name, r, ctas, body))
+                        (d / "k" / f"{name}.sass").write_text(kernel_text(name, rk, ctas, body, smem))
                         kernels.append({"name": name, "variant": v, "occupancy": occ, "front": front, "distance": dist,
-                                        "ctas": ctas, "threads": threads})
+                                        "ctas": ctas, "threads": threads, "smem": smem})
                         jobs.append((d, name))
         late_delta = LATE_CONST if (r["kind"] == "war" and r["overwriter"] == "IADD3" and r["store"] in ("STS.data", "STG.data")) else None
         fam = {"request": r, "pair": pair_text(r), "provenance": prov, "kernels": kernels, "modes": modes_of(r), "late_delta": late_delta,
@@ -1375,7 +1546,11 @@ def cmd_run(args):
     import ctypes
     import numpy as np
     sys.path.insert(0, str(HERE))
-    fake = os.environ.get("PROBE_FAKE") == "1"
+    fake_env = os.environ.get("PROBE_FAKE", "")
+    fake = fake_env == "1" or (fake_env == "2" and (args.child or args.no_isolate))
+    if not fake_env and not os.path.exists("/.dockerenv") and os.environ.get("PROBE_ALLOW_HOST") != "1":
+        raise SystemExit("probe.py run: refusing - not inside a container: it would open a CUDA context on device 0 of this host "
+                         "(PROBE_FAKE=1 | 2 = a CPU rehearsal; PROBE_ALLOW_HOST=1 only on a machine whose device 0 is yours to use)")
     if fake:
         def CK(rc, what=""):
             assert not rc, what
@@ -1400,7 +1575,7 @@ def cmd_run(args):
     q = (lambda _x: "FAKE (no card)") if fake else smi
     cond = {"gpu": q("name"), "driver": q("driver_version"), "clocks_max_sm": q("clocks.max.sm"), "power_limit": q("power.limit"),
             "host": socket.gethostname(), "image": os.environ.get("PROBE_IMAGE", ""), "block": os.environ.get("PROBE_BLOCK", ""),
-            "runner_sha256": sha256(__file__),
+            "runner_sha256": sha256(__file__), "in_container": os.path.exists("/.dockerenv"),
             "start_utc": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")}
     print(f"[probe] start {cond['start_utc']} {cond['gpu']} max {cond['clocks_max_sm']} limit {cond['power_limit']}; {len(ids)} requests", flush=True)
     cu = FakeCuda() if fake else Cuda(0)
@@ -1432,7 +1607,7 @@ def cmd_run(args):
         late_inv = np.uint32(pow(int(fam["late_delta"]), -1, 2 ** 32)) if fam.get("late_delta") else None
         latek = {}
         results, errors, skipped = {}, [], 0
-        eqfar, far_raw, ref_name = {}, {}, {}
+        eqfar, far_raw, ref_name, ltime = {}, {}, {}, {}
         tr = time.time()
 
         def run_kernel(e, nrep, far=None):
@@ -1442,6 +1617,7 @@ def cmd_run(args):
             own = (np.arange(n) % 1024) < threads
             d_out = buffer(ctas)
             tot, eq, first = {}, 0, None
+            lt = []
             if fake:
                 cu.now = (e, cand, order)
             mod = ctypes.c_void_p()
@@ -1451,8 +1627,10 @@ def cmd_run(args):
                 CK(cu.cu.cuModuleGetFunction(ctypes.byref(fn), mod, e["name"].encode()), "cuModuleGetFunction")
                 for _ in range(nrep):
                     cu.memset32(d_out, 0, 2 * n)
+                    t1 = time.perf_counter()
                     cu.launch(fn, grid=(ctas, 1, 1), block=(threads, 1, 1), args=[d_out, ctypes.c_uint32(SEED)])
                     cu.synchronize()
+                    lt.append(time.perf_counter() - t1)
                     o = cu.from_device(d_out, n * 4, dtype=np.uint32)
                     if first is None:
                         first = o
@@ -1485,6 +1663,8 @@ def cmd_run(args):
             finally:
                 if mod:
                     cu.cu.cuModuleUnload(mod)
+            if lt and nrep > 1:      # launch -> synchronize on the host's clock, the median over the launches (microseconds)
+                ltime.setdefault((e["variant"], e["occupancy"], e["front"]), {})[e["distance"]] = round(1e6 * sorted(lt)[len(lt) // 2], 1)
             return tot, eq, first
 
         # the kernels of a request by condition (occupancy, front); the reference kernel of a condition runs first, once:
@@ -1536,7 +1716,9 @@ def cmd_run(args):
                      "events_clean_at_floor": (tl * REPEAT) if fl is not None else 0,
                      "reference_kernel": ref_name.get((occ, front), ""),
                      "late_iterations_in_mixtures": {str(d): latek[(v, occ, front, d)] for d in ds if (v, occ, front, d) in latek},
-                     "equal_to_reference_by_distance": {str(d): eqfar.get((v, occ, front), {}).get(d, 0) for d in ds}}
+                     "equal_to_reference_by_distance": {str(d): eqfar.get((v, occ, front), {}).get(d, 0) for d in ds},
+                     "launch_us_median_by_distance": {str(d): ltime.get((v, occ, front), {}).get(d) for d in ds},
+                     "smem_per_cta": next((e.get("smem", SMEM) for e in fam["kernels"] if e["occupancy"] == occ), SMEM)}
             series.append(entry)
         def find(v, occ, front):
             return next((s for s in series if (s["variant"], s["occupancy"], s["front"]) == (v, occ, front)), None)
@@ -1841,6 +2023,8 @@ def cmd_list(_args):
         print(f"  variant {k:7s} {v}")
     print("kind ord - an OLDER load without a write barrier, read behind the wait on a YOUNGER load's barrier (older, younger):")
     print("  " + ", ".join(f"({a}, {b})" for a, b in ORD_PAIRS) + "; distance = older -> younger; `younger_stall` (default 2) = younger -> reader")
+    print("  N loads in flight and ONE wait: \"nload\": 2..8, \"place\": near | base2 | far (>= 1 KB apart), \"barrier\": last (the older loads bare) | all (one shared barrier) | none (positive control: no wait); distance = load -> load, 1..15")
+    print("  two loads on ONE write barrier: \"older_barrier\": \"same\" (does the scoreboard count its producers?)")
     print("occupancy:", "; ".join(f"{k} = {v}" for k, v in OCC.items()))
     print("front: none | sts128xK@S | stsxK@S | stgxK@S  (K stores of a constant at stall S in front of the tested instruction)")
     return 0
@@ -1898,6 +2082,31 @@ def cmd_selftest(_args):
         assert [int(x) for x in g] == model(r, "good", gids=gids, scalar=True) and [int(x) for x in st] == model(r, "stale", gids=gids, scalar=True)
         assert not np.array_equal(g, st), (older, younger)
         n += 2
+    for older, younger, extra in [("LDS", "LDS64", {"far": "off"}), ("LDS64", "LDS64", {"far": "off"}), ("LDS", "LDS128", {"younger_guard": "true", "far": True}),
+                                  ("LDS", "LDS128", {"younger_guard": "false", "far": True}), ("LDSU16", "LDS", {"far": True}), ("LDS64", "LDS", {})]:
+        r = normalise(dict({"id": "selftest", "kind": "ord", "older": older, "younger": younger}, **extra))
+        g, st = model(r, "good", gids=gids), model(r, "stale", gids=gids)
+        assert [int(x) for x in g] == model(r, "good", gids=gids, scalar=True) and [int(x) for x in st] == model(r, "stale", gids=gids, scalar=True)
+        assert not np.array_equal(g, st), (older, younger, extra)
+        n += 2
+    assert misaligned("    [B------:R-:W-:-:S15] LDS.64 R29, [R9+0x20] ;") and not misaligned("    [B------:R-:W-:-:S15] LDS.64 R28, [R9+0x20] ;")
+    for older, younger in ORD_PAIRS:
+        r = normalise({"id": "selftest", "kind": "ord", "older": older, "younger": younger, "older_barrier": "same"})
+        g, st = model(r, "good", gids=gids), model(r, "stale", gids=gids)
+        assert [int(x) for x in g] == model(r, "good", gids=gids, scalar=True) and not np.array_equal(g, st), (older, younger, "same")
+        n += 1
+    for nl in (2, 3, 4, 5, 8):
+        for place in ("near", "base2", "far"):
+            for bar in ("last", "all", "none"):
+                r = normalise({"id": "selftest", "kind": "ord", "nload": nl, "place": place, "barrier": bar})
+                g, st = model(r, "good", gids=gids), model(r, "stale", gids=gids)
+                assert [int(x) for x in g] == model(r, "good", gids=gids, scalar=True) and [int(x) for x in st] == model(r, "stale", gids=gids, scalar=True)
+                assert not np.array_equal(g, st), (nl, place, bar)
+                # one stale register alone must move the checksum too: the weights of the fold are distinct and odd
+                n += 2
+    assert smem_of({"id": "x", "kind": "ord", "nload": 8, "place": "far"}, "c2w9s") == 49152 and smem_of({"id": "x", "kind": "ord", "nload": 8, "place": "far"}, "w32") == 98304
+    assert smem_of({"id": "x", "kind": "ord", "nload": 8, "place": "far"}, "c4w8") == 24576
+    assert far_layout(288) == (18432, 1280) and far_layout(1024) == (65536, 4096) and far_layout(32) == (2048, 1024)
     print(f"selftest: {n} (pair, hypothesis) models equal the scalar interpreter on {len(gids)} threads; `good` differs from every failure hypothesis")
     return 0
 
