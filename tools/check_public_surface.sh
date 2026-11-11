@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
 # Public surface gate: `main` is the only canonical branch of the public remote.
 #
-# Since 2026-11-10 three namespaces may carry review candidates next to it -- work published for review, never canon,
+# Since 2026-11-10 four namespaces may carry review candidates next to it -- work published for review, never canon,
 # reaching `main` only as commits that passed the push gate:
 #
 #   hidden-b300/*    one-commit candidate pairs of the B300 measurement lane (cubit + blackwell-isa)
 #   barracuda/*      head branches of pull requests from the sm_103a scheduler work
 #   k31-prefill/*    the K3.1 prefill-gap candidates
+#   k31-depth/*      the K3.1 depth candidates (K1 / K2 form closures for sm_103 / sm_100; since 2026-11-11)
 #
 # Heads in these namespaces are reported, not an error. Any other head fails the gate, and so does a missing `main`.
 # Usage: tools/check_public_surface.sh [remote]   (default: origin)
@@ -20,7 +21,7 @@ while IFS= read -r head; do
     [ -n "$head" ] || continue
     case "$head" in
         main) main=1 ;;
-        hidden-b300/* | barracuda/* | k31-prefill/*) ns="${head%%/*}"; candidates[$ns]=$(( ${candidates[$ns]:-0} + 1 )) ;;
+        hidden-b300/* | barracuda/* | k31-prefill/* | k31-depth/*) ns="${head%%/*}"; candidates[$ns]=$(( ${candidates[$ns]:-0} + 1 )) ;;
         *) other+="$head"$'\n' ;;
     esac
 done <<< "$heads"
@@ -34,7 +35,7 @@ if [ -n "$other" ]; then
     exit 1
 fi
 report=""
-for ns in hidden-b300 barracuda k31-prefill; do
+for ns in hidden-b300 barracuda k31-prefill k31-depth; do
     [ -n "${candidates[$ns]:-}" ] && report+=" ${candidates[$ns]} x $ns/*,"
 done
 if [ -n "$report" ]; then
