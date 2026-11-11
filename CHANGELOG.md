@@ -36,9 +36,16 @@ decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `
   thread from one line, one CTA per SM: 0 of 1.9 × 10^8 thread-launches each for `LDS`–`LDS`, `LDS`–`LDSM`, `LDS.128`–`LDS`,
   `LDG`–`LDG` — and does NOT widen the batching key (same opcode, same width, same address stream): the counter-examples in the
   comment of the load batching (shared loads 1 KB apart at 2 CTAs per SM, global loads of different streams) are not re-measured.
-  With TWO loads in flight the order inside the shared pipe also held at 2 CTAs per SM when the younger load reads another line
+  With TWO loads in flight the order inside the shared pipe also held — at ONE CTA per SM (8 / 9 / 12 / 32 warps; the grid first
+  reported here as "2 CTAs per SM" holds one: the correction below) — when the younger load reads another line
   1 KB away or is 16 bytes wide (`probe_sm120_20261111_b12.json`: 0 of 2.9 × 10^8 thread-launches in each of four shapes; `_b10`:
-  the in-line pairs and the load-overwriter pairs on the 2-CTA grid, 0 again) — a count per shape, not a wider key.
+  the in-line pairs and the load-overwriter pairs on the same 376-CTA grid, 0 again) — a count per shape, not a wider key.
+- **Correction, 2026-11-11: the probe grid `c2w9` is ONE CTA of 9 warps per SM, not two.** It launches 376 CTAs × 288 threads, every
+  kernel of the tool declares 65 536 B of shared memory, and an SM of these cards has 102 400 B: one CTA is resident per SM, the
+  grid runs as two waves of 188. `probe.py`'s text for the grid, the README rows and the result files `probe_sm120_20261110_b5.json`,
+  `probe_sm120_20261111_b10.json` and `_b12.json` said "2 CTAs of 9 warps per SM"; the labels are corrected (each file carries a
+  `correction` field), no count and no floor changes, and nothing under `tools/stallfloor` is measured at two CTAs per SM yet
+  (KNOWN_ISSUES A31). The allocator's counter-example at ≥ 2 CTAs per SM is therefore not touched by these files.
 - **The upper register of an `IMAD.WIDE` addend (role `r3h`) has a floor of its own: 3** (`probe_sm120_20261111_b11.json`; `MOV`,
   `IADD3`, `SHF`, `LEA`; the lower register in the same batch: 5, as known). The cell 4, whose basis was the vendor's census,
   holds with one cycle to spare.

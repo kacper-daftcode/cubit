@@ -67,7 +67,11 @@ GEOM = {"w1": (188, 32), "w2": (188, 64), "w4": (188, 128), "w8": (188, 256), "w
 OCC = {"w1": "1 warp per SM (188 CTAs x 32)", "w2": "2 warps per SM (188 x 64)", "w4": "4 warps per SM (188 x 128)",
        "w8": "8 warps per SM (188 x 256)", "w16": "16 warps per SM (188 x 512)", "w32": "32 warps per SM (188 x 1 024)",
        "g32": "32 warps on each of 32 SMs (32 x 1 024)", "g8": "8 warps on each of 32 SMs (32 x 256)",
-       "w12": "12 warps per SM (188 x 384)", "c2w9": "2 CTAs of 9 warps per SM (376 x 288)"}
+       "w12": "12 warps per SM (188 x 384)",
+       # c2w9: every kernel of this tool declares 65 536 B of shared memory and an SM of these cards has 102 400 B, so ONE
+       # CTA is resident per SM and the 376 CTAs run in two waves. Until 2026-11-11 this grid was described as "2 CTAs of
+       # 9 warps per SM" - it never was. A grid that really holds two CTAs needs at most 51 200 B per CTA.
+       "c2w9": "9 warps per SM, ONE CTA resident per SM (376 x 288 in two waves: 65 536 B of shared memory per CTA)"}
 NGID = 188 * 1024
 DEF_CUBIT = str(HERE.parent.parent / "target" / "release" / "cubit")
 DEF_TABLE = str(HERE.parent.parent / "tables" / "sm120.json.gz")
