@@ -4,6 +4,41 @@ User-visible changes, newest first. Table syncs name the blackwell-isa revision 
 (`tables/SOURCE.json` pins it byte for byte). Numbered `BUG-NNN` entries are the encoder /
 decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `docs/TESTS.md`).
 
+## Unreleased — 2026-11-11 (session T-30: under `CUBIT_SCHED2_MEMSTALL=table` the stall of the first pass's recycle drain is judged on the final allocation — kept only where a barrier is set over producers in flight that are not a measured set)
+
+- **`CUBIT_SCHED2_MEMSTALL=table`: the retirement stall of the recycle drain (8, `CUBIT_RECYCLE_DRAIN`) stays only where
+  the final allocation needs it** (`scheduling_pass::settle_recycle_drains`, behind the barrier allocator and in front
+  of the legaliser; it replaces "the 8 stays under the variable" of the section below). The first pass writes the stall
+  on a load for which its own text-order allocation had no free barrier; the allocator behind it replaces that
+  allocation, and on the final one the word does one of three things with its write barrier. Nothing is in flight on
+  it (the last producer was waited): nobody is displaced — the table's value. The word WAITS the barrier and sets it
+  again over one producer in flight (the recycle behind a wait): measured right, the reader of the older register one
+  cycle behind the word, for the pairs `LDS` / `LDS`, `LDS` / `LDS.128`, `LDS.64` / `LDS.64`, `LDG.E` / `LDG.E`
+  (`tools/stallfloor`, result file b29 and its `_ws_` files: two card models, both clock states) — the table's value
+  for those pairs, the stall for every other. The word sets the barrier WITHOUT waiting it while producers are in
+  flight on it (a shared barrier, released by one wait): measured right with all producers on one barrier for two,
+  four and eight plain `LDS` and for one mixed set of six (b16, b29, b30) — the table's value when the producers on
+  the barrier up to its wait are one of those sets, the stall when they are anything else. The pairs and the sets
+  are the measured ones (`MEASURED_RECYCLE_PAIRS`, `MEASURED_SHARED_SETS`), not a range: nothing between two numbers
+  of loads, nothing above the largest.
+- **The sparse-MLA attention kernel:** the first pass writes the stall on 12 words; 5 take the table's value (two
+  constant loads on a barrier that had been waited; three `LDS` that join a fourth on one barrier in front of its one
+  wait) and 7 keep it (two sets of constant loads, and an `LDS` on a barrier with an `LDSM`). Against the earlier form
+  of the variable exactly 4 control words differ (8 → 2, 8 → 4, 8 → 4, 8 → 1). 65 of the 66 hand-lowered stalls stand
+  at or below the hand's value (61 before); one pass of the loop 2 804 static cycles (2 819 before; 2 791 with the
+  knob at 0; the hand-lowered schedule 2 935; the default dependency-aware schedule 3 134); stall sum 4 566. Every
+  check as before: `CUBIT_VERIFY` 0 unprotected RAW, 0 broken WAR, the three walks 0, `CUBIT_DEP_VERIFY` 0 in all four
+  classes under the default table, the edition and `CUBIT_SYNC_CLASSES`, the probe's view 0 / 0, `cubit legality-diff`
+  against the default schedule 0 new, 0 closer. Static cycles, not time.
+- **Nothing else moves:** the default path and plain `CUBIT_SCHED2` are byte for byte; under `CUBIT_SYNC_CLASSES` the
+  drain's stall was never written, so cubit's schedules of the five served MoE kernels with the variable are byte for
+  byte what they were. `CUBIT_RECYCLE_DRAIN=<n>` is still the stall's knob under the variable (0 takes it from every
+  word: an experiment). `cubit asm` prints how many words keep the stall and how many take the table's value.
+- `tests/sched2_memstall_table.rs` (7; the new one red before): a kernel on which the final allocation shows the
+  three cases — an `LDS` that waits its barrier behind an `LDS`, a constant load that waits it behind that `LDS`, two
+  loads on barriers that had been waited. One unit test of `store_paths::barrier_sets` (the producers in flight on a
+  word's write barrier and those that join before its wait, on the flow graph).
+
 ## Unreleased — 2026-11-11 (session T-30: `CUBIT_VERIFY` walks the operand-reuse flags — a register read through a slot with `.reuse` and written before the next reader through that slot is reported, on every path)
 
 - **`CUBIT_VERIFY` reports a register that a word reads through an operand slot with the operand-reuse flag and that

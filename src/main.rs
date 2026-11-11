@@ -5545,6 +5545,19 @@ fn cmd_asm_directive_format(
         // distance); reallocate just fixes the load/store barriers. Legacy path keeps its own.
         if !fully_frozen {
             cubit::scheduling_pass::reallocate_barriers(&mut insns_with_ctrl, Some(table));
+            // CUBIT_SCHED2_MEMSTALL=table: the retirement stall of the first pass's recycle drain, judged
+            // on the final allocation -- kept only where the word sets a barrier with producers in flight
+            // that are not a measured set (`settle_recycle_drains`); in front of the legaliser, which
+            // then places the table's distances.
+            if cubit::scheduling_pass::mem_stall_from_table() {
+                let (lowered, kept, alone) = cubit::scheduling_pass::settle_recycle_drains(&mut insns_with_ctrl);
+                if lowered + kept + alone > 0 {
+                    println!(
+                        "  {}: recycle drain: {} word(s) keep the retirement stall (producers in flight on the barrier that are not a measured set), {} take the table's value, {} left as a later pass set them",
+                        def.name, kept, lowered, alone
+                    );
+                }
+            }
             // CUBIT_SCHED2_LAT: the dependency-latency legaliser, on the final instruction list and
             // the final barriers (a producer the allocator scoreboarded is not a fixed-latency one).
             if dep_table.is_none() && std::env::var("CUBIT_SCHED2").is_ok() && std::env::var("CUBIT_SCHED2_NOARM").is_err() {

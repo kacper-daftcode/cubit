@@ -55,13 +55,15 @@ pub static DEP_LEGALISER_FOLLOWS: std::sync::atomic::AtomicBool = std::sync::ato
 /// `sync_class::settle_need`), and the operand hold of an MMA and of a uniform-datapath reader
 /// (`sync_class::hold_operands`).
 ///
-/// **One stall of this pass stays:** **8** on a load for which the pass's own text-order barrier
-/// allocation had no free barrier (its "recycle drain"). `reallocate_barriers` replaces that
-/// allocation, so in the final schedule the load usually drains nothing - but the stall is the
-/// margin of a barrier re-used while its first group is in flight, and that has not been
-/// measured (KNOWN_ISSUES A32). Under the variable it has its name, `CUBIT_RECYCLE_DRAIN=<n>`
-/// (default 8; the knob of the default scheduler's drain): lowering it is an experiment, not a
-/// form for production, until the measurement exists.
+/// **One stall of this pass stays where the final allocation needs it:** **8** on a load for
+/// which the pass's own text-order barrier allocation had no free barrier (its "recycle
+/// drain"). `reallocate_barriers` replaces that allocation, and [`settle_recycle_drains`] judges
+/// the word on the final one: the stall goes where nothing is in flight on the barrier the word
+/// sets, where the word waits that barrier and sets it again behind a load of a measured pair,
+/// and where the producers that share the barrier up to its wait are a measured set of shared
+/// loads; it stays where the set is anything else (KNOWN_ISSUES A32, A38). Under the variable
+/// the stall has its name, `CUBIT_RECYCLE_DRAIN=<n>` (default 8; the knob of the default
+/// scheduler's drain): lowering it for every word is an experiment, not a form for production.
 ///
 /// Honoured only where the legaliser follows ([`DEP_LEGALISER_FOLLOWS`] with a table in
 /// `CUBIT_SCHED2_LAT`): without it the margins are all that stands behind a memory word.
@@ -72,6 +74,107 @@ pub fn mem_stall_from_table() -> bool {
         && std::env::var("CUBIT_SCHED2").is_ok()
         && std::env::var("CUBIT_SCHED2_LAT").is_ok_and(|v| !v.is_empty() && v != "0")
         && DEP_LEGALISER_FOLLOWS.load(std::sync::atomic::Ordering::Relaxed)
+}
+
+// `CUBIT_SCHED2_MEMSTALL=table`: the words on which the first pass wrote the retirement stall of
+// its recycle drain -- (the word, its ordinal among the words of the same text, its stall in front
+// of the drain, its stall with it) -- for `settle_recycle_drains`, which runs behind the allocator
+// on the final instruction list (instructions are inserted in between: an index would not hold).
+thread_local! {
+    static DRAIN_WORDS: std::cell::RefCell<Vec<(Instruction, usize, u8, u8)>> = const { std::cell::RefCell::new(Vec::new()) };
+}
+
+/// The (older, younger) pairs of the recycle of a write barrier behind a wait that were measured
+/// right: the older load on the barrier, the younger load's own word waits it and sets it again,
+/// the reader of the older register one cycle behind that word with no wait (the stall-floor
+/// probes of 2026-11-11, result file b29 `rc_*` and its `_ws_` files: two card models, both
+/// clock states).
+pub const MEASURED_RECYCLE_PAIRS: &[(&str, &str)] = &[("LDS", "LDS"), ("LDS", "LDS.128"), ("LDS.64", "LDS.64"), ("LDG.E", "LDG.E")];
+
+/// The sets of producers that were measured right with ALL of them on one write barrier in front
+/// of one wait, by their forms in text order (result files b16 `m2|m4|m8_*_all`, b29
+/// `my2|my4|my8_*_all`, b30 `mx6_mix_all` and their `_ws_` files): two, four and eight plain
+/// shared loads, and one mixed set of six.
+pub const MEASURED_SHARED_SETS: &[&[&str]] = &[
+    &["LDS", "LDS"],
+    &["LDS", "LDS", "LDS", "LDS"],
+    &["LDS", "LDS", "LDS", "LDS", "LDS", "LDS", "LDS", "LDS"],
+    &["LDS", "LDS.64", "LDS", "LDS.128", "LDS", "LDS.64"],
+];
+
+/// Two instructions are the same word of the text: guard, opcode with its modifiers, operands.
+fn same_word(a: &Instruction, b: &Instruction) -> bool {
+    a.opcode_full == b.opcode_full && a.operands == b.operands && format!("{:?}", a.guard) == format!("{:?}", b.guard)
+}
+
+/// `CUBIT_SCHED2_MEMSTALL=table`, behind the barrier allocator: the retirement stall of the first
+/// pass's recycle drain (`CUBIT_RECYCLE_DRAIN`, default 8) is kept only where the FINAL
+/// allocation needs it. The first pass writes it on a load for which its own text-order
+/// allocation had no free barrier; `reallocate_barriers` replaces that allocation, and what the
+/// word then does with its write barrier is one of three things:
+///
+/// * nothing is in flight on the barrier when the word sets it (the last producer was waited):
+///   no producer is displaced and the stall guards nothing -- the table's value;
+/// * the word WAITS the barrier and sets it again over ONE producer in flight (the recycle
+///   behind a wait): measured right with the reader of the older register one cycle behind the
+///   word for the pairs of [`MEASURED_RECYCLE_PAIRS`] -- the table's value for those, the stall
+///   for every other;
+/// * the word sets the barrier WITHOUT waiting it while producers are in flight on it (a shared
+///   barrier: one wait releases the set): measured right for the sets of
+///   [`MEASURED_SHARED_SETS`] -- the table's value when the producers on the barrier up to its
+///   wait are one of those sets, the stall when they are anything else (another number of
+///   loads, an `LDSM`, an `LDC`, a global load, a shuffle ...).
+///
+/// The sets and the pairs are the measured ones, not a range: nothing between two numbers of
+/// loads and nothing above the largest.
+///
+/// That every reader of a pending result stands behind a wait is the allocator's rule and the
+/// verifier's first count; it is not judged again here. Returns (words that take the table's
+/// value, words that keep the stall because of what stands on their barrier, words left alone:
+/// a stall some pass in between has changed, a word that is not on the final list).
+pub fn settle_recycle_drains(insns: &mut [Instruction]) -> (usize, usize, usize) {
+    let recorded = DRAIN_WORDS.with(|d| std::mem::take(&mut *d.borrow_mut()));
+    if recorded.is_empty() {
+        return (0, 0, 0);
+    }
+    // the recorded words on the final list
+    let at: Vec<(usize, u8, u8)> = recorded
+        .iter()
+        .filter_map(|(word, ordinal, base, drained)| insns.iter().enumerate().filter(|(_, x)| same_word(x, word)).nth(*ordinal).map(|(i, _)| (i, *base, *drained)))
+        .collect();
+    let sets = crate::store_paths::barrier_sets(insns, &at.iter().map(|x| x.0).collect::<Vec<_>>());
+    let form = |k: usize| insns[k].opcode_full.as_str();
+    let mut lower: Vec<(usize, u8)> = Vec::new();
+    let mut kept = 0;
+    for ((i, base, drained), set) in at.iter().zip(&sets) {
+        if insns[*i].ctrl.stall != *drained {
+            continue;
+        }
+        let not_needed = match set {
+            None => true,
+            Some((in_flight, _)) if in_flight.is_empty() => true,
+            Some((in_flight, joiners)) => {
+                if insns[*i].ctrl.wait_mask & (1 << insns[*i].ctrl.write_bar) != 0 {
+                    in_flight.len() == 1 && MEASURED_RECYCLE_PAIRS.contains(&(form(in_flight[0]), form(*i)))
+                } else {
+                    let mut set: Vec<usize> = in_flight.iter().chain(joiners).chain(std::iter::once(i)).copied().collect();
+                    set.sort_unstable();
+                    set.dedup();
+                    let forms: Vec<&str> = set.iter().map(|&k| form(k)).collect();
+                    MEASURED_SHARED_SETS.contains(&forms.as_slice())
+                }
+            }
+        };
+        if not_needed {
+            lower.push((*i, *base));
+        } else {
+            kept += 1;
+        }
+    }
+    for (i, base) in &lower {
+        insns[*i].ctrl.stall = *base;
+    }
+    (lower.len(), kept, recorded.len() - lower.len() - kept)
 }
 
 /// `CUBIT_SCHED2_MEMSTALL` as written: `Ok(true)` for `table`, `Ok(false)` when unset or empty,
@@ -1687,6 +1790,7 @@ fn compute_addr_feeding(insns: &[Instruction]) -> Vec<bool> {
 /// Skips instructions that have user-specified control codes.
 pub fn schedule(insns: &mut [Instruction], table: Option<&IsaTable>) {
     let mut st = SchedulerState::new();
+    DRAIN_WORDS.with(|d| d.borrow_mut().clear());
     // The pass also accepts explicit controls supplied directly through IR,
     // without a source [CC] marker. Do not silently repair those either.
     let generated_controls: Vec<bool> = insns.iter().map(|x| {
@@ -2174,12 +2278,19 @@ pub fn schedule(insns: &mut [Instruction], table: Option<&IsaTable>) {
                     // (CUBIT_SYNC_CLASSES: this pass's barriers are re-derived on the control-flow
                     // graph by `reallocate_barriers`; the drain's retirement stall of its text-order
                     // allocation would stay behind as eight idle cycles on a load that drains nothing.
-                    // CUBIT_SCHED2_MEMSTALL=table: the stall stays -- it is the margin of a barrier
-                    // re-used in flight, which nobody has measured (KNOWN_ISSUES A32) -- but under its
-                    // name: `CUBIT_RECYCLE_DRAIN`, the knob of the default scheduler's drain below)
+                    // CUBIT_SCHED2_MEMSTALL=table: the stall is written under its name -- `CUBIT_RECYCLE_DRAIN`,
+                    // the knob of the default scheduler's drain below -- and judged again behind the
+                    // allocator: `settle_recycle_drains` keeps it only where the final allocation sets a
+                    // barrier with producers in flight that are not a measured set)
                     if !crate::sync_class::enabled() {
                         let drain = if st.mem_table { st.recycle_drain } else { 8 };
+                        let base = insns[i].ctrl.stall;
                         insns[i].ctrl.stall = insns[i].ctrl.stall.max(drain);
+                        if st.mem_table && insns[i].ctrl.stall != base {
+                            // judged again on the final allocation: `settle_recycle_drains`
+                            let ordinal = insns[..i].iter().filter(|x| same_word(x, &insns[i])).count();
+                            DRAIN_WORDS.with(|d| d.borrow_mut().push((insns[i].clone(), ordinal, base, insns[i].ctrl.stall)));
+                        }
                     }
                 }
                 st.current_load_barrier = Some(nb);

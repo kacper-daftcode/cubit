@@ -692,6 +692,69 @@ pub fn describe_shuffle_source(insns: &[Instruction], f: &ShuffleSourceFinding) 
     )
 }
 
+// ───────────────────────── the producers on one write barrier ─────────────────────────
+
+/// The producers that stand on the write barrier of word `i` in the final allocation, for each
+/// `i` of `words`: `(in_flight, joiners)` — the words that set that barrier on some path into
+/// `i` with no wait on it between them and `i` (their results may be in flight when `i` sets the
+/// barrier again; `i`'s own wait mask is not looked at here: a word that waits the barrier it
+/// sets waits exactly these producers), and the words that set it on some path behind `i` before
+/// a wait on it. `None` for a word that sets no write barrier. Every conditional branch has both
+/// outcomes.
+pub fn barrier_sets(insns: &[Instruction], words: &[usize]) -> Vec<Option<(Vec<usize>, Vec<usize>)>> {
+    let flow = Flow::new(insns);
+    let n = insns.len();
+    let succ: Vec<Vec<usize>> = (0..n).map(|k| flow.succ(k, Facts::default(), false).into_iter().map(|(j, _)| j).collect()).collect();
+    let mut preds: Vec<Vec<usize>> = vec![Vec::new(); n];
+    for (k, s) in succ.iter().enumerate() {
+        for &j in s {
+            preds[j].push(k);
+        }
+    }
+    words
+        .iter()
+        .map(|&i| {
+            let b = insns[i].ctrl.write_bar;
+            if b > 5 {
+                return None;
+            }
+            let waits = |k: usize| insns[k].ctrl.wait_mask & (1 << b) != 0;
+            let sets = |k: usize| insns[k].ctrl.write_bar == b;
+            // backwards: the producers no wait has released when `i` issues
+            let mut in_flight = Vec::new();
+            let mut seen = vec![false; n];
+            let mut stack: Vec<usize> = preds[i].clone();
+            while let Some(k) = stack.pop() {
+                if std::mem::replace(&mut seen[k], true) {
+                    continue;
+                }
+                if sets(k) {
+                    in_flight.push(k);
+                }
+                if !waits(k) {
+                    stack.extend(preds[k].iter().copied());
+                }
+            }
+            // forwards: the producers that join before the barrier is waited
+            let mut joiners = Vec::new();
+            let mut seen = vec![false; n];
+            let mut stack: Vec<usize> = succ[i].clone();
+            while let Some(k) = stack.pop() {
+                if std::mem::replace(&mut seen[k], true) || waits(k) {
+                    continue;
+                }
+                if sets(k) {
+                    joiners.push(k);
+                }
+                stack.extend(succ[k].iter().copied());
+            }
+            in_flight.sort_unstable();
+            joiners.sort_unstable();
+            Some((in_flight, joiners))
+        })
+        .collect()
+}
+
 // ───────────────────────── the operand-reuse flags ─────────────────────────
 
 /// The operand slots of an sm_120 word that have an operand-reuse flag, as one word carries
@@ -1828,6 +1891,45 @@ mod tests {
             "    [B------:R-:W-:-:S01] EXIT ;",
         ]);
         assert!(shuffles(&k).is_empty());
+    }
+
+    // ── the producers on one write barrier ──
+
+    #[test]
+    fn the_producers_on_a_write_barrier_are_those_no_wait_has_released_and_those_that_join_before_its_wait() {
+        // three loads on barrier 1 in a row, a wait on it, then a fourth; a load on another barrier between
+        let k = kernel(&[
+            "    [B------:R-:W1:Y:S01] LDS R8, [R20] ;",
+            "    [B------:R-:W2:Y:S01] LDS R9, [R20+0x10] ;",
+            "    [B------:R-:W1:Y:S01] LDS R10, [R20+0x20] ;",
+            "    [B------:R-:W1:Y:S01] LDS R11, [R20+0x30] ;",
+            "    [B-1----:R-:W-:Y:S01] IADD3 R12, PT, PT, R8, R10, RZ ;",
+            "    [B------:R-:W1:Y:S01] LDS R13, [R20+0x40] ;",
+            "    [B-1----:R-:W1:Y:S01] LDS R14, [R20+0x50] ;",
+            "    [B-12---:R-:W-:Y:S01] IADD3 R15, PT, PT, R13, R14, R9 ;",
+            "    [B------:R-:W-:-:S01] EXIT ;",
+        ]);
+        let sets = barrier_sets(&k, &[0, 2, 3, 4, 5, 6]);
+        // the first on the barrier: nothing in flight, two join; the middle one: one in front, one behind; the last
+        assert_eq!(sets[0], Some((vec![], vec![2, 3])));
+        assert_eq!(sets[1], Some((vec![0], vec![3])));
+        assert_eq!(sets[2], Some((vec![0, 2], vec![])));
+        // a word without a write barrier
+        assert_eq!(sets[3], None);
+        // behind the wait the barrier is free; the load that WAITS it and sets it again has that producer in
+        // flight in front of it (its own wait mask is not looked at)
+        assert_eq!(sets[4], Some((vec![], vec![])));
+        assert_eq!(sets[5], Some((vec![5], vec![])));
+        // around a loop the word's own result is in flight when the word comes again
+        let k = kernel(&[
+            "L_top:",
+            "    [B------:R-:W3:Y:S01] LDS R8, [R20] ;",
+            "    [B------:R-:W-:Y:S01] IADD3 R20, PT, PT, R20, 0x4, RZ ;",
+            "    [B------:R-:W-:Y:S05] @P0 BRA L_top ;",
+            "    [B---3--:R-:W-:Y:S01] IADD3 R12, PT, PT, R8, 0x1, RZ ;",
+            "    [B------:R-:W-:-:S01] EXIT ;",
+        ]);
+        assert_eq!(barrier_sets(&k, &[0]), [Some((vec![0], vec![0]))]);
     }
 
     // ── the operand-reuse flags ──

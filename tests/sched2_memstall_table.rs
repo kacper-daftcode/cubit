@@ -283,7 +283,9 @@ fn the_retirement_stall_of_a_recycled_barrier_stays_under_the_opt_in_and_has_a_n
     for b in [&dflt, &opt] {
         for head in drained {
             let l = &b.lines[idx(b, head, 0)];
-            // the load waits the barrier it sets -- a barrier re-used in flight -- and keeps the 8 behind it
+            // the load waits the barrier it sets -- re-used in flight behind a load of another kind (a uniform
+            // constant load, a constant load behind a shared one and the reverse: no measured pair) -- and keeps
+            // the 8 behind it
             assert!(l.wb.is_some_and(|w| l.wait & (1 << w) != 0), "`{head}` waits the barrier it sets: {}", b.frozen);
             assert_eq!(l.stall, 8, "`{head}`: {}", b.frozen);
         }
@@ -299,6 +301,78 @@ fn the_retirement_stall_of_a_recycled_barrier_stays_under_the_opt_in_and_has_a_n
         let log = check(&b.frozen, &[("CUBIT_VERIFY", "1"), ("CUBIT_DEP_VERIFY", "1")]);
         assert!(log.contains(CLEAN_VERIFY) && log.contains(CLEAN_DEP), "{log}");
     }
+}
+
+/// Eight loads with no reader between them, shared and constant in turn, their readers, and two more constant
+/// loads: the first pass's text-order allocation runs out of its six barriers at the seventh load and writes its
+/// drain's stall on four words.
+const DRAIN2: &str = "\
+.entry drain_probe2
+    .reg R0-R31
+    .param ptr out
+    MOV R20, 0x100 ;
+    LDS R8, [R20] ;
+    LDC R9, c[0x0][0x390] ;
+    LDS R10, [R20+0x40] ;
+    LDC R11, c[0x0][0x394] ;
+    LDS R12, [R20+0x80] ;
+    LDC R13, c[0x0][0x398] ;
+    LDS R14, [R20+0xc0] ;
+    LDC R15, c[0x0][0x39c] ;
+    IADD3 R16, PT, PT, R8, R9, RZ ;
+    IADD3 R17, PT, PT, R10, R11, RZ ;
+    IADD3 R18, PT, PT, R12, R13, RZ ;
+    IADD3 R19, PT, PT, R14, R15, RZ ;
+    IADD3 R16, PT, PT, R16, R17, RZ ;
+    IADD3 R18, PT, PT, R18, R19, RZ ;
+    IADD3 R19, PT, PT, R16, R18, RZ ;
+    LDCU.64 UR4, c[0x0][0x358] ;
+    LDC.64 R2, c[0x0][0x380] ;
+    STG.E desc[UR4][R2.64], R19 ;
+    EXIT ;
+.endentry
+";
+
+#[test]
+fn the_retirement_stall_is_kept_only_where_the_final_allocation_sets_a_barrier_over_producers_that_are_no_measured_set() {
+    let drained = ["LDS R14", "LDC R15", "LDCU.64 UR4", "LDC.64 R2"];
+    // the default path: the 8 on all four
+    let dflt = build(DRAIN2, S1);
+    for head in drained {
+        assert_eq!(stall(&dflt, head, 0), 8, "`{head}`: {}", dflt.frozen);
+    }
+    let opt = build(DRAIN2, &with(S1, &[OPT]));
+    let waits_own = |b: &Built, head: &str| {
+        let l = &b.lines[idx(b, head, 0)];
+        l.wb.is_some_and(|w| l.wait & (1 << w) != 0)
+    };
+    // `LDS R14` waits the barrier it sets, and what is in flight on it is `LDS R8`: the recycle behind a wait,
+    // a shared load behind a shared load -- measured right with a reader one cycle behind: the table's value
+    assert!(waits_own(&opt, "LDS R14") && opt.lines[idx(&opt, "LDS R14", 0)].wb == opt.lines[idx(&opt, "LDS R8", 0)].wb, "{}", opt.frozen);
+    assert!(stall(&opt, "LDS R14", 0) < 8, "{}", opt.frozen);
+    // `LDC R15` waits the same barrier behind that `LDS`: a constant load behind a shared one is no measured
+    // pair -- the stall stays
+    assert!(waits_own(&opt, "LDC R15") && opt.lines[idx(&opt, "LDC R15", 0)].wb == opt.lines[idx(&opt, "LDS R14", 0)].wb, "{}", opt.frozen);
+    assert_eq!(stall(&opt, "LDC R15", 0), 8, "{}", opt.frozen);
+    // the two loads behind the readers set barriers that have been waited: nothing is in flight on them
+    assert!(!waits_own(&opt, "LDCU.64 UR4") && !waits_own(&opt, "LDC.64 R2"), "{}", opt.frozen);
+    assert!(stall(&opt, "LDCU.64 UR4", 0) < 8 && stall(&opt, "LDC.64 R2", 0) < 8, "{}", opt.frozen);
+    // the build says what it did
+    let dir = scratch("drain2");
+    let src = dir.join("k.sass");
+    std::fs::write(&src, DRAIN2).unwrap();
+    let (ok, log) = cubit(&["asm", "-t", TABLE, src.to_str().unwrap(), "-o", dir.join("k.cubin").to_str().unwrap()], &with(S1, &[OPT]));
+    assert!(ok, "{log}");
+    assert!(log.contains("recycle drain: 1 word(s) keep the retirement stall (producers in flight on the barrier that are not a measured set), 3 take the table's value, 0 left"), "{log}");
+    let (ok, log) = cubit(&["asm", "-t", TABLE, src.to_str().unwrap(), "-o", dir.join("d.cubin").to_str().unwrap()], S1);
+    assert!(ok && !log.contains("recycle drain"), "{log}");
+    let _ = std::fs::remove_dir_all(&dir);
+    // legal by every check
+    let log = check(&opt.frozen, &[("CUBIT_VERIFY", "1"), ("CUBIT_DEP_VERIFY", "1")]);
+    assert!(log.contains(CLEAN_VERIFY) && log.contains(CLEAN_DEP), "{log}");
+    // and by its name the stall goes from every word (the experiment)
+    let exp = build(DRAIN2, &with(S1, &[OPT, ("CUBIT_RECYCLE_DRAIN", "0")]));
+    assert!(drained.iter().all(|h| stall(&exp, h, 0) < 8), "{}", exp.frozen);
 }
 
 /// A predicate result three words in front of `EXIT`, a store between them.
