@@ -265,6 +265,15 @@ decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `
   dependency table prices by its default 6 have floors of 3 (eight classes into store data), 4 (`PRMT` → `LEA`), 5 (five
   classes) and 6 (`CS2R` → `LOP3` r1) — none above the default; 0 not right of 2 207 539 200 thread-launches at and above
   the floors. The Server card, one clock state.
+- **`probe.py` 22 and 22 more pair classes without a table cell** (`_b33.json`, `_b35.json`; selftest 2 891): kind `raw` learns float
+  consumers (`FMUL`, `FADD`, `FFMA`), `MUFU.RCP`, the multiplier register of `IMAD` / `IMAD.WIDE`, the 32-bit `IADD`, `IABS`, the
+  second register of a pair producer, and a salt in the checksum (a producer of zeros left the checksum of a kernel that never
+  ran). None of the 22 floors is above the default 6; the eight classes with the producer `CS2R` sit exactly on it (`CS2R` →
+  `FMUL` r2: 6 for both registers of the pair), the others at 1 … 5; 0 not right of 2 759 424 000 thread-launches at and above
+  the floors. `CS2R` → `STS` data stays 3 with the salt. The Server card, one clock state.
+- **N shared loads all on one write barrier in front of one wait, N = 3 … 13** (`_b34.json`; `probe.py` 21): 0 not right of
+  4 288 204 800 thread-launches in 18 sets of plain and mixed forms; each set's twin without a barrier and a wait is wrong in
+  100 %. The Server card, one clock state.
 
 ## Unreleased — 2026-11-11 (session SCH-4: the stall-floor probes on grids that hold two CTAs per SM and on production's card model in two clock states — tools and result files only, no source line changes)
 

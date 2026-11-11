@@ -46,6 +46,13 @@ Kind `reuse` (version 20) - the operand-reuse flag: a word reads R6 through one 
 reader took the OLD content. Variants: bare (the flag), ctl (the same text without it: the write's own floor).
     {"id": "ru_a_clean_w1", "kind": "reuse", "flagged": "IADD3i.A", "writer": "clean", "words": 1,
      "occupancy": ["w1", "w8", "w32", "c2w9s"]}
+
+Version 22 - kind `raw`, pair classes without a table cell: consumers FMUL.r2, FADD.r1, FFMA.r2 (they take a producer
+whose result is a finite float or zero: FADD, FMUL, CS2R, MOV.fin), MUFU.RCP.r1 (producer MOV.pow2), IMAD.WIDE.r2,
+IMAD.r2, SHF.r3, IADD.r1, IADD.r2; producers MOV.fin, MOV.pow2, IABS; `"result": 1` = the consumer takes the SECOND
+register of a pair producer (CS2R, IADD.64, IMAD.WIDE); `"salt": "set"` = the iteration's input is added to the checksum
+behind the consumer (a producer of zeros must not leave the checksum of a kernel that never ran).
+    {"id": "pd_cs2r_fmul_r2h", "kind": "raw", "producer": "CS2R", "consumer": "FMUL.r2", "result": 1, "salt": "set", "distances": "1-8,11,26"}
 """
 from __future__ import annotations
 
@@ -62,7 +69,7 @@ import subprocess
 import sys
 import time
 
-TOOL = "probe.py 21 (2026-11-11)"
+TOOL = "probe.py 22 (2026-11-11)"
 HERE = pathlib.Path(__file__).resolve().parent
 SEED = 0x12345
 REPEAT = 256
@@ -169,6 +176,14 @@ def data_producer(name, rd):
         return [], f"LEA {r}, R4, R4, 0x2 ;", ("mad", r, "R4", 5, "RZ"), "LEA"
     if name == "IMAD.WIDE":    # the pair R(d+1):Rd = R4 * R5
         return [], f"IMAD.WIDE.U32 {r}, R4, R5, RZ ;", ("mulw", r, "R4", "R5"), "IMAD.WIDE"
+    if name == "MOV.fin":      # version 22: a register move of a FINITE float (what a float consumer needs)
+        return fin(13, 4), f"MOV {r}, R13 ;", ("mov", r, "R13"), "MOV"
+    if name == "MOV.pow2":     # version 22: a register move of a power of two, 2^-3 ... 2^4 (its reciprocal is exact)
+        return ([Ins("LOP3.LUT R13, R4, 0x3800000, RZ, 0xc0, !PT ;", ("and", "R13", "R4", 0x03800000)),
+                 Ins("IADD3 R13, PT, PT, R13, 0x3e000000, RZ ;", ("add", "R13", "R13", 0x3e000000))],
+                f"MOV {r}, R13 ;", ("mov", r, "R13"), "MOV")
+    if name == "IABS":         # version 22
+        return [], f"IABS {r}, R4 ;", ("iabs", r, "R4"), "IABS"
     raise SystemExit(f"unknown data producer {name!r} (probe.py list)")
 
 
@@ -176,7 +191,7 @@ def P2_LT():
     return Ins("ISETP.LT.U32.AND P2, PT, R4, R5, PT ;", ("ltu", "P2", "R4", "R5"))
 
 
-DATA_PRODUCERS = ["IADD3", "IMAD", "LOP3", "MOV", "SHF", "FADD", "FMUL", "SEL", "F2FP.SAT", "IADD3.neg", "PRMT", "IMAD.SHL", "IADD.64", "IMAD.WIDE", "CS2R", "LEA"]
+DATA_PRODUCERS = ["IADD3", "IMAD", "LOP3", "MOV", "SHF", "FADD", "FMUL", "SEL", "F2FP.SAT", "IADD3.neg", "PRMT", "IMAD.SHL", "IADD.64", "IMAD.WIDE", "CS2R", "LEA", "MOV.fin", "MOV.pow2", "IABS"]
 PAIR_PRODUCERS = {"IADD.64", "IMAD.WIDE", "CS2R"}      # they write R(d) and R(d+1)
 
 
@@ -247,7 +262,33 @@ RAW_CONSUMERS = {
     "IMAD.WIDE.r3h": ("data", 7, "IMAD.WIDE", "r3h", "the HIGH word of the 64-bit addend of IMAD.WIDE"),
     "UIADD3.u1": ("udata", 6, "UIADD3", "u1", "the uniform addend of UIADD3"),
     "MOV.u1": ("udata", 6, "MOV", "u1", "the uniform source of MOV R, UR"),
+    # version 22 - pair classes that the dependency table prices by its default (no cell of their own)
+    "FMUL.r2": ("data", 6, "FMUL", "r2", "the second factor of FMUL.FTZ (the producer brings a finite float or zero)"),
+    "FADD.r1": ("data", 6, "FADD", "r1", "the first addend of FADD.FTZ (the producer brings a finite float or zero)"),
+    "FFMA.r2": ("data", 6, "FFMA", "r2", "the second factor of FFMA.FTZ Rd, 3.0, R, Rc (the producer brings a finite float or zero; one rounding, exact on the host)"),
+    "MUFU.RCP.r1": ("data", 6, "MUFU", "r1", "the source of MUFU.RCP (the producer brings a power of two; the host's reciprocal is exact, the unit's must be - the far kernels say)"),
+    "IMAD.WIDE.r2": ("data", 6, "IMAD.WIDE", "r2", "the multiplier REGISTER of IMAD.WIDE.U32 (both words of the product reach the checksum)"),
+    "IMAD.r2": ("data", 6, "IMAD", "r2", "the multiplier REGISTER of IMAD Rd, Ra, R, RZ"),
+    "SHF.r3": ("data", 6, "SHF", "r3", "the high-word operand of SHF.R.U32.HI Rd, RZ, 3, R"),
+    "IADD.r1": ("data", 6, "IADD", "r1", "the first addend of the 32-bit IADD Rd, R, Rb"),
+    "IADD.r2": ("data", 6, "IADD", "r2", "the second addend of the 32-bit IADD Rd, Ra, R"),
 }
+FLOAT_CONSUMERS = ("FMUL.r2", "FADD.r1", "FFMA.r2")
+FLOAT_PRODUCERS = ("FADD", "FMUL", "CS2R", "MOV.fin")
+# version 22: consumers whose word names the tested register R6 exactly once - with "result": 1 it becomes R7, the
+# second register of a pair producer
+RESULT1_CONSUMERS = ("STS.data", "STG.data", "IADD3.r1", "IADD3.r2", "IMAD.r1", "IMAD.r3", "LOP3.r1", "MOV.r1", "SHF.r1", "SEL.r1", "PRMT.r1", "I2FP.r1",
+                     "IMAD.SHL.r1", "FMUL.r2", "FADD.r1", "FFMA.r2", "IMAD.WIDE.r2", "IMAD.r2", "SHF.r3", "IADD.r1", "IADD.r2")
+R6_TOKEN = r"(?<![A-Za-z0-9])R6(?![0-9])"
+
+
+def raw_pair_ok(prod, cons):
+    """version 22: a float consumer takes a producer whose result is a finite float or zero; MUFU.RCP a power of two"""
+    if cons in FLOAT_CONSUMERS:
+        return prod in FLOAT_PRODUCERS
+    if cons == "MUFU.RCP.r1":
+        return prod == "MOV.pow2"
+    return True
 WAR_STORES = {
     # name: (overwriters, table class, description)
     "STS.data": (["LOP3", "IADD3", "LDS", "LDG"], "STS", "the data register of a bare 32-bit shared store (IADD3: + a constant, so the NUMBER of late iterations per thread is read from the checksum)"),
@@ -356,6 +397,14 @@ def body_raw(req, d, front):
             raise SystemExit(f"{cons}: the producer writes ONE word of the addend pair (not {prod})")
         # the other word of the addend pair R7:R6 is the iteration's own, set long before
         pre = pre + [Ins("MOV R6, R5 ;", ("mov", "R6", "R5")) if cons == "IMAD.WIDE.r3h" else Ins("MOV R7, R5 ;", ("mov", "R7", "R5"))]
+    if not raw_pair_ok(prod, cons):
+        raise SystemExit(f"{cons}: the producer must bring a finite float ({', '.join(FLOAT_PRODUCERS)}; MUFU.RCP.r1: MOV.pow2), not {prod}")
+    if cons in FLOAT_CONSUMERS:      # version 22: the other operand is a finite float set long before: R27, from the thread's constant R20
+        pre = pre + fin(27, 20)      # (NOT from R4 / R5: with the pair's old content x in both places a stale FFMA gives 4x, +2^24 a time, 2^32 in 256 iterations)
+        if cons == "FFMA.r2":        # R26 = 3.0: 3.0 * b + c needs one rounding only, which the host does exactly
+            pre = pre + [Ins("MOV R26, 0x40400000 ;", ("mov", "R26", 0x40400000))]
+        if prod == "CS2R":           # the pair holds FINITE floats until the CS2R lands (not the raw inputs)
+            pre = pre + fin(6, 4) + fin(7, 5)
     b += pre
     b += front_ins(front, False)
     dst = ["UR6"] if what == "udata" else [f"R{rd}", f"R{rd + 1}"] if prod in PAIR_PRODUCERS else [f"R{rd}"]
@@ -413,8 +462,37 @@ def body_raw(req, d, front):
         b += [Ins("MOV R8, UR6 ;", ("mov", "R8", "UR6"), tag="C"), ADD10()]
     elif cons == "LEA.r1":
         b += [Ins("LEA R8, R6, R6, 0x2 ;", ("mad", "R8", "R6", 5, "RZ"), tag="C"), ADD10()]
+    elif cons == "FMUL.r2":
+        b += [Ins("FMUL.FTZ R8, R27, R6 ;", ("fmul", "R8", "R27", "R6"), tag="C"), ADD10()]
+    elif cons == "FADD.r1":
+        b += [Ins("FADD.FTZ R8, R6, R27 ;", ("fadd", "R8", "R6", "R27"), tag="C"), ADD10()]
+    elif cons == "FFMA.r2":      # R8 = 3.0 * R6 + R27 with one rounding
+        b += [Ins("FFMA.FTZ R8, R26, R6, R27 ;", ("ffma", "R8", "R26", "R6", "R27"), tag="C"), ADD10()]
+    elif cons == "MUFU.RCP.r1":      # MUFU is a scoreboarded producer (the table's variable_latency): its result on write barrier 1, the checksum word waits it
+        b += [Ins("MUFU.RCP R8, R6 ;", ("rcp2", "R8", "R6"), ctl=C(wb="1"), tag="C"), ADD10("1")]
+    elif cons == "IMAD.WIDE.r2":      # R25:R24 = R5 * R6; both words reach the checksum
+        b += [Ins("IMAD.WIDE.U32 R24, R5, R6, RZ ;", ("mulw", "R24", "R5", "R6"), tag="C"),
+              Ins("IADD3 R8, PT, PT, R24, R25, RZ ;", ("add", "R8", "R24", "R25")), ADD10()]
+    elif cons == "IMAD.r2":
+        b += [Ins("IMAD R8, R5, R6, RZ ;", ("mad", "R8", "R5", "R6", "RZ"), tag="C"), ADD10()]
+    elif cons == "SHF.r3":
+        b += [Ins("SHF.R.U32.HI R8, RZ, 0x3, R6 ;", ("shr", "R8", "R6", 3), tag="C"), ADD10()]
+    elif cons == "IADD.r1":
+        b += [Ins("IADD R8, R6, R5 ;", ("add", "R8", "R6", "R5"), tag="C"), ADD10()]
+    elif cons == "IADD.r2":
+        b += [Ins("IADD R8, R5, R6 ;", ("add", "R8", "R5", "R6"), tag="C"), ADD10()]
     else:
         raise SystemExit(f"unknown raw consumer {cons!r} (probe.py list)")
+    if req.get("salt") == "set":      # version 22: the iteration's input goes into the checksum too (behind the consumer: no distance moves) -
+        # a producer of zeros (CS2R) must not leave the checksum 0, which is what a kernel that never ran leaves in the zeroed buffer
+        b.append(Ins("IADD3 R10, PT, PT, R10, R4, RZ ;", ("add", "R10", "R10", "R4")))
+    if req.get("result") == 1:      # version 22: the consumer takes the pair producer's SECOND register (R7, not R6)
+        c = [i for i in b if i.tag == "C"]
+        if prod not in PAIR_PRODUCERS or cons not in RESULT1_CONSUMERS or len(c) != 1 or len(re.findall(R6_TOKEN, c[0].text)) != 1 \
+                or [x for x in c[0].sem if isinstance(x, str)].count("R6") != 1:
+            raise SystemExit(f"{prod} -> {cons}: \"result\": 1 needs a pair producer and a consumer whose word names R6 once")
+        c[0].text = re.sub(R6_TOKEN, "R7", c[0].text)
+        c[0].sem = tuple("R7" if (isinstance(x, str) and x == "R6") else x for x in c[0].sem)
     return b
 
 
@@ -1056,8 +1134,11 @@ def body_mma(req, d, front="none"):
 
 
 # ------------------------------------------------------------------------------------------------ kind reuse (version 20)
-# The operand-reuse flag. A 128-bit word has three flag bits - 122 / 123 / 124 - one per 8-bit source-register field at
-# bit 24 (slot A) / 32 (slot B) / 64 (slot C). In the vendor's four served MoE texts (1 308 flags on 1 076 words) every
+# The operand-reuse flag. A 128-bit word has three flag bits - 122 (slot A) / 123 (slot B) / 124 (slot C); a slot IS its
+# flag bit (the vendor's census decides it 780 to 0 on the IMAD pair of forms). In the seven forms below - and in most
+# forms - the operand of bit 122 / 123 / 124 is the register field at bit 24 / 32 / 64; thirteen forms of the sm_120
+# table pair a field with another bit (FADD R, R, R: the field at bit 32 carries bit 124) - none of them is used here.
+# In the vendor's four served MoE texts (1 308 flags on 1 076 words, every one on a standard pair) every
 # flag is followed by a reader of the SAME register through the SAME slot within 11 words and 11 issue cycles, with no
 # write of the register, no label and no branch between, and every word of the window carries the yield flag at a
 # stall <= 5: the texts cannot say what the hardware does when the register IS written inside the window.
@@ -1428,6 +1509,15 @@ def model(req, mode, gids=None, scalar=False):
                 raise RuntimeError(f"model: an MMA fragment the model does not know ({sem})")
             for k in range(4):
                 R[reg(sem[1], k)] = get(reg(sem[1], k)) + U(sp["k"] * sp["aval"][av] * sp["bval"][bv])
+        elif op == "ffma":          # version 22: a * b + c with ONE rounding - exact in float64 for the catalogue's operands (a = 3.0)
+            fa, fb, fc = (get(x).view(np.float32).astype(np.float64) for x in sem[2:5])
+            R[sem[1]] = (fa * fb + fc).astype(np.float32).view(U)
+        elif op == "rcp2":          # version 22: the reciprocal of a power of two (positive, zero mantissa); of +0.0: +inf
+            x = get(sem[2])
+            R[sem[1]] = np.where(x == U(0), U(0x7F800000), U(0x7F000000) - x).astype(U)
+        elif op == "iabs":          # version 22: |x| of a 32-bit integer (0x80000000 stays)
+            x = get(sem[2])
+            R[sem[1]] = np.where(x >= U(0x80000000), (x ^ U(0xFFFFFFFF)) + U(1), x).astype(U)
         elif op == "zero2":
             R[sem[1]] = np.zeros(n, U)
             R[reg(sem[1], 1)] = np.zeros(n, U)
@@ -1588,6 +1678,16 @@ def _machine(gid):
             av, bv = get(sem[2]) & sp["amask"], get(sem[3]) & sp["bmask"]
             for k in range(4):
                 R[reg(sem[1], k)] = (get(reg(sem[1], k)) + sp["k"] * sp["aval"][av] * sp["bval"][bv]) & M
+        elif op == "ffma":          # version 22: exact rational arithmetic, then one rounding to float32
+            from fractions import Fraction
+            fa, fb, fc = (Fraction(struct.unpack("<f", struct.pack("<I", get(x)))[0]) for x in sem[2:5])
+            R[sem[1]] = struct.unpack("<I", struct.pack("<f", float(fa * fb + fc)))[0]
+        elif op == "rcp2":
+            x = get(sem[2])
+            R[sem[1]] = 0x7F800000 if x == 0 else (0x7F000000 - x) & M
+        elif op == "iabs":
+            x = get(sem[2])
+            R[sem[1]] = (-x) & M if x & 0x80000000 else x
         elif op == "zero2":
             R[sem[1]] = 0
             R[reg(sem[1], 1)] = 0
@@ -1725,6 +1825,13 @@ def normalise(req):
         what = RAW_CONSUMERS[r["consumer"]][0]
         if r.get("producer") not in (ADDR_PRODUCERS if what == "addr" else UNIFORM_PRODUCERS if what == "udata" else DATA_PRODUCERS):
             raise SystemExit(f"{r['id']}: producer {r.get('producer')!r} not in the catalogue for {r['consumer']} (probe.py list)")
+        if not raw_pair_ok(r["producer"], r["consumer"]):
+            raise SystemExit(f"{r['id']}: {r['consumer']} takes a producer that brings a finite float ({', '.join(FLOAT_PRODUCERS)}; MUFU.RCP.r1: MOV.pow2)")
+        if r.get("salt") not in (None, "set"):
+            raise SystemExit(f"{r['id']}: salt is \"set\" (version 22: the iteration's input is added to the checksum behind the consumer) or absent")
+        if r.get("result") not in (None, 0, 1) or (r.get("result") == 1 and (r["producer"] not in PAIR_PRODUCERS or r["consumer"] not in RESULT1_CONSUMERS)):
+            raise SystemExit(f"{r['id']}: result is 1 (version 22: the consumer takes the SECOND register of a pair producer - {', '.join(sorted(PAIR_PRODUCERS))}; "
+                             f"consumers {', '.join(RESULT1_CONSUMERS)}) or absent")
         r.setdefault("distances", "1-15,20,30")
         r.setdefault("via", "stall")
     elif r.get("kind") == "war":
@@ -1859,7 +1966,7 @@ def pair_text(r):
                 + ("; the window's words carry the yield flag" if r["window_yield"] == "set" else "; NO yield flag in the window")
                 + (f"; {REUSE_BETWEEN[r['between']]}" if r["between"] else "") + "; ctl = the same text without the flag")
     if r["kind"] == "raw":
-        return f"{r['producer']} -> {r['consumer']}"
+        return f"{r['producer']} -> {r['consumer']}" + (" [the consumer takes the producer's SECOND result register]" if r.get("result") == 1 else "")
     if r["kind"] == "mma" and r["variant"].startswith("sens_"):
         return f"{MMA_FORMS[r['form']]}: {MMA_VARIANTS[r['variant']]}"
     if r["kind"] == "mma" and r["variant"].startswith("hold_"):
@@ -2041,6 +2148,8 @@ def cmd_gen(args):
             sc = model(r, mode, gids=gids, scalar=True)
             if [int(x) for x in v[gids]] != sc:
                 raise SystemExit(f"{r['id']}: the vectorised model and the scalar interpreter disagree in mode {mode}")
+        if r["kind"] == "raw" and float((cand["good"] == 0).mean()) > 0.01:      # version 22
+            raise SystemExit(f"{r['id']}: the checksum of `good` is 0 in {100 * float((cand['good'] == 0).mean()):.0f} % of the threads - a kernel that never ran would pass; give the request the field salt = set")
         if any(np.array_equal(cand["good"], v) for m, v in cand.items() if m != "good") and r["kind"] != "mma":
             raise SystemExit(f"{r['id']}: a failure hypothesis gives the checksums of `good` - the probe could not see it")
         if r["kind"] == "reuse" and "stale" in cand and not (cand["good"] != cand["stale"]).all():
@@ -2600,6 +2709,9 @@ def cmd_list(_args):
     print("  data producers:", ", ".join(DATA_PRODUCERS), "| address producers:", ", ".join(ADDR_PRODUCERS), "| uniform producers:", ", ".join(UNIFORM_PRODUCERS))
     for k, v in RAW_CONSUMERS.items():
         print(f"  consumer {k:10s} {v[4]} (table class {v[2]}, role {v[3]}; producer kind: {v[0]})")
+    print("  version 22: consumers " + ", ".join(FLOAT_CONSUMERS) + " take a producer of " + ", ".join(FLOAT_PRODUCERS) + "; MUFU.RCP.r1 takes MOV.pow2; "
+          "\"result\": 1 = the consumer takes the SECOND register of a pair producer (" + ", ".join(sorted(PAIR_PRODUCERS)) + "): " + ", ".join(RESULT1_CONSUMERS)
+          + "; \"salt\": \"set\" = the iteration's input is added to the checksum behind the consumer")
     print("kind war - a register of a BARE store rewritten behind it:")
     for k, v in WAR_STORES.items():
         print(f"  store {k:12s} overwriters {', '.join(v[0])}: {v[2]}")
@@ -2619,7 +2731,7 @@ def cmd_list(_args):
     print("  version 19, two-load requests: \"far\": \"base2\" = the younger shared load through ANOTHER base register that holds the same address (the same line); \"older_guard\": \"true\" = the older shared load under a guard that is true")
     print("  N loads in flight and ONE wait: \"nload\": 2..8, \"place\": near | base2 | far (>= 1 KB apart), \"barrier\": last (the older loads bare) | all (one shared barrier) | none (positive control: no wait); distance = load -> load, 1..15")
     print("  two loads on ONE write barrier: \"older_barrier\": \"same\" (does the scoreboard count its producers?)")
-    print("kind reuse (version 20) - the operand-reuse flag: a word reads R6 through slot A / B / C (the register field at bit 24 / 32 / 64) with `.reuse`, R6 is written again, a reader takes R6 through the slot d cycles behind the write:")
+    print("kind reuse (version 20) - the operand-reuse flag: a word reads R6 through slot A / B / C (flag bit 122 / 123 / 124 - a slot is its flag bit; in the seven forms below its operand is the register field at bit 24 / 32 / 64) with `.reuse`, R6 is written again, a reader takes R6 through the slot d cycles behind the write:")
     for k, v in REUSE_FORMS.items():
         print(f"  flagged / reader form {k:9s} slot {v[0]}: {v[1].format(d='Rd', r='R6.reuse')}  (the vendor's row: {v[4]})")
     for k, v in REUSE_WRITERS.items():
@@ -2644,12 +2756,71 @@ def cmd_selftest(_args):
                 continue
             if cons.startswith("IMAD.WIDE.r3") and prod in PAIR_PRODUCERS:
                 continue
+            if not raw_pair_ok(prod, cons):
+                continue
             r = normalise({"id": "selftest", "kind": "raw", "producer": prod, "consumer": cons})
             for mode in modes_of(r):
                 v = model(r, mode, gids=gids)
                 assert [int(x) for x in v] == model(r, mode, gids=gids, scalar=True), (prod, cons, mode)
                 n += 1
             assert not np.array_equal(model(r, "good", gids=gids), model(r, "stale", gids=gids)), (prod, cons)
+    # version 22: the pair's SECOND result register - the consumer's word differs in R6 -> R7 and in nothing else
+    for prod in sorted(PAIR_PRODUCERS):
+        for cons in RESULT1_CONSUMERS:
+            if not raw_pair_ok(prod, cons):
+                continue
+            r0, r1 = (normalise(dict({"id": "selftest", "kind": "raw", "producer": prod, "consumer": cons}, **x)) for x in ({}, {"result": 1}))
+            b0, b1 = body_raw(r0, 3, "none"), body_raw(r1, 3, "none")
+            dd = [(a, c) for a, c in zip(b0, b1) if a.line() != c.line()]
+            assert len(b0) == len(b1) and len(dd) == 1 and dd[0][0].tag == "C" and dd[0][0].ctl == dd[0][1].ctl, (prod, cons)
+            assert re.sub(R6_TOKEN, "R7", dd[0][0].text) == dd[0][1].text and "R7" not in dd[0][0].text and not re.search(R6_TOKEN, dd[0][1].text), (prod, cons)
+            for mode in modes_of(r1):
+                v = model(r1, mode, gids=gids)
+                assert [int(x) for x in v] == model(r1, mode, gids=gids, scalar=True), (prod, cons, mode)
+                n += 1
+            assert not np.array_equal(model(r1, "good", gids=gids), model(r1, "stale", gids=gids)), (prod, cons)
+            assert not np.array_equal(model(r1, "stale", gids=gids), model(r0, "stale", gids=gids)), (prod, cons)
+    for bad in ({"producer": "IADD3", "consumer": "FMUL.r2"}, {"producer": "MOV", "consumer": "FFMA.r2"}, {"producer": "MOV.fin", "consumer": "MUFU.RCP.r1"},
+                {"producer": "MOV", "consumer": "LOP3.r1", "result": 1}, {"producer": "CS2R", "consumer": "LEA.r1", "result": 1},
+                {"producer": "CS2R", "consumer": "IMAD.WIDE.r3", "result": 1}, {"producer": "CS2R", "consumer": "LOP3.r1", "result": 2}):
+        try:
+            normalise(dict({"id": "selftest", "kind": "raw"}, **bad))
+        except SystemExit:
+            n += 1
+        else:
+            raise AssertionError(f"version 22: {bad} must be refused")
+    for prod, cons, extra in (("CS2R", "MOV.r1", {"result": 1}), ("CS2R", "FMUL.r2", {}), ("CS2R", "SHF.r3", {"result": 1}), ("MOV", "IADD.r1", {})):      # the salt
+        r0, r1 = (normalise(dict({"id": "selftest", "kind": "raw", "producer": prod, "consumer": cons}, **extra, **x)) for x in ({}, {"salt": "set"}))
+        b0, b1 = body_raw(r0, 3, "none"), body_raw(r1, 3, "none")
+        assert len(b1) == len(b0) + 1 and [a.line() for a in b1[:-1]] == [a.line() for a in b0] and b1[-1].text == "IADD3 R10, PT, PT, R10, R4, RZ ;" and b1[-1].tag is None, (prod, cons)
+        big = np.arange(0, NGID, 97, dtype=np.int64)
+        g0, g1 = model(r0, "good", gids=big), model(r1, "good", gids=big)
+        assert float((g1 == 0).mean()) < 0.01 and (prod != "CS2R" or float((g0 == 0).mean()) > 0.4), (prod, cons, float((g0 == 0).mean()), float((g1 == 0).mean()))
+        for mode in modes_of(r1):
+            assert [int(x) for x in model(r1, mode, gids=gids)] == model(r1, mode, gids=gids, scalar=True), (prod, cons, mode)
+            n += 1
+        assert not np.array_equal(model(r1, "good", gids=gids), model(r1, "stale", gids=gids)), (prod, cons)
+    import struct as _st      # the three new operations against plain arithmetic
+    R_, _get, ex_ = _machine(0)
+    for e in range(124, 132):
+        R_["R6"] = e << 23
+        ex_(("rcp2", "R8", "R6"))
+        assert _st.unpack("<f", _st.pack("<I", R_["R8"]))[0] == 1.0 / _st.unpack("<f", _st.pack("<I", e << 23))[0], e
+    for x, y in ((5, 5), (0xFFFFFFFB, 5), (0x80000000, 0x80000000), (0, 0), (0x7FFFFFFF, 0x7FFFFFFF)):
+        R_["R6"] = x
+        ex_(("iabs", "R8", "R6"))
+        assert R_["R8"] == y, x
+    for fa, fb, fc, want in ((3.0, 1.25, -1.75, 2.0), (3.0, 0.0, 1.5, 1.5), (3.0, -0.5, 1.5, 0.0), (3.0, 1.0000001192092896, 1.0, 4.000000476837158)):
+        R_["R1"], R_["R2"], R_["R3"] = (_st.unpack("<I", _st.pack("<f", q))[0] for q in (fa, fb, fc))
+        ex_(("ffma", "R8", "R1", "R2", "R3"))
+        assert _st.unpack("<f", _st.pack("<I", R_["R8"]))[0] == want, (fa, fb, fc, _st.unpack("<f", _st.pack("<I", R_["R8"]))[0])
+    pw = normalise({"id": "selftest", "kind": "raw", "producer": "MOV.pow2", "consumer": "MUFU.RCP.r1"})
+    pv = [i for i in body_raw(pw, 3, "none") if i.tag == "P"]
+    assert len(pv) == 1 and pv[0].text == "MOV R6, R13 ;"
+    mu = body_raw(pw, 3, "none")
+    ic = next(k for k, i in enumerate(mu) if i.tag == "C")
+    assert mu[ic].line() == "[B------:R-:W1:-:S15] MUFU.RCP R8, R6 ;" and mu[ic + 1].line() == "[B-1----:R-:W-:-:S15] IADD3 R10, PT, PT, R10, R8, RZ ;"
+    n += 3
     for st, (overs, _c, _t) in WAR_STORES.items():
         for ov in overs:
             r = normalise({"id": "selftest", "kind": "war", "store": st, "overwriter": ov})
