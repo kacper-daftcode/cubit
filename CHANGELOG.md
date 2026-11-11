@@ -4,6 +4,31 @@ User-visible changes, newest first. Table syncs name the blackwell-isa revision 
 (`tables/SOURCE.json` pins it byte for byte). Numbered `BUG-NNN` entries are the encoder /
 decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `docs/TESTS.md`).
 
+## Unreleased — 2026-11-11 (session T-31: the dependency table prices the result of the 64-bit `CS2R` at the vendor's 7 — the default 6 was its silicon floor, with no margin)
+
+- **`tables/dep_latency_sm120.json` has a section `producer_forms`, and its one entry prices the result of `CS2R`
+  without `.32` (the pair form, A40) at 7 issue cycles instead of the default 6** (KNOWN_ISSUES A41). Silicon reads
+  either register of the pair right from 6 and not right one cycle closer, into every register consumer measured, on
+  two card models (`tools/stallfloor/probe_sm120_20261111_b33.json` and its `_ws_` files: 6 | 6 | 6) — the default
+  was the floor itself, where every other number of the table is the vendor's practice; the vendor never reads the
+  form closer than 7 (22 116 words of the form in the census, 26 readers at exactly 7, none closer). The table's
+  class `CS2R` does not tell the form from `CS2R.32`, so the number is not a cell: an entry of `producer_forms` is a
+  producer class, the modifiers the form does not carry (`without`), `L`, and the (consumer, role) pairs that keep
+  their number (`except`); a consumer that reads the form's result in any register or address role is charged the
+  larger of `L` and the pair's cell or default.
+- **What keeps its number:** `CS2R` → the data of an `STS` (measured floor 3: the default 6) and the 32-bit form
+  (the class's cell `CS2R` → `IMAD` r1 = 6 and the default) — until their forms are measured. A table file without
+  the section loads and prices the form as before; a reader that does not know the section reads the same 533 cells.
+  `tools/stallfloor/gen_dep_latency.py` writes the section from its `PRODUCER_FORMS` (the table is still its output
+  byte for byte).
+- **Reach:** only a schedule built under `CUBIT_SCHED2_LAT` reads the table. Nothing that serves has a reader within
+  9 issue cycles of a `CS2R`, so no production source, attention build or committed cubin moves. Of cubit's
+  schedules of the five served MoE kernels the persistent kernel's two timer reads move from 6 to 7 (2 control
+  words; the other four byte for byte; the same with `CUBIT_SCHED2_MEMSTALL=table`); of cubit's own schedules of the vendor's 749 census kernels under that switch set 12 change, each by one stall cycle (the twelve `tp_moe.dynamic` kernels, where a reader of a second register stood at exactly 6), and 22 with `CUBIT_SCHED2_MEMSTALL=table`; no check count moves in any kernel.
+  `CUBIT_DEP_VERIFY` names a reader 6 behind the form as below a table cell.
+- `tests/cs2r_pair_form_cell.rs` (4; 4 red before), `tests/bug491_cs2r_pair.rs` (its numbers follow from 6 to 7),
+  unit tests of `dep_stall`.
+
 ## Unreleased — 2026-11-11 (session T-30: BUG-491 — a 64-bit `CS2R` writes a register pair; the scheduler's dependency model knew one register)
 
 - **BUG-491: `CS2R Rd, <SR>` without `.32` writes the pair `Rd:Rd+1`, and a reader of `Rd+1` was tied to nothing**

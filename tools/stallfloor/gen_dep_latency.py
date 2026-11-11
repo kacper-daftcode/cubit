@@ -10,6 +10,9 @@
       split by result register (result_register_census.py) with the rule of (1); a reader without such a cell keeps the
       pair's cell but never less than the largest floor measured for an upper register (`result_high.floor`). The cells
       of (1) and (2) are not touched by it: a binary that does not know `result_high` reads the table as before.
+  (4) producer FORMS priced apart from their class (PRODUCER_FORMS -> `producer_forms`): the result of such a form is never
+      read closer than the entry's L in any register / address role, except in the (consumer, role) pairs the entry names.
+      It is written as it stands here (no census input); the cells of (1) - (3) are not touched by it.
 
 usage: gen_dep_latency.py census_pairs.json out.json [--floors pair_floors.json ...] [--v6 cells.json ...]
                           [--mma-registers file] [--result-census census_pairs_result.json --result-floors floors.json]
@@ -25,6 +28,29 @@ MAX_TIGHT = 7     # a fixed-latency ALU pair is never above 7 (-> MMA fragment) 
 # producers whose upper result register is priced apart: the two halves of a 64-bit product are not ready together
 # (silicon: the low register is readable from 1-3 issue cycles, the high one from 3-5; ptxas: low from 3, high from 4 / 5)
 RESULT_HIGH = ["IMAD.WIDE"]
+# producer FORMS priced apart from their class: the class of the table plus the modifiers the form does NOT carry. The
+# class `CS2R` does not tell the 64-bit form (a register pair) from `CS2R.32`; silicon reads the pair form's result right
+# from 6 issue cycles with one cycle closer wrong -- the table's default, with no margin --, and ptxas never reads it
+# closer than 7: the form takes ptxas's 7 in every register / address role. The data of a shared-memory store (floor 3)
+# keeps the default, and the 32-bit form keeps the class's cell, until their forms are measured.
+PRODUCER_FORMS = [
+    {"producer": "CS2R", "without": [".32"], "L": 7,
+     "except": [{"consumer": "STS", "role": "r1"}],
+     "basis": "ptxas: 22 116 of the census's 22 140 CS2R words are the 64-bit form (`CS2R Rn, <SR>` without `.32`: a "
+              "register pair); no reader of either result register stands closer than 7 behind one (188 readers within 12 "
+              "issue cycles: 26 at exactly 7 -- IMAD 20, STS 4, MUFU 2 --, 36 at 8); the other 24 words are the 32-bit form "
+              "(`CS2R.32 Rn, SR_CgaSize` -> IMAD at 5), which is not this form and keeps the cell of the class",
+     "silicon": "floor 6 into FMUL r2, FADD r1, LOP3 r1 (either result register), MOV r1, SHF r3 (the second register) "
+                "and IADD r1 (the first) -- tools/stallfloor probe_sm120_20261111_b33 and its two _ws_ files: a Server "
+                "Edition card, a Workstation Edition card alone and at its 400-W limit, 6 | 6 | 6, right at 6 / 7 / 8 / 11 / 26 "
+                "on every grid, not right at 5 -- and into IMAD r1 / IADD3 r1 / LOP3 r1 (probe_sm120_20261110_b3, Server): the "
+                "default 6 is the floor itself, without a margin -- a trial floor, not a number of this table; -> STS data "
+                "floor 3 | 3 | 3 (probe_sm120_20261111_b35 and its _ws_ files): the exception keeps the default 6"},
+]
+PRODUCER_FORMS_COMMENT = (" `producer_forms`: the result of a producer FORM named there -- the class plus the modifiers the form"
+                          " does not carry (`CS2R` without `.32` = the 64-bit form, a register pair) -- is never read closer than"
+                          " the entry's L in any register or address role: the larger of L and the pair's cell or default; the"
+                          " (consumer, role) pairs of `except` keep their cell or default (a trailing h of the role is ignored).")
 
 
 def main():
@@ -175,6 +201,8 @@ def main():
             c["silicon"] = (c.get("silicon", "") + "; " if c.get("silicon") else "") + note
     if a.result_census:
         result_high(a, doc, idx)
+    doc["comment"] += PRODUCER_FORMS_COMMENT
+    doc["producer_forms"] = PRODUCER_FORMS
     out_cells.sort(key=lambda c: (c["producer"], c["consumer"], c["role"]))
     if a.mma_registers:
         mr = json.load(open(a.mma_registers))

@@ -69,6 +69,34 @@ struct ResultHighJson {
     cells: Vec<CellJson>,
 }
 
+/// The result of a producer FORM, priced apart from its class: the class of the table plus the
+/// modifiers the form does NOT carry (`CS2R` without `.32` is the 64-bit form, which writes a
+/// register pair; the class `CS2R` alone does not tell it from `CS2R.32`). A consumer that reads
+/// such a result in any register or address role is never charged less than `L` -- the larger of
+/// it and the pair's cell or default --, except in the (consumer, role) pairs of `except`, which
+/// keep their cell or default (a trailing `h` of the role is ignored there, as for the cells).
+/// The first entry (2026-11-11): silicon reads the 64-bit `CS2R`'s result right from 6 issue
+/// cycles on two card models with one cycle closer wrong in 99 % of the thread-launches -- a floor
+/// with no margin, where the table's default is that same 6 --, and ptxas never reads it closer
+/// than 7 (the census's 22 140 `CS2R` words): the table prices the form by ptxas's practice. A
+/// table without the section prices the form with the pair's cell or the default, as before.
+#[derive(Debug, Clone, Deserialize)]
+struct ProducerFormJson {
+    producer: String,
+    #[serde(default)]
+    without: Vec<String>,
+    #[serde(rename = "L")]
+    l: u8,
+    #[serde(default)]
+    except: Vec<FormExceptJson>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct FormExceptJson {
+    consumer: String,
+    role: String,
+}
+
 #[derive(Debug, Clone, Deserialize)]
 struct DefaultsJson {
     data: u8,
@@ -113,6 +141,8 @@ struct TableJson {
     #[serde(default)]
     result_high: Option<ResultHighJson>,
     #[serde(default)]
+    producer_forms: Vec<ProducerFormJson>,
+    #[serde(default)]
     cells: Vec<CellJson>,
 }
 
@@ -132,6 +162,9 @@ pub struct DepLatTable {
     /// The producers whose upper result register is priced apart, and the floor of such a
     /// reader where no `cells_high` entry names it.
     result_high: Option<(HashSet<String>, u8)>,
+    /// The producer forms whose result is never read closer than their own number
+    /// (`producer_forms`; empty for a table without the section).
+    producer_forms: Vec<ProducerFormJson>,
     defaults: DefaultsJson,
     mma: MmaJson,
     resources: Vec<ResourceJson>,
@@ -186,6 +219,7 @@ impl DepLatTable {
             any_role,
             cells_high,
             result_high: j.result_high.map(|r| (r.producers.into_iter().collect(), r.floor)),
+            producer_forms: j.producer_forms,
             defaults: j.defaults,
             mma: j.mma,
             resources: j.resources,
@@ -209,6 +243,7 @@ impl DepLatTable {
             any_role: HashMap::new(),
             cells_high: HashMap::new(),
             result_high: None,
+            producer_forms: Vec::new(),
             defaults: DefaultsJson { data: 0, mma_input: 0, guard: 0, pred_operand: 0, uniform: 0 },
             mma: MmaJson { classes: Vec::new(), to_mma_accumulate: 0, to_data: 0 },
             resources: Vec::new(),
@@ -365,6 +400,12 @@ impl DepLatTable {
             .as_ref()
             .filter(|(producers, _)| producers.contains(&pc) && upper_result_register(prod, key))
             .map(|(_, floor)| *floor);
+        // the result of a producer FORM the table names (`producer_forms`: `CS2R` without `.32`, the
+        // pair form) is never read closer than the form's own number, in any role but its exceptions
+        let form = self
+            .producer_forms
+            .iter()
+            .find(|f| f.producer == pc && !f.without.iter().any(|m| prod.modifiers.iter().any(|x| x == m)));
         let mut best: u8 = 0;
         let mut defaulted = false;
         for role in &roles {
@@ -407,6 +448,15 @@ impl DepLatTable {
                     Some(h) => l = l.max(*h),
                     None if !role_defaulted => l = l.max(floor),
                     None => {}
+                }
+            }
+            if let Some(f) = form {
+                let plain = role.strip_suffix('h').unwrap_or(role);
+                let kept = f.except.iter().any(|e| e.consumer == cc && e.role == plain);
+                if !kept && l < f.l {
+                    // the form's number binds: the table names the pair, it is not a default
+                    l = f.l;
+                    role_defaulted = false;
                 }
             }
             defaulted |= role_defaulted;
@@ -1782,13 +1832,17 @@ mod tests {
     /// `CS2R Rn, SRZ` (the pair form: a 64-bit zero) into `IMAD` / `IADD3`: wrong at stalls 1..5 and
     /// clean at 6 for either register on silicon (the same probe). The cell `CS2R -> IMAD` was 5: the
     /// census pairs behind it are the 32-bit form (`CS2R.32 Rn, SR_CgaSize`), one class with the pair
-    /// form. The cell takes the measured 6.
+    /// form. The cell takes the measured 6 -- which is what the 32-bit form keeps: since 2026-11-11
+    /// the pair form is priced apart, one above its floor (`producer_forms`, the next test).
     #[test]
     fn cs2r_into_the_multiplier_holds_the_pair_forms_floor() {
         let t = table();
         let zero = ins("CS2R R6, SRZ");
-        assert_eq!(t.latency(&zero, &ins("IMAD R8, R6, R5, R4"), 6), (6, false));
-        assert_eq!(t.latency(&zero, &ins("IADD3 R8, PT, PT, R6, R5, RZ"), 6), (6, true));
+        assert_eq!(t.latency(&zero, &ins("IMAD R8, R6, R5, R4"), 6), (7, false));
+        assert_eq!(t.latency(&zero, &ins("IADD3 R8, PT, PT, R6, R5, RZ"), 6), (7, false));
+        let half = ins("CS2R.32 R6, SRZ");
+        assert_eq!(t.latency(&half, &ins("IMAD R8, R6, R5, R4"), 6), (6, false));
+        assert_eq!(t.latency(&half, &ins("IADD3 R8, PT, PT, R6, R5, RZ"), 6), (6, true));
         let j: serde_json::Value =
             serde_json::from_str(include_str!("../tools/stallfloor/stall_floors_sm120_20261110_em_blk3.json")).unwrap();
         let mut n = 0;
@@ -1799,6 +1853,83 @@ mod tests {
             }
         }
         assert_eq!(n, 12, "two readers, two registers, three geometries");
+    }
+
+    /// The result of the 64-bit `CS2R` (no `.32`: it writes a register pair) is priced by ptxas's
+    /// practice, not by the table's default. Silicon (2026-11-11, `tools/stallfloor/` batches b33 /
+    /// b35 and their `_ws_` files; b3 for `IMAD`): every register consumer measured -- `FMUL`,
+    /// `FADD`, `LOP3`, `MOV`, `SHF`, `IADD`, `IMAD`, either result register -- reads it right from 6
+    /// issue cycles and wrong in 99 % of the thread-launches one cycle closer, on two card models:
+    /// the default 6 is the floor itself, with no margin. ptxas never reads the form closer than 7.
+    /// So the form takes 7 in every register and address role (`producer_forms`); the data of a
+    /// shared-memory store (floor 3) and the 32-bit form keep their cell or default.
+    #[test]
+    fn the_pair_form_of_cs2r_is_priced_at_ptxas_s_seven() {
+        let t = table();
+        let pair = ins("CS2R R6, SRZ");
+        let readers: [(&str, &str, &str); 7] = [
+            ("FMUL r2", "FMUL.FTZ R8, R5, R6", "FMUL.FTZ R8, R5, R7"),
+            ("FADD r1", "FADD.FTZ R8, R6, R5", "FADD.FTZ R8, R7, R5"),
+            ("LOP3 r1", "LOP3.LUT R8, R6, R5, RZ, 0x3c, !PT", "LOP3.LUT R8, R7, R5, RZ, 0x3c, !PT"),
+            ("MOV r1", "MOV R8, R6", "MOV R8, R7"),
+            ("SHF r3", "SHF.R.U32.HI R8, RZ, 0x3, R6", "SHF.R.U32.HI R8, RZ, 0x3, R7"),
+            ("IMAD r1", "IMAD R8, R6, R5, RZ", "IMAD R8, R7, R5, RZ"),
+            ("IADD3 r1", "IADD3 R8, PT, PT, R6, R5, RZ", "IADD3 R8, PT, PT, R7, R5, RZ"),
+        ];
+        for (what, lo, hi) in readers {
+            assert_eq!(t.latency(&pair, &ins(lo), 6), (7, false), "the first register -> {what}");
+            assert_eq!(t.latency(&pair, &ins(hi), 7), (7, false), "the second register -> {what}");
+        }
+        // a 64-bit reader takes both registers (the two shapes of the persistent MoE kernel's timer
+        // reads): the data of a LOCAL store and a 64-bit add -- no exception names them
+        let timer = ins("CS2R R6, SR_GLOBALTIMERLO");
+        for key in [6, 7] {
+            assert_eq!(t.latency(&timer, &ins("STL.64 [R1+0x10], R6"), key), (7, false), "STL.64 data, R{key}");
+        }
+        // (the walk reads the lower half of an `IADD.64` source -- `blind_spots` --: the pair is held
+        // through its first register)
+        assert_eq!(t.latency(&timer, &ins("IADD.64 R8, -R4, R6"), 6), (7, false));
+        // the address of a store is a register role like any other
+        assert_eq!(t.latency(&pair, &ins("STS [R6], R9"), 6), (7, false));
+        // the one exception: the DATA of a shared-memory store keeps the default (its measured
+        // floor is 3; no cell until the forms are measured), both registers of a 64-bit datum
+        assert_eq!(t.latency(&pair, &ins("STS [R9], R6"), 6), (6, true));
+        assert_eq!(t.latency(&pair, &ins("STS.64 [R9], R6"), 6), (6, true));
+        assert_eq!(t.latency(&pair, &ins("STS.64 [R9], R6"), 7), (6, true));
+        // an MMA fragment already takes the default 7: the form's number does not bind there
+        assert_eq!(t.latency(&pair, &ins("HMMA.16816.F32.BF16 R12, R8, R6, R12"), 6).0, 7);
+        // the 32-bit form writes one register and keeps the class's cell and the default
+        let one = ins("CS2R.32 R6, SR_CLOCKLO");
+        assert_eq!(t.latency(&one, &ins("FMUL.FTZ R8, R5, R6"), 6), (6, true));
+        assert_eq!(t.latency(&one, &ins("IMAD R8, R6, R5, RZ"), 6), (6, false));
+        // other pair producers are not touched: a 64-bit MOV keeps its cells
+        let mov = ins("MOV.64 R6, R4");
+        assert!(t.latency(&mov, &ins("IADD3 R8, PT, PT, R6, R5, RZ"), 6).0 < 7);
+        // the entry itself
+        assert_eq!(t.producer_forms.len(), 1);
+        let f = &t.producer_forms[0];
+        assert_eq!((f.producer.as_str(), f.without.as_slice(), f.l), ("CS2R", &[".32".to_string()][..], 7));
+        assert_eq!(f.except.iter().map(|e| (e.consumer.as_str(), e.role.as_str())).collect::<Vec<_>>(), [("STS", "r1")]);
+    }
+
+    /// A table without `producer_forms` (every table written before it, a deployment's own copy)
+    /// loads and prices the pair form with the pair's cell or the default, as before; the section
+    /// touches no cell (a binary that does not know it reads the same 533 cells).
+    #[test]
+    fn a_table_without_the_producer_forms_prices_the_pair_form_by_its_cell() {
+        let mut j: serde_json::Value = serde_json::from_str(SM120_TABLE).unwrap();
+        let section = j.as_object_mut().unwrap().remove("producer_forms").expect("the bundled table has the section");
+        assert_eq!(section.as_array().unwrap().len(), 1);
+        assert_eq!(section[0]["producer"], "CS2R");
+        assert_eq!(section[0]["without"], serde_json::json!([".32"]));
+        assert_eq!(section[0]["L"], 7);
+        assert_eq!(section[0]["except"], serde_json::json!([{"consumer": "STS", "role": "r1"}]));
+        assert_eq!(j["cells"].as_array().unwrap().len(), 533);
+        let old = DepLatTable::from_json(&j.to_string()).unwrap();
+        let pair = ins("CS2R R6, SRZ");
+        assert_eq!(old.latency(&pair, &ins("IMAD R8, R6, R5, R4"), 6), (6, false));
+        assert_eq!(old.latency(&pair, &ins("FMUL.FTZ R8, R5, R7"), 7), (6, true));
+        assert_eq!(table().latency(&pair, &ins("FMUL.FTZ R8, R5, R7"), 7), (7, false));
     }
 
     /// A table without the section (every table written before it, a deployment's own copy) loads

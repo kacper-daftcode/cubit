@@ -19,6 +19,10 @@
 //! the vendor's census texts held 24 such pairs below 6 in 12 kernels (4 and 5 cycles; 1 and 2 under
 //! `CUBIT_SCHED2_MEMSTALL=table`), where the vendor keeps 7 and 8. Nothing that serves has a reader of either
 //! register within 9 cycles of a `CS2R`.
+//!
+//! The numbers of this file moved from 6 to 7 with the table's `producer_forms` entry (the pair form is priced at
+//! the vendor's 7, one above its floor: `tests/cs2r_pair_form_cell.rs`); what the file pins is unchanged — BOTH
+//! registers of the pair are held alike.
 
 use std::process::Command;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -67,8 +71,8 @@ fn a_reader_of_the_second_register_of_a_cs2r_pair_is_held_like_a_reader_of_the_f
     for (set, env) in [("the dependency-aware schedule", S1), ("under CUBIT_SYNC_CLASSES", S2)] {
         let (lo_text, lo) = schedule(&dir, "lo", &source("R32"), env);
         let (hi_text, hi) = schedule(&dir, "hi", &source("R33"), env);
-        assert_eq!(lo, 6, "{set}: a reader of the first register stands 6 behind the CS2R: {lo_text}");
-        assert_eq!(hi, 6, "{set}: a reader of the SECOND register stands 6 behind it too: {hi_text}");
+        assert_eq!(lo, 7, "{set}: a reader of the first register stands 7 behind the CS2R: {lo_text}");
+        assert_eq!(hi, 7, "{set}: a reader of the SECOND register stands 7 behind it too: {hi_text}");
     }
     let _ = std::fs::remove_dir_all(&dir);
 }
@@ -94,10 +98,10 @@ fn the_dependency_check_sees_a_reader_of_the_second_register_closer_than_the_pai
     for reader in ["R32", "R33"] {
         // four cycles behind the pair: below the floor for either register
         let log = check("close", &frozen(4, reader));
-        assert!(log.contains(&format!("CS2R R32, SRZ -> [1] FMUL.FTZ R4, R6, {reader} (raw {reader}): distance 4 < 6")), "{reader}: {log}");
-        assert!(log.contains("1 below a default"), "{reader}: {log}");
-        // six: clean
-        let log = check("far", &frozen(6, reader));
+        assert!(log.contains(&format!("CS2R R32, SRZ -> [1] FMUL.FTZ R4, R6, {reader} (raw {reader}): distance 4 < 7")), "{reader}: {log}");
+        assert!(log.contains("DEP_VERIFY 1 below a table cell"), "{reader}: {log}");
+        // seven (the pair form's number since the table prices it apart: `tests/cs2r_pair_form_cell.rs`): clean
+        let log = check("far", &frozen(7, reader));
         assert!(log.contains("DEP_VERIFY 0 below a table cell, 0 waits closer than the arming distance to their barrier's setter, 0 below a resource spacing, 0 below a default"), "{reader}: {log}");
     }
     // the 32-bit form writes one register: a reader of the next register is no reader of it
