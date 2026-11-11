@@ -4,6 +4,44 @@ User-visible changes, newest first. Table syncs name the blackwell-isa revision 
 (`tables/SOURCE.json` pins it byte for byte). Numbered `BUG-NNN` entries are the encoder /
 decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `docs/TESTS.md`).
 
+## Unreleased — 2026-11-11 (session T-30: `CUBIT_VERIFY` walks the operand-reuse flags — a register read through a slot with `.reuse` and written before the next reader through that slot is reported, on every path)
+
+- **`CUBIT_VERIFY` reports a register that a word reads through an operand slot with the operand-reuse flag and that
+  is written before the next word that reads it through the same slot** (`REUSE FLAG:` lines and a
+  `CUBIT_VERIFY_REUSE` summary; `src/store_paths.rs`, `reuse_flag_rewrites`; KNOWN_ISSUES A39). The flag leaves the
+  operand latched for that next reader: with the register written in between, the reader gets the OLD content —
+  measured on two card models in two clock states, in every shape with a fixed-latency write, at every distance
+  (`tools/stallfloor`, result file b27). No scoreboard count sees it and no stall count repairs it. The walk follows
+  every path of the flow graph from each flagged read. The window ends at the next word that reads the register
+  through the slot, with the flag or without (a write behind that reader is outside it). A branch does not end it —
+  that a taken branch ends the entry was read as right without a wait: a trial, not a permission — and a missing yield
+  flag on the flagged word does not switch the walk off; the flagged word's own write counts.
+- **The slot of an operand is the flag bit its `.reuse` sets — 122 / 123 / 124 = A / B / C — not the position of its
+  register field.** The table gives the pairing per form: in most forms the fields at bit 24 / 32 / 64, but `FADD`,
+  `FHADD`, `HADD2` and `HSETP2` with two register sources take the second (the field at bit 32) through slot C, and
+  eight forms with an immediate or a uniform register as their last source (`IMAD R, R, R, UR`, `FFMA R, R, R, imm`,
+  `PRMT R, R, R, UR` …) take the register at bit 64 through slot B. In the vendor's text (the sm_120 census, 225 182
+  flags) the first later reader of a flagged register stands in the flag's slot by the flag bit and not by the
+  position in 780 cases, by the position and not by the flag bit in 0. Twelve `SHF` / `LEA` forms carry flags in the
+  vendor's text and no reuse field in the table's rows (11 440 census flags): there the walk takes the slot from the
+  field's position.
+- **Counted apart, not findings:** a write that is reached only past a word of the slot whose guard does not hold, or
+  past a word that takes the register as part of a wider operand (the upper half of a 64-bit pair). Whether such a
+  word takes the latched operand was not measured, and the vendor's own text has both (7 661 of the census's 225 182
+  flags). One `CUBIT_VERIFY_REUSE: counted apart` line per kernel gives their number by kind.
+- **Findings: 0 in every text looked at** — the vendor's (752 kernels of the sm_120 census: 225 182 flags on 219 187
+  words; its four served MoE texts: 1 308 flags) and cubit's `CUBIT_SYNC_CLASSES` schedules of the vendor's texts
+  (the five served MoE kernels: 1 761 flags, 1 759 with `CUBIT_SCHED2_MEMSTALL=table`; 749 census kernels: 219 706,
+  219 404 with it). Nothing that serves carries a flag: the production sources, the attention builds and the
+  committed cubins (267 kernels) have no flag bit set.
+- `CUBIT_VERIFY_JSON`: each kernel's line gains the object `reuse` — the flags walked, `rewritten` (the findings),
+  `apart` by kind, `clean`, and every row with its three instruction indices — and `cubit legality-diff` compares its
+  findings by key (`reuse-flag <path> [flagged] -> [reader] Rn (slot X)`): a candidate that adds a flag in front of a
+  write, or a write inside the window of a flag it keeps, is refused. The line is written behind the encoder (the
+  slots are read off the final words); its other objects are unchanged.
+- Read-only: no byte of any output changes, with or without `CUBIT_VERIFY`. `tests/reuse_flag_paths.rs` (5; 5 red
+  before) and three unit tests of the walk.
+
 ## Unreleased — 2026-11-11 (session T-30: `CUBIT_SCHED2_MEMSTALL=table` — under the dependency-aware schedule the stall behind a memory word is the dependency table's and no margin of the first pass; opt-in, the default path and every existing switch set byte for byte)
 
 - **`CUBIT_SCHED2_MEMSTALL=table`** (opt-in; `cubit asm` with `CUBIT_SCHED2=1` and a table in `CUBIT_SCHED2_LAT`, refused

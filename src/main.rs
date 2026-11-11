@@ -4613,6 +4613,9 @@ fn cmd_asm_directive_format(
     let mut total_fail = 0u64;
     let mut total_insns = 0u64;
 
+    // the decoder's index for the operand-reuse walk of CUBIT_VERIFY: built for the first kernel that
+    // carries a flag bit
+    let mut reuse_index: Option<cubit::decoder::DecodeIndex> = None;
     for def in &sass_file.kernels {
         if let Some(only) = only_kernel {
             if def.name != only {
@@ -5651,12 +5654,11 @@ fn cmd_asm_directive_format(
         // table -- as ONE JSON line appended to the file (`src/legality.rs`): the counts the text reports
         // carry and every finding with its instruction indices. Prints nothing; independent of
         // CUBIT_VERIFY / CUBIT_DEP_VERIFY.
+        // (the line is written behind the encoder: its `reuse` object is read off the final words)
+        let mut verify_json: Option<(String, serde_json::Value)> = None;
         if let Ok(path) = std::env::var("CUBIT_VERIFY_JSON") {
-            use std::io::Write;
             let dt = cubit::dep_stall::DepLatTable::for_checks(dep_table.as_ref(), table.target_sm())?;
-            let line = cubit::legality::report(&def.name, &insns_with_ctrl, Some(table), &dt);
-            let mut f = std::fs::OpenOptions::new().create(true).append(true).open(&path)?;
-            writeln!(f, "{line}")?;
+            verify_json = Some((path, cubit::legality::report(&def.name, &insns_with_ctrl, Some(table), &dt)));
         }
 
         // CUBIT_DEP_CELLS=<file> (read-only): one JSON line per requirement of the table on this kernel
@@ -5811,6 +5813,87 @@ fn cmd_asm_directive_format(
         // `BRA.DIV` / `.CONV` carry a uniform register there), and the measured rows reject it.
         if !fully_frozen && !sync_classes {
             cubit::scheduling_pass::apply_convergence_barriers(&mut code_bytes, &insns_with_ctrl);
+        }
+
+        // CUBIT_VERIFY / CUBIT_VERIFY_JSON (read-only): the operand-reuse flags of the final words on every
+        // path (`store_paths::reuse_flag_rewrites`) -- a register read through a slot with the flag and
+        // written before the next word that reads it through the same slot. Read off the encoded words:
+        // which operand stands in which slot is a property of the word's form. A kernel without a flag bit
+        // costs one scan of its words.
+        if verify_json.is_some() || std::env::var("CUBIT_VERIFY").is_ok() {
+            let word = |i: usize| -> u128 {
+                let off = i * 16;
+                let lo = u64::from_le_bytes(code_bytes[off..off + 8].try_into().unwrap());
+                let hi = u64::from_le_bytes(code_bytes[off + 8..off + 16].try_into().unwrap());
+                (hi as u128) << 64 | lo as u128
+            };
+            let n_words = insns_with_ctrl.len();
+            let flagged = (0..n_words).any(|i| (word(i) >> 122) & 7 != 0);
+            let (mut findings, mut count, mut undecoded) = (Vec::new(), cubit::store_paths::ReuseFlagCount::default(), 0usize);
+            if flagged && fail == 0 {
+                let index = reuse_index.get_or_insert_with(|| cubit::decoder::DecodeIndex::build(table));
+                // which register field of a form feeds which slot: the form's reuse fields, per key
+                let mut key_slots: std::collections::HashMap<String, Vec<(u32, usize)>> = std::collections::HashMap::new();
+                let slots: Vec<cubit::store_paths::ReuseSlots> = (0..n_words)
+                    .map(|i| match index.decode(word(i), insns_with_ctrl[i].addr, table) {
+                        Ok(d) => {
+                            let ks = key_slots.entry(d.key.clone()).or_insert_with(|| {
+                                table.entries.get(&d.key).map_or_else(Vec::new, |e| cubit::store_paths::ReuseSlots::slots_of_key(e.mod_groups.values()))
+                            });
+                            let mut sl = cubit::store_paths::ReuseSlots::of(&d, ks);
+                            sl.widen(&insns_with_ctrl[i]);
+                            sl
+                        }
+                        Err(_) => {
+                            undecoded += ((word(i) >> 122) & 7 != 0) as usize;
+                            cubit::store_paths::ReuseSlots::default()
+                        }
+                    })
+                    .collect();
+                (findings, count) = cubit::store_paths::reuse_flag_rewrites(&insns_with_ctrl, &slots);
+            }
+            if std::env::var("CUBIT_VERIFY").is_ok() {
+                // the law's findings: a write inside a flag's window -- up to the next reader through the
+                // slot, flagged or not -- on the fall-through or behind a taken branch. The rows behind a
+                // word of the slot that does not execute or a wider operand are the vendor's practice by
+                // the thousand: counted apart, by kind.
+                use cubit::store_paths::ReuseFlagFinding as F;
+                let law = findings.iter().filter(|f| f.is_finding()).count();
+                for f in findings.iter().filter(|f| f.is_finding()) {
+                    eprintln!("{}", cubit::store_paths::describe_reuse(&insns_with_ctrl, f));
+                }
+                if law > 0 {
+                    eprintln!(
+                        "CUBIT_VERIFY_REUSE: {} register(s) read through a slot with the reuse flag and written before the next reader through that slot ({} flags on {} words walked); not in the counts above",
+                        law, count.flags, count.words
+                    );
+                }
+                let mut apart: std::collections::BTreeMap<u8, usize> = std::collections::BTreeMap::new();
+                for f in findings.iter().filter(|f| !f.is_finding()) {
+                    *apart.entry(f.path).or_default() += 1;
+                }
+                if !apart.is_empty() {
+                    let list: Vec<String> = apart.iter().map(|(k, n)| format!("{} {}", F::path_name(*k), n)).collect();
+                    eprintln!(
+                        "CUBIT_VERIFY_REUSE: counted apart, not findings -- such a write only behind a word of the slot under a guard that does not hold or a wider operand ({} of {} flags clean on every path): {}",
+                        count.clean,
+                        count.flags,
+                        list.join(", ")
+                    );
+                }
+                if count.without_yield > 0 {
+                    eprintln!("CUBIT_VERIFY_REUSE: {} of the reuse flags on a word without the yield flag (walked like the others)", count.without_yield);
+                }
+                if undecoded > 0 {
+                    eprintln!("CUBIT_VERIFY_REUSE: {undecoded} word(s) with a reuse flag bit do not decode -- their flags are not walked");
+                }
+            }
+            if let Some((path, mut line)) = verify_json.take() {
+                use std::io::Write;
+                line["reuse"] = cubit::legality::reuse_json(&insns_with_ctrl, &findings, &count, undecoded);
+                let mut f = std::fs::OpenOptions::new().create(true).append(true).open(&path)?;
+                writeln!(f, "{line}")?;
+            }
         }
 
         total_enc += enc;

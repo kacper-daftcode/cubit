@@ -692,6 +692,547 @@ pub fn describe_shuffle_source(insns: &[Instruction], f: &ShuffleSourceFinding) 
     )
 }
 
+// ───────────────────────── the operand-reuse flags ─────────────────────────
+
+/// The operand slots of an sm_120 word that have an operand-reuse flag, as one word carries
+/// them: slots A, B, C = the flag bits 122, 123 and 124. The text shows a set flag as
+/// `.reuse` on the operand.
+///
+/// Which register field feeds which slot is a property of the word's FORM, and the table says it
+/// (the `reuse` field of the operand's token): in most forms the register fields at bits 24, 32
+/// and 64 feed A, B and C; `FADD` / `FHADD` / `HADD2` / `HSETP2` with two register sources take
+/// the second (the field at bit 32) through slot C, and forms whose third text operand is an
+/// immediate or a uniform register (`IMAD R, R, R, imm`, `FFMA R, R, R, imm`, `PRMT R, R, R, UR`
+/// ...) take the register at bit 64 through slot B. A field whose token has no reuse field in
+/// any modifier group of the form is placed by its position (`by_position`).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct ReuseSlots {
+    /// the general register in the slot's field (the first one of a wider operand); `None` when
+    /// the word's form feeds no general register through the slot
+    pub reg: [Option<u8>; 3],
+    /// how many registers the word reads through the slot, from `reg` on (1; 2 for a 64-bit
+    /// operand or an address pair, 4 for a tensor fragment ...) — [`ReuseSlots::widen`]
+    pub width: [u8; 3],
+    /// the slot's flag bit
+    pub flag: [bool; 3],
+    /// the slot holds a uniform register (flags there are not walked: not measured)
+    pub uniform: [bool; 3],
+    /// the slot was given to the field by its position, not by a reuse field of the table
+    pub by_position: [bool; 3],
+    /// the word carries the yield flag (without it the flag bits were read as doing nothing — a
+    /// reading without a wait — and the vendor's assembler sets none on such a word)
+    pub yields: bool,
+}
+
+impl ReuseSlots {
+    /// Bit position of the register fields that feed the slots where the table has no reuse field.
+    pub const SHIFTS: [u32; 3] = [24, 32, 64];
+    /// Bit position of the slots' flags.
+    pub const FLAG_BITS: [u32; 3] = [122, 123, 124];
+    /// The slots' names in the reports.
+    pub const NAMES: [char; 3] = ['A', 'B', 'C'];
+
+    /// (bit position of a register field, the slot it feeds) of an instruction key: read from
+    /// every modifier group of the key that carries a reuse field — the field layout of a key is
+    /// one, a group that never carried a flag in the vendor's text just lacks the field.
+    pub fn slots_of_key<'a>(groups: impl Iterator<Item = &'a crate::table::ModGroupEntry>) -> Vec<(u32, usize)> {
+        use crate::table::Extraction as E;
+        let mut out: Vec<(u32, usize)> = Vec::new();
+        for g in groups {
+            for f in &g.fields {
+                if !matches!(f.extraction, E::Reuse) || !Self::FLAG_BITS.contains(&f.shift) {
+                    continue;
+                }
+                let slot = (f.shift - Self::FLAG_BITS[0]) as usize;
+                for r in &g.fields {
+                    if r.token_idx == f.token_idx && r.bits == 8 && matches!(r.extraction, E::Reg | E::RegFf | E::UReg | E::URegFf) && !out.contains(&(r.shift, slot)) {
+                        out.push((r.shift, slot));
+                    }
+                }
+            }
+        }
+        out.sort();
+        out
+    }
+
+    /// The slots of one decoded word; `key_slots` = [`ReuseSlots::slots_of_key`] of its key.
+    pub fn of(dec: &crate::decoder::DecodedInst, key_slots: &[(u32, usize)]) -> Self {
+        let mut out = ReuseSlots { width: [1; 3], ..ReuseSlots::default() };
+        let is_gpr = |e: &str| matches!(e, "reg" | "reg_ff");
+        let is_ureg = |e: &str| matches!(e, "ureg" | "ureg_ff");
+        let field_at = |shift: u32| dec.fields.iter().find(|f| f.shift == shift && f.bits == 8 && (is_gpr(&f.extraction) || is_ureg(&f.extraction)));
+        let mut taken = [false; 3];
+        let mut used: Vec<u32> = Vec::new();
+        let put = |out: &mut ReuseSlots, slot: usize, f: &crate::decoder::DecodedField, by_position: bool, taken: &mut [bool; 3], used: &mut Vec<u32>| {
+            if taken[slot] || used.contains(&f.shift) {
+                return;
+            }
+            taken[slot] = true;
+            used.push(f.shift);
+            if is_gpr(&f.extraction) {
+                out.reg[slot] = Some(f.value as u8);
+            } else {
+                out.uniform[slot] = true;
+            }
+            out.by_position[slot] = by_position;
+        };
+        // the word's own row
+        for f in dec.fields.iter().filter(|f| f.extraction == "reuse" && Self::FLAG_BITS.contains(&f.shift)) {
+            let slot = (f.shift - Self::FLAG_BITS[0]) as usize;
+            if let Some(r) = dec.fields.iter().find(|r| r.token_idx == f.token_idx && r.bits == 8 && (is_gpr(&r.extraction) || is_ureg(&r.extraction))) {
+                put(&mut out, slot, r, false, &mut taken, &mut used);
+            } else {
+                // a flag bit the table gives to a token without a register field (an address): the slot
+                // is not the positional field's
+                taken[slot] = true;
+            }
+        }
+        // the other modifier groups of its key
+        for (shift, slot) in key_slots {
+            if let Some(r) = field_at(*shift) {
+                put(&mut out, *slot, r, false, &mut taken, &mut used);
+            }
+        }
+        // by position
+        for (slot, shift) in Self::SHIFTS.iter().enumerate() {
+            if let Some(r) = field_at(*shift) {
+                put(&mut out, slot, r, true, &mut taken, &mut used);
+            }
+        }
+        for k in 0..3 {
+            out.flag[k] = (dec.raw_code >> Self::FLAG_BITS[k]) & 1 != 0;
+        }
+        out.yields = dec.ctrl.yield_flag;
+        out
+    }
+
+    /// The width of the operands: a slot reads its register and every following one the word
+    /// reads (the upper half of a 64-bit operand or an address pair, the rest of a tensor
+    /// fragment or of a wide store's data) up to the register of another slot.
+    pub fn widen(&mut self, ins: &Instruction) {
+        let uses = gpr_uses(ins);
+        for k in 0..3 {
+            let Some(r) = self.reg[k].filter(|r| *r != 255) else { continue };
+            let mut w = 1u8;
+            while w < 4 {
+                let Some(next) = r.checked_add(w).filter(|n| *n != 255) else { break };
+                if !uses.contains(&next) || (0..3).any(|j| j != k && self.reg[j] == Some(next)) {
+                    break;
+                }
+                w += 1;
+            }
+            self.width[k] = w;
+        }
+    }
+
+    /// Does the word read `reg` through `slot`, and as what: `Some(true)` = as a register of the
+    /// operand that starts at `field` (the slot's field names `field`: the same operand as the
+    /// flagged word's), `Some(false)` = as a register of another operand that covers it (the
+    /// upper half of the pair below it, a later register of a fragment).
+    pub fn reads(&self, slot: usize, field: u8, reg: u8) -> Option<bool> {
+        let r = self.reg[slot]?;
+        if r == 255 || reg < r || reg - r >= self.width[slot].max(1) {
+            return None;
+        }
+        Some(r == field)
+    }
+
+    /// The word has a flag bit set at all.
+    pub fn any_flag(&self) -> bool {
+        self.flag.iter().any(|f| *f)
+    }
+}
+
+/// The general registers an instruction reads: the scheduler's operand model and the footprints
+/// of the register allocator's sm_120 target (the upper half of a 64-bit operand, the address
+/// pair, the tuples of a tensor word).
+fn gpr_uses(ins: &Instruction) -> Vec<u8> {
+    let mut v: Vec<u8> = sp::src_regs(ins).into_iter().filter(|(u, r)| !*u && *r < sp::PRED_KEY).map(|(_, r)| r as u8).collect();
+    let x = crate::ra_target::target_xfer(crate::ra_target::RaTarget::Sm120, ins);
+    if x.known {
+        for r in x.ruses {
+            if !v.contains(&r) {
+                v.push(r);
+            }
+        }
+    }
+    for (u, r) in crate::sync_class::wide_operand_uses(ins).into_iter().chain(crate::sync_class::wide_address_uses(ins)) {
+        if !u && r < sp::PRED_KEY && !v.contains(&(r as u8)) {
+            v.push(r as u8);
+        }
+    }
+    v
+}
+
+/// A register read through a slot WITH the operand-reuse flag and written before the next word
+/// that reads it through the same slot — on some path of the flow graph.
+///
+/// A word that reads register r through a slot with the flag leaves the operand latched for the
+/// next word that reads r through that slot: that reader gets the latched value. Measured on
+/// sm_120 silicon (the stall-floor probes of 2026-11-11, kind `reuse`, two card models, two
+/// clock states): with r written between the two words the reader gets r's OLD content — in
+/// every shape with a fixed-latency write, at every distance, also when the write is the flagged
+/// word's own or another register passes through the slot in between; the same text without
+/// the flag is right. So the law: between a word that reads r through a slot with the flag and
+/// the next word that reads r through that slot, r is not written. Clearing a flag is always
+/// right.
+///
+/// The WINDOW of a flag is every path from the flagged word to the next word that reads the
+/// register through the slot — with the flag or without: a write behind that reader is outside
+/// the window (the form of the vendor's text at most of its flags, and measured right). A
+/// branch does not end the window: the probes read "a taken branch ends the entry" as right,
+/// but that is a reading without a wait (a trial, not a permission), so a write behind a taken
+/// branch is a finding like one on the fall-through ([`ReuseFlagFinding::BRANCH`] says which
+/// it is). Nor does the yield flag matter here: a flag on a word without the yield flag was
+/// read as doing nothing — a trial again — and is walked like any other.
+///
+/// `path` says what else the path passed. Two things may end an entry without being the law's
+/// "next reader through the slot"; the vendor's own text has a write behind each of them, and
+/// neither is the law — a write that only such a path reaches is counted APART, by kind, and
+/// is not a finding ([`ReuseFlagFinding::is_finding`]):
+/// * [`ReuseFlagFinding::GUARD`] — a word that names the register in the slot under a guard
+///   that does not hold on the path (the flagged word itself where its own guard is false).
+///   Whether a word that does not execute reads its operands through the slots was not probed;
+///   the vendor's text is written as if it did.
+/// * [`ReuseFlagFinding::WIDE`] — a word that reads the register through the slot as a register
+///   of another operand (`MOV R67, R55.reuse` in front of `IADD.64 R54, R88, R54`, which reads
+///   the pair R54:R55 through that slot). Not probed.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReuseFlagFinding {
+    /// index of the word that reads `reg` through `slot` with the flag
+    pub flagged: usize,
+    /// 0 / 1 / 2 = slot A / B / C
+    pub slot: usize,
+    pub reg: u8,
+    /// index of the first word on the path that writes `reg` (the flagged word itself when it does)
+    pub writer: usize,
+    /// index of the next word that reads `reg` through `slot` behind that write
+    pub reader: usize,
+    /// the smallest issue distance (sum of the stall counts) from the flagged word to the reader
+    /// on such a path
+    pub distance: u32,
+    /// what the cleanest path to this reader passes: [`Self::STRAIGHT`], or a set of
+    /// [`Self::BRANCH`] / [`Self::GUARD`] / [`Self::WIDE`]
+    pub path: u8,
+}
+
+impl ReuseFlagFinding {
+    /// Nothing but fall-through words between the flagged word and the reader, every word that
+    /// names the register in the slot executes, and both words name the register itself: the
+    /// shape the probes measured.
+    pub const STRAIGHT: u8 = 0;
+    /// The path passes a taken branch (a jump, a dispatch, a call).
+    pub const BRANCH: u8 = 1;
+    /// The path passes a word that names the register in the slot under a guard that is false,
+    /// or may be false, on it.
+    pub const GUARD: u8 = 2;
+    /// The path passes — or ends at — a word that reads the register through the slot as a
+    /// register of ANOTHER operand than the flagged word's (the upper half of the pair below it).
+    pub const WIDE: u8 = 4;
+    /// The kinds that are counted apart.
+    pub const APART: u8 = Self::GUARD | Self::WIDE;
+
+    /// The law's finding (reported), as opposed to the kinds counted apart: a write inside the
+    /// window, on the fall-through or behind a taken branch.
+    pub fn is_finding(&self) -> bool {
+        self.path & Self::APART == 0
+    }
+
+    /// The kind of path in the reports: `straight`, `branch`, `guard`, `wide`, or a `+` list.
+    pub fn path_name(path: u8) -> String {
+        if path == Self::STRAIGHT {
+            return "straight".to_string();
+        }
+        let mut v = Vec::new();
+        for (bit, name) in [(Self::BRANCH, "branch"), (Self::GUARD, "guard"), (Self::WIDE, "wide")] {
+            if path & bit != 0 {
+                v.push(name);
+            }
+        }
+        v.join("+")
+    }
+}
+
+/// What [`reuse_flag_rewrites`] looked at.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct ReuseFlagCount {
+    /// flag bits set on a slot that holds a general register other than `RZ`: the reads the walk
+    /// starts from
+    pub flags: usize,
+    /// words with such a flag
+    pub words: usize,
+    /// of `flags`: on a word without the yield flag (read as doing nothing there — a reading
+    /// without a wait; walked like the others)
+    pub without_yield: usize,
+    /// flag bits on a slot that holds no register in the word's form, or `RZ` (not walked)
+    pub without_register: usize,
+    /// flag bits on a slot that holds a uniform register (not measured; not walked)
+    pub uniform: usize,
+    /// of `flags`: the slot was given to the register field by its position
+    pub by_position: usize,
+    /// of `flags`: the register is written on no path the walk follows before a reader through
+    /// the slot — not inside the window and not behind a guarded-off word or a wider operand
+    /// either
+    pub clean: usize,
+    /// of `flags`: the window ends at a reader through the slot that carries no flag, on some
+    /// path (a write behind it is outside the window)
+    pub to_unflagged: usize,
+    /// of `flags`: some path reaches the end of the kernel without another reader through the slot
+    pub to_end: usize,
+    /// of `flags`: on some path the next word that reads the register through the slot reads it
+    /// as a register of another operand (the upper half of the pair below it), nothing written
+    /// in between — the form `MOV R67, R55.reuse` / `IADD.64 R54, R88, R54`
+    pub to_wide: usize,
+}
+
+/// The order in which the paths to one reader are preferred: (counted apart, the number of kinds
+/// on the path, the path, the issue distance, the first writer) — a finding first, then the
+/// fewest kinds, then the nearest.
+type ReuseRank = (bool, u32, u8, u32, usize);
+
+/// What one walk of a flagged read found.
+#[derive(Default)]
+struct ReuseWalk {
+    /// (reader, the first writer on the path, the smallest issue distance, the path's kind)
+    hits: Vec<(usize, usize, u32, u8)>,
+    /// some path's next reader through the slot carries no flag
+    to_unflagged: bool,
+    /// some path's next word that reads the register through the slot reads it as a register of
+    /// another operand, with nothing written in between
+    to_wide: bool,
+    /// some path ends without a reader
+    to_end: bool,
+}
+
+/// Does the word execute on a path with these facts — (possibly, certainly) — and the predicate
+/// P0..P6 its guard reads with the value it needs. A guard on a uniform predicate may hold or
+/// not; `@!PT` never does.
+fn runs(ins: &Instruction, facts: Facts) -> (bool, bool, Option<(u8, bool)>) {
+    match &ins.guard {
+        None => (true, true, None),
+        Some(g) if g.uniform => (true, false, None),
+        Some(g) if g.pred >= NPRED => (!g.negated, !g.negated, None),
+        Some(g) => {
+            let need = !g.negated;
+            (facts.get(g.pred).is_none_or(|v| v == need), facts.get(g.pred) == Some(need), Some((g.pred, need)))
+        }
+    }
+}
+
+impl<'a> Flow<'a> {
+    /// From the flagged word `s`, whose operand in `slot` starts at register `field`, along every
+    /// path up to the next reader of that operand's register `reg` through `slot` behind a write
+    /// of it: one row per such reader and kind of path. A branch does not end the walk; a word of
+    /// the slot that does not execute and a wider operand do not end it either — each marks the
+    /// path. `kind0` is the kind the walk starts with, `executed` whether the flagged word's own
+    /// write happens.
+    #[allow(clippy::too_many_arguments)]
+    fn walk_reuse(&self, s: usize, slot: usize, field: u8, reg: u8, slots: &[ReuseSlots], correlate: bool, facts: Facts, kind0: u8, executed: bool) -> Option<ReuseWalk> {
+        const NONE: usize = usize::MAX;
+        const BRANCH: u8 = ReuseFlagFinding::BRANCH;
+        const GUARD: u8 = ReuseFlagFinding::GUARD;
+        const WIDE: u8 = ReuseFlagFinding::WIDE;
+        type Item = (u32, usize, Facts, usize, u8);
+        let mut out = ReuseWalk::default();
+        let mut found: HashMap<(usize, u8), (u32, usize)> = HashMap::new();
+        // state: instruction, predicate facts, the register has been written on the path, the path's kind
+        let mut seen: HashSet<(usize, Facts, bool, u8)> = HashSet::new();
+        let mut heap: BinaryHeap<Reverse<Item>> = BinaryHeap::new();
+        // an edge that is not the fall-through of a word is a taken branch
+        let step = |from: usize, to: usize| -> u8 {
+            let op = self.insns[from].opcode.as_str();
+            let transfer = matches!(op, "BRA" | "BRX" | "BRXU" | "JMX" | "JMXU" | "JMP" | "CALL" | "RET");
+            if transfer && (to != from + 1 || op != "BRA") {
+                BRANCH
+            } else {
+                0
+            }
+        };
+        // the flagged word's own write counts: the next reader through the slot gets the value
+        // the word read, not the one it wrote
+        let w0 = if executed && gpr_dests(&self.insns[s]).contains(&reg) { s } else { NONE };
+        let d0 = self.insns[s].ctrl.stall as u32;
+        let first = self.succ(s, facts, correlate);
+        out.to_end |= first.is_empty();
+        for (j, f) in first {
+            heap.push(Reverse((d0, j, f, w0, kind0 | step(s, j))));
+        }
+        while let Some(Reverse((d, i, f, w, kind))) = heap.pop() {
+            if !seen.insert((i, f, w != NONE, kind)) {
+                continue;
+            }
+            if correlate && seen.len() > FACT_STATE_BUDGET {
+                return None;
+            }
+            let ins = &self.insns[i];
+            let (may, must, pred) = runs(ins, f);
+            // the facts behind the word where it ran and where it did not
+            let (f_run, f_not) = match pred {
+                Some((n, need)) if correlate => (f.with(n, need), f.with(n, !need)),
+                _ => (f, f),
+            };
+            let d2 = d + ins.ctrl.stall as u32;
+            let writes = gpr_dests(ins).contains(&reg);
+            let mut ended = false;
+            let mut push = |heap: &mut BinaryHeap<Reverse<Item>>, facts: Facts, w2: usize, kind2: u8| {
+                let next = self.succ(i, facts, correlate);
+                ended |= next.is_empty();
+                for (j, g) in next {
+                    let k = kind2 | step(i, j);
+                    if !seen.contains(&(j, g, w2 != NONE, k)) {
+                        heap.push(Reverse((d2, j, g, w2, k)));
+                    }
+                }
+            };
+            // the first writer on the path behind this word, where the word runs
+            let written = if w == NONE && writes { i } else { w };
+            match slots[i].reads(slot, field, reg) {
+                Some(exact) => {
+                    let k2 = if exact { kind } else { kind | WIDE };
+                    if may {
+                        if w != NONE {
+                            // the next reader through the slot behind a write: it gets the old value
+                            // (a reader that also writes the register reads first)
+                            let e = found.entry((i, k2)).or_insert((d, w));
+                            if d < e.0 {
+                                *e = (d, w);
+                            }
+                            if !exact {
+                                // a later register of a wider operand: whether such a word takes the
+                                // entry is not measured -- the walk goes on, the path is marked
+                                push(&mut heap, f_run, written, k2);
+                            }
+                        } else if !exact {
+                            out.to_wide = true;
+                            push(&mut heap, f_run, written, k2);
+                        } else {
+                            // the window ends at this reader, with the flag or without: a write behind
+                            // it is outside the window (a flagged reader starts its own)
+                            out.to_unflagged |= !slots[i].flag[slot];
+                        }
+                    }
+                    if !must {
+                        // under a guard that is false the word does not execute: whether it still
+                        // takes the entry is not measured -- the walk goes on, the path is marked
+                        push(&mut heap, f_not, w, k2 | GUARD);
+                    }
+                }
+                None if writes && may => {
+                    push(&mut heap, f_run, written, kind);
+                    if !must {
+                        push(&mut heap, f_not, w, kind);
+                    }
+                }
+                None => push(&mut heap, f, w, kind),
+            }
+            out.to_end |= ended;
+        }
+        out.hits = found.into_iter().map(|((r, k), (d, w))| (r, w, d, k)).collect();
+        out.hits.sort();
+        Some(out)
+    }
+}
+
+/// The operand-reuse flags of a kernel on every path of its flow graph: for every word that
+/// reads a register through a slot with the flag, the next words that read that register
+/// through the same slot behind a write of it — one row per
+/// (flagged read, register, reader), with the cleanest kind of path that reaches it
+/// ([`ReuseFlagFinding::path`]; [`ReuseFlagFinding::is_finding`] tells the law's findings from
+/// the kinds counted apart). `slots[i]` are the slots of instruction `i` as its final word
+/// carries them ([`ReuseSlots::of`], [`ReuseSlots::widen`]). Sorted by the flagged word; with
+/// what was looked at.
+pub fn reuse_flag_rewrites(insns: &[Instruction], slots: &[ReuseSlots]) -> (Vec<ReuseFlagFinding>, ReuseFlagCount) {
+    let mut count = ReuseFlagCount::default();
+    let mut out = Vec::new();
+    if insns.len() != slots.len() || !slots.iter().any(|s| s.any_flag()) {
+        return (out, count);
+    }
+    let flow = Flow::new(insns);
+    for (s, sv) in slots.iter().enumerate() {
+        let mut walked = false;
+        for slot in 0..3 {
+            if !sv.flag[slot] {
+                continue;
+            }
+            if sv.uniform[slot] {
+                count.uniform += 1;
+                continue;
+            }
+            let Some(reg) = sv.reg[slot].filter(|r| *r != 255) else {
+                count.without_register += 1;
+                continue;
+            };
+            count.flags += 1;
+            count.without_yield += !sv.yields as usize;
+            count.by_position += sv.by_position[slot] as usize;
+            walked = true;
+            // the flagged word where its guard held, and -- whether a word that does not execute
+            // latches its operand is not measured -- where it did not (counted apart: GUARD)
+            let (_, _, pred) = runs(&insns[s], Facts::default());
+            let starts: Vec<(Facts, u8, bool)> = match pred {
+                Some((n, need)) => vec![(Facts::default().with(n, need), 0, true), (Facts::default().with(n, !need), ReuseFlagFinding::GUARD, false)],
+                None => vec![(Facts::default(), 0, true)],
+            };
+            let (mut to_unflagged, mut to_end, mut to_wide, mut any) = (false, false, false, false);
+            // every register of the flagged operand
+            for k in 0..sv.width[slot].max(1) {
+                let Some(r) = reg.checked_add(k).filter(|r| *r != 255) else { break };
+                // per reader the cleanest path: a finding first, else the fewest kinds
+                let mut best: HashMap<usize, ReuseRank> = HashMap::new();
+                for (n, (start, kind0, executed)) in starts.iter().enumerate() {
+                    let walk = flow
+                        .walk_reuse(s, slot, reg, r, slots, true, *start, *kind0, *executed)
+                        .or_else(|| flow.walk_reuse(s, slot, reg, r, slots, false, *start, *kind0, *executed))
+                        .unwrap_or_default();
+                    if k == 0 && n == 0 {
+                        to_unflagged = walk.to_unflagged;
+                        to_end = walk.to_end;
+                    }
+                    to_wide |= n == 0 && walk.to_wide;
+                    for (reader, writer, distance, path) in walk.hits {
+                        let rank = (path & ReuseFlagFinding::APART != 0, path.count_ones(), path, distance, writer);
+                        let e = best.entry(reader).or_insert(rank);
+                        if rank < *e {
+                            *e = rank;
+                        }
+                    }
+                }
+                let mut rows: Vec<(usize, ReuseRank)> = best.into_iter().collect();
+                rows.sort();
+                any |= !rows.is_empty();
+                for (reader, (_, _, path, distance, writer)) in rows {
+                    out.push(ReuseFlagFinding { flagged: s, slot, reg: r, writer, reader, distance, path });
+                }
+            }
+            count.clean += !any as usize;
+            count.to_unflagged += to_unflagged as usize;
+            count.to_end += to_end as usize;
+            count.to_wide += to_wide as usize;
+        }
+        count.words += walked as usize;
+    }
+    (out, count)
+}
+
+/// One line of the report for a finding of [`reuse_flag_rewrites`].
+pub fn describe_reuse(insns: &[Instruction], f: &ReuseFlagFinding) -> String {
+    let own = if f.writer == f.flagged { " (the flagged word itself)".to_string() } else { String::new() };
+    format!(
+        "  REUSE FLAG: insn[{}] {} reads R{} through slot {} with the flag; R{} <- written by insn[{}] {}{} before the next reader through that slot, insn[{}] {}, {} issue cycles behind the flagged word",
+        f.flagged,
+        insns[f.flagged].opcode_full,
+        f.reg,
+        ReuseSlots::NAMES[f.slot],
+        f.reg,
+        f.writer,
+        insns[f.writer].opcode_full,
+        own,
+        f.reader,
+        insns[f.reader].opcode_full,
+        f.distance
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1287,5 +1828,194 @@ mod tests {
             "    [B------:R-:W-:-:S01] EXIT ;",
         ]);
         assert!(shuffles(&k).is_empty());
+    }
+
+    // ── the operand-reuse flags ──
+
+    /// The slots of one word for the walk's tests: (slot A, slot B, slot C) registers, the flags.
+    fn sl(reg: [Option<u8>; 3], flag: [bool; 3]) -> ReuseSlots {
+        ReuseSlots { reg, flag, width: [1; 3], uniform: [false; 3], by_position: [false; 3], yields: true }
+    }
+
+    /// The law's findings: (flagged, slot, register, writer, reader, distance) of the straight paths.
+    fn reuse(k: &[Instruction], slots: &[ReuseSlots]) -> Vec<(usize, usize, u8, usize, usize, u32)> {
+        reuse_flag_rewrites(k, slots).0.iter().filter(|f| f.is_finding()).map(|f| (f.flagged, f.slot, f.reg, f.writer, f.reader, f.distance)).collect()
+    }
+
+    /// The findings counted apart: (flagged, writer, reader, distance, path kind).
+    fn reuse_apart(k: &[Instruction], slots: &[ReuseSlots]) -> Vec<(usize, usize, usize, u32, u8)> {
+        reuse_flag_rewrites(k, slots).0.iter().filter(|f| !f.is_finding()).map(|f| (f.flagged, f.writer, f.reader, f.distance, f.path)).collect()
+    }
+
+    const NO: ReuseSlots = ReuseSlots { reg: [None, None, None], flag: [false, false, false], width: [1; 3], uniform: [false; 3], by_position: [false; 3], yields: true };
+
+    #[test]
+    fn a_register_written_between_a_flagged_read_and_the_next_reader_through_the_slot_is_reported() {
+        let k = kernel(&[
+            "    [B------:R-:W-:Y:S01] IADD3 R6, PT, PT, R5, 0x1, RZ ;",
+            "    [B------:R-:W-:Y:S03] MOV R5, R7 ;",
+            "    [B------:R-:W-:Y:S02] IADD3 R8, PT, PT, R5, 0x2, RZ ;",
+            "    [B------:R-:W-:-:S01] EXIT ;",
+        ]);
+        let a = |r: u8, f: bool| sl([Some(r), None, None], [f, false, false]);
+        // the flag on [0] (R5 through slot A), R5 written by [1], read through slot A by [2]
+        let slots = [a(5, true), sl([None, Some(7), None], [false; 3]), a(5, false), NO];
+        assert_eq!(reuse(&k, &slots), [(0, 0, 5, 1, 2, 4)]);
+        let (f, c) = reuse_flag_rewrites(&k, &slots);
+        assert_eq!((c.flags, c.words, c.without_yield, c.without_register), (1, 1, 0, 0));
+        assert!(describe_reuse(&k, &f[0]).contains("insn[0] IADD3 reads R5 through slot A with the flag; R5 <- written by insn[1] MOV before the next reader through that slot, insn[2] IADD3, 4 issue cycles"));
+        // no flag: nothing is walked, nothing is reported
+        let slots = [a(5, false), sl([None, Some(7), None], [false; 3]), a(5, false), NO];
+        assert_eq!(reuse_flag_rewrites(&k, &slots), (vec![], ReuseFlagCount::default()));
+        // the reader goes through ANOTHER slot: it is not the window's reader, and with no reader
+        // through slot A behind the write there is nothing to get the old value
+        let slots = [a(5, true), sl([None, Some(7), None], [false; 3]), sl([None, Some(5), None], [false; 3]), NO];
+        assert!(reuse(&k, &slots).is_empty());
+        // a flag on a word without the yield flag is walked like any other (that it does nothing
+        // there is a reading without a wait) and counted; a flag on a slot without a register is
+        // not a read: counted, not walked
+        let mut off = a(5, true);
+        off.yields = false;
+        let (f, c) = reuse_flag_rewrites(&k, &[off, sl([None, Some(7), None], [false, false, true]), a(5, false), NO]);
+        assert_eq!(f.iter().map(|f| (f.flagged, f.writer, f.reader, f.is_finding())).collect::<Vec<_>>(), [(0, 1, 2, true)]);
+        assert_eq!((c.flags, c.words, c.without_yield, c.without_register), (1, 1, 1, 1));
+    }
+
+    #[test]
+    fn the_window_of_a_reuse_flag_ends_at_the_next_reader_through_the_slot_and_at_nothing_else() {
+        let a = |r: u8, f: bool| sl([Some(r), None, None], [f, false, false]);
+        // a reader through the slot in front of the write ends the window, with the flag or without:
+        // the write behind it is outside the window -- no finding and nothing counted apart
+        let k = kernel(&[
+            "    [B------:R-:W-:Y:S01] IADD3 R6, PT, PT, R5, 0x1, RZ ;",
+            "    [B------:R-:W-:Y:S01] IADD3 R8, PT, PT, R5, 0x2, RZ ;",
+            "    [B------:R-:W-:Y:S01] MOV R5, R7 ;",
+            "    [B------:R-:W-:Y:S01] IADD3 R9, PT, PT, R5, 0x3, RZ ;",
+            "    [B------:R-:W-:-:S01] EXIT ;",
+        ]);
+        let unflagged = [a(5, true), a(5, false), sl([None, Some(7), None], [false; 3]), a(5, false), NO];
+        assert!(reuse(&k, &unflagged).is_empty() && reuse_apart(&k, &unflagged).is_empty());
+        let c = reuse_flag_rewrites(&k, &unflagged).1;
+        assert_eq!((c.flags, c.clean, c.to_unflagged), (1, 1, 1));
+        // ... unless that reader carries the flag itself: its own window then holds the write
+        assert_eq!(reuse(&k, &[a(5, true), a(5, true), sl([None, Some(7), None], [false; 3]), a(5, false), NO]), [(1, 0, 5, 2, 3, 2)]);
+        // another register through the slot does not end it; a word that reads the register through
+        // the slot AND writes it reads first (the window ends, no finding)
+        let k = kernel(&[
+            "    [B------:R-:W-:Y:S01] IADD3 R6, PT, PT, R5, 0x1, RZ ;",
+            "    [B------:R-:W-:Y:S01] IADD3 R8, PT, PT, R4, 0x2, RZ ;",
+            "    [B------:R-:W-:Y:S01] MOV R5, R7 ;",
+            "    [B------:R-:W-:Y:S01] IADD3 R9, PT, PT, R5, 0x3, RZ ;",
+            "    [B------:R-:W-:-:S01] EXIT ;",
+        ]);
+        assert_eq!(reuse(&k, &[a(5, true), a(4, false), sl([None, Some(7), None], [false; 3]), a(5, false), NO]), [(0, 0, 5, 2, 3, 3)]);
+        let k = kernel(&[
+            "    [B------:R-:W-:Y:S01] IADD3 R6, PT, PT, R5, 0x1, RZ ;",
+            "    [B------:R-:W-:Y:S01] IADD3 R5, PT, PT, R5, 0x2, RZ ;",
+            "    [B------:R-:W-:Y:S01] IADD3 R9, PT, PT, R5, 0x3, RZ ;",
+            "    [B------:R-:W-:-:S01] EXIT ;",
+        ]);
+        assert!(reuse(&k, &[a(5, true), a(5, false), a(5, false), NO]).is_empty());
+        // the flagged word's own write counts: the next reader through the slot gets what the word read
+        let k = kernel(&[
+            "    [B------:R-:W-:Y:S02] IADD3 R5, PT, PT, R5, 0x1, RZ ;",
+            "    [B------:R-:W-:Y:S01] IADD3 R9, PT, PT, R5, 0x3, RZ ;",
+            "    [B------:R-:W-:-:S01] EXIT ;",
+        ]);
+        assert_eq!(reuse(&k, &[a(5, true), a(5, false), NO]), [(0, 0, 5, 0, 1, 2)]);
+    }
+
+    #[test]
+    fn the_reuse_walk_follows_every_path_and_says_what_the_path_passes() {
+        let a = |r: u8, f: bool| sl([Some(r), None, None], [f, false, false]);
+        const BRANCH: u8 = ReuseFlagFinding::BRANCH;
+        const GUARD: u8 = ReuseFlagFinding::GUARD;
+        // the write stands on the taken path only: a branch does not end the window, the reader
+        // behind it is a finding -- its path says that it passes a taken branch (the probes read
+        // "a taken branch ends the entry" as right: a trial, not a permission)
+        let k = kernel(&[
+            "    [B------:R-:W-:Y:S01] IADD3 R6, PT, PT, R5, 0x1, RZ ;",
+            "    [B------:R-:W-:Y:S05] @P3 BRA L_w ;",
+            "    [B------:R-:W-:Y:S01] IADD3 R8, PT, PT, R5, 0x2, RZ ;",
+            "    [B------:R-:W-:-:S01] EXIT ;",
+            "L_w:",
+            "    [B------:R-:W-:Y:S01] MOV R5, R7 ;",
+            "    [B------:R-:W-:Y:S01] IADD3 R9, PT, PT, R5, 0x3, RZ ;",
+            "    [B------:R-:W-:-:S01] EXIT ;",
+        ]);
+        let slots = [a(5, true), NO, a(5, false), NO, sl([None, Some(7), None], [false; 3]), a(5, false), NO];
+        assert_eq!(reuse(&k, &slots), [(0, 0, 5, 4, 5, 7)]);
+        assert_eq!(reuse_flag_rewrites(&k, &slots).0[0].path, BRANCH);
+        assert!(reuse_apart(&k, &slots).is_empty());
+        // the write on the fall-through of a branch that is not taken: the straight path, the law's finding
+        let k = kernel(&[
+            "    [B------:R-:W-:Y:S01] IADD3 R6, PT, PT, R5, 0x1, RZ ;",
+            "    [B------:R-:W-:Y:S05] @P3 BRA L_w ;",
+            "    [B------:R-:W-:Y:S01] MOV R5, R7 ;",
+            "    [B------:R-:W-:Y:S01] IADD3 R8, PT, PT, R5, 0x2, RZ ;",
+            "L_w:",
+            "    [B------:R-:W-:-:S01] EXIT ;",
+        ]);
+        let slots = [a(5, true), NO, sl([None, Some(7), None], [false; 3]), a(5, false), NO];
+        assert_eq!(reuse(&k, &slots), [(0, 0, 5, 2, 3, 7)]);
+        assert_eq!(reuse_flag_rewrites(&k, &slots).0[0].path, ReuseFlagFinding::STRAIGHT);
+        assert!(reuse_apart(&k, &slots).is_empty());
+        // a writer under a guard known to be false on the path does not write; under an unknown
+        // guard it may: the straight finding
+        let k = kernel(&[
+            "    [B------:R-:W-:Y:S01] IADD3 R6, PT, PT, R5, 0x1, RZ ;",
+            "    [B------:R-:W-:Y:S05] @!P5 BRA L_out ;",
+            "    [B------:R-:W-:Y:S01] @!P5 MOV R5, R7 ;",
+            "L_out:",
+            "    [B------:R-:W-:Y:S01] IADD3 R9, PT, PT, R5, 0x3, RZ ;",
+            "    [B------:R-:W-:-:S01] EXIT ;",
+        ]);
+        let slots = [a(5, true), NO, sl([None, Some(7), None], [false; 3]), a(5, false), NO];
+        assert!(reuse(&k, &slots).is_empty() && reuse_apart(&k, &slots).is_empty());
+        let k = kernel(&[
+            "    [B------:R-:W-:Y:S01] IADD3 R6, PT, PT, R5, 0x1, RZ ;",
+            "    [B------:R-:W-:Y:S01] @P2 MOV R5, R7 ;",
+            "    [B------:R-:W-:Y:S01] IADD3 R9, PT, PT, R5, 0x3, RZ ;",
+            "    [B------:R-:W-:-:S01] EXIT ;",
+        ]);
+        assert_eq!(reuse(&k, &[a(5, true), sl([None, Some(7), None], [false; 3]), a(5, false), NO]), [(0, 0, 5, 1, 2, 2)]);
+        // a word that names the register in the slot under a guard that may be false: where it
+        // executes it is the reader (the window ends, nothing written yet); where it does not, the
+        // walk goes on and the path is marked -- whether such a word takes the entry is not measured
+        let k = kernel(&[
+            "    [B------:R-:W-:Y:S01] IADD3 R6, PT, PT, R5, 0x1, RZ ;",
+            "    [B------:R-:W-:Y:S01] @P2 IADD3 R8, PT, PT, R5, 0x2, RZ ;",
+            "    [B------:R-:W-:Y:S01] MOV R5, R7 ;",
+            "    [B------:R-:W-:Y:S01] IADD3 R9, PT, PT, R5, 0x3, RZ ;",
+            "    [B------:R-:W-:-:S01] EXIT ;",
+        ]);
+        let slots = [a(5, true), a(5, false), sl([None, Some(7), None], [false; 3]), a(5, false), NO];
+        assert!(reuse(&k, &slots).is_empty());
+        assert_eq!(reuse_apart(&k, &slots), [(0, 2, 3, 3, GUARD)]);
+        // around a loop: the flagged word of the next pass is the next reader through the slot,
+        // behind the taken back edge
+        let k = kernel(&[
+            "L_top:",
+            "    [B------:R-:W-:Y:S01] IADD3 R6, PT, PT, R5, 0x1, RZ ;",
+            "    [B------:R-:W-:Y:S01] MOV R5, R7 ;",
+            "    [B------:R-:W-:Y:S05] @P0 BRA L_top ;",
+            "    [B------:R-:W-:-:S01] EXIT ;",
+        ]);
+        let slots = [a(5, true), sl([None, Some(7), None], [false; 3]), NO, NO];
+        assert_eq!(reuse(&k, &slots), [(0, 0, 5, 1, 0, 7)]);
+        assert_eq!(reuse_flag_rewrites(&k, &slots).0[0].path, BRANCH);
+        // a reader reached both ways is reported by its cleanest path
+        let k = kernel(&[
+            "    [B------:R-:W-:Y:S01] IADD3 R6, PT, PT, R5, 0x1, RZ ;",
+            "    [B------:R-:W-:Y:S01] MOV R5, R7 ;",
+            "    [B------:R-:W-:Y:S05] @P3 BRA L_r ;",
+            "    [B------:R-:W-:Y:S01] MOV R9, R7 ;",
+            "L_r:",
+            "    [B------:R-:W-:Y:S01] IADD3 R9, PT, PT, R5, 0x3, RZ ;",
+            "    [B------:R-:W-:-:S01] EXIT ;",
+        ]);
+        let m = sl([None, Some(7), None], [false; 3]);
+        assert_eq!(reuse(&k, &[a(5, true), m, NO, m, a(5, false), NO]), [(0, 0, 5, 1, 4, 8)]);
+        assert!(reuse_apart(&k, &[a(5, true), m, NO, m, a(5, false), NO]).is_empty());
     }
 }

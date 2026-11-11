@@ -105,6 +105,64 @@ pub fn report(kernel: &str, insns: &[Instruction], table: Option<&IsaTable>, dep
     line
 }
 
+/// The `reuse` object of a kernel's line: the operand-reuse flags of its final words on every path
+/// (`store_paths::reuse_flag_rewrites`) -- what was walked; `rewritten`: the law's findings (a
+/// register read through a slot with the flag and written before the next reader through that
+/// slot, flagged or not, on the fall-through or behind a taken branch); `apart`: the rows counted
+/// apart, by kind of path (behind a word of the slot that does not execute, a wider operand);
+/// `flags_apart`: the flags with no finding and such a row, by their cleanest kind;
+/// `clean`: the flags with neither. `findings` lists every row (the text of the three words for
+/// the law's findings only). `cubit asm` adds the object behind the encoder (the slots are read
+/// off the encoded words).
+pub fn reuse_json(insns: &[Instruction], findings: &[store_paths::ReuseFlagFinding], count: &store_paths::ReuseFlagCount, undecoded: usize) -> Value {
+    use store_paths::ReuseFlagFinding as F;
+    let list: Vec<Value> = findings
+        .iter()
+        .map(|f| {
+            let mut row = json!({
+                "flagged": f.flagged, "slot": store_paths::ReuseSlots::NAMES[f.slot].to_string(), "register": format!("R{}", f.reg),
+                "writer": f.writer, "reader": f.reader, "distance": f.distance, "path": F::path_name(f.path),
+            });
+            if f.is_finding() {
+                row["flagged_text"] = json!(text(insns, f.flagged));
+                row["writer_text"] = json!(text(insns, f.writer));
+                row["reader_text"] = json!(text(insns, f.reader));
+            }
+            row
+        })
+        .collect();
+    let mut apart = std::collections::BTreeMap::<String, usize>::new();
+    for f in findings.iter().filter(|f| !f.is_finding()) {
+        *apart.entry(F::path_name(f.path)).or_default() += 1;
+    }
+    // per flag (word, slot): a finding, else the cleanest kind of its rows
+    let mut per_flag = std::collections::BTreeMap::<(usize, usize), (bool, u32, u8)>::new();
+    for f in findings {
+        let rank = (!f.is_finding(), f.path.count_ones(), f.path);
+        let e = per_flag.entry((f.flagged, f.slot)).or_insert(rank);
+        if rank < *e {
+            *e = rank;
+        }
+    }
+    let mut flags_apart = std::collections::BTreeMap::<String, usize>::new();
+    for (apart_only, _, path) in per_flag.values() {
+        if *apart_only {
+            *flags_apart.entry(F::path_name(*path)).or_default() += 1;
+        }
+    }
+    json!({
+        "flags": count.flags, "words": count.words, "without_yield": count.without_yield,
+        "without_register": count.without_register, "uniform": count.uniform, "by_position": count.by_position,
+        "to_unflagged": count.to_unflagged, "to_end": count.to_end, "to_wide": count.to_wide, "undecoded": undecoded,
+        "rewritten": findings.iter().filter(|f| f.is_finding()).count(),
+        "flags_rewritten": per_flag.values().filter(|r| !r.0).count(),
+        "clean": count.clean,
+        "apart": apart,
+        "flags_apart": flags_apart,
+        "findings": list,
+    })
+}
+
 // ───────────────────────── a candidate against its seed ─────────────────────────
 
 /// Version of the comparison's layout (`cubit legality-diff --json`).
@@ -157,6 +215,12 @@ fn keyed(line: &Value, list: &'static str) -> std::collections::BTreeMap<String,
                 None,
                 format!("{} ; / {} ;", s("other_text").trim_end_matches(';').trim_end(), s("at_text").trim_end_matches(';').trim_end()),
             ),
+            // a flag whose register is written inside its window is wrong at any distance: by key
+            "reuse" => (
+                format!("reuse-flag {} [{}] -> [{}] {} (slot {})", s("path"), n("flagged"), n("reader"), s("register"), s("slot")),
+                None,
+                format!("{} ; / {} ;", s("flagged_text").trim_end_matches(';').trim_end(), s("reader_text").trim_end_matches(';').trim_end()),
+            ),
             "store_paths" => (
                 format!("{} [{}] -> [{}] {} ({})", s("class"), n("store"), n("overwriter"), s("register"), s("operand")),
                 f["distance"].as_u64(),
@@ -205,7 +269,7 @@ pub fn compare(seed: &Value, candidate: &Value) -> Difference {
         d.not_comparable = Some("the two lines were made with different dependency tables".to_string());
         return d;
     }
-    for list in ["scoreboard", "store_paths", "dep"] {
+    for list in ["scoreboard", "store_paths", "dep", "reuse"] {
         let s = keyed(seed, list);
         for (key, (cand, text)) in keyed(candidate, list) {
             match s.get(&key) {
