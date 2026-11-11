@@ -4,6 +4,27 @@ User-visible changes, newest first. Table syncs name the blackwell-isa revision 
 (`tables/SOURCE.json` pins it byte for byte). Numbered `BUG-NNN` entries are the encoder /
 decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `docs/TESTS.md`).
 
+## Unreleased — 2026-11-11 (pull-request pair cubit #5 + blackwell-isa #3 of the B300 lane: the four `ExpertsKernel` forms on sm103a / sm100a — `DEPBAR {…}`, the uniform `CCTL.E.C.LDCU.IV.DEEP`, `UBLKCP.S.G` with a descriptor, `UBLKPF.L2`)
+
+- **Tables vendored from blackwell-isa `ff1c320`: batch 1 of the lane's K3.1 served-kernel forms — four rows per table
+  on sm103a / sm100a** (sm103a 549 → 553 forms, 37 538 → 37 542 rows; sm100a 548 → 552, 37 532 → 37 536; sm120 / sm121a
+  unchanged; rows without `_src` unchanged, 336 / 336; one tag, `rows-k1-experts-forms-2026-11-10`). **`DEPBAR
+  {5,4,3,2,1,0}`** — the plain form: ONE operand, a brace list that is a six-bit mask (scoreboard N = bit N); the empty
+  mask is refused (`claim_forbid`); `DEPBAR.LE` keeps its own key. **`CCTL.E.C.LDCU.IV.DEEP [UR+imm32]`** — the uniform
+  form with a signed 32-bit offset. **`UBLKCP.S.G [UR], [UR], UR, desc[UR]`** and **`UBLKPF.L2 [UR], UR`**. Every mask
+  is exactly the measured fields and no row carries a bit of the control code.
+- **Engine — the lane's change as written** (parser +23 −2, printer +19 −1): an operand `{…}` of distinct ids 0 … 5 is
+  ONE mask operand and braces nest in the operand splitter; the modifiers of `CCTL` print in the vendor's order
+  (`E.C.LDCU.IV.DEEP`; the group key stays sorted); the plain `DEPBAR` prints its brace list in descending ids.
+- `tests/k1_experts_forms.rs` (3) over `tests/fixtures/k1_experts_{sm103a,sm100a}_nvdisasm.jsonl` (505 records each: 8
+  production words, field sweeps, every one-bit neighbour outside the fields as a negative; measured with nvdisasm
+  13.3.73); the probe `tools/probes/re_k1_experts_forms.py`. The gatekeeper named every fixture word again with
+  nvdisasm 13.1, per target: 460 of 460 recorded texts identical (357 with the fixture's own control code, 103 only
+  with a production control code of the same form — 13.1 does not name those words with an empty one), 45 of 45
+  negatives not named. The lane's count on its three builds of the kernel: `roundtrip-strict` 12 498 → 12 548 of
+  12 560 words; the 12 left are guard-predicated `ATOMG` words, refused on purpose (BUG-080). Encoding evidence only:
+  no GPU execution, no semantics, no timing.
+
 ## Unreleased — 2026-11-11 (session T-32: three sentences in KNOWN_ISSUES — A40's count is the simulation's, A41's open forms are measured, A42's evidence is in the tree)
 
 - **Documents only — no source, no table, no test.** A40 and the BUG-491 section below: m-tile fc1's broken WAR
