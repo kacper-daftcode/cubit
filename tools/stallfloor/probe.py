@@ -56,7 +56,7 @@ import subprocess
 import sys
 import time
 
-TOOL = "probe.py 8 (2026-11-10)"
+TOOL = "probe.py 9 (2026-11-11)"
 HERE = pathlib.Path(__file__).resolve().parent
 SEED = 0x12345
 REPEAT = 256
@@ -509,14 +509,34 @@ MMA_VARIANTS = {"acc2": "another accumulator, the same A fragment, another B fra
                 "hold_b_mov": "one MMA; MOV rewrites a register of its B fragment d cycles behind it",
                 "hold_b_iadd3": "one MMA; IADD3 rewrites a register of its B fragment d cycles behind it",
                 "hold_b_shf": "one MMA; SHF.R.U32.HI rewrites the upper register of its B fragment from the lower one, d cycles behind it",
+                "hold_bl_mov": "one MMA; MOV rewrites the LOWER register of its B fragment d cycles behind it",
                 # positive controls: the same rewrite 45 cycles IN FRONT of the MMA. The model ignores the rewrite, so `good` here
                 # means "the rewritten register is not part of what the MMA reads" - a hold result on that register would be void
                 "sens_a_mov": "CONTROL: MOV rewrites the A-fragment register IN FRONT of the MMA (the result must change: expect 0 % good)",
                 "sens_b_mov": "CONTROL: MOV rewrites the upper B-fragment register IN FRONT of the MMA (expect 0 % good)",
-                "sens_b_shf": "CONTROL: SHF.R.U32.HI rewrites the upper B-fragment register IN FRONT of the MMA (expect 0 % good)"}
+                "sens_b_shf": "CONTROL: SHF.R.U32.HI rewrites the upper B-fragment register IN FRONT of the MMA (expect 0 % good)",
+                "sens_bl_mov": "CONTROL: MOV rewrites the LOWER B-fragment register IN FRONT of the MMA (expect 0 % good)"}
 
 
-def body_mma(req, d):
+MMAFRONT_RE = re.compile(r"mmax(\d+)@(\d+)")
+
+
+def mma_front(front):
+    """the tensor traffic in front of the MMA of a hold request: `mmaxK@S` = K MMAs of the same form on ANOTHER accumulator
+    (R24, the same A fragment, the B2 fragment), stall S each - the tested MMA is issued S cycles behind the last of them.
+    -> (K, S); (0, 0) for none"""
+    if front in ("none", "", None):
+        return 0, 0
+    m = MMAFRONT_RE.fullmatch(front)
+    if not m:
+        raise SystemExit(f"unknown front {front!r} for an mma hold request: none | mmaxK@S")
+    k, s = int(m.group(1)), int(m.group(2))
+    if not (1 <= k <= 16 and 1 <= s <= 15):
+        raise SystemExit(f"front {front!r}: K 1..16, S 1..15")
+    return k, s
+
+
+def body_mma(req, d, front="none"):
     """two block-scaled MMAs of one warp, d issue cycles apart. Every element of the A fragment is the same E4M3 code
     (1.0 on even iterations, 2.0 on odd), of the B fragments the same E2M1 code (B1 1.0, B2 2.0), the block scales are 1,
     and the accumulators are integer-valued floats 2^23 + k (k per thread and register): each result is its accumulator
@@ -540,9 +560,11 @@ def body_mma(req, d):
          Ins("IADD3 R27, PT, PT, R24, 0x3, RZ ;", ("add", "R27", "R24", 3)),
          PAD(), PAD()]
     if var.startswith("sens_"):
-        if var.startswith("sens_b"):
+        if var.startswith("sens_bl"):
+            b.insert(0, Ins("MOV R12, R13 ;", ("mov", "R12", "R13")))
+        elif var.startswith("sens_b"):
             b.insert(0, Ins("MOV R13, R12 ;", ("mov", "R13", "R12")))
-        tgt = "R17" if var.startswith("sens_a") else "R13"
+        tgt = "R17" if var.startswith("sens_a") else "R12" if var.startswith("sens_bl") else "R13"
         b.append(Ins("SHF.R.U32.HI R13, RZ, 0x5, R12 ;", ("nop",)) if var.endswith("_shf") else Ins(f"MOV {tgt}, R6 ;", ("nop",)))
         b += [PAD(), PAD(), PAD()]
         b.append(Ins(q("R28", "R12"), ("qmma", "R28", "R16", "R12", None, fn), tag="P", dst=["R28", "R29", "R30", "R31"]))
@@ -552,12 +574,17 @@ def body_mma(req, d):
             b.append(Ins(t, sem))
         return b
     if var.startswith("hold_"):
-        if var.startswith("hold_b"):
+        if var.startswith("hold_bl"):
+            b.insert(0, Ins("MOV R12, R13 ;", ("mov", "R12", "R13")))      # the lower B register of the last iteration's overwrite
+        elif var.startswith("hold_b"):
             b.insert(0, Ins("MOV R13, R12 ;", ("mov", "R13", "R12")))      # the B register of the last iteration's overwrite
         s, fill = split_distance(d)
+        fk, fs = mma_front(front)
+        for _ in range(fk):       # the traffic: K MMAs in front, another accumulator (not part of the checksum)
+            b.append(Ins(q("R24", "R6"), ("qmma", "R24", "R16", "R6", None, fn), ctl=C(fs), tag="F"))
         b.append(Ins(q("R28", "R12"), ("qmma", "R28", "R16", "R12", None, fn), ctl=C(s), tag="P", dst=["R28", "R29", "R30", "R31"]))
         b += fill
-        tgt = "R17" if var.startswith("hold_a") else "R13"
+        tgt = "R17" if var.startswith("hold_a") else "R12" if var.startswith("hold_bl") else "R13"
         if var.endswith("_mov"):       # R6 = the B2 word: another finite code in every element
             b.append(Ins(f"MOV {tgt}, R6 ;", ("mov", tgt, "R6"), tag="O"))
         elif var.endswith("_shf"):
@@ -725,7 +752,7 @@ def model(req, mode, gids=None, scalar=False):
     elif req["kind"] == "ord":
         body = body_ord(req, 15, "none", "bare")
     elif req["kind"] == "mma":
-        body = body_mma(dict(req, via="stall"), 15)
+        body = body_mma(dict(req, via="stall"), 15, req.get("_model_front", "none"))
     else:
         body = body_raw(dict(req, via="stall"), 15, "none")
     if mode in ("drop1", "drop2"):      # mma: the first / the second MMA changed nothing in any iteration
@@ -1081,7 +1108,12 @@ def normalise(req):
             r["via"] = "stall"
             r.setdefault("distances", "1-12,15,20,30,45")
         r.setdefault("distances", "1-16,20,24,29,30,45,60" if r["via"] == "stall" else "2-16,20,24,29,30,45,60")
-        r["front"] = ["none"]
+        if r["variant"].startswith("hold_"):
+            r.setdefault("front", ["none"])
+            for f in r["front"]:
+                mma_front(f)
+        else:
+            r["front"] = ["none"]
     else:
         raise SystemExit(f"{r.get('id')}: kind must be raw, war, ord or mma")
     r.setdefault("occupancy", ["w8", "w32"])
@@ -1177,7 +1209,7 @@ def cmd_gen(args):
                     for dist in dl:
                         name = f"{r['id']}_{v}_{occ}_{front_id(front)}_d{dist:04d}"
                         body = (body_raw(r, dist, front) if r["kind"] == "raw" else body_ord(r, dist, front, v) if r["kind"] == "ord"
-                                else body_mma(r, dist) if r["kind"] == "mma"
+                                else body_mma(r, dist, front) if r["kind"] == "mma"
                                 else body_war(r, dist, front, v))
                         (d / "k" / f"{name}.sass").write_text(kernel_text(name, r, ctas, body))
                         kernels.append({"name": name, "variant": v, "occupancy": occ, "front": front, "distance": dist,
@@ -1817,6 +1849,12 @@ def cmd_selftest(_args):
             assert [int(x) for x in v] == model(r, m, gids=gids, scalar=True), (var, m)
             n += 1
         assert var == "gfalse" or all(not np.array_equal(got["good"], v) for m, v in got.items() if m != "good"), var
+        if var.startswith("hold_"):      # the tensor traffic in front writes another accumulator: the checksum may not move
+            for fr in ("mmax1@7", "mmax8@1"):
+                rf = dict(r, _model_front=fr)
+                assert np.array_equal(model(rf, "good", gids=gids), got["good"]), (var, fr)
+                assert [int(x) for x in got["good"]] == model(rf, "good", gids=gids, scalar=True), (var, fr)
+                n += 1
     for older, younger in ORD_PAIRS:
         r = normalise({"id": "selftest", "kind": "ord", "older": older, "younger": younger})
         g, st = model(r, "good", gids=gids), model(r, "stale", gids=gids)

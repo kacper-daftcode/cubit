@@ -13,6 +13,8 @@ decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `
   hypothesis; `run` classifies every thread of every launch (one process per request); no reference kernel is the judge. The
   tensor family needs no fragment layout (uniform fragments, integer-valued accumulators: each result is its accumulator + K·a·b).
   `gen` refuses a kernel text the card would trap on (a 64-bit pair on an odd register). `tools/stallfloor/README.md`, harness v8.
+  A hold request has a positive control (the same rewrite in front of the instruction must change the result) and may put
+  tensor instructions in front (`front: mmaxK@S`).
 - **The store latch against that oracle (KNOWN_ISSUES A27): the earlier distances were lower bounds.** An ALU instruction that
   rewrites the data or address register of a bare store: right from 1 at one warp per SM, from 105 at 8 warps with an idle memory
   pipe, at no distance up to 300 at 8 warps with 15 stores in front or (a shared store) at 32 warps; a global store at 32 warps
@@ -24,11 +26,23 @@ decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `
 - **Two block-scaled MMAs of one warp are right at every issue distance from 1** (`QMMA.SF.16832.F32.E4M3.E2M1.E8`; another
   accumulator, the same, under guards; the served kernels' grids; also `HMMA.16816.F32` / `.BF16`): the resource row `mma` (16) is
   the vendor's spacing, not a silicon floor. **The operand hold of an MMA: a fixed-latency instruction that rewrites a register of
-  the A fragment changes the result up to 4 cycles behind the MMA and never from 5** (the vendor keeps 8).
+  the A fragment changes the result up to 4 cycles behind the MMA and never from 5** (the vendor keeps 8) — also with tensor
+  instructions issued in front (one 7 / 8 cycles in front, eight back to back). **A register of the B fragment, upper or lower,
+  is not a late operand at all**: rewritten 1 … 90 cycles behind the MMA it never changed the result, while the same rewrite in
+  front of the MMA changes it in every thread (the positive control; `probe_sm120_20261111_b8.json`, `_b9.json`).
+- **The older-load law holds inside one memory pipe and not across the two** (`probe_sm120_20261111_b7.json`): an older load
+  without a write barrier is landed when a younger load's barrier clears for `LDS`–`LDS`, `LDS`–`LDSM`, `LDS.128`–`LDS`,
+  `LDG`–`LDG` (0 of 1.9 × 10^8 thread-launches each); a shared and a global load give no order either way (wrong in 91 % / 49 %).
+- **Write-after-read behind a bare store, swept to 900 cycles with the number of late iterations**: a shared store's data is
+  right from 450 – 600 cycles under load, a global store's with 32 warps and 15 stores in front not at 900; the tail is one
+  iteration of 256 in a few threads. A load that rewrites a shared store's ADDRESS register never reached it either.
 - Pairs the vendor's schedule of the served MoE kernels holds below the table, measured: `F2FP.SATFINITE…PACK_AB → IMAD.SHL.U32` 5,
   `IADD.64 → SHF.L.U64.HI` 5 (defaults 6; the vendor at 5), `UMOV → UIADD3` 1 (cell 4; the vendor at 2), `UMOV → MOV R, UR` 1
   (uniform default 13); `UIADD3 → UIADD3` 4, `UIADD3 → MOV R, UR` 6 and `CS2R → IMAD / IADD3 / LOP3` 6 are exactly the table's prices.
-  Result files `tools/stallfloor/probe_sm120_20261110_b*.json`. No cell is changed by this entry.
+  Seventeen more (`_b7.json`): `IADD.64 → IADD.64` 4, `MOV → MOV` 5, `IADD3 (−R + imm) → I2FP / SHF` 4, `SEL ↔ PRMT` 5,
+  `SHF / F2FP…PACK_AB → SEL` 5, `LOP3 / MOV → IADD.64` 5, `IADD.64 → LEA` 5 — the vendor's distances are the floors, the default 6
+  is one or two above; `CS2R → IADD.64` 6 is the default itself.
+  Result files `tools/stallfloor/probe_sm120_20261110_b*.json`, `probe_sm120_20261111_b*.json`. No cell is changed by this entry.
 
 ## Unreleased — 2026-11-10 (sessions CS-1 / CS-2: control classes of the synchronisation words — mbarriers, bulk copies, fences, release / acquire, `setmaxnreg`, collective regions —, the scheduler on the control-flow graph of an nvcc kernel, and the operand laws such a kernel needs; one opt-in switch, the default schedule unchanged)
 
