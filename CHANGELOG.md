@@ -4,7 +4,7 @@ User-visible changes, newest first. Table syncs name the blackwell-isa revision 
 (`tables/SOURCE.json` pins it byte for byte). Numbered `BUG-NNN` entries are the encoder /
 decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `docs/TESTS.md`).
 
-## Unreleased — 2026-11-11 (session T-28: a candidate schedule is held to its seed by the DISTANCE of every finding, not only by its key — `cubit legality-diff`; the mechanics of a 'silicon' edition of the sm_120 dependency table — opt-in by name, shipped with no entry; the default table and every default path byte for byte)
+## Unreleased — 2026-11-11 (session T-28: a candidate schedule is held to its seed by the DISTANCE of every finding, not only by its key — `cubit legality-diff`; the mechanics of a 'silicon' edition of the sm_120 dependency table — opt-in by name, shipped with no entry; `cubit asm` refuses a kernel with a multi-register operand off its grid on sm_120 — BUG-488; every other default path byte for byte)
 
 - **`cubit legality-diff <seed.jsonl> <candidate.jsonl>` — the rule a candidate schedule is held to against its seed: no
   finding the seed does not have, and none CLOSER than the seed has it.** `CUBIT_VERIFY_JSON` gives the findings of the three
@@ -49,6 +49,23 @@ decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `
   kernel like the default table — pinned on the read-only check of two frozen listings and on the scheduler's build of eight
   sources, identical under both names. The write-after-read holds are a section of the format under the same rule; they are
   validated and carried, and the scheduler does not read them yet.
+
+- **BUG-488 — on sm_120 `cubit asm` refuses a kernel with an operand that spans several registers and does not start on its
+  grid: a pair on an odd register, a quad off a multiple of four.** Such a word assembles, disassembles and loads, and the kernel ends at
+  its first launch with CUDA_ERROR_ILLEGAL_INSTRUCTION (715) or traps the card ("Misaligned Register") — on 2026-11-10 two
+  probe kernels with an `IADD.64` pair on an odd register did. The grid was measured the same day (`tools/ra/`,
+  `align_probes_sm120_20261110.json`: 23 of 23 off-grid kernels fault, 15 of 15 controls run) and only the wide `IMAD` had a
+  guard (BUG-008). Refused now, each with the measurement in the message: the destination of `LDG.E.64` / `.128`, `LDS.64` /
+  `.128`, `LDC.64`, `CS2R` (its pair form), `LDSM.….2` / `.4`, `LDCU.64`; the data of `STS.64` / `.128`; the 64-bit address
+  pair of `LDG` / `STG`; every pair of `IADD.64`. The vendor's assembler emits none of it — 0 of 407 551 such operands in the
+  sm_120 census, 0 of 43 896 in the hand-written production kernels — so no existing kernel changes; `RZ`, the one-register
+  forms and the other architectures are not touched. The guard sits in the kernel assembler (`cubit asm`, its three assembly
+  paths), not in the word-level encoder: `encode_instruction`, `cubit encode` and `asm-text` still assemble every register
+  number a field holds — a word is a word, and the tables' measured rows are re-assembled that way. `CUBIT_ALLOW_OFF_GRID=1`
+  writes the kernel anyway (a probe generator that measures this fault), as `CUBIT_DISABLE_ERRATA=1` does. Not covered,
+  because not measured on sm_120: `MOV.64`, the data of a wide `STG`, the tensor forms outside BUG-037 (`.SF`, `.SP`).
+  `tests/bug488_sm120_register_grid.rs` reads the result file: a kernel around every word that faulted is refused, a kernel
+  around every control is written.
 
 ## Unreleased — 2026-11-10 (session SCH-3: the stall-floor probes as one tool with an absolute, host-computed oracle; the store cells of the sm_120 dependency table re-measured — no cell moves; tools and result files only, no source line changes)
 

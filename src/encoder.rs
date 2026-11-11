@@ -1676,6 +1676,119 @@ fn check_imad_wide_odd_pair(insn: &Instruction, table: &IsaTable) -> Result<()> 
     Ok(())
 }
 
+/// BUG-488 (silicon, sm_120): an operand that spans several registers starts on its own grid --
+/// a pair on an even register, a quad on a multiple of four. Off the grid the word assembles,
+/// disassembles and loads, and the kernel ends at its first launch with
+/// CUDA_ERROR_ILLEGAL_INSTRUCTION (715) or a trap ("Misaligned Register", Xid 13).
+///
+/// Measured 2026-11-10 on RTX PRO 6000 Blackwell (`tools/ra/gen_align_probes.py`,
+/// `tools/ra/align_probes_sm120_20261110.json`: one kernel per shape and base register, one
+/// process per kernel): 23 of 23 off-grid kernels fault, 15 of 15 on-grid controls store the
+/// expected words --
+///
+/// * the destination of `LDG.E.64` / `LDS.64` / `LDC.64` and the data of `STS.64`: a pair;
+/// * the destination of `LDG.E.128` / `LDS.128` and the data of `STS.128`: a quad (bases 4k+1,
+///   4k+2 and 4k+3 fault alike);
+/// * the 64-bit address pair of a global load / store (`desc[URn][Rb.64]`);
+/// * `CS2R Rd, SRZ` (it writes the pair `Rd:Rd+1`; `CS2R.32` writes one register);
+/// * `LDSM.….2` (a pair) and `LDSM.….4` (a quad);
+/// * `LDCU.64 URd` (a uniform pair);
+/// * the pairs of a wide `IMAD` -- refused by `check_imad_wide_odd_pair` (BUG-008).
+///
+/// and on the same day a probe generator's `IADD.64` with a pair on an odd register trapped the
+/// card twice. The vendor's assembler never emits any of it: 0 operands off their grid among
+/// 407 551 such operands of 1 940 116 census instructions, 0 among 43 896 of the hand-written
+/// production kernels. Not covered, because not measured on sm_120: `MOV.64`, the data of a wide
+/// `STG`, the tensor forms outside `check_mma_reg_alignment` (`.SF`, `.SP`).
+///
+/// `RZ` is exempt (the zero register is not the base of a pair). The guard refuses and never
+/// rewrites. `CUBIT_ALLOW_OFF_GRID=1` assembles the word anyway -- for a generator of probes
+/// that measures this very fault -- and so does `CUBIT_DISABLE_ERRATA=1`.
+/// sm_120 only: sm_103a has its own, stricter law (`check_wide_mem_reg_align_sm103`).
+///
+/// **Where it runs: in `cubit asm`, on the instructions of a KERNEL** (the three assembly paths
+/// of the command call it in front of `encode_instruction`). It is not part of the errata
+/// battery of `encode_instruction` itself: the word-level encoder stays the full-fidelity
+/// inverse of the decoder -- a measured table row is re-assembled with every register number
+/// its field can hold, and `cubit encode` / `asm-text` assemble single words for table work.
+/// What must not happen is a kernel FILE that faults at launch.
+pub fn check_register_grid_sm120(insn: &Instruction, table: &IsaTable) -> Result<()> {
+    if table.target_sm() != 120
+        || std::env::var_os("CUBIT_ALLOW_OFF_GRID").is_some()
+        || std::env::var_os("CUBIT_DISABLE_ERRATA").is_some()
+    {
+        return Ok(());
+    }
+    let op = insn.opcode.as_str();
+    if !matches!(op, "LDG" | "STG" | "LDS" | "STS" | "LDC" | "LDCU" | "LDSM" | "CS2R" | "IADD") {
+        return Ok(());
+    }
+    let mods = crate::table::extract_mod_group(&insn.raw_text);
+    let has = |m: &str| mods.split(',').any(|x| x == m);
+    let refuse = |what: &str, reg: String, grid: u8| -> anyhow::Error {
+        anyhow::anyhow!(
+            "{:?}: {what} {reg} is off its register grid -- a {} starts on {} -- and the word faults at \
+             the first launch on sm_120 silicon (BUG-488: CUDA_ERROR_ILLEGAL_INSTRUCTION 715 in 23 of 23 \
+             off-grid probe kernels, measured 2026-11-10 on RTX PRO 6000 Blackwell; the vendor's assembler \
+             emits none). CUBIT_ALLOW_OFF_GRID=1 assembles the word anyway (probe generators).",
+            insn.raw_text.trim(),
+            if grid == 4 { "128-bit quad" } else { "64-bit pair" },
+            if grid == 4 { "a multiple of four" } else { "an even register" },
+        )
+    };
+    // the 64-bit address pair of a global load / store
+    if matches!(op, "LDG" | "STG") {
+        for o in &insn.operands {
+            if let Operand::Desc { base_reg: Some(b), base_reg_suffix: Some(sfx), .. } = o {
+                if sfx.contains("64") && *b != 255 && b % 2 == 1 {
+                    return Err(refuse("the address pair on", format!("R{b}"), 2));
+                }
+            }
+        }
+    }
+    if op == "LDCU" {
+        if has("64") {
+            if let Some(u) = insn.operands.iter().find_map(|o| match o {
+                Operand::UReg { num, is_zero: false, .. } => Some(*num),
+                _ => None,
+            }) {
+                if u % 2 == 1 {
+                    return Err(refuse("the uniform destination pair on", format!("UR{u}"), 2));
+                }
+            }
+        }
+        return Ok(());
+    }
+    // the destination (a load, CS2R, IADD.64) or the data (a store) register: the first plain
+    // register operand -- an address register sits inside its bracket operand
+    let grid: u8 = match op {
+        "LDG" | "LDS" | "STS" if has("128") => 4,
+        "LDG" | "LDS" | "STS" | "LDC" | "IADD" if has("64") => 2,
+        "LDSM" if has("4") => 4,
+        "LDSM" if has("2") => 2,
+        "CS2R" if !has("32") => 2,
+        _ => return Ok(()),
+    };
+    let what = match op {
+        "STS" => "the data register",
+        "IADD" => "a pair of IADD.64 on",
+        _ => "the destination register",
+    };
+    for o in &insn.operands {
+        if let Operand::Reg { num, .. } = o {
+            if *num != 255 && num % grid != 0 {
+                return Err(refuse(what, format!("R{num}"), grid));
+            }
+            // one register operand for a load, a store, CS2R; every one of an IADD.64 (its
+            // sources are pairs like the addend of a wide IMAD, which faults on an odd base)
+            if op != "IADD" {
+                break;
+            }
+        }
+    }
+    Ok(())
+}
+
 /// BUG-080 (silicon, B300/sm_103a): a guard-PREDICATED non-EL memory atomic
 /// (`@Pn` / `@!Pn` / `@UPn` on ATOM/ATOMS/ATOMG/RED/REDG) is SILENTLY BROKEN
 /// on sm_103a -- the operation returns garbage to memory with NO trap, at

@@ -235,6 +235,11 @@ SKU, 2x RTX 5090 / GB202 — every law below holds identically**; logs under the
 - *Multi-register MMA operands are alignment-checked by the hardware* (BUG-037, 2026-06): an A / B / C fragment
   whose first register is off its alignment is `ILLEGAL_INSTRUCTION`; the encoder refuses such text
   (nvdisasm prints it).
+- *So is every other multi-register operand* (BUG-488, 2026-11): a 64-bit pair starts on an even register, a 128-bit
+  quad on a multiple of four — the destination of a wide load, `LDC.64`, `CS2R`, `LDSM`, `LDCU.64`, the data of a wide
+  shared store, the address pair of a global load or store, the pairs of `IADD.64`. 23 of 23 off-grid probe kernels end
+  the launch with 715; `cubit asm` refuses such a kernel on sm_120 (`CUBIT_ALLOW_OFF_GRID=1` for a probe generator; the
+  word-level `cubit encode` is not guarded).
 - *Read-barrier policies, measured on the 84 production MoE kernels with K's harness* (2026-11-05/06, test
   host RTX PRO 6000): `CUBIT_RB_CHAIN=1` + `CUBIT_SB_SHARE=1` reproduce the 2026-06 speed of `mc4_k4096` /
   `mc4_k6144` (1.38× → 1.01×, 1.61× → 0.96× of the shipped time) and cost 3–30 % on 57 of the other 79 kernels

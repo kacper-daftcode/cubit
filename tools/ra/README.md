@@ -15,7 +15,7 @@ What stands behind `cubit ra --mode full --target sm120` (`src/ra_target.rs`; th
 
 ```bash
 python3 tools/ra/align_census.py <dir of *.frozen.sass> out.json
-python3 tools/ra/gen_align_probes.py probes/ && for f in probes/*.sass; do cubit asm $f -t tables/sm120.json -o ${f%.sass}.cubin; done
+python3 tools/ra/gen_align_probes.py probes/ && for f in probes/*.sass; do CUBIT_ALLOW_OFF_GRID=1 cubit asm $f -t tables/sm120.json -o ${f%.sass}.cubin; done   # the off-grid probes are refused without the variable (BUG-488)
 python3 tools/ra/probe_run.py probes/ --out probes.json                # on the GPU host
 python3 tools/ra/gen_carry_probes.py probes2/ probes/                  # BUG-008: the other forms of the wide IMAD (odd ones: CUBIT_DISABLE_ERRATA=1 cubit asm)
 cubit ra k.sass --mode full --target sm120 -o k.ra.sass --report k.ra.json

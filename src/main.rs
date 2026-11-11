@@ -2192,7 +2192,7 @@ fn cmd_asm(
                     insn.ctrl = cubit::scheduling::decode_control_code(cc);
                     insn.hand_sched = true;
                 }
-                cubit::encoder::encode_instruction(&insn, &table)
+                encode_for_kernel(&insn, &table)
             })() {
                 Ok(code) => {
                     new_code[offset..offset + 16].copy_from_slice(&code.to_le_bytes());
@@ -2436,7 +2436,7 @@ fn cmd_asm_build_elf(
                 if sched_override.is_none() {
                     apply_dependency_ctrl(&mut insn);
                 }
-                cubit::encoder::encode_instruction(&insn, table)
+                encode_for_kernel(&insn, table)
             })() {
                 Ok(code) => {
                     let off = *addr as usize;
@@ -5732,7 +5732,7 @@ fn cmd_asm_directive_format(
             for w in cubit::encoder::errata_warnings(insn, table) {
                 eprintln!("  WARN [{}] 0x{:04x}: {}", def.name, insn.addr, w);
             }
-            match cubit::encoder::encode_instruction(insn, table) {
+            match encode_for_kernel(insn, table) {
                 Ok(mut code128) => {
                     // CUBIT_SCHED2 (RULE 3): control-flow instructions (BRA/EXIT/BSYNC/…)
                     // are "fully static" — the encoder leaves their scheduling at the ISA
@@ -5984,6 +5984,15 @@ fn cmd_asm_directive_format(
     }
     println!("Total:   {total_enc} encoded ({total_fail} failed)");
     Ok(())
+}
+
+/// The word of one instruction of a KERNEL (`cubit asm`, its three assembly paths): refused when a
+/// multi-register operand is off its grid on sm_120 (BUG-488) -- such a kernel file faults at its
+/// first launch --, else `encode_instruction`. The word-level commands (`encode`, `asm-text`) and
+/// the library's `encode_instruction` do not go through here.
+fn encode_for_kernel(insn: &cubit::ir::Instruction, table: &IsaTable) -> Result<u128> {
+    cubit::encoder::check_register_grid_sm120(insn, table)?;
+    cubit::encoder::encode_instruction(insn, table)
 }
 
 /// `cubit legality-diff`: a candidate's `CUBIT_VERIFY_JSON` lines against its seed's (`legality::compare`).
