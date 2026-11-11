@@ -56,7 +56,7 @@ import subprocess
 import sys
 import time
 
-TOOL = "probe.py 14 (2026-11-11)"
+TOOL = "probe.py 15 (2026-11-11)"
 HERE = pathlib.Path(__file__).resolve().parent
 SEED = 0x12345
 REPEAT = 256
@@ -238,7 +238,12 @@ WAR_STORES = {
     "STG.data": (["LOP3", "IADD3", "LDG", "LDS"], "STG", "the data register of a bare global store (IADD3: as for STS.data)"),
     "STS.addr": (["IADD3", "LDS"], "STS", "the address register of a bare shared store (LDS: a shared LOAD brings the other address - the vendor's practice)"),
     "STG.addr": (["MOV"], "STG", "the address pair (low register) of a bare global store"),
+    # version 15 - not stores: a warp shuffle reads its source register of ANOTHER lane (`"read_barrier": "set"` puts the
+    # vendor's read barrier on the shuffle in the bare variant too; nobody waits it before the reader)
+    "SHFL.BFLY.src": (["LOP3", "IADD3"], "SHFL", "the source register of SHFL.BFLY PT, Rd, Rs, 0x1, 0x1f (every lane takes lane ^ 1's register)"),
+    "SHFL.IDX.src": (["LOP3", "IADD3"], "SHFL", "the source register of SHFL.IDX PT, Rd, Rs, 0x1, 0x1f (every lane takes lane 1's register)"),
 }
+SHFL_STORES = ("SHFL.BFLY.src", "SHFL.IDX.src")
 LATE_CONST = 0x9e3779b1      # odd: (checksum - good) / LATE_CONST = the number of iterations in which the store took the rewritten data
 FRONT_RE = re.compile(r"(sts128|sts|stg)x(\d+)@(\d+)")
 
@@ -590,6 +595,22 @@ def body_war(req, d, front, variant):
         else:
             b.append(Ins("LDS R6, [R9+0x30] ;", ("lds", "R6", "R9", 0x30, 1), ctl=C(wait=ow, wb="0"), tag="O"))
         b += [Ins("LDG.E R8, desc[UR4][R16.64] ;", ("ldg", "R8", "R16"), ctl=C(wait=back_wait, wb="1"), tag="B"), ADD10("1")]
+    elif store in SHFL_STORES:
+        mode = "bfly" if store == "SHFL.BFLY.src" else "idx"
+        rbset = req.get("read_barrier") == "set"
+        srb = "2" if (variant == "rb" or rbset) else "-"
+        # the source value must DIFFER between lanes 2k and 2k + 1 (a + b does not: b = gid ^ an odd constant)
+        b.append(Ins("IMAD R6, R4, 0x9, R5 ;", ("mad", "R6", "R4", 9, "R5")))
+        b += front_ins(front, False)
+        b.append(Ins(f"SHFL.{mode.upper()} PT, R8, R6, 0x1, 0x1f ;", ("shfl", "R8", "R6", mode, 1), ctl=C(s, rb=srb, wb="1"), tag="S"))
+        b += fill
+        if ctl:
+            b.append(PAD())
+        elif over == "LOP3":
+            b.append(Ins("LOP3.LUT R6, R6, 0x5a5a5a5a, RZ, 0x3c, !PT ;", ("xor", "R6", "R6", 0x5a5a5a5a), ctl=C(wait=ow), tag="O"))
+        else:
+            b.append(Ins(f"IADD3 R6, PT, PT, R6, 0x{LATE_CONST:x}, RZ ;", ("add", "R6", "R6", LATE_CONST), ctl=C(wait=ow), tag="O"))
+        b.append(ADD10("12" if srb == "2" else "1"))
     elif store == "STS.addr":
         b += [Ins("IADD3 R6, PT, PT, R4, R5, RZ ;", ("add", "R6", "R4", "R5")),
               Ins("IADD3 R7, PT, PT, R9, 0x20, RZ ;", ("add", "R7", "R9", 0x20))]
@@ -898,6 +919,11 @@ def model(req, mode, gids=None, scalar=False):
     import numpy as np
     if gids is None:
         gids = np.arange(NGID, dtype=np.int64)
+    if req["kind"] == "war" and req.get("store") in SHFL_STORES and not scalar:
+        gids = np.asarray(gids, dtype=np.int64)
+        need = np.union1d(gids, (gids ^ 1) if req["store"] == "SHFL.BFLY.src" else ((gids & ~31) | 1))
+        if len(need) != len(gids):      # a shuffle reads another lane: model the closed set, return the threads asked for
+            return model(req, mode, gids=need)[np.searchsorted(need, gids)]
     if req["kind"] == "war":
         body = body_war(req, 15, "none", "bare")
     elif req["kind"] == "ord":
@@ -1038,6 +1064,12 @@ def model(req, mode, gids=None, scalar=False):
             G[rows, get(sem[1]).astype(np.int64)] = get(sem[2])
         elif op == "ldg":
             R[sem[1]] = G[rows, get(sem[2]).astype(np.int64)]
+        elif op == "shfl":          # every lane takes the register of another lane of its warp: lane ^ k (bfly) or lane k (idx)
+            src = (gids ^ sem[4]) if sem[3] == "bfly" else ((gids & ~31) | sem[4])
+            pos = np.minimum(np.searchsorted(gids, src), n - 1)
+            if (gids[pos] != src).any():
+                raise RuntimeError("model: a shuffle needs its source lanes among the modelled threads")
+            R[sem[1]] = get(sem[2])[pos]
         else:
             raise RuntimeError(f"model: unknown op {sem}")
 
@@ -1074,8 +1106,8 @@ def model(req, mode, gids=None, scalar=False):
     return R["R10"].copy()
 
 
-def _scalar(gid, pro, body, mode):
-    """the same semantics on Python integers, one thread"""
+def _machine(gid):
+    """one thread on Python integers -> (its registers, get, ex)"""
     M = 0xFFFFFFFF
     R = {"R0": gid % 1024, "R1": gid // 1024, "R4": SEED, "R17": 0, "R19": 0, "RZ": 0}
     mem, farmem, G = [0] * 16, [0] * 16, [0, 0]
@@ -1185,6 +1217,30 @@ def _scalar(gid, pro, body, mode):
         else:
             raise RuntimeError(sem)
 
+    return R, get, ex
+
+
+def _scalar(gid, pro, body, mode):
+    """the same semantics on Python integers, one thread (a body with a warp shuffle: the thread and the lane it reads,
+    two interpreters in step)"""
+    sh = [i.sem for i in body if i.sem[0] == "shfl"]
+    if sh:
+        if mode == "stale" or len({x[3:] for x in sh}) != 1:
+            raise RuntimeError("scalar model: one kind of shuffle per body, modes good / late")
+        other = (gid ^ sh[0][4]) if sh[0][3] == "bfly" else ((gid & ~31) | sh[0][4])
+        ms = [_machine(g) for g in dict.fromkeys([gid, other])]      # (the source lane last)
+
+        def ex(sem):
+            if sem[0] == "shfl":      # all lanes at once: read every source first, then write
+                vals = [m[1](sem[2]) for m in ms]
+                for k, m in enumerate(ms):
+                    m[0][sem[1]] = vals[-1] if sem[3] == "idx" else vals[len(ms) - 1 - k]
+            else:
+                for m in ms:
+                    m[2](sem)
+        R = ms[0][0]
+    else:
+        R, _get, ex = _machine(gid)
     for i in pro:
         ex(i.sem)
     last_b = max((k for k, i in enumerate(body) if i.tag == "B"), default=-1)
@@ -1221,6 +1277,8 @@ def modes_of(req):
         if str(req.get("variant", "")).startswith(("hold_", "sens_")):
             return ["good", "drop1"]
         return ["good", "drop2"] if req.get("variant") == "gfalse" else ["good", "drop1", "drop2"]
+    if req["kind"] == "war" and req.get("store") in SHFL_STORES:
+        return ["good", "late"]      # (no read-back a late shuffle could come behind)
     return ["good", "stale"] if req["kind"] in ("raw", "ord") else ["good", "late", "overtake"]
 
 
@@ -1258,7 +1316,9 @@ def normalise(req):
     elif r.get("kind") == "war":
         if r.get("store") not in WAR_STORES or r.get("overwriter") not in WAR_STORES[r["store"]][0]:
             raise SystemExit(f"{r['id']}: store {r.get('store')!r} / overwriter {r.get('overwriter')!r} not in the catalogue (probe.py list)")
-        r.setdefault("distances", "1-15,18-75:3,90,105,150")
+        if r.get("read_barrier") not in (None, "set") or (r.get("read_barrier") and r["store"] not in SHFL_STORES):
+            raise SystemExit(f"{r['id']}: read_barrier is \"set\" (a shuffle that carries a read barrier nobody waits) or absent")
+        r.setdefault("distances", "1-30,45" if r["store"] in SHFL_STORES else "1-15,18-75:3,90,105,150")
         r.setdefault("controls", True)
         r.setdefault("control_distances", "1,6,15,30,60,105")
     elif r.get("kind") == "ord":
@@ -1343,6 +1403,10 @@ def pair_text(r):
                    else "; the younger load reads ANOTHER line of shared memory, 1 KB away" if r.get("far") else "")
                 + ({"true": "; the younger load under a guard that is TRUE", "false": "; the younger load under a guard that is FALSE (it does not happen)"}
                    .get(r.get("younger_guard"), "")) + ")")
+    if r["store"] in SHFL_STORES:
+        return (f"{r['store']} <- {r['overwriter']} (unwaited rewrite of the source register behind a warp shuffle"
+                + ("; the shuffle carries a read barrier that the overwriter does not wait" if r.get("read_barrier") == "set"
+                   else "; the shuffle carries no read barrier") + ")")
     return f"{r['store']} <- {r['overwriter']} (unwaited rewrite behind a bare store)"
 
 
@@ -1421,7 +1485,8 @@ def cmd_gen(args):
                         kernels.append({"name": name, "variant": v, "occupancy": occ, "front": front, "distance": dist,
                                         "ctas": ctas, "threads": threads, "smem": smem})
                         jobs.append((d, name))
-        late_delta = LATE_CONST if (r["kind"] == "war" and r["overwriter"] == "IADD3" and r["store"] in ("STS.data", "STG.data")) else None
+        late_delta = LATE_CONST if (r["kind"] == "war" and r["overwriter"] == "IADD3"
+                                    and r["store"] in ("STS.data", "STG.data") + SHFL_STORES) else None
         fam = {"request": r, "pair": pair_text(r), "provenance": prov, "kernels": kernels, "modes": modes_of(r), "late_delta": late_delta,
                "table_cell": table_cell(args.dep_table, r.get("cell"))}
         (d / "family.json").write_text(json.dumps(fam, indent=1) + "\n")
@@ -2017,6 +2082,7 @@ def cmd_list(_args):
     print("kind war - a register of a BARE store rewritten behind it:")
     for k, v in WAR_STORES.items():
         print(f"  store {k:12s} overwriters {', '.join(v[0])}: {v[2]}")
+    print("  a shuffle's source register: \"read_barrier\": \"set\" = the shuffle carries a read barrier in the bare variant too (the overwriter does not wait it)")
     print("kind mma - two tensor instructions of one warp, d issue cycles apart (form; variant; via stall | nop):")
     print("  forms: " + ", ".join(f"{k} = {v}" for k, v in MMA_FORMS.items()))
     for k, v in MMA_VARIANTS.items():
@@ -2090,6 +2156,19 @@ def cmd_selftest(_args):
         assert not np.array_equal(g, st), (older, younger, extra)
         n += 2
     assert misaligned("    [B------:R-:W-:-:S15] LDS.64 R29, [R9+0x20] ;") and not misaligned("    [B------:R-:W-:-:S15] LDS.64 R28, [R9+0x20] ;")
+    for st in SHFL_STORES:      # a shuffle moves data between lanes: lanes 0 / 1 (and 2 / 3) of a warp must not end alike
+        r = normalise({"id": "selftest", "kind": "war", "store": st, "overwriter": "IADD3", "read_barrier": "set"})
+        w = np.arange(64, dtype=np.int64)
+        g, lt = model(r, "good", gids=w), model(r, "late", gids=w)
+        assert not np.array_equal(g, lt), st
+        if st == "SHFL.IDX.src":      # every lane of a warp ends with lane 1's sum; two warps, two sums
+            assert len(set(int(x) for x in g[:32])) == 1 and len(set(int(x) for x in g)) == 2, st
+        else:                          # lanes 0 and 1 swap their sums
+            assert len(set(int(x) for x in g)) == 64 and int(g[0]) != int(g[1]), st
+        assert [int(x) for x in g] == model(r, "good", gids=w, scalar=True) and [int(x) for x in lt] == model(r, "late", gids=w, scalar=True), st
+        # every late iteration adds the overwriter's constant once, in every thread
+        assert all(int(x) == (REPEAT * LATE_CONST) & 0xFFFFFFFF for x in (lt - g)), st
+        n += 2
     for older, younger in ORD_PAIRS:
         r = normalise({"id": "selftest", "kind": "ord", "older": older, "younger": younger, "older_barrier": "same"})
         g, st = model(r, "good", gids=gids), model(r, "stale", gids=gids)

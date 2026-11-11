@@ -6,7 +6,7 @@ decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `
 
 ## Unreleased — 2026-11-11 (session SCH-4: the stall-floor probes on grids that hold two CTAs per SM and on production's card model in two clock states — tools and result files only, no source line changes)
 
-- **`tools/stallfloor/probe.py` 12 – 14.** The shared memory a probe kernel declares is per grid: `c2w9s` (49 152 B per CTA) and `c4w8`
+- **`tools/stallfloor/probe.py` 12 – 15.** The shared memory a probe kernel declares is per grid: `c2w9s` (49 152 B per CTA) and `c4w8`
   (24 576 B) really hold two and four CTAs per SM — `c2w9` never did (the label correction of the same day, KNOWN_ISSUES A31) —, and
   the runner records the launch → synchronize time per kernel, from which co-residency is read (`probe_sm120_20261111_b14.json`:
   376 CTAs take 246.7 µs with 65 536 B each and 129.0 µs with 49 152 B, against 128.5 µs for 188). **`probe.py run` refuses outside a
@@ -15,7 +15,8 @@ decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `
   (`nload`, `place`, `barrier`; the reader takes every register within N / 2 cycles of its wake-up; `barrier: none` is the positive
   control), two loads on ONE write barrier (`older_barrier: same`), the younger load on the same base register 0x200 away
   (`far: off`), a guarded younger load (`younger_guard`), pairs with `LDS.64` and `LDS.U16`; `gen` refuses a 64-bit data pair on an
-  odd register. Selftest 939 models.
+  odd register. Version 15: kind `war` learns the SOURCE register of a warp shuffle (`SHFL.BFLY.src`, `SHFL.IDX.src`; the host
+  model's new operation moves a register between lanes). Selftest 951 models.
 - **A write barrier counts its producers; the eight-load counter-example of the load batching did not reproduce; the allocator is
   unchanged** (KNOWN_ISSUES A32; `probe_sm120_20261111_b16.json`, `_b18.json`). A global and a shared load of one thread on one write
   barrier: 0 not right of 241 361 920 thread-launches per pair, while the same pair with the older load bare is not right in
@@ -30,6 +31,13 @@ decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `
   `power_median_w`, the clock percentiles and the state's name. The load family (`_b16`, `_b18`) and the grids of `_b14` read the
   same on both cards in both states. The fast state (busy clock mean ≥ 2 800 MHz) was reached on one of the two cards only. No
   table and no edition entry changes with these files.
+- **The source register of a warp shuffle has no safe distance without the wait** (KNOWN_ISSUES A34; `probe_sm120_20261111_b19.json`).
+  `SHFL.BFLY` / `SHFL.IDX` and an ALU rewrite of the source register 1 … 45 cycles behind it: with the read barrier on the shuffle
+  and the overwriter waiting it 0 not right of 447 078 400 thread-launches; the overwriter not waiting — right from 1 at one warp
+  per SM, not right in 83 – 100 % of the thread-launches at every distance at 8 warps per SM and in 33 – 59 % at 32, one late
+  iteration of 256 per wrong thread. Measured are the overwriter that waits nothing and the one that waits the read barrier; the
+  two other covers of vendor text (the shuffle's own write barrier, a younger shuffle's) are not. The allocator keeps a wait; the
+  verifier does not see it gone.
 
 ## Unreleased — 2026-11-11 (session T-28: a candidate schedule is held to its seed by the DISTANCE of every finding, not only by its key — `cubit legality-diff`; the mechanics of a 'silicon' edition of the sm_120 dependency table — opt-in by name, shipped with no entry; `cubit asm` refuses a kernel with a multi-register operand off its grid on sm_120 — BUG-488; `CUBIT_VERIFY`'s store-path walk follows a dispatch; `depdump --scheduler`; every other default path byte for byte)
 
