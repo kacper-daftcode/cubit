@@ -54,6 +54,7 @@ pub mod python;
 pub mod sass_file;
 pub mod sb_flow;
 pub mod sched;
+pub mod stall_lower;
 pub mod stallfix;
 pub mod store_paths;
 pub mod sync_class;

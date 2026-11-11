@@ -4,6 +4,42 @@ User-visible changes, newest first. Table syncs name the blackwell-isa revision 
 (`tables/SOURCE.json` pins it byte for byte). Numbered `BUG-NNN` entries are the encoder /
 decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `docs/TESTS.md`).
 
+## Unreleased — 2026-11-11 (`CUBIT_SCHED2_LOWER=1` — behind the legaliser the stalls no requirement asks for are taken back; opt-in on top of `CUBIT_SCHED2_MEMSTALL=table`, the default path and that variable's own schedules byte for byte without it)
+
+- **The passes that make a schedule legal only raise a stall, one requirement after another, and none looks back**
+  (KNOWN_ISSUES A46). The latency legaliser puts 13 cycles on the word in front of the second of two tensor instructions
+  for their spacing of 16; the operand hold then raises the first tensor instruction to 8 (a fixed-latency overwriter of its
+  fragment stands right behind it) — and the spacing is 22, six cycles of it asked for by nothing. On the vendor's own
+  texts those cycles were the largest single part of what cubit's schedule of a tensor loop stood above the vendor's.
+- **`CUBIT_SCHED2_LOWER=1` (with `CUBIT_SCHED2_MEMSTALL=table`; refused without, and for any value but `1`) runs a pass behind
+  the legaliser and the operand hold that takes a raise back as far as every requirement that spans the word keeps its
+  distance** (`src/stall_lower.rs`): the table's requirements on every path — the legaliser's own forward dataflow gives the
+  smallest elapsed distance of every reaching definition in front of a word, a backward dataflow what each still has to have
+  elapsed behind it, a stall goes down to the largest difference, and both are continued after every change; the operand
+  holds — a rewrite of ANY register a tensor instruction reads (the quads of its fragments and of its accumulator, its
+  uniform operands, its guard) keeps 8 issue cycles behind it whatever writes it, the uniform register of a store's address
+  7, a uniform-datapath reader's operand 3 against a `UMOV`, and a pair that stands closer today keeps what it has; and the
+  one distance the scoreboard simulation counts (the overwriter of a global load's address, 3). It never goes below the
+  stall a word had in front of the legaliser: a stall the first pass wrote is not this pass's. Behind it the legaliser and
+  the operand hold run once more and must have nothing to raise; the simulation's counts are compared in both views, and
+  if one moved the lowering is withdrawn. The yield flag of a lowered word is the first pass's where the stall is back at
+  its value, the legaliser's rule where it still carries a requirement.
+- **The vendor's texts, one pass of the tensor loop (static cycles; no schedule of this pass has been on a card):** fc1 / fc2
+  / the FZ form — the vendor 1 309 / 792 / 1 262; cubit under `CUBIT_SCHED2_MEMSTALL=table` 1 399 / 826 / 1 326; with `CUBIT_SCHED2_LOWER=1`
+  **1 319 / 805 / 1 289** (+6.9, +4.3, +5.1 % → +0.8, +1.6, +2.1 % against the vendor). Stall sums: 8 404 / 7 003 / 8 354 | 8 756 / 7 172 / 8 704 | 8 674 / 7 126 / 8 665.
+  Every count of every check is what it is without the variable — the simulation's three in three views, the path walks,
+  `CUBIT_DEP_VERIFY`'s four classes, the hold survey of the tensor instructions' fragments (0).
+- **Reach:** of cubit's schedules of the five served MoE kernels (persistent, fc1, fc2, m-tile fc1, m-tile fc2) under the
+  two variables the stall sums go 17 006 → 16 887, 8 756 → 8 674, 7 172 → 7 126, 15 161 → 14 753, 9 659 → 9 500; control words that differ: 33 (33 stalls, 2 yield flags, 0 reuse flags), 16 (16 stalls, 6 yield flags, 0 reuse flags), 16 (16 stalls, 5 yield flags, 2 reuse flags), 101 (101 stalls, 13 yield flags, 0 reuse flags), 48 (48 stalls, 10 yield flags, 4 reuse flags) — no wait
+  mask and no barrier. Of its schedules of the vendor's 749 census kernels 588 have a smaller stall sum, 161 the same,
+  none a larger one: 4 309 545 → 4 294 022 (−0.36 %; 6 224 words, 15 523 cycles); the legaliser raised nothing again and the
+  operand hold moved nothing in any of them, no lowering was withdrawn, no check count moved. **The attention source: nothing
+  to take back** — its legaliser ran one tight round and the operand hold moved nothing; the schedule under
+  `CUBIT_SCHED2_MEMSTALL=table` is byte for byte the same with and without the new variable.
+- Greedy: every word ends at its first-pass stall or at a requirement that is exactly met; what still stands above the
+  vendor's loop is what the table asks for (defaults for pairs without a cell, cells, the arming distance).
+- `tests/sched2_lower.rs` (3; 3 red before), unit tests of `stall_lower` (4).
+
 ## Unreleased — 2026-11-11 (the operand hold has a third reader: a fixed-latency rewrite of the uniform register of a store's address stands 7 issue cycles behind the store — under `CUBIT_SYNC_CLASSES` and `CUBIT_SCHED2_MEMSTALL=table`; the default path is not touched)
 
 - **A store reads the uniform register of its address — the descriptor of `STG.E desc[UR4][Ra.64], Rd`, the uniform base of

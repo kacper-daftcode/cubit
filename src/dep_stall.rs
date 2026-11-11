@@ -37,12 +37,12 @@ use crate::scheduling_pass as sp;
 use serde::Deserialize;
 use std::collections::{HashMap, HashSet};
 
-const KEY_PRED: u16 = 256; // == scheduling_pass::PRED_KEY
-const KEY_UNI: u16 = 300; // uniform registers 300..363, uniform predicates 364..370
-const KEY_RES: u16 = 400; // one pseudo-register per resource
-const KEY_BAR: u16 = 500; // the six scoreboards: set by a write / read barrier, used by a wait
+pub(crate) const KEY_PRED: u16 = 256; // == scheduling_pass::PRED_KEY
+pub(crate) const KEY_UNI: u16 = 300; // uniform registers 300..363, uniform predicates 364..370
+pub(crate) const KEY_RES: u16 = 400; // one pseudo-register per resource
+pub(crate) const KEY_BAR: u16 = 500; // the six scoreboards: set by a write / read barrier, used by a wait
 /// Distances are saturated here: no latency of the table is larger.
-const CAP: u8 = 63;
+pub(crate) const CAP: u8 = 63;
 const MAX_STALL: u8 = 15;
 
 #[derive(Debug, Clone, Deserialize)]
@@ -706,16 +706,16 @@ fn key_of(uniform: bool, k: u16) -> u16 {
 }
 
 /// One reaching definition: (key, defining instruction, minimum elapsed issue cycles).
-type Entry = (u16, u32, u8);
+pub(crate) type Entry = (u16, u32, u8);
 
-struct Flow {
-    succ: Vec<Vec<usize>>,
-    pred: Vec<Vec<usize>>,
+pub(crate) struct Flow {
+    pub(crate) succ: Vec<Vec<usize>>,
+    pub(crate) pred: Vec<Vec<usize>>,
     /// i -> i + 1 is an execution edge
-    falls: Vec<bool>,
+    pub(crate) falls: Vec<bool>,
 }
 
-fn build_flow(insns: &[Instruction]) -> Flow {
+pub(crate) fn build_flow(insns: &[Instruction]) -> Flow {
     let n = insns.len();
     // CUBIT_SYNC_CLASSES: the control-flow graph of nvcc's layout (`cfg_flow`): `BRA.DIV` falls
     // through, a register-indirect dispatch reaches its case blocks -- with the text walk below
@@ -766,19 +766,19 @@ fn build_flow(insns: &[Instruction]) -> Flow {
     Flow { succ, pred, falls }
 }
 
-struct Sem {
+pub(crate) struct Sem {
     /// (key, role-independent) keys read / written by the instruction
-    uses: Vec<u16>,
-    defs: Vec<u16>,
-    guarded: bool,
-    res_uses: Vec<usize>,
-    res_defs: Vec<usize>,
+    pub(crate) uses: Vec<u16>,
+    pub(crate) defs: Vec<u16>,
+    pub(crate) guarded: bool,
+    pub(crate) res_uses: Vec<usize>,
+    pub(crate) res_defs: Vec<usize>,
     /// scoreboards the instruction waits on / sets (write or read barrier)
-    bar_uses: Vec<u8>,
-    bar_defs: Vec<u8>,
+    pub(crate) bar_uses: Vec<u8>,
+    pub(crate) bar_defs: Vec<u8>,
 }
 
-fn semantics(insns: &[Instruction], t: &DepLatTable) -> Vec<Sem> {
+pub(crate) fn semantics(insns: &[Instruction], t: &DepLatTable) -> Vec<Sem> {
     insns
         .iter()
         .map(|ins| {
@@ -830,23 +830,25 @@ fn semantics(insns: &[Instruction], t: &DepLatTable) -> Vec<Sem> {
         .collect()
 }
 
+/// Does the instruction end the reaching definitions of key `k` that enter it (`transfer`)?
+pub(crate) fn ends_key(sem: &Sem, k: u16) -> bool {
+    if k >= KEY_BAR {
+        // the barrier is re-set, or waited (its setter is then complete: nothing left to arm)
+        let b = (k - KEY_BAR) as u8;
+        sem.bar_defs.contains(&b) || sem.bar_uses.contains(&b)
+    } else if k >= KEY_RES {
+        sem.res_defs.contains(&((k - KEY_RES) as usize)) && !sem.guarded
+    } else {
+        sem.defs.contains(&k) && !sem.guarded
+    }
+}
+
 /// OUT state of instruction `i` from its IN state: its own definitions (a guarded write
 /// does not kill the older ones), then every distance advanced by its stall.
-fn transfer(i: usize, st: &[Entry], sem: &Sem, stall: u8) -> Vec<Entry> {
+pub(crate) fn transfer(i: usize, st: &[Entry], sem: &Sem, stall: u8) -> Vec<Entry> {
     let mut out: Vec<Entry> = Vec::with_capacity(st.len() + sem.defs.len() + sem.res_defs.len());
-    let kills = |k: u16| -> bool {
-        if k >= KEY_BAR {
-            // the barrier is re-set, or waited (its setter is then complete: nothing left to arm)
-            let b = (k - KEY_BAR) as u8;
-            sem.bar_defs.contains(&b) || sem.bar_uses.contains(&b)
-        } else if k >= KEY_RES {
-            sem.res_defs.contains(&((k - KEY_RES) as usize)) && !sem.guarded
-        } else {
-            sem.defs.contains(&k) && !sem.guarded
-        }
-    };
     for e in st {
-        if !kills(e.0) {
+        if !ends_key(sem, e.0) {
             out.push(*e);
         }
     }
@@ -872,7 +874,7 @@ fn transfer(i: usize, st: &[Entry], sem: &Sem, stall: u8) -> Vec<Entry> {
 }
 
 /// Pointwise minimum-merge of `b` into `a` (both sorted by (key, def)); true when `a` changed.
-fn merge(a: &mut Vec<Entry>, b: &[Entry]) -> bool {
+pub(crate) fn merge(a: &mut Vec<Entry>, b: &[Entry]) -> bool {
     let mut changed = false;
     let mut out: Vec<Entry> = Vec::with_capacity(a.len().max(b.len()));
     let (mut i, mut j) = (0, 0);
@@ -898,12 +900,12 @@ fn merge(a: &mut Vec<Entry>, b: &[Entry]) -> bool {
     changed
 }
 
-struct Analysis {
+pub(crate) struct Analysis {
     /// IN state per instruction (None = unreachable)
-    ins: Vec<Option<Vec<Entry>>>,
+    pub(crate) ins: Vec<Option<Vec<Entry>>>,
 }
 
-fn analyse(insns: &[Instruction], flow: &Flow, sem: &[Sem]) -> Analysis {
+pub(crate) fn analyse(insns: &[Instruction], flow: &Flow, sem: &[Sem]) -> Analysis {
     let n = insns.len();
     let mut st: Vec<Option<Vec<Entry>>> = vec![None; n];
     if n == 0 {
@@ -961,18 +963,18 @@ pub struct Report {
     pub frozen_pairs: usize,
 }
 
-struct Need {
-    key: u16,
-    def: usize,
-    need: u8,
-    kind: &'static str,
-    res: Option<usize>,
+pub(crate) struct Need {
+    pub(crate) key: u16,
+    pub(crate) def: usize,
+    pub(crate) need: u8,
+    pub(crate) kind: &'static str,
+    pub(crate) res: Option<usize>,
     /// priced with a default: no cell of the table names the pair
-    defaulted: bool,
+    pub(crate) defaulted: bool,
 }
 
 /// Every requirement instruction `c` puts on the reaching definitions in `st`.
-fn needs_of(
+pub(crate) fn needs_of(
     insns: &[Instruction],
     sem: &[Sem],
     t: &DepLatTable,
@@ -1053,7 +1055,7 @@ fn needs_of(
     out
 }
 
-fn elapsed_in(st: &[Entry], key: u16, def: usize) -> Option<u8> {
+pub(crate) fn elapsed_in(st: &[Entry], key: u16, def: usize) -> Option<u8> {
     st.binary_search_by(|e| (e.0, e.1).cmp(&(key, def as u32))).ok().map(|i| st[i].2)
 }
 

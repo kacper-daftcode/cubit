@@ -4690,6 +4690,12 @@ fn cmd_asm_directive_format(
             ),
             Ok(_) => {}
         }
+        // CUBIT_SCHED2_LOWER=1 (opt-in, on top of CUBIT_SCHED2_MEMSTALL=table): behind the legaliser and
+        // the operand hold, the stalls that no requirement asks for are taken back (`stall_lower`).
+        let lower_stalls = match cubit::stall_lower::request() {
+            Err(e) => anyhow::bail!(e),
+            Ok(v) => v,
+        };
         // ... and with the margins gone, the two distances they kept by accident are requirements by
         // name, as under CUBIT_SYNC_CLASSES: what has to have landed in front of `EXIT` and the other
         // settle words (the legaliser's landing rows), and the operand hold of an MMA and of a
@@ -4697,6 +4703,11 @@ fn cmd_asm_directive_format(
         let mem_table = cubit::scheduling_pass::mem_stall_from_table();
         if let Some(dt) = dep_table.as_mut() {
             dt.landing_rows = mem_table;
+        }
+        if lower_stalls && !mem_table {
+            anyhow::bail!(
+                "CUBIT_SCHED2_LOWER=1 needs CUBIT_SCHED2_MEMSTALL=table (with CUBIT_SCHED2=1 CUBIT_SCHED2_LAT=<table>): the pass takes back what the legaliser raised, and only under that variable every distance of the schedule has its requirement by name"
+            );
         }
         if let Some(dt) = &dep_table {
             // arch lock: latencies are measured per architecture (an sm_103a number is not an sm_120 number)
@@ -5571,6 +5582,8 @@ fn cmd_asm_directive_format(
                 }
             }
             if let Some(dt) = &dep_table {
+                // CUBIT_SCHED2_LOWER: what every word carries in front of the raising passes
+                let before_raises = lower_stalls.then(|| cubit::stall_lower::snapshot(&insns_with_ctrl));
                 let rep = cubit::dep_stall::apply(&mut insns_with_ctrl, dt);
                 println!(
                     "  {}: dep-latency ({}): {} stalls raised by {} cycles in {} rounds, {} pair classes priced with a default{}",
@@ -5590,6 +5603,33 @@ fn cmd_asm_directive_format(
                     anyhow::bail!(
                         "{}: {} fixed-latency dependencies cannot be reached with stalls on the instructions between producer and consumer (padding needed)",
                         def.name, rep.unresolved.len()
+                    );
+                }
+                // CUBIT_SCHED2_LOWER=1: the operand hold runs here (it has nothing left to do at its own
+                // place further down), then the stalls no requirement asks for are taken back; the
+                // read-only reports below see the schedule as it is written.
+                if let Some(before) = &before_raises {
+                    let raised: Vec<u8> = insns_with_ctrl.iter().map(|x| x.ctrl.stall).collect();
+                    let (moved, cycles) = cubit::sync_class::hold_operands(&mut insns_with_ctrl);
+                    if moved > 0 {
+                        println!("  {}: {} overwriters moved behind the operand hold of their reader ({} cycles)", def.name, moved, cycles);
+                    }
+                    let lr = cubit::stall_lower::run(&mut insns_with_ctrl, dt, Some(table), before, &raised);
+                    println!(
+                        "  {}: stall lowering: {} of {} raised word(s) lowered by {} cycles ({} operand-hold and {} simulation distances kept by name); behind it the legaliser raised {} stall(s) by {} cycle(s) and the operand hold moved {} overwriter(s){}",
+                        def.name,
+                        lr.lowered,
+                        lr.candidates,
+                        lr.cycles,
+                        lr.hold_spans,
+                        lr.sim_spans,
+                        lr.guard_raised,
+                        lr.guard_cycles,
+                        lr.guard_hold,
+                        match &lr.withdrawn {
+                            Some(why) => format!(" -- WITHDRAWN, the schedule is the legaliser's: {why}"),
+                            None => String::new(),
+                        }
                     );
                 }
             }

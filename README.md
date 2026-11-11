@@ -96,7 +96,11 @@ of a memory word, as ptxas writes it); the landing rows in front of `EXIT` and t
 those margins had kept by accident, become requirements by name, and the retirement stall of a recycled barrier
 (`CUBIT_RECYCLE_DRAIN`) stays only where the final allocation sets a barrier over producers in flight that are not a
 measured set. On the attention kernel one pass of the loop goes from 3 134 to 2 804 static cycles
-with every check clean — not measured on silicon yet (KNOWN_ISSUES A38). All of these are opt-in and for
+with every check clean — not measured on silicon yet (KNOWN_ISSUES A38). `CUBIT_SCHED2_LOWER=1` (on top of
+`CUBIT_SCHED2_MEMSTALL=table`; refused without) runs a pass behind the legaliser and the operand hold that takes back the stalls
+no requirement asks for — the passes only raise, and a raise that a later one covers stayed: on the vendor's texts of a served
+module one pass of the tensor loop goes from 1 399 / 826 / 1 326 to 1 319 / 805 / 1 289 static cycles (the vendor's own schedules:
+1 309 / 792 / 1 262) with every check as before; the attention kernel has nothing to take back. Not measured on silicon (KNOWN_ISSUES A46). All of these are opt-in and for
 sm_120, and the table is a `cubit asm` feature: `cubit::assemble` and the Python module do not honour
 `CUBIT_SCHED2_LAT` (they have no legaliser behind the passes; under plain `CUBIT_SCHED2` they run the
 scoreboard arming rule). They are certified on hand-written kernels: `cubit asm` names the instructions whose

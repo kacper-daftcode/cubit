@@ -3423,7 +3423,7 @@ fn try_make_waitable(insn: &mut Instruction) -> bool {
 /// (register-indirect / addr-missing targets are excluded -- the verifier
 /// flags those loudly, BUG-347). `ltop[i]`/`lback[i]` = innermost enclosing
 /// resolved loop for instruction i (usize::MAX when outside any).
-fn resolved_back_edges(insns: &[Instruction]) -> (Vec<(usize, usize)>, Vec<usize>, Vec<usize>) {
+pub(crate) fn resolved_back_edges(insns: &[Instruction]) -> (Vec<(usize, usize)>, Vec<usize>, Vec<usize>) {
     use std::collections::HashMap;
     let n = insns.len();
     let mut addr2idx: HashMap<u32, usize> = HashMap::new();
@@ -4800,6 +4800,44 @@ fn sb_step(
 
 fn run_verify(insns: &[Instruction], table: Option<&IsaTable>, print: bool, rb_probe: bool) -> VerifyReport {
     run_verify_keys(insns, table, print, rb_probe).0
+}
+
+/// The three counts of the scoreboard simulation alone (unprotected RAW, broken WAR,
+/// recycle-stale; `rb_probe`: the read-barrier probe's view) -- the linear pass and the wrap
+/// re-walks of [`run_verify_keys`] without its walks of the flow graph and without printing.
+/// For a pass that changes stalls only and has to show that these counts did not move
+/// (`stall_lower`): of the simulation only the issue distance of a load's address overwriter
+/// reads the stalls.
+pub(crate) fn sim_counts(insns: &[Instruction], table: Option<&IsaTable>, rb_probe: bool) -> [usize; 3] {
+    use std::collections::{HashMap, HashSet};
+    let mut rep = VerifyReport::default();
+    let mut seen: HashSet<(u8, usize, usize, u16)> = HashSet::new();
+    let (edges, _, _) = resolved_back_edges(insns);
+    let mut back2edge: HashMap<usize, usize> = HashMap::new();
+    for (ei, &(_, b)) in edges.iter().enumerate() {
+        back2edge.insert(b, ei);
+    }
+    let mut snaps: Vec<Option<SbState>> = vec![None; edges.len()];
+    let mut st = SbState::default();
+    for i in 0..insns.len() {
+        sb_step(insns, i, table, &mut st, &mut rep, &mut seen, None, false, rb_probe);
+        if let Some(&ei) = back2edge.get(&i) {
+            snaps[ei] = Some(st.clone());
+        }
+    }
+    let mut order: Vec<usize> = (0..edges.len()).collect();
+    order.sort_by_key(|&ei| edges[ei].1 - edges[ei].0);
+    for ei in order {
+        let Some(snap) = snaps[ei].take() else {
+            continue;
+        };
+        let (top, back) = edges[ei];
+        let mut wst = snap;
+        for i in top..=back {
+            sb_step(insns, i, table, &mut wst, &mut rep, &mut seen, Some((top, back)), false, rb_probe);
+        }
+    }
+    [rep.raw, rep.war, rep.recycle]
 }
 
 /// `run_verify` with the keys of its findings: (kind, at, other, register) -- kind 0 an unprotected
