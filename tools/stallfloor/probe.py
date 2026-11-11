@@ -53,6 +53,11 @@ IMAD.r2, SHF.r3, IADD.r1, IADD.r2; producers MOV.fin, MOV.pow2, IABS; `"result":
 register of a pair producer (CS2R, IADD.64, IMAD.WIDE); `"salt": "set"` = the iteration's input is added to the checksum
 behind the consumer (a producer of zeros must not leave the checksum of a kernel that never ran).
     {"id": "pd_cs2r_fmul_r2h", "kind": "raw", "producer": "CS2R", "consumer": "FMUL.r2", "result": 1, "salt": "set", "distances": "1-8,11,26"}
+
+Version 23 - kind `ord`, SETS of producers on one write barrier: `forms` takes, beside s | u | d | q, the letters G (LDG.E),
+Q (LDG.E.128), B (LDG.E.U8), c (LDC), C (LDC.64), m (MUFU.EX2), h (SHFL.BFLY); such a request has 2 .. 17 producers, its
+kernels declare R0-R79 (.regcount 88) and run on grids of at most 744 threads per SM.
+    {"id": "gs17_all", "kind": "ord", "forms": "gQ,gB,gQ,gB,gQ,gB,gQ,gB,gQ,gB,gQ,gB,gQ,gB,gQ,gB,gG", "barrier": "all", "yield": "set"}
 """
 from __future__ import annotations
 
@@ -69,7 +74,7 @@ import subprocess
 import sys
 import time
 
-TOOL = "probe.py 22 (2026-11-11)"
+TOOL = "probe.py 23 (2026-11-11)"
 HERE = pathlib.Path(__file__).resolve().parent
 SEED = 0x12345
 REPEAT = 256
@@ -328,6 +333,8 @@ def shfl_of(req):
             return "bfly"
     if req.get("kind") == "ord" and req.get("older") == "SHFL":
         return "bfly"
+    if req.get("kind") == "ord" and req.get("forms") and any(t.strip() == "h" for t in str(req["forms"]).split(",")):
+        return "bfly"      # version 23: a SHFL.BFLY among the producers of a set
     return None
 LATE_CONST = 0x9e3779b1      # odd: (checksum - good) / LATE_CONST = the number of iterations in which the store took the rewritten data
 FRONT_RE = re.compile(r"(sts128|sts|stg)x(\d+)@(\d+)")
@@ -532,6 +539,73 @@ def smem_of(req, occ):
 # version 21 - N loads of MIXED forms. letter: (mnemonic, registers, bytes of the thread's line it takes)
 ORDN_FORM = {"s": ("LDS", 1, 4), "u": ("LDS.U16", 1, 4), "d": ("LDS.64", 2, 8), "q": ("LDS.128", 4, 16)}
 ORDN_DEST = [24, 25, 26, 27, 28, 29, 30, 31, 16, 17, 18, 19, 14, 7]      # destination registers in this order (temporaries: R6 R8 R12 R13)
+# version 23 - SETS of producers on ONE write barrier (the shapes of an attention kernel): letter: (mnemonic,
+# registers). A request with one of these letters is a SET request: its kernels declare R0-R79 (.regcount 88).
+SET_FORM = {"G": ("LDG.E", 1), "Q": ("LDG.E.128", 4), "B": ("LDG.E.U8", 1), "c": ("LDC", 1), "C": ("LDC.64", 2),
+            "m": ("MUFU.EX2", 1), "h": ("SHFL.BFLY", 1),
+            "M": ("LDSM.16.M88.4", 4)}      # (second build) only as the set M,s,s: the reader is an HMMA of the LDSM's quad and the two LDS
+SET_NAMES = {"s": "LDS", "u": "LDS.U16", "d": "LDS.64", "q": "LDS.128", "G": "LDG.E", "Q": "LDG.E.128", "B": "LDG.E.U8",
+             "c": "LDC", "C": "LDC.64", "m": "MUFU.EX2", "h": "SHFL.BFLY",
+             "M": "LDSM.16.M88.4 [the A fragment of the reader HMMA.16816.F32.BF16; the two LDS behind it are its B fragment]"}
+SET_REGS = 80            # R0-R79; .regcount SET_REGS + 8
+SET_HSRC = 73            # the shuffle's source (written every iteration)
+SET_MSRC, SET_MREF = 74, 75      # the MUFU's source and the reference of its result (prologue)
+SET_ABASE = 76           # R76:R77 = the address of the first B word of the thread's warp (prologue; never rewritten)
+SET_CBASE = 78           # (third build) cold: R78:R79 = the address of this iteration's lines; only R78 (the LOW word) is written in the loop
+SET_COLD_OCC = ("w1", "w2", "w4", "w8", "w9", "w12", "w16", "c2w9s")      # >= 256 blocks of 4 096 B in the buffer, a tail of >= 2 048 B behind the threads' words
+SET_REL = [24, 25, 26, 27, 28, 29, 30, 31]      # temporaries of the relative readers
+SET_OCC = ("w1", "w2", "w4", "w8", "w9", "w12", "w16", "g8", "c2w9s")      # threads per SM x 88 registers <= 65 536, the label true
+
+
+def is_set(req):
+    """version 23: a request of kind ord whose `forms` name a producer that is not a shared load of the thread's line"""
+    return bool(req.get("kind") == "ord" and req.get("forms")
+                and any(t.strip()[-1:] in SET_FORM for t in str(req["forms"]).split(",")))
+
+
+def set_nreg(let):
+    return SET_FORM[let][1] if let in SET_FORM else ORDN_FORM[let][1]
+
+
+def set_plan(req):
+    """the producers of a SET request, oldest first: [(guard, letter, first destination register, aux)]; aux = the byte
+    offset in the thread's line (s u d q), the quad of the warp's B words (Q: 0..7), the byte of the warp's 128 B bytes
+    (B), else None. Destinations R32 .. R72: the quads first, then the pairs, then the singles, each in the order of the
+    producers."""
+    toks = []
+    for t in [x.strip() for x in str(req["forms"]).split(",")]:
+        g = "g" if (t[:1] == "g" and len(t) > 1) else ""
+        let = t[len(g):]
+        if let not in SET_FORM and let not in ORDN_FORM:
+            raise SystemExit(f"{req.get('id')}: forms token {t!r}: s | u | d | q | G | Q | B | c | C | m | h with an optional prefix g on a load")
+        if g and let in ("c", "C", "m", "h", "M"):
+            raise SystemExit(f"{req.get('id')}: forms token {t!r}: the guard is for a load (s u d q G Q B)")
+        toks.append((g, let))
+    if any(let == "M" for _g, let in toks) and toks != [("", "M"), ("", "s"), ("", "s")]:
+        raise SystemExit(f"{req.get('id')}: LDSM stands only in the tensor set M,s,s (LDSM + LDS + LDS, the reader an HMMA)")
+    regof, reg = {}, 32
+    for width in (4, 2, 1):
+        for k, (_g, let) in enumerate(toks):
+            if set_nreg(let) == width:
+                regof[k] = reg
+                reg += width
+    if reg > SET_HSRC:
+        raise SystemExit(f"{req.get('id')}: the destinations of the set do not fit R32..R{SET_HSRC - 1}")
+    plan, off, nq, nb = [], 0, 0, 0
+    for k, (g, let) in enumerate(toks):
+        aux = None
+        if let in ORDN_FORM:
+            nbytes = ORDN_FORM[let][2]
+            off = (off + nbytes - 1) // nbytes * nbytes
+            if off + nbytes > 64:
+                raise SystemExit(f"{req.get('id')}: the shared loads do not fit the thread's 64 bytes")
+            aux, off = off, off + nbytes
+        elif let == "Q":
+            aux, nq = nq % 8, nq + 1
+        elif let == "B":
+            aux, nb = (17 * nb + 5) % 128, nb + 1
+        plan.append((g, let, regof[k], aux))
+    return plan
 
 
 def ordn_plan(req):
@@ -569,6 +643,8 @@ def ordn_plan(req):
 
 def ordn_no_gaddr(req):
     """a mixed N-load request whose loads write R16..R19: its prologue leaves the global addresses (and the store through them) out"""
+    if is_set(req):      # version 23: the destinations of a set are R32..
+        return False
     return bool(req.get("kind") == "ord" and req.get("forms")
                 and any(16 <= reg + k <= 19 for _g, let, reg, _o in ordn_plan(req) for k in range(ORDN_FORM[let][1])))
 
@@ -636,6 +712,163 @@ def body_ordn_mixed(req, d, front, variant):
     return b
 
 
+def body_set_mma(req, d, front, variant):
+    """version 23 - the tensor set of an attention kernel: LDSM.16.M88.4 + LDS + LDS
+    on ONE write barrier, and ONE wait on the reader - an HMMA.16816.F32.BF16 whose A fragment is the LDSM's quad and
+    whose B fragment is the two LDS registers. Slot 3 and slot 2 of every thread's line hold the code of 1.0 in every
+    element (prologue), so both fragments are uniform whatever the matrix layout is; until its producer lands every
+    destination holds the code of 2.0 - a stale fragment gives another, still exact, result. Accumulators as in kind mma
+    (integer-valued floats: the result is an integer add on the bit pattern)."""
+    (_g0, _l0, qa, _a0), (_g1, _l1, bl, _a1), (_g2, _l2, bu, _a2) = set_plan(req)
+    assert qa % 4 == 0 and bl % 2 == 0 and bu == bl + 1
+    bar = req["barrier"]
+    ys = int(req.get("younger_stall", 2))
+    ctl = variant == "ctl"
+    y = req.get("yield") == "set"
+    fn = "HMMA.BF16"
+    sp = MMA_SPEC[fn]
+    two = sp["a0"] + sp["da"]
+    assert two == sp["b2"] and sp["a0"] == sp["b1"]
+    b = [Ins("LOP3.LUT R28, R4, 0x3fffff, RZ, 0xc0, !PT ;", ("and", "R28", "R4", 0x3fffff)),
+         Ins("LOP3.LUT R28, R28, 0x4b000000, RZ, 0xfc, !PT ;", ("or", "R28", "R28", 0x4b000000)),
+         Ins("IADD3 R29, PT, PT, R28, 0x1, RZ ;", ("add", "R29", "R28", 1)), Ins("IADD3 R30, PT, PT, R28, 0x2, RZ ;", ("add", "R30", "R28", 2)),
+         Ins("IADD3 R31, PT, PT, R28, 0x3, RZ ;", ("add", "R31", "R28", 3))]
+    b += [Ins(f"MOV R{r}, 0x{two:x} ;", ("mov", f"R{r}", two)) for r in (qa, qa + 1, qa + 2, qa + 3, bl, bu)]
+    b += front_ins(front, False)
+    # (the model's LDSM: four words of the thread's slot 3 - right because every element of every lane's slot 3 is the same code)
+    prods = [(f"LDSM.16.M88.4 R{qa}, [R9+0x30] ;", ("lds", f"R{qa}", "R9", 0x30, 4), [f"R{qa + j}" for j in range(4)]),
+             (f"LDS R{bl}, [R9+0x20] ;", ("lds", f"R{bl}", "R9", 0x20, 1), [f"R{bl}"]),
+             (f"LDS R{bu}, [R9+0x24] ;", ("lds", f"R{bu}", "R9", 0x24, 1), [f"R{bu}"])]
+    for k, (text, sem, dst) in enumerate(prods):
+        last = k == len(prods) - 1
+        if ctl:
+            b.append(Ins(text, sem, ctl=C(1, wb="0", y=y), tag="P", dst=dst))
+            b.append(Ins("IADD3 R15, PT, PT, R15, 0x1, RZ ;", ("nop",), ctl=C(ys if last else d, wait="0")))
+        else:
+            wb = "1" if (bar != "none" and (last or bar == "all")) else "-"
+            b.append(Ins(text, sem, ctl=C(ys if last else d, wb=wb, y=y), tag="P", dst=dst))
+    cw = "0" if ctl else "" if bar == "none" else "1"
+    b.append(Ins(f"{MMA_FORMS[fn]} R28, R{qa}, R{bl}, R28 ;", ("qmma", "R28", f"R{qa}", f"R{bl}", None, fn), ctl=C(wait=cw), tag="C"))
+    b += [PAD(), PAD(), PAD()]
+    for t, sem in (("IMAD R8, R29, 0x3, R28 ;", ("mad", "R8", "R29", 3, "R28")), ("IMAD R8, R30, 0x5, R8 ;", ("mad", "R8", "R30", 5, "R8")),
+                   ("IMAD R8, R31, 0x7, R8 ;", ("mad", "R8", "R31", 7, "R8")), ("IADD3 R10, PT, PT, R10, R8, RZ ;", ("add", "R10", "R10", "R8"))):
+        b.append(Ins(t, sem))
+    return b
+
+
+def body_set(req, d, front, variant):
+    """version 23 - a SET of producers of one thread in flight, d issue cycles apart, ONE wait of the reader (`barrier`
+    all = every producer sets the SAME write barrier, none = the positive control: no barrier and no wait, last = only
+    the youngest; variant ctl: every producer on its own barrier with its own wait). Every destination register holds a
+    marker that changes each iteration until its producer lands. The reader takes one register of every producer
+    first - the youngest producer first, three a word, one issue cycle apart, the first word on the wait - then the
+    other registers of the pairs and quads. A register whose content the host cannot know (LDC.64 of the output
+    pointer, MUFU.EX2) is read as (register - its reference): 0 when the producer has landed."""
+    plan = set_plan(req)
+    if any(let == "M" for _g, let, _r, _a in plan):
+        return body_set_mma(req, d, front, variant)
+    n, bar = len(plan), req["barrier"]
+    ys = int(req.get("younger_stall", 2))
+    ctl = variant == "ctl"
+    y = req.get("yield") == "set"
+    b = [Ins(f"MOV R{reg + j}, R5 ;", ("mov", f"R{reg + j}", "R5")) for _g, let, reg, _a in plan for j in range(set_nreg(let))]
+    cold = req.get("cold") == "set"
+    if cold:
+        # (third build) the lines of this iteration: the tail (behind the threads' words) of block (b & 0xff) of the output
+        # buffer, b = the iteration's second input - another block for every lane and every iteration. R76:R77 = the tail of
+        # block 0 (prologue); only the LOW word R78 is written here (R79 = R77 since the prologue): a stale or torn address is
+        # still a tail inside the buffer. Quad k at +128 k, byte m at +0x400 + 64 m (+ a byte), the word at +0x600.
+        b += [Ins("LOP3.LUT R13, R5, 0xff, RZ, 0xc0, !PT ;", ("and", "R13", "R5", 0xff)),
+              Ins("SHF.L.U32 R13, R13, 0xc, RZ ;", ("shl", "R13", "R13", 12)),
+              Ins(f"IADD3 R{SET_CBASE}, PT, PT, R13, R{SET_ABASE}, RZ ;", ("nop",))]
+    nbyte = 0
+    if any(let == "h" for _g, let, _r, _a in plan):
+        b.append(Ins(f"IMAD R{SET_HSRC}, R5, 0x3, R4 ;", ("mad", f"R{SET_HSRC}", "R5", 3, "R4")))
+    b += front_ins(front, False)
+    for k, (g, let, reg, aux) in enumerate(plan):
+        last = k == n - 1
+        gp = "@P0 " if g else ""
+        nreg = set_nreg(let)
+        if let == "u":
+            text, sem = f"{gp}LDS.U16 R{reg}, [R9{('+0x%x' % aux) if aux else ''}] ;", ("ldsu16", f"R{reg}", "R9", aux)
+        elif let in ORDN_FORM:
+            text, sem = f"{gp}{ORDN_FORM[let][0]} R{reg}, [R9{('+0x%x' % aux) if aux else ''}] ;", ("lds", f"R{reg}", "R9", aux, nreg)
+        elif let == "G" and cold:
+            text, sem = f"{gp}LDG.E R{reg}, desc[UR4][R{SET_CBASE}.64+0x600] ;", ("zeron", f"R{reg}", 1)
+        elif let == "Q" and cold:
+            text, sem = f"{gp}LDG.E.128 R{reg}, desc[UR4][R{SET_CBASE}.64{('+0x%x' % (128 * aux)) if aux else ''}] ;", ("zeron", f"R{reg}", 4)
+        elif let == "B" and cold:
+            text, sem = f"{gp}LDG.E.U8 R{reg}, desc[UR4][R{SET_CBASE}.64+0x{0x400 + 64 * nbyte + aux % 64:x}] ;", ("zeron", f"R{reg}", 1)
+            nbyte += 1
+        elif let == "G":
+            text, sem = f"{gp}LDG.E R{reg}, desc[UR4][R18.64] ;", ("ldg", f"R{reg}", "R18")
+        elif let == "Q":
+            text, sem = f"{gp}LDG.E.128 R{reg}, desc[UR4][R{SET_ABASE}.64{('+0x%x' % (16 * aux)) if aux else ''}] ;", ("ldgq", f"R{reg}", aux)
+        elif let == "B":
+            text, sem = f"{gp}LDG.E.U8 R{reg}, desc[UR4][R{SET_ABASE}.64+0x{aux:x}] ;", ("ldgb", f"R{reg}", aux)
+        elif let == "c":
+            text, sem = f"LDC R{reg}, c[0x0][0x388] ;", ("mov", f"R{reg}", SEED)
+        elif let == "C":
+            text, sem = f"LDC.64 R{reg}, c[0x0][0x380] ;", ("mov2", f"R{reg}", "R2")
+        elif let == "m":
+            text, sem = f"MUFU.EX2 R{reg}, R{SET_MSRC} ;", ("mov", f"R{reg}", f"R{SET_MREF}")
+        else:
+            text, sem = f"SHFL.BFLY PT, R{reg}, R{SET_HSRC}, 0x1, 0x1f ;", ("shfl", f"R{reg}", f"R{SET_HSRC}", "bfly", 1)
+        dst = [f"R{reg + j}" for j in range(nreg)]
+        if ctl:
+            b.append(Ins(text, sem, ctl=C(1, wb="0", y=y), tag="P", dst=dst))
+            b.append(Ins("IADD3 R15, PT, PT, R15, 0x1, RZ ;", ("nop",), ctl=C(ys if last else d, wait="0")))
+        else:
+            wb = "1" if (bar != "none" and (last or bar == "all")) else "-"
+            b.append(Ins(text, sem, ctl=C(ys if last else d, wb=wb, y=y), tag="P", dst=dst))
+    cw = "0" if ctl else "" if bar == "none" else "1"
+
+    def ref(let, j):
+        return (2 + j) if let == "C" else SET_MREF if let == "m" else None
+
+    items = [(reg, ref(let, 0)) for _g, let, reg, _a in reversed(plan)]
+    items += [(reg + j, ref(let, j)) for _g, let, reg, _a in reversed(plan) for j in range(1, set_nreg(let))]
+    tmp = ["R6", "R8", "R12", "R13"]
+    words, i, pw, rw = [], 0, 0, 0
+    while i < len(items):
+        if items[i][1] is not None:      # a relative reader: its own temporary
+            words.append((f"R{SET_REL[rw]}", None, [items[i]]))
+            rw += 1
+            i += 1
+            continue
+        acc = None if pw < 4 else tmp[pw % 4]
+        grp = []
+        while i < len(items) and items[i][1] is None and len(grp) < (2 if acc else 3):
+            grp.append(items[i])
+            i += 1
+        words.append((tmp[pw % 4], acc, grp))
+        pw += 1
+    if not pw:
+        raise SystemExit(f"{req.get('id')}: a set needs one producer whose content the host knows")
+    for k, (t, acc, grp) in enumerate(words):
+        ct = C(1, wait=cw) if k == 0 else C(1)
+        if grp[0][1] is not None:
+            r, rf = grp[0]
+            b.append(Ins(f"IADD3 {t}, PT, PT, R{r}, -R{rf}, RZ ;", ("rsub", t, f"R{rf}", f"R{r}"), ctl=ct, tag="C"))
+            continue
+        srcs = ([acc] if acc else []) + [f"R{r}" for r, _f in grp]
+        if len(srcs) == 3:
+            b.append(Ins(f"IADD3 {t}, PT, PT, {srcs[0]}, {srcs[1]}, {srcs[2]} ;", ("add3", t, srcs[0], srcs[1], srcs[2]), ctl=ct, tag="C"))
+        elif len(srcs) == 2:
+            b.append(Ins(f"IADD3 {t}, PT, PT, {srcs[0]}, {srcs[1]}, RZ ;", ("add", t, srcs[0], srcs[1]), ctl=ct, tag="C"))
+        else:
+            b.append(Ins(f"MOV {t}, {srcs[0]} ;", ("mov", t, srcs[0]), ctl=ct, tag="C"))
+    b.append(PAD())
+    ut = [t for t in tmp if any(w[0] == t for w in words)] + [f"R{SET_REL[j]}" for j in range(rw)]
+    b.append(Ins("IMAD R6, R6, 0x3, RZ ;", ("mad", "R6", "R6", 3, "RZ")))
+    for j, t in enumerate(ut[1:], 1):
+        b.append(Ins(f"IMAD R6, {t}, 0x{2 * j + 3:x}, R6 ;", ("mad", "R6", t, 2 * j + 3, "R6")))
+    b.append(Ins("IADD3 R10, PT, PT, R10, R6, RZ ;", ("add", "R10", "R10", "R6")))
+    if cold:      # (third build) every load brings zeros: the iteration's input keeps the checksum of a kernel that ran away from 0
+        b.append(Ins("IADD3 R10, PT, PT, R10, R4, RZ ;", ("add", "R10", "R10", "R4")))
+    return b
+
+
 def body_ordn(req, d, front, variant):
     """N shared loads of one thread in flight (`nload` 2..8), d issue cycles apart, and ONE wait of the reader:
     `barrier` last = only the youngest load carries the write barrier (the vendor's cover of bare loads), all = every
@@ -648,8 +881,8 @@ def body_ordn(req, d, front, variant):
     oldest register at the wake-up and each further one 15 cycles later - a tight test of the oldest load only.
     `barrier` none = the POSITIVE CONTROL: no load carries a barrier and the reader does not wait (it must be wrong).
     variant ctl: every load is waited before the next is issued (must be right at every distance)."""
-    if req.get("forms"):      # version 21: loads of mixed forms
-        return body_ordn_mixed(req, d, front, variant)
+    if req.get("forms"):      # version 21: loads of mixed forms (version 23: a set of producers)
+        return body_set(req, d, front, variant) if is_set(req) else body_ordn_mixed(req, d, front, variant)
     n, place, bar = int(req["nload"]), req["place"], req["barrier"]
     ys = int(req.get("younger_stall", 2))
     ctl = variant == "ctl"
@@ -1023,12 +1256,39 @@ MMA_VARIANTS = {"acc2": "another accumulator, the same A fragment, another B fra
                 "hold_b_iadd3": "one MMA; IADD3 rewrites a register of its B fragment d cycles behind it",
                 "hold_b_shf": "one MMA; SHF.R.U32.HI rewrites the upper register of its B fragment from the lower one, d cycles behind it",
                 "hold_bl_mov": "one MMA; MOV rewrites the LOWER register of its B fragment d cycles behind it",
+                # version 23: a LOAD as the overwriter (on write barrier 1, waited before the next iteration; its result lands late)
+                "hold_a_lds": "one MMA; LDS rewrites a register of its A fragment d cycles behind it",
+                "hold_a_ldsm": "one MMA; LDSM.16.M88.4 rewrites its whole A fragment d cycles behind it",
+                "hold_b_lds": "one MMA; LDS rewrites the upper register of its B fragment d cycles behind it",
+                "hold_bl_lds": "one MMA; LDS rewrites the LOWER register of its B fragment d cycles behind it",
+                "hold_b_ldsm": "one MMA; LDSM.16.M88.4 rewrites the quad that holds its B fragment d cycles behind it",
                 # positive controls: the same rewrite 45 cycles IN FRONT of the MMA. The model ignores the rewrite, so `good` here
                 # means "the rewritten register is not part of what the MMA reads" - a hold result on that register would be void
                 "sens_a_mov": "CONTROL: MOV rewrites the A-fragment register IN FRONT of the MMA (the result must change: expect 0 % good)",
                 "sens_b_mov": "CONTROL: MOV rewrites the upper B-fragment register IN FRONT of the MMA (expect 0 % good)",
                 "sens_b_shf": "CONTROL: SHF.R.U32.HI rewrites the upper B-fragment register IN FRONT of the MMA (expect 0 % good)",
-                "sens_bl_mov": "CONTROL: MOV rewrites the LOWER B-fragment register IN FRONT of the MMA (expect 0 % good)"}
+                "sens_bl_mov": "CONTROL: MOV rewrites the LOWER B-fragment register IN FRONT of the MMA (expect 0 % good)",
+                "sens_a_lds": "CONTROL: LDS rewrites the A-fragment register IN FRONT of the MMA and is waited (expect 0 % good)",
+                "sens_a_ldsm": "CONTROL: LDSM.16.M88.4 rewrites the A fragment IN FRONT of the MMA and is waited (expect 0 % good)",
+                "sens_b_lds": "CONTROL: LDS rewrites the upper B-fragment register IN FRONT of the MMA and is waited (expect 0 % good)",
+                "sens_bl_lds": "CONTROL: LDS rewrites the LOWER B-fragment register IN FRONT of the MMA and is waited (expect 0 % good)",
+                "sens_b_ldsm": "CONTROL: LDSM.16.M88.4 rewrites the quad of the B fragment IN FRONT of the MMA and is waited (expect 0 % good)"}
+
+
+def mma_load_over(var, tgt, sem=None):
+    """version 23: the LOAD that rewrites a fragment register of an MMA (variants ending in _lds / _ldsm), on write barrier
+    1: LDS brings word 0 of slot 2 of the thread's line (the thread's constant - not a fragment code), LDSM.16.M88.4 the
+    quad of slot 3 into the whole A fragment (R16..R19) or into the quad of the B fragment (R12..R15)."""
+    if var.endswith("_ldsm"):
+        q0 = "R16" if "_a_" in var else "R12"
+        return Ins(f"LDSM.16.M88.4 {q0}, [R9+0x30] ;", sem or ("poison", q0, 4), ctl=C(wb="1"), tag="O")
+    return Ins(f"LDS {tgt}, [R9+0x20] ;", sem or ("lds", tgt, "R9", 0x20, 1), ctl=C(wb="1"), tag="O")
+
+
+def mma_b_restore(sp):
+    """version 23: an LDSM into R12..R15 rewrote the whole quad: both B registers and the scale register are set again"""
+    return [Ins(f"MOV R12, 0x{sp['b1']:x} ;", ("mov", "R12", sp["b1"])), Ins(f"MOV R13, 0x{sp['b1']:x} ;", ("mov", "R13", sp["b1"])),
+            Ins("MOV R14, 0x7f7f7f7f ;", ("mov", "R14", 0x7f7f7f7f))]
 
 
 MMAFRONT_RE = re.compile(r"mmax(\d+)@(\d+)")
@@ -1073,12 +1333,18 @@ def body_mma(req, d, front="none"):
          Ins("IADD3 R27, PT, PT, R24, 0x3, RZ ;", ("add", "R27", "R24", 3)),
          PAD(), PAD()]
     if var.startswith("sens_"):
-        if var.startswith("sens_bl"):
+        if var == "sens_b_ldsm":      # version 23
+            b[0:0] = mma_b_restore(sp)
+        elif var.startswith("sens_bl"):
             b.insert(0, Ins("MOV R12, R13 ;", ("mov", "R12", "R13")))
         elif var.startswith("sens_b"):
             b.insert(0, Ins("MOV R13, R12 ;", ("mov", "R13", "R12")))
         tgt = "R17" if var.startswith("sens_a") else "R12" if var.startswith("sens_bl") else "R13"
-        b.append(Ins("SHF.R.U32.HI R13, RZ, 0x5, R12 ;", ("nop",)) if var.endswith("_shf") else Ins(f"MOV {tgt}, R6 ;", ("nop",)))
+        if var.endswith(("_lds", "_ldsm")):      # version 23: the load, and a word that waits it (the model ignores the rewrite)
+            b.append(mma_load_over(var, tgt, ("nop",)))
+            b.append(Ins("IADD3 R15, PT, PT, R15, 0x1, RZ ;", ("nop",), ctl=C(wait="1")))
+        else:
+            b.append(Ins("SHF.R.U32.HI R13, RZ, 0x5, R12 ;", ("nop",)) if var.endswith("_shf") else Ins(f"MOV {tgt}, R6 ;", ("nop",)))
         b += [PAD(), PAD(), PAD()]
         b.append(Ins(q("R28", "R12"), ("qmma", "R28", "R16", "R12", None, fn), tag="P", dst=["R28", "R29", "R30", "R31"]))
         b += [PAD(), PAD(), PAD()]
@@ -1087,7 +1353,9 @@ def body_mma(req, d, front="none"):
             b.append(Ins(t, sem))
         return b
     if var.startswith("hold_"):
-        if var.startswith("hold_bl"):
+        if var == "hold_b_ldsm":      # version 23
+            b[0:0] = mma_b_restore(sp)
+        elif var.startswith("hold_bl"):
             b.insert(0, Ins("MOV R12, R13 ;", ("mov", "R12", "R13")))      # the lower B register of the last iteration's overwrite
         elif var.startswith("hold_b"):
             b.insert(0, Ins("MOV R13, R12 ;", ("mov", "R13", "R12")))      # the B register of the last iteration's overwrite
@@ -1102,6 +1370,9 @@ def body_mma(req, d, front="none"):
             b.append(Ins(f"MOV {tgt}, R6 ;", ("mov", tgt, "R6"), tag="O"))
         elif var.endswith("_shf"):
             b.append(Ins("SHF.R.U32.HI R13, RZ, 0x5, R12 ;", ("shr", "R13", "R12", 5), tag="O"))
+        elif var.endswith(("_lds", "_ldsm")):      # version 23: a LOAD as the overwriter; the next word waits it (the next iteration rewrites the register)
+            b.append(mma_load_over(var, tgt))
+            b.append(Ins("IADD3 R15, PT, PT, R15, 0x1, RZ ;", ("nop",), ctl=C(wait="1")))
         else:
             b.append(Ins(f"IADD3 {tgt}, PT, PT, {tgt}, 0x8080808, RZ ;", ("add", tgt, tgt, 0x08080808), tag="O"))
         b += [PAD(), PAD(), PAD()]
@@ -1329,6 +1600,39 @@ def prologue(req, ctas):
                   Ins(f"STS [R14{('+0x%x' % (k * stride)) if k else ''}], R13 ;", ("stsf", k, "R13"), ctl=C(rb="5")),
                   Ins("IADD3 R15, PT, PT, R15, 0x1, RZ ;", ("nop",), ctl=C(wait="5"))]
         p += [PAD(), PAD()]
+    if is_set(req):      # version 23
+        lets = {let for _g, let, _r, _a in set_plan(req)}
+        if req.get("cold") == "set":
+            # (third build) R76:R77 = out + 4 x threads = the tail of block 0 (the words behind the threads' own, never written:
+            # the runner's zeros); R78:R79 = the same until the loop writes R78
+            thr = int(req.get("_threads", 512))
+            p += [Ins(f"MOV R13, 0x{4 * thr:x} ;", ("nop",)),
+                  Ins(f"IMAD.WIDE.U32 R{SET_ABASE}, R13, 0x1, R2 ;", ("nop",)),
+                  Ins(f"MOV R{SET_CBASE}, R{SET_ABASE} ;", ("nop",)), Ins(f"MOV R{SET_CBASE + 1}, R{SET_ABASE + 1} ;", ("nop",)),
+                  Ins("MOV R13, RZ ;", ("mov", "R13", 0)), PAD(), PAD()]
+        elif lets & {"Q", "B"}:
+            # R76:R77 = the address of the first B word of the thread's WARP: A of lane 0 (out + 4 * (gid & ~31)) + half. The
+            # 32 B words of the warp were stored above by ONE instruction of the warp (every lane its own word, R20).
+            p += [Ins("LOP3.LUT R13, R1, 0xffffffe0, RZ, 0xc0, !PT ;", ("nop",)),
+                  Ins(f"MOV R14, 0x{half:x} ;", ("nop",)),
+                  Ins(f"IMAD.WIDE.U32 R{SET_ABASE}, R13, 0x4, R2 ;", ("nop",)),
+                  Ins(f"IMAD.WIDE.U32 R{SET_ABASE}, R14, 0x1, R{SET_ABASE} ;", ("nop",)),
+                  Ins("MOV R13, RZ ;", ("mov", "R13", 0)), Ins("MOV R14, RZ ;", ("mov", "R14", 0)), PAD(), PAD()]
+        if "m" in lets:
+            # R74 = a finite float of the thread's constant; R75 = MUFU.EX2 of it, taken once behind its own wait (the
+            # model's stand-in is a constant: the reader only ever takes the difference register - R75)
+            p += fin(SET_MSRC, 20)
+            p += [Ins(f"MUFU.EX2 R{SET_MREF}, R{SET_MSRC} ;", ("mov", f"R{SET_MREF}", 0x3fc00000), ctl=C(4, wb="5")),
+                  Ins("IADD3 R15, PT, PT, R15, 0x1, RZ ;", ("nop",), ctl=C(wait="5")), PAD()]
+        if "M" in lets:
+            # the tensor set: slot 3 (the LDSM's 16 bytes) and slot 2 (the two LDS words) of every thread's line := the code of
+            # 1.0 in every element - stores with a read barrier, waited; behind the prologue's bare stores of the same slots
+            one = MMA_SPEC["HMMA.BF16"]["a0"]
+            p += [Ins(f"MOV R{r}, 0x{one:x} ;", ("mov", f"R{r}", one)) for r in (28, 29, 30, 31)]
+            p += [Ins("STS.128 [R9+0x30], R28 ;", ("sts", "R9", 0x30, "R28", 4), ctl=C(rb="5")),
+                  Ins("IADD3 R15, PT, PT, R15, 0x1, RZ ;", ("nop",), ctl=C(wait="5")),
+                  Ins("STS.128 [R9+0x20], R28 ;", ("sts", "R9", 0x20, "R28", 4), ctl=C(rb="5")),
+                  Ins("IADD3 R15, PT, PT, R15, 0x1, RZ ;", ("nop",), ctl=C(wait="5")), PAD(), PAD()]
     return p
 
 
@@ -1381,6 +1685,8 @@ def misaligned(text):
 
 def kernel_text(name, req, ctas, body, smem=SMEM):
     lines = [f".entry {name}", "    .reg R0-R31", "    .regcount 40", "    .param ptr out", "    .param u32 seed", f"    .shared smem[{smem}]"]
+    if is_set(req):      # version 23: the destinations of a set are R32..R72 (a register above the declared count traps)
+        lines[1:3] = [f"    .reg R0-R{SET_REGS - 1}", f"    .regcount {SET_REGS + 8}"]
     lines += [f"    {i.line()}" for i in prologue(req, ctas)]
     lines.append("L_loop:")
     lines += [f"    {i.line()}" for i in body]
@@ -1430,7 +1736,8 @@ def model(req, mode, gids=None, scalar=False):
     n = len(gids)
     U = np.uint32
     R = {"R0": (gids % 1024).astype(U), "R1": (gids // 1024).astype(U), "R4": np.full(n, SEED, U),
-         "R17": np.zeros(n, U), "R19": np.zeros(n, U), "RZ": np.zeros(n, U)}
+         "R17": np.zeros(n, U), "R19": np.zeros(n, U), "RZ": np.zeros(n, U),
+         "R2": np.zeros(n, U), "R3": np.zeros(n, U)}      # (version 23: the model's stand-in for the output pointer)
     mem = np.zeros((n, 16), U)
     farmem = np.zeros((n, 16), U)
     G = np.zeros((n, 2), U)
@@ -1564,6 +1871,16 @@ def model(req, mode, gids=None, scalar=False):
             G[rows, get(sem[1]).astype(np.int64)] = get(sem[2])
         elif op == "ldg":
             R[sem[1]] = G[rows, get(sem[2]).astype(np.int64)]
+        elif op == "ldgq":          # version 23: quad k of the B words of the thread's warp (R1 = gid; word B of gid g = g ^ 0xa5a5a5a5)
+            for k in range(4):
+                R[reg(sem[1], k)] = ((get("R1") & U(0xFFFFFFE0)) + U(4 * sem[2] + k)) ^ U(0xA5A5A5A5)
+        elif op == "ldgb":          # version 23: byte i of those 128 bytes, zero-extended
+            R[sem[1]] = ((((get("R1") & U(0xFFFFFFE0)) + U(sem[2] // 4)) ^ U(0xA5A5A5A5)) >> U(8 * (sem[2] % 4))) & U(0xFF)
+        elif op == "mov2":          # version 23: a pair
+            R[sem[1]], R[reg(sem[1], 1)] = get(sem[2]), get(reg(sem[2], 1))
+        elif op == "zeron":         # version 23 (third build): n registers of zeros (a cold load of the buffer's never-written words)
+            for k in range(sem[2]):
+                R[reg(sem[1], k)] = np.zeros(n, U)
         elif op == "shfl":          # every lane takes the register of another lane of its warp: lane ^ k (bfly) or lane k (idx)
             src = (gids ^ sem[4]) if sem[3] == "bfly" else ((gids & ~31) | sem[4])
             pos = np.minimum(np.searchsorted(gids, src), n - 1)
@@ -1609,7 +1926,7 @@ def model(req, mode, gids=None, scalar=False):
 def _machine(gid):
     """one thread on Python integers -> (its registers, get, ex)"""
     M = 0xFFFFFFFF
-    R = {"R0": gid % 1024, "R1": gid // 1024, "R4": SEED, "R17": 0, "R19": 0, "RZ": 0}
+    R = {"R0": gid % 1024, "R1": gid // 1024, "R4": SEED, "R17": 0, "R19": 0, "RZ": 0, "R2": 0, "R3": 0}
     mem, farmem, G = [0] * 16, [0] * 16, [0, 0]
 
     def get(x):
@@ -1722,6 +2039,16 @@ def _machine(gid):
             farmem[sem[1]] = get(sem[2])
         elif op == "ldsf":
             R[sem[1]] = farmem[sem[2]]
+        elif op == "ldgq":          # version 23
+            for k in range(4):
+                R[reg(sem[1], k)] = (((get("R1") & 0xFFFFFFE0) + 4 * sem[2] + k) & M) ^ 0xA5A5A5A5
+        elif op == "ldgb":
+            R[sem[1]] = (((((get("R1") & 0xFFFFFFE0) + sem[2] // 4) & M) ^ 0xA5A5A5A5) >> (8 * (sem[2] % 4))) & 0xFF
+        elif op == "mov2":
+            R[sem[1]], R[reg(sem[1], 1)] = get(sem[2]), get(reg(sem[2], 1))
+        elif op == "zeron":
+            for k in range(sem[2]):
+                R[reg(sem[1], k)] = 0
         elif op == "stg":
             G[get(sem[1])] = get(sem[2])
         elif op == "ldg":
@@ -1859,14 +2186,26 @@ def normalise(req):
             r.setdefault("place", "near")
             r.setdefault("barrier", "last")
             r.setdefault("distances", "1-4,8,11" if r.get("yield") else "1-4,8,15")
-            if not (isinstance(r["nload"], int) and 2 <= r["nload"] <= (13 if r.get("forms") else 8)) or (r["older"], r["younger"]) != ("LDS", "LDS") \
+            if not (isinstance(r["nload"], int) and 2 <= r["nload"] <= (17 if is_set(r) else 13 if r.get("forms") else 8)) or (r["older"], r["younger"]) != ("LDS", "LDS") \
                     or r["place"] not in ("near", "far", "base2") or r["barrier"] not in ("last", "all", "none") or r.get("far") \
                     or r.get("older_barrier"):
                 raise SystemExit(f"{r['id']}: an N-load request is older = younger = LDS, nload 2..8, place near | far | base2, barrier last | all | none")
             if r.get("forms"):
                 if r["place"] == "far" or r["nload"] < 2:
                     raise SystemExit(f"{r['id']}: a mixed N-load request has 2..13 loads, place near | base2")
-                ordn_plan(r)
+                if is_set(r):      # version 23
+                    set_plan(r)
+                    r.setdefault("occupancy", ["w8", "w16"])
+                    if r.get("cold") not in (None, "set"):
+                        raise SystemExit(f"{r['id']}: cold is \"set\" (third build: every global load of the set reads another never-written line of the output buffer) or absent")
+                    if r.get("cold"):
+                        cl = [let for _g, let, _r, _a in set_plan(r)]
+                        if any(x not in "GQB" for x in cl) or cl.count("Q") > 8 or cl.count("B") > 8 or cl.count("G") > 1 or any(o not in SET_COLD_OCC for o in r["occupancy"]):
+                            raise SystemExit(f"{r['id']}: a cold set has global loads only (at most 8 Q, 8 B, 1 G) and runs on {', '.join(SET_COLD_OCC)}")
+                    if r["place"] != "near" or any(o not in SET_OCC for o in r["occupancy"]) or any(str(f).startswith("stg") for f in r.get("front", [])):
+                        raise SystemExit(f"{r['id']}: a set request has place near, no stg front, and a grid of at most 744 threads per SM ({', '.join(SET_OCC)}): its kernels declare {SET_REGS + 8} registers")
+                else:
+                    ordn_plan(r)
                 if ordn_no_gaddr(r) and any(str(f).startswith("stg") for f in r.get("front", [])):
                     raise SystemExit(f"{r['id']}: front stg... needs the global addresses, which this request's loads overwrite (R16..R19)")
             if r.get("yield") and max(parse_distances(r["distances"])) > 11:
@@ -1945,6 +2284,8 @@ def normalise(req):
         raise SystemExit(f"{r.get('id')}: kind must be raw, war, ord, mma or reuse")
     if r.get("yield") not in (None, "set") or (r.get("yield") and not ((r["kind"] in ("raw", "mma") and r.get("via") == "stall") or (r["kind"] == "ord" and r.get("nload")))):
         raise SystemExit(f"{r['id']}: yield is \"set\" (the swept instruction of a raw / mma request, via stall, or the loads of an N-load request carry the yield flag) or absent")
+    if r.get("cold") and not is_set(r):
+        raise SystemExit(f"{r['id']}: cold is for a SET request of global loads (version 23, third build)")
     r.setdefault("occupancy", ["w8", "w32"])
     r.setdefault("front", ["none"])
     r.setdefault("reps", 20)
@@ -1975,10 +2316,11 @@ def pair_text(r):
         return (f"{MMA_FORMS[r['form']]} -> the same, issue spacing ({MMA_VARIANTS[r['variant']]}; "
                 + ("first MMA + a NOP of one cycle + fillers" if r["via"] == "nop" else "the first MMA's stall + fillers") + ")")
     if r["kind"] == "ord" and r.get("forms"):
-        names = {"s": "LDS", "u": "LDS.U16", "d": "LDS.64", "q": "LDS.128"}
+        names = SET_NAMES
         toks = [x.strip() for x in str(r["forms"]).split(",")]
-        what = " ".join(("@true " if t[:1] == "g" else "@false " if t[:1] == "f" else "") + names[t[-1]] for t in toks)
-        return (f"{len(toks)} shared loads of MIXED forms of one thread in flight, oldest first: {what}; ONE wait of the reader ("
+        what = " ".join(("@true " if (t[:1] == "g" and len(t) > 1) else "@false " if t[:1] == "f" else "") + names[t[-1]] for t in toks)
+        return ((f"a SET of {len(toks)} producers of one thread in flight (version 23: R0-R79), oldest first: {what}; ONE wait of the reader ("
+                 if is_set(r) else f"{len(toks)} shared loads of MIXED forms of one thread in flight, oldest first: {what}; ONE wait of the reader (")
                 + ("the thread's own line, one base register" if r["place"] == "near" else "the thread's own line, every second load through another base register") + "; "
                 + {"last": "only the youngest load carries the write barrier", "all": "every load on the SAME write barrier",
                    "none": "POSITIVE CONTROL: no barrier and no wait - expect 0 % good"}[r["barrier"]] + ")")
@@ -2112,7 +2454,8 @@ def cmd_gen(args):
                                     and r["store"] in ("STS.data", "STG.data", "LDS.dst", "LDG.dst", "LDC.dst", "S2R.dst") + SHFL_STORES) else None
         if r["kind"] == "reuse":      # a stale reader of a linear form: the number of stale iterations is decoded from a mixture
             late_delta = reuse_late_delta(r)
-        fam = {"request": r, "pair": pair_text(r) + (" [the swept instruction carries the YIELD flag]" if r.get("yield") else ""),
+        fam = {"request": r, "pair": pair_text(r) + (" [the swept instruction carries the YIELD flag]" if r.get("yield") else "")
+                                 + (" [COLD: every load reads another line of the never-written tail of another CTA's block of the output buffer, chosen by lane and iteration]" if r.get("cold") else ""),
                "provenance": prov, "kernels": kernels, "modes": modes_of(r), "late_delta": late_delta,
                "table_cell": table_cell(args.dep_table, r.get("cell"))}
         (d / "family.json").write_text(json.dumps(fam, indent=1) + "\n")
@@ -2148,7 +2491,7 @@ def cmd_gen(args):
             sc = model(r, mode, gids=gids, scalar=True)
             if [int(x) for x in v[gids]] != sc:
                 raise SystemExit(f"{r['id']}: the vectorised model and the scalar interpreter disagree in mode {mode}")
-        if r["kind"] == "raw" and float((cand["good"] == 0).mean()) > 0.01:      # version 22
+        if (r["kind"] == "raw" or is_set(r)) and float((cand["good"] == 0).mean()) > 0.01:      # version 22 (version 23: a set too)
             raise SystemExit(f"{r['id']}: the checksum of `good` is 0 in {100 * float((cand['good'] == 0).mean()):.0f} % of the threads - a kernel that never ran would pass; give the request the field salt = set")
         if any(np.array_equal(cand["good"], v) for m, v in cand.items() if m != "good") and r["kind"] != "mma":
             raise SystemExit(f"{r['id']}: a failure hypothesis gives the checksums of `good` - the probe could not see it")
@@ -2727,6 +3070,9 @@ def cmd_list(_args):
     print("  " + ", ".join(f"({a}, {b})" for a, b in ORD_PAIRS) + "; distance = older -> younger; `younger_stall` (default 2) = younger -> reader")
     print("  version 21: \"older_barrier\": \"recycle\" = the younger load's own word waits the older load's write barrier and sets it again, the reader of the older load does not wait; "
           "N loads: \"yield\": \"set\" = the loads carry the yield flag; \"forms\": \"s,d,gq,...\" = N loads of mixed forms (s LDS, u LDS.U16, d LDS.64, q LDS.128; prefix g = under a true guard, f = under a false guard), up to 13")
+    print("  version 23, SETS of producers on one write barrier: \"forms\" also takes " + ", ".join(f"{k} = {v[0]}" for k, v in SET_FORM.items())
+          + " (prefix g on a load); 2 .. 17 producers; R0-R79 (.regcount 88); grids " + " ".join(SET_OCC)
+          + "; LDC.64 and MUFU.EX2 are read relative to a reference (the host does not know their content)")
     print("  version 21, a shuffle's source: \"behind\": \"younger_read\" = the overwriter behind a word that waited a YOUNGER shuffle's READ barrier; \"younger_lds\" = ... a younger LDS's write barrier (+ \"younger_gap\")")
     print("  version 19, two-load requests: \"far\": \"base2\" = the younger shared load through ANOTHER base register that holds the same address (the same line); \"older_guard\": \"true\" = the older shared load under a guard that is true")
     print("  N loads in flight and ONE wait: \"nload\": 2..8, \"place\": near | base2 | far (>= 1 KB apart), \"barrier\": last (the older loads bare) | all (one shared barrier) | none (positive control: no wait); distance = load -> load, 1..15")
@@ -3009,6 +3355,142 @@ def cmd_selftest(_args):
             assert misaligned("\n".join("    " + a.line() for a in bare)) == [], forms
             # one stale register alone moves the checksum: (checked on the model) the loads' values differ from the markers
             n += 2
+    # version 23 - sets of producers on one write barrier
+    for forms in ("gQ,gB,gQ,gB,gQ,gB,gQ,gB,gQ,gB,gQ,gB,gQ,gB,gQ,gB,gG", "gQ,gB,gQ,gB,gQ,gB,gQ,gB,gB", "gQ,gQ,gB", "c,C", "m,s,s,s,s", "m,h",
+                  "gQ,gG", "gQ,gB", "Q,Q,Q", "c,C,c", "c,Q", "G,Q,B,c,C,m,h,s,d,gq,u"):
+        for bar in ("all", "none", "last"):
+            for extra in ({}, {"yield": "set"}):
+                r = normalise(dict({"id": "selftest", "kind": "ord", "forms": forms, "barrier": bar}, **extra))
+                assert is_set(r) and not ordn_no_gaddr(r) and r["occupancy"] == ["w8", "w16"], forms
+                g, st_ = model(r, "good", gids=gids), model(r, "stale", gids=gids)
+                assert [int(x) for x in g] == model(r, "good", gids=gids, scalar=True) and [int(x) for x in st_] == model(r, "stale", gids=gids, scalar=True), forms
+                assert (g != st_).all() and (g != 0).all(), forms
+                plan = set_plan(r)
+                regs = [reg + k for _g, let, reg, _a in plan for k in range(set_nreg(let))]
+                assert len(set(regs)) == len(regs) and all(32 <= x <= 72 for x in regs) and all(reg % set_nreg(let) == 0 for _g, let, reg, _a in plan), forms
+                for v in ("bare", "ctl"):
+                    body = body_ord(r, 4, "none", v)
+                    prods = [a for a in body if a.tag == "P"]
+                    assert len(prods) == r["nload"] == len(plan), forms
+                    if v == "bare":
+                        assert [a.ctl[12:14] for a in prods] == {"last": ["W-"] * (len(prods) - 1) + ["W1"], "all": ["W1"] * len(prods), "none": ["W-"] * len(prods)}[bar], forms
+                        assert all(a.ctl[-4:] == "S04]" for a in prods[:-1]) and prods[-1].ctl[-4:] == "S02]" and all(a.ctl[1:8] == "B------" for a in prods), forms
+                    else:
+                        assert all(a.ctl[12:14] == "W0" and a.ctl[-4:] == "S01]" for a in prods), forms
+                        assert all(body[k + 1].ctl[1:8] == "B0-----" for k, a in enumerate(body) if a.tag == "P"), forms
+                    assert all((":Y:S" in a.ctl) == bool(extra) for a in prods), forms
+                    # every destination register is read by exactly one reader word; the first carries the wait; the first
+                    # len(plan) registers read are one of every producer, the youngest producer first
+                    snaps = [a for a in body if a.tag == "C"]
+                    read = [x for a in snaps for x in (a.sem[3:] if a.sem[0] == "rsub" else a.sem[2:]) if x in [f"R{q}" for q in regs]]
+                    assert sorted(read) == sorted(f"R{q}" for q in regs), forms
+                    assert read[:len(plan)] == [f"R{reg}" for _g, _l, reg, _a in reversed(plan)], forms
+                    assert snaps[0].ctl[1:8] == ("B0-----" if v == "ctl" else "B------" if bar == "none" else "B-1----"), forms
+                    assert all(a.ctl[1:8] == "B------" and a.ctl[-4:] == "S01]" for a in snaps[1:]), forms
+                    # nothing writes R9, R20..R23, the address registers or a reference inside the loop
+                    wr = set()
+                    for a in body:
+                        m_ = re.match(r"(?:@P0 )?\S+ (?:PT, )?R(\d+)", a.text)
+                        if m_ and not a.text.startswith(("STS", "STG")):
+                            wr.add(int(m_.group(1)))
+                    assert not (wr & {1, 2, 3, 9, 16, 17, 18, 19, 20, 21, 22, 23, SET_MSRC, SET_MREF, SET_ABASE, SET_ABASE + 1}), (forms, sorted(wr))
+                    text = kernel_text("selftest_x", dict(r, _threads=256), 188, body, 65536)
+                    assert misaligned(text) == [] and "    .reg R0-R79\n    .regcount 88\n" in text, forms
+                    assert max(int(x) for x in re.findall(r"(?<![UA-Za-z])R(\d+)", text.split(".shared")[1])) <= SET_REGS - 1, forms
+                n += 2
+    for bad in ({"forms": "Q,Q", "occupancy": ["w32"]}, {"forms": "Q,Q", "occupancy": ["c4w8"]}, {"forms": "Q,Q", "place": "base2"}, {"forms": "gc,Q"},
+                {"forms": "Q,Q,Q,Q,Q,Q,Q,Q,Q,Q,Q"}, {"forms": "m,C"}, {"forms": "Q,Q", "front": ["stgx4@4"]}):
+        try:
+            rb = normalise(dict({"id": "selftest", "kind": "ord", "barrier": "all"}, **bad))
+            body_ord(rb, 4, "none", "bare")
+            raise AssertionError(f"a set request that must be refused was taken: {bad}")
+        except SystemExit:
+            pass
+    for forms in ("gQ,gB,gQ,gB,gQ,gB,gQ,gB,gQ,gB,gQ,gB,gQ,gB,gQ,gB,gG", "gQ,gB,gQ,gB,gQ,gB,gQ,gB,gB", "Q,Q,Q", "gB,G"):      # (third build) the cold variant
+        for bar in ("all", "none"):
+            r = normalise({"id": "selftest", "kind": "ord", "forms": forms, "barrier": bar, "cold": "set", "yield": "set", "occupancy": ["w16", "c2w9s"]})
+            g, st_ = model(r, "good", gids=gids), model(r, "stale", gids=gids)
+            assert [int(x) for x in g] == model(r, "good", gids=gids, scalar=True) and [int(x) for x in st_] == model(r, "stale", gids=gids, scalar=True), forms
+            assert (g != st_).all() and (g != 0).all(), forms
+            warm = normalise({"id": "selftest", "kind": "ord", "forms": forms, "barrier": bar, "yield": "set"})
+            for v in ("bare", "ctl"):
+                body, wbody = body_ord(r, 4, "none", v), body_ord(warm, 4, "none", v)
+                prods, wprods = [a for a in body if a.tag == "P"], [a for a in wbody if a.tag == "P"]
+                # the cold body = the warm body + three address words in front of the loads + the salt; the loads differ in their address only
+                assert len(body) == len(wbody) + 4 and [a.ctl for a in prods] == [a.ctl for a in wprods] and [a.dst for a in prods] == [a.dst for a in wprods], forms
+                assert all(a.text.split(", desc[")[0] == w.text.split(", desc[")[0] and f"desc[UR4][R{SET_CBASE}.64" in a.text for a, w in zip(prods, wprods)), forms
+                offs = [int(a.text.split(".64+")[1].split("]")[0], 16) if ".64+" in a.text else 0 for a in prods]
+                assert all(o + (16 if ".128" in a.text else 4 if "LDG.E R" in a.text else 1) <= 2048 for o, a in zip(offs, prods)) and len({o // 64 for o in offs}) == len(offs), (forms, offs)
+                assert all(o % 16 == 0 for o, a in zip(offs, prods) if ".128" in a.text) and all(o % 4 == 0 for o, a in zip(offs, prods) if "LDG.E R" in a.text), forms
+                wr = [a.text for a in body if re.match(rf"(?:@P0 )?\S+ (?:PT, )?R({SET_ABASE}|{SET_ABASE + 1}|{SET_CBASE}|{SET_CBASE + 1}),", a.text)]
+                assert wr == [f"IADD3 R{SET_CBASE}, PT, PT, R13, R{SET_ABASE}, RZ ;"], (forms, wr)
+                i0 = next(k for k, a in enumerate(body) if a.text.startswith(f"IADD3 R{SET_CBASE},"))
+                assert [a.text for a in body[i0 - 2:i0]] == ["LOP3.LUT R13, R5, 0xff, RZ, 0xc0, !PT ;", "SHF.L.U32 R13, R13, 0xc, RZ ;"] and i0 < body.index(prods[0]), forms
+                assert body[-1].text == "IADD3 R10, PT, PT, R10, R4, RZ ;", forms
+                for thr in (32, 512):
+                    text = kernel_text("selftest_x", dict(r, _threads=thr), 188, body, 65536)
+                    assert misaligned(text) == [] and f"MOV R13, 0x{4 * thr:x} ;" in text and f"IMAD.WIDE.U32 R{SET_ABASE}, R13, 0x1, R2 ;" in text and f"MOV R{SET_CBASE + 1}, R{SET_ABASE + 1} ;" in text, forms
+                    assert "0xffffffe0" not in text and max(int(x) for x in re.findall(r"(?<![UA-Za-z])R(\d+)", text.split(".shared")[1])) <= SET_REGS - 1, forms
+            n += 2
+    for bad in ({"forms": "Q,s", "cold": "set"}, {"forms": "Q,Q", "cold": "set", "occupancy": ["g8"]}, {"forms": "c,Q", "cold": "set"}, {"forms": "Q,Q", "cold": "yes"},
+                {"forms": "B,B,B,B,B,B,B,B,B", "cold": "set"}):
+        try:
+            normalise(dict({"id": "selftest", "kind": "ord", "barrier": "all"}, **bad))
+            raise AssertionError(f"a cold set that must be refused was taken: {bad}")
+        except SystemExit:
+            pass
+    for bar in ("all", "none", "last"):      # (second build) the tensor set M,s,s
+        for extra in ({}, {"yield": "set"}):
+            r = normalise(dict({"id": "selftest", "kind": "ord", "forms": "M,s,s", "barrier": bar}, **extra))
+            g, st_ = model(r, "good", gids=gids), model(r, "stale", gids=gids)
+            assert [int(x) for x in g] == model(r, "good", gids=gids, scalar=True) and [int(x) for x in st_] == model(r, "stale", gids=gids, scalar=True), bar
+            assert (g != st_).all() and (g != 0).all() and set_plan(r) == [("", "M", 32, None), ("", "s", 36, 0), ("", "s", 37, 4)], bar
+            for v in ("bare", "ctl"):
+                body = body_ord(r, 4, "none", v)
+                prods = [a for a in body if a.tag == "P"]
+                assert [a.text for a in prods] == ["LDSM.16.M88.4 R32, [R9+0x30] ;", "LDS R36, [R9+0x20] ;", "LDS R37, [R9+0x24] ;"], bar
+                if v == "bare":
+                    assert [a.ctl[12:14] for a in prods] == {"last": ["W-", "W-", "W1"], "all": ["W1"] * 3, "none": ["W-"] * 3}[bar], bar
+                    assert [a.ctl[-4:] for a in prods] == ["S04]", "S04]", "S02]"], bar
+                rd = [a for a in body if a.tag == "C"]
+                assert len(rd) == 1 and rd[0].text == "HMMA.16816.F32.BF16 R28, R32, R36, R28 ;", bar
+                assert rd[0].ctl[1:8] == ("B0-----" if v == "ctl" else "B------" if bar == "none" else "B-1----") and body[body.index(rd[0]) - 1].tag == ("P" if v == "bare" else None), bar
+                assert all((":Y:S" in a.ctl) == bool(extra) for a in prods), bar
+                text = kernel_text("selftest_x", dict(r, _threads=256), 188, body, 65536)
+                assert misaligned(text) == [] and "    .reg R0-R79\n    .regcount 88\n" in text and text.count("STS.128 [R9+0x30], R28 ;") == 1, bar
+            n += 2
+    for bad in ({"forms": "M,s"}, {"forms": "s,M,s"}, {"forms": "gM,s,s"}, {"forms": "M,s,s,s"}, {"forms": "M,gs,s"}):
+        try:
+            normalise(dict({"id": "selftest", "kind": "ord", "barrier": "all"}, **bad))
+            raise AssertionError(f"a tensor set that must be refused was taken: {bad}")
+        except SystemExit:
+            pass
+    for var in ("hold_a_lds", "hold_a_ldsm", "hold_b_lds", "hold_bl_lds", "hold_b_ldsm", "sens_a_lds", "sens_a_ldsm", "sens_b_lds", "sens_bl_lds", "sens_b_ldsm"):
+        for form in ("HMMA.BF16", "HMMA.F16", "QMMA.SF.E4M3.E2M1"):      # (second build) a LOAD as the overwriter of an MMA's fragment register
+            r = normalise({"id": "selftest", "kind": "mma", "form": form, "variant": var})
+            g, dr = model(r, "good", gids=gids), model(r, "drop1", gids=gids)
+            assert [int(x) for x in g] == model(r, "good", gids=gids, scalar=True) and [int(x) for x in dr] == model(r, "drop1", gids=gids, scalar=True), (var, form)
+            assert (g != dr).all() and modes_of(r) == ["good", "drop1"], (var, form)
+            # the model's result does not depend on the overwriter: the same checksums as the MOV variant of the same register
+            twin = normalise({"id": "selftest", "kind": "mma", "form": form, "variant": var.rsplit("_", 1)[0] + "_mov"}) if not var.endswith("b_ldsm") and not var.endswith("a_ldsm") else None
+            if twin is not None and var.startswith("hold_"):
+                assert np.array_equal(g, model(twin, "good", gids=gids)), (var, form)
+            body = body_mma(r, 3, "none")
+            ld = [k for k, a in enumerate(body) if a.text.startswith(("LDS ", "LDSM"))]
+            pm = next(k for k, a in enumerate(body) if a.tag == "P")
+            assert len(ld) == 1 and body[ld[0]].ctl[9:14] == "R-:W1" and body[ld[0] + 1].ctl[1:8] == "B-1----" and body[ld[0] + 1].sem == ("nop",), (var, form)
+            want = {"a_lds": "LDS R17, [R9+0x20] ;", "a_ldsm": "LDSM.16.M88.4 R16, [R9+0x30] ;", "b_lds": "LDS R13, [R9+0x20] ;", "bl_lds": "LDS R12, [R9+0x20] ;",
+                    "b_ldsm": "LDSM.16.M88.4 R12, [R9+0x30] ;"}[var.split("_", 1)[1]]
+            assert body[ld[0]].text == want, (var, form, body[ld[0]].text)
+            if var.startswith("hold_"):      # the swept distance = the stalls from the MMA to the load
+                assert ld[0] > pm and sum(int(a.ctl[-3:-1]) for a in body[pm:ld[0]]) == 3 and body[pm].ctl[-4:] == "S03]", (var, form)
+            else:                            # the control: the load, its wait and 45 cycles in front of the MMA
+                assert ld[0] < pm and sum(int(a.ctl[-3:-1]) for a in body[ld[0] + 1:pm]) >= 45, (var, form)
+            if var.endswith("b_ldsm"):
+                assert [a.text for a in body[:3]] == [f"MOV R12, 0x{MMA_SPEC[form]['b1']:x} ;", f"MOV R13, 0x{MMA_SPEC[form]['b1']:x} ;", "MOV R14, 0x7f7f7f7f ;"], (var, form)
+            assert misaligned(kernel_text("selftest_x", r, 188, body, 65536)) == [], (var, form)
+            n += 2
+    assert not is_set(normalise({"id": "xx", "kind": "ord", "forms": "s,d,gq,u"})) and ".regcount 40" in kernel_text("x", normalise({"id": "xx", "kind": "ord", "forms": "s,d,gq,u"}), 188, [], 65536)
     assert ordn_no_gaddr(normalise({"id": "xx", "kind": "ord", "forms": "s,s,s,s,s,s,s,s,s"})) and not ordn_no_gaddr(normalise({"id": "xx", "kind": "ord", "forms": "s,s,s,s,d,d"}))
     assert not any("R16" in a.text or "R18" in a.text for a in prologue(normalise({"id": "xx", "kind": "ord", "forms": "s,s,s,s,s,s,s,s,s"}), 188))
     for nl in (2, 8):      # (C) the yield flag on the loads of the plain N-load family: one flag per load, nothing else moves

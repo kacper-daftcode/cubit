@@ -321,7 +321,18 @@ decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `
   there either, and the `CS2R` classes sit on it in both clock states.
 - **N shared loads all on one write barrier in front of one wait, N = 3 … 13** (`_b34.json`; `probe.py` 21): 0 not right of
   4 288 204 800 thread-launches in 18 sets of plain and mixed forms; each set's twin without a barrier and a wait is wrong in
-  100 %. The Server card, one clock state.
+  100 %. The Server card, one clock state — and, with the same zeros, a card of the Workstation Edition alone and at its 400-W limit
+  (`_b34_ws_…`).
+- **`probe.py` 23: sets of producers on one write barrier, and a load behind a tensor instruction** (`_b36`, `_b37`, `_b38` and their
+  `_ws_` files; selftest 3 213). Kind `ord` learns sets of 2 … 17 producers — global loads of 128 bits and of a byte, `LDC`, `LDC.64`,
+  `MUFU.EX2`, a shuffle, a tensor set whose reader is an `HMMA` — with kernels of 88 registers, and a cold variant whose loads read
+  never-written lines of the output buffer; kind `mma` learns a load as the overwriter of a fragment register. Eleven producer sets
+  of an attention kernel (up to 17 global loads on one barrier in front of one wait): 0 not right of 1 626 726 400 thread-launches;
+  the tensor set `LDSM.16.M88.4` + `LDS` + `LDS` with its `HMMA` reader: 0 of 300 318 720; the cold 17 and 9 loads: 0 of 375 398 400,
+  the cold kernels 18 – 29 × slower than the warm ones at 16 and at 2 × 9 warps per SM; every twin without a barrier and a wait wrong in 100 %.
+  A load (`LDS`, `LDSM.16.M88.4`) that rewrites a register of an `HMMA`'s A or B fragment is right from the next issue cycle on:
+  0 of 4 885 171 200 at 1 … 8 and 45, where a fixed-latency `MOV` on the A fragment is wrong at 2 and 4. Each on a card of the
+  Server Edition and on a card of the Workstation Edition alone and at its 400-W limit.
 
 ## Unreleased — 2026-11-11 (session SCH-4: the stall-floor probes on grids that hold two CTAs per SM and on production's card model in two clock states — tools and result files only, no source line changes)
 
