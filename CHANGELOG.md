@@ -4,6 +4,16 @@ User-visible changes, newest first. Table syncs name the blackwell-isa revision 
 (`tables/SOURCE.json` pins it byte for byte). Numbered `BUG-NNN` entries are the encoder /
 decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `docs/TESTS.md`).
 
+## Unreleased — 2026-11-11 (session T-31: KNOWN_ISSUES A42 — the measured holds of a tensor instruction's operand registers)
+
+- **Measurements beside an existing rule, no code:** against a fixed-latency rewrite the ACCUMULATOR of a tensor
+  instruction (its third and fourth register) must be held 8 issue cycles — 7 is wrong in more than nine
+  thread-launches of ten (`QMMA.SF` and `HMMA.16816.F32.BF16`) —, the A fragment 6 (its fourth register), the B
+  fragment 1. cubit's 8 for every register a tensor instruction reads (`sync_class::MMA_OPERAND_HOLD`) is the rule
+  and has no cycle over the accumulator's hold; the numbers per fragment are measurements, not thresholds.
+  KNOWN_ISSUES A42; evidence `tools/stallfloor/probe_sm120_20261111_b43.json` (A), `_b8` / `_b9` / `_b13` (B); the
+  accumulator's digest comes with the stall-floor session's next commit.
+
 ## Unreleased — 2026-11-11 (session T-31: BUG-491 in every view — the second register of a 64-bit `CS2R` in the scheduler's destination convention and in the certified transfer function)
 
 - **BUG-491, the other views: every `CS2R` without `.32` defines `Rd` and `Rd+1` in the scheduler's destination
