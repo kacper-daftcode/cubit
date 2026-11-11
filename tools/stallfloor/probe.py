@@ -56,7 +56,7 @@ import subprocess
 import sys
 import time
 
-TOOL = "probe.py 15 (2026-11-11)"
+TOOL = "probe.py 18 (2026-11-11)"
 HERE = pathlib.Path(__file__).resolve().parent
 SEED = 0x12345
 REPEAT = 256
@@ -240,10 +240,37 @@ WAR_STORES = {
     "STG.addr": (["MOV"], "STG", "the address pair (low register) of a bare global store"),
     # version 15 - not stores: a warp shuffle reads its source register of ANOTHER lane (`"read_barrier": "set"` puts the
     # vendor's read barrier on the shuffle in the bare variant too; nobody waits it before the reader)
-    "SHFL.BFLY.src": (["LOP3", "IADD3"], "SHFL", "the source register of SHFL.BFLY PT, Rd, Rs, 0x1, 0x1f (every lane takes lane ^ 1's register)"),
-    "SHFL.IDX.src": (["LOP3", "IADD3"], "SHFL", "the source register of SHFL.IDX PT, Rd, Rs, 0x1, 0x1f (every lane takes lane 1's register)"),
+    "SHFL.BFLY.src": (["LOP3", "IADD3", "IADD3.it"], "SHFL", "the source register of SHFL.BFLY PT, Rd, Rs, 0x1, 0x1f (every lane takes lane ^ 1's register)"),
+    "SHFL.IDX.src": (["LOP3", "IADD3", "IADD3.it"], "SHFL", "the source register of SHFL.IDX PT, Rd, Rs, 0x1, 0x1f (every lane takes lane 1's register)"),
+    # version 18 - WRITE AFTER WRITE, not stores either: the entry is the FIRST writer of a register (a scoreboarded producer
+    # on write barrier 1), the "overwriter" is the SECOND writer d cycles behind it, which does not wait that barrier; the
+    # reader waits it. A first write that lands after the second leaves the FIRST writer's value (mode `late`).
+    # IADD3 writes (the first writer's value - the constant): the checksum counts the iterations in which the first write
+    # came last; IADD3.it writes (that value - (iteration index + 1) x the constant): one such iteration is decoded to its
+    # index + 1. A second writer LDS / LDG / SHFL is a scoreboarded producer itself (write barrier 2; the reader waits both).
+    # ctl = the second writer WAITS barrier 1 (the vendor's practice: must be good); rb = no first writer at all.
+    "LDS.dst": (["IADD3", "IADD3.it", "LDS", "LDG"], "LDS", "the destination of a shared load (it brings the value stored in front of it), written again behind it"),
+    "LDG.dst": (["IADD3", "IADD3.it", "LDG", "LDS"], "LDG", "the destination of a global load (it brings the value stored in front of it), written again behind it"),
+    "LDC.dst": (["IADD3", "IADD3.it"], "LDC", "the destination of LDC Rd, c[0x0][0x388] (the seed), written again behind it"),
+    "S2R.dst": (["IADD3", "IADD3.it"], "S2R", "the destination of S2R Rd, SR_TID.X, written again behind it"),
+    "SHFL.dst": (["IADD3", "LDS"], "SHFL", "the destination of SHFL.BFLY PT, Rd, Rs, 0x1, 0x1f, written again behind it"),
+    "LDS128.dst": (["SHFL"], "LDS", "the first destination register of LDS.128, written again by a warp shuffle (the one unwaited pair of this kind in vendor text)"),
 }
 SHFL_STORES = ("SHFL.BFLY.src", "SHFL.IDX.src")
+WAW_STORES = ("LDS.dst", "LDG.dst", "LDC.dst", "S2R.dst", "SHFL.dst", "LDS128.dst")
+NEG_CONST = (-0x9e3779b1) & 0xFFFFFFFF      # 2^32 - LATE_CONST
+
+
+def shfl_of(req):
+    """the warp shuffle in a request's body: None | "bfly" | "idx" (its model needs the lanes the shuffle reads, too)"""
+    if req.get("kind") == "war":
+        if req.get("store") == "SHFL.IDX.src":
+            return "idx"
+        if req.get("store") in ("SHFL.BFLY.src", "SHFL.dst", "LDS128.dst"):
+            return "bfly"
+    if req.get("kind") == "ord" and req.get("older") == "SHFL":
+        return "bfly"
+    return None
 LATE_CONST = 0x9e3779b1      # odd: (checksum - good) / LATE_CONST = the number of iterations in which the store took the rewritten data
 FRONT_RE = re.compile(r"(sts128|sts|stg)x(\d+)@(\d+)")
 
@@ -315,7 +342,7 @@ def body_raw(req, d, front):
     b += pre
     b += front_ins(front, False)
     dst = ["UR6"] if what == "udata" else [f"R{rd}", f"R{rd + 1}"] if prod in PAIR_PRODUCERS else [f"R{rd}"]
-    b.append(Ins(ptext, psem, ctl=C(s), tag="P", dst=dst))
+    b.append(Ins(ptext, psem, ctl=C(s, y=req.get("yield") == "set"), tag="P", dst=dst))
     b += fill
     if cons == "STS.data":
         b += [Ins("STS [R9+0x20], R6 ;", ("sts", "R9", 0x20, "R6", 1), ctl=C(rb="2"), tag="C"),
@@ -375,7 +402,11 @@ def body_raw(req, d, front):
 
 
 ORD_PAIRS = [("LDS", "LDS"), ("LDS", "LDSM"), ("LDS", "LDG"), ("LDS128", "LDS"), ("LDG", "LDS"), ("LDG", "LDG"), ("LDS", "LDS128"),
-             ("LDS", "LDS64"), ("LDS64", "LDS64"), ("LDS64", "LDS"), ("LDSU16", "LDS"), ("LDSU16", "LDS128")]
+             ("LDS", "LDS64"), ("LDS64", "LDS64"), ("LDS64", "LDS"), ("LDSU16", "LDS"), ("LDSU16", "LDS128"),
+             # version 18: a YOUNGER producer of another class (with "older_barrier": "same": two producers of different
+             # classes on ONE write barrier - does the barrier count them?); older LDC = the constant-bank load of the seed,
+             # older SHFL = SHFL.BFLY; younger S2R R8, SR_TID.X / S2UR UR6, SR_CTAID.X / LDC.64 R30, c[0x0][0x380]
+             ("LDS", "S2R"), ("LDC", "S2UR"), ("SHFL", "LDC64"), ("LDG", "S2R"), ("LDG", "S2UR"), ("LDG", "LDC64")]
 
 
 def far_layout(threads):
@@ -510,6 +541,14 @@ def body_ord(req, d, front, variant):
               Ins("MOV R30, R5 ;", ("mov", "R30", "R5")), Ins("MOV R31, R5 ;", ("mov", "R31", "R5"))]
         b += front_ins(front, False)
         b.append(Ins("LDS.128 R28, [R9+0x20] ;", ("lds", "R28", "R9", 0x20, 4), ctl=C(s, wb=wb0), tag="P", dst=["R28", "R29", "R30", "R31"]))
+    elif older == "LDC":      # version 18: the constant-bank load of the seed; its destination holds the marker until it lands
+        b.append(Ins("MOV R6, R5 ;", ("mov", "R6", "R5")))
+        b += front_ins(front, False)
+        b.append(Ins("LDC R6, c[0x0][0x388] ;", ("mov", "R6", SEED), ctl=C(s, wb=wb0), tag="P", dst=["R6"]))
+    elif older == "SHFL":     # version 18: a warp shuffle (its source differs between the lanes of a pair)
+        b += [Ins("IMAD R14, R5, 0x3, R4 ;", ("mad", "R14", "R5", 3, "R4")), Ins("MOV R6, R5 ;", ("mov", "R6", "R5"))]
+        b += front_ins(front, False)
+        b.append(Ins("SHFL.BFLY PT, R6, R14, 0x1, 0x1f ;", ("shfl", "R6", "R14", "bfly", 1), ctl=C(s, wb=wb0), tag="P", dst=["R6"]))
     else:
         b += [Ins("STG.E desc[UR4][R16.64], R4 ;", ("stg", "R16", "R4"), ctl=C(rb="3")), Ins("MOV R6, R5 ;", ("mov", "R6", "R5"))]
         b += front_ins(front, False)
@@ -523,6 +562,12 @@ def body_ord(req, d, front, variant):
         b.append(Ins(f"{yg}LDS.64 R30, [{ybase}+0x{yoff:x}] ;", ("poison", "R30", 2), ctl=C(ys, wb="1")))
     elif younger == "LDSM":
         b.append(Ins(f"{yg}LDSM.16.M88.4 R24, [{ybase}+0x{yoff:x}] ;", ("poison", "R24", 4), ctl=C(ys, wb="1")))
+    elif younger == "S2R":       # version 18: a younger producer of another class (what it brings is not used)
+        b.append(Ins("S2R R8, SR_TID.X ;", ("mov", "R8", "R0"), ctl=C(ys, wb="1")))
+    elif younger == "S2UR":      # ... into a uniform register (UR4 is the descriptor's)
+        b.append(Ins("S2UR UR6, SR_CTAID.X ;", ("nop",), ctl=C(ys, wb="1")))
+    elif younger == "LDC64":     # ... the pair R30:R31 (the output pointer: not modelled)
+        b.append(Ins("LDC.64 R30, c[0x0][0x380] ;", ("poison", "R30", 2), ctl=C(ys, wb="1")))
     else:
         b.append(Ins("LDG.E R8, desc[UR4][R18.64] ;", ("ldg", "R8", "R18"), ctl=C(ys, wb="1")))
     if older == "LDS64":
@@ -599,18 +644,100 @@ def body_war(req, d, front, variant):
         mode = "bfly" if store == "SHFL.BFLY.src" else "idx"
         rbset = req.get("read_barrier") == "set"
         srb = "2" if (variant == "rb" or rbset) else "-"
+        behind = req.get("behind") in ("write_waiter", "younger_write")
+        younger = req.get("behind") == "younger_write"
+        if over == "IADD3.it":      # version 16: R7 = (iteration index + 1) * the odd constant (R7 is 0 before the loop)
+            b.append(Ins(f"IADD3 R7, PT, PT, R7, 0x{LATE_CONST:x}, RZ ;", ("add", "R7", "R7", LATE_CONST)))
         # the source value must DIFFER between lanes 2k and 2k + 1 (a + b does not: b = gid ^ an odd constant)
         b.append(Ins("IMAD R6, R4, 0x9, R5 ;", ("mad", "R6", "R4", 9, "R5")))
+        if younger:      # version 17: the YOUNGER shuffle's own source (it differs between the lanes of a pair too)
+            b.append(Ins("IMAD R14, R5, 0x3, R4 ;", ("mad", "R14", "R5", 3, "R4")))
         b += front_ins(front, False)
-        b.append(Ins(f"SHFL.{mode.upper()} PT, R8, R6, 0x1, 0x1f ;", ("shfl", "R8", "R6", mode, 1), ctl=C(s, rb=srb, wb="1"), tag="S"))
+        # (behind: the reader waits the WRITE barrier only - with a read barrier on the shuffle that is the shape of a barred
+        # shuffle whose overwriter stands behind the write-barrier waiter and does not wait the read barrier)
+        rwait = "12" if (srb == "2" and not behind) else "1"
+        if younger:
+            # version 17: the tested shuffle with NO write barrier, a younger shuffle with one `younger_gap` cycles behind
+            # it, the reader that waits the YOUNGER one's barrier and takes both results (at stall s), then the rewrite of
+            # the OLDER shuffle's source: the swept distance is waiter -> overwriter
+            b.append(Ins(f"SHFL.{mode.upper()} PT, R8, R6, 0x1, 0x1f ;", ("shfl", "R8", "R6", mode, 1),
+                         ctl=C(int(req.get("younger_gap", 1)), rb=srb, wb="-"), tag="S"))
+            b.append(Ins(f"SHFL.{mode.upper()} PT, R13, R14, 0x1, 0x1f ;", ("shfl", "R13", "R14", mode, 1), ctl=C(wb="1")))
+            b.append(Ins("IMAD R8, R13, 0x3, R8 ;", ("mad", "R8", "R13", 3, "R8"), ctl=C(s, wait="1")))
+        elif behind:
+            # version 16: the shuffle, then the reader of its result (it WAITS the shuffle's write barrier) at stall s, then
+            # the rewrite of the source: the swept distance is waiter -> overwriter
+            b.append(Ins(f"SHFL.{mode.upper()} PT, R8, R6, 0x1, 0x1f ;", ("shfl", "R8", "R6", mode, 1), ctl=C(rb=srb, wb="1"), tag="S"))
+            b.append(Ins("IADD3 R10, PT, PT, R10, R8, RZ ;", ("add", "R10", "R10", "R8"), ctl=C(s, wait=rwait)))
+        else:
+            b.append(Ins(f"SHFL.{mode.upper()} PT, R8, R6, 0x1, 0x1f ;", ("shfl", "R8", "R6", mode, 1), ctl=C(s, rb=srb, wb="1"), tag="S"))
         b += fill
         if ctl:
             b.append(PAD())
         elif over == "LOP3":
             b.append(Ins("LOP3.LUT R6, R6, 0x5a5a5a5a, RZ, 0x3c, !PT ;", ("xor", "R6", "R6", 0x5a5a5a5a), ctl=C(wait=ow), tag="O"))
+        elif over == "IADD3.it":
+            b.append(Ins("IADD3 R6, PT, PT, R6, R7, RZ ;", ("add", "R6", "R6", "R7"), ctl=C(wait=ow), tag="O"))
         else:
             b.append(Ins(f"IADD3 R6, PT, PT, R6, 0x{LATE_CONST:x}, RZ ;", ("add", "R6", "R6", LATE_CONST), ctl=C(wait=ow), tag="O"))
-        b.append(ADD10("12" if srb == "2" else "1"))
+        if younger:
+            b.append(ADD10(""))
+        elif not behind:
+            b.append(ADD10(rwait))
+    elif store in WAW_STORES:
+        # version 18 - write after write. tag S = the FIRST writer (write barrier 1) at stall s, tag O = the SECOND writer
+        # d cycles behind it; bare: the second writer does not wait; ctl: it waits barrier 1; rb: no first writer (a filler
+        # in its place). The reader of the register waits barrier 1 (+ 3: the read barrier of the store that prepared the
+        # first writer's value; + 2: a scoreboarded second writer's own barrier).
+        sw = "1" if ctl else ""
+        if over == "IADD3.it":      # R7 = -(iteration index + 1) * the constant (R7 is 0 before the loop)
+            b.append(Ins(f"IADD3 R7, PT, PT, R7, 0x{NEG_CONST:x}, RZ ;", ("add", "R7", "R7", NEG_CONST)))
+        dreg, vreg, rwait = "R6", None, "1"
+        if store == "LDS.dst":
+            b.append(Ins("STS [R9+0x20], R4 ;", ("sts", "R9", 0x20, "R4", 1), ctl=C(rb="3")))
+            vreg, rwait = "R4", "13"
+            first = Ins("LDS R6, [R9+0x20] ;", ("lds", "R6", "R9", 0x20, 1), ctl=C(s, wb="1"), tag="S")
+        elif store == "LDG.dst":
+            b.append(Ins("STG.E desc[UR4][R16.64], R4 ;", ("stg", "R16", "R4"), ctl=C(rb="3")))
+            vreg, rwait = "R4", "13"
+            first = Ins("LDG.E R6, desc[UR4][R16.64] ;", ("ldg", "R6", "R16"), ctl=C(s, wb="1"), tag="S")
+        elif store == "LDC.dst":
+            first = Ins("LDC R6, c[0x0][0x388] ;", ("mov", "R6", SEED), ctl=C(s, wb="1"), tag="S")
+        elif store == "S2R.dst":
+            vreg = "R0"
+            first = Ins("S2R R6, SR_TID.X ;", ("mov", "R6", "R0"), ctl=C(s, wb="1"), tag="S")
+        elif store == "SHFL.dst":
+            b.append(Ins("IMAD R14, R5, 0x3, R4 ;", ("mad", "R14", "R5", 3, "R4")))
+            vreg = "R4"
+            first = Ins("SHFL.BFLY PT, R6, R14, 0x1, 0x1f ;", ("shfl", "R6", "R14", "bfly", 1), ctl=C(s, wb="1"), tag="S")
+        else:                       # LDS128.dst: slot 2 of the thread holds R20..R23 (prologue)
+            b.append(Ins("IMAD R14, R5, 0x3, R4 ;", ("mad", "R14", "R5", 3, "R4")))
+            dreg = "R24"
+            first = Ins("LDS.128 R24, [R9+0x20] ;", ("lds", "R24", "R9", 0x20, 4), ctl=C(s, wb="1"), tag="S")
+        b += front_ins(front, False)
+        b.append(first if variant != "rb" else Ins("IADD3 R15, PT, PT, R15, 0x1, RZ ;", ("nop",), ctl=C(s)))
+        b += fill
+        if over == "IADD3":
+            if vreg:
+                b.append(Ins(f"IADD3 R6, PT, PT, {vreg}, 0x{NEG_CONST:x}, RZ ;", ("add", "R6", vreg, NEG_CONST), ctl=C(wait=sw), tag="O"))
+            else:                   # the seed - the constant, as an immediate
+                b.append(Ins(f"IADD3 R6, PT, PT, RZ, 0x{(SEED + NEG_CONST) & 0xFFFFFFFF:x}, RZ ;", ("add", "R6", "RZ", (SEED + NEG_CONST) & 0xFFFFFFFF),
+                             ctl=C(wait=sw), tag="O"))
+        elif over == "IADD3.it":
+            if vreg:
+                b.append(Ins(f"IADD3 R6, PT, PT, {vreg}, R7, RZ ;", ("add", "R6", vreg, "R7"), ctl=C(wait=sw), tag="O"))
+            else:
+                b.append(Ins(f"IADD3 R6, PT, PT, R7, 0x{SEED:x}, RZ ;", ("add", "R6", "R7", SEED), ctl=C(wait=sw), tag="O"))
+        elif over == "LDS":         # slot 3 of the thread holds R20..R23
+            b.append(Ins("LDS R6, [R9+0x30] ;", ("lds", "R6", "R9", 0x30, 1), ctl=C(wait=sw, wb="2"), tag="O"))
+            rwait += "2"
+        elif over == "LDG":         # word B of the thread holds R20
+            b.append(Ins("LDG.E R6, desc[UR4][R18.64] ;", ("ldg", "R6", "R18"), ctl=C(wait=sw, wb="2"), tag="O"))
+            rwait += "2"
+        else:                       # SHFL (behind LDS.128)
+            b.append(Ins("SHFL.BFLY PT, R24, R14, 0x1, 0x1f ;", ("shfl", "R24", "R14", "bfly", 1), ctl=C(wait=sw, wb="2"), tag="O"))
+            rwait += "2"
+        b.append(Ins(f"IADD3 R10, PT, PT, R10, {dreg}, RZ ;", ("add", "R10", "R10", dreg), ctl=C(wait=rwait)))
     elif store == "STS.addr":
         b += [Ins("IADD3 R6, PT, PT, R4, R5, RZ ;", ("add", "R6", "R4", "R5")),
               Ins("IADD3 R7, PT, PT, R9, 0x20, RZ ;", ("add", "R7", "R9", 0x20))]
@@ -736,7 +863,7 @@ def body_mma(req, d, front="none"):
         fk, fs = mma_front(front)
         for _ in range(fk):       # the traffic: K MMAs in front, another accumulator (not part of the checksum)
             b.append(Ins(q("R24", "R6"), ("qmma", "R24", "R16", "R6", None, fn), ctl=C(fs), tag="F"))
-        b.append(Ins(q("R28", "R12"), ("qmma", "R28", "R16", "R12", None, fn), ctl=C(s), tag="P", dst=["R28", "R29", "R30", "R31"]))
+        b.append(Ins(q("R28", "R12"), ("qmma", "R28", "R16", "R12", None, fn), ctl=C(s, y=req.get("yield") == "set"), tag="P", dst=["R28", "R29", "R30", "R31"]))
         b += fill
         tgt = "R17" if var.startswith("hold_a") else "R12" if var.startswith("hold_bl") else "R13"
         if var.endswith("_mov"):       # R6 = the B2 word: another finite code in every element
@@ -759,7 +886,8 @@ def body_mma(req, d, front="none"):
         fill = [Ins("NOP ;", ("nop",), ctl=C(1))] + [PAD() for _ in range(npad)]
     else:
         s, fill = split_distance(d)
-    b.append(Ins(g1 + q("R28", "R12"), ("qmma", "R28", "R16", "R12", "P0" if g1 else None, fn), ctl=C(s), tag="P", dst=["R28", "R29", "R30", "R31"]))
+    b.append(Ins(g1 + q("R28", "R12"), ("qmma", "R28", "R16", "R12", "P0" if g1 else None, fn), ctl=C(s, y=req.get("yield") == "set"), tag="P",
+                 dst=["R28", "R29", "R30", "R31"]))
     b += fill
     b.append(Ins(g2 + q(rd2, "R6"), ("qmma", rd2, "R16", "R6", g2.strip("@ ") or None, fn), tag="C"))
     b += [PAD(), PAD(), PAD()]      # a reader of an MMA result is 45 cycles behind the second (the table's row: 28)
@@ -919,9 +1047,9 @@ def model(req, mode, gids=None, scalar=False):
     import numpy as np
     if gids is None:
         gids = np.arange(NGID, dtype=np.int64)
-    if req["kind"] == "war" and req.get("store") in SHFL_STORES and not scalar:
+    if shfl_of(req) and not scalar:      # (version 18: also write-after-write with a shuffle, and an older shuffle of kind ord)
         gids = np.asarray(gids, dtype=np.int64)
-        need = np.union1d(gids, (gids ^ 1) if req["store"] == "SHFL.BFLY.src" else ((gids & ~31) | 1))
+        need = np.union1d(gids, (gids ^ 1) if shfl_of(req) == "bfly" else ((gids & ~31) | 1))
         if len(need) != len(gids):      # a shuffle reads another lane: model the closed set, return the threads asked for
             return model(req, mode, gids=need)[np.searchsorted(need, gids)]
     if req["kind"] == "war":
@@ -1225,8 +1353,8 @@ def _scalar(gid, pro, body, mode):
     two interpreters in step)"""
     sh = [i.sem for i in body if i.sem[0] == "shfl"]
     if sh:
-        if mode == "stale" or len({x[3:] for x in sh}) != 1:
-            raise RuntimeError("scalar model: one kind of shuffle per body, modes good / late")
+        if len({x[3:] for x in sh}) != 1:      # (version 18: mode stale too - the older shuffle of kind ord)
+            raise RuntimeError("scalar model: one kind of shuffle per body")
         other = (gid ^ sh[0][4]) if sh[0][3] == "bfly" else ((gid & ~31) | sh[0][4])
         ms = [_machine(g) for g in dict.fromkeys([gid, other])]      # (the source lane last)
 
@@ -1277,8 +1405,8 @@ def modes_of(req):
         if str(req.get("variant", "")).startswith(("hold_", "sens_")):
             return ["good", "drop1"]
         return ["good", "drop2"] if req.get("variant") == "gfalse" else ["good", "drop1", "drop2"]
-    if req["kind"] == "war" and req.get("store") in SHFL_STORES:
-        return ["good", "late"]      # (no read-back a late shuffle could come behind)
+    if req["kind"] == "war" and req.get("store") in SHFL_STORES + WAW_STORES:
+        return ["good", "late"]      # (no read-back a late shuffle / a late first write could come behind)
     return ["good", "stale"] if req["kind"] in ("raw", "ord") else ["good", "late", "overtake"]
 
 
@@ -1318,6 +1446,13 @@ def normalise(req):
             raise SystemExit(f"{r['id']}: store {r.get('store')!r} / overwriter {r.get('overwriter')!r} not in the catalogue (probe.py list)")
         if r.get("read_barrier") not in (None, "set") or (r.get("read_barrier") and r["store"] not in SHFL_STORES):
             raise SystemExit(f"{r['id']}: read_barrier is \"set\" (a shuffle that carries a read barrier nobody waits) or absent")
+        if r.get("behind") not in (None, "write_waiter", "younger_write") or (r.get("behind") and r["store"] not in SHFL_STORES):
+            raise SystemExit(f"{r['id']}: behind is \"write_waiter\" (the overwriter behind the reader that waited the shuffle's write barrier), "
+                             "\"younger_write\" (a barrier-less shuffle read under a younger shuffle's write barrier) or absent")
+        if r.get("behind") == "younger_write":
+            r.setdefault("younger_gap", 1)
+            if r.get("read_barrier") or not (isinstance(r["younger_gap"], int) and 1 <= r["younger_gap"] <= 15):
+                raise SystemExit(f"{r['id']}: behind younger_write: the tested shuffle carries no barrier; younger_gap 1..15")
         r.setdefault("distances", "1-30,45" if r["store"] in SHFL_STORES else "1-15,18-75:3,90,105,150")
         r.setdefault("controls", True)
         r.setdefault("control_distances", "1,6,15,30,60,105")
@@ -1340,6 +1475,8 @@ def normalise(req):
             raise SystemExit(f"{r['id']}: a guarded younger load is a shared load")
             if max(parse_distances(r["distances"])) > 15:
                 raise SystemExit(f"{r['id']}: the loads of an N-load request are at most 15 cycles apart (one stall, no fillers)")
+        if r.get("older") == "SHFL" and r.get("far"):
+            raise SystemExit(f"{r['id']}: an older shuffle has no `far` shape (R14 is its source)")
         if (r.get("older"), r.get("younger")) not in ORD_PAIRS:
             raise SystemExit(f"{r['id']}: older {r.get('older')!r} / younger {r.get('younger')!r} not in the catalogue (probe.py list)")
         r.setdefault("distances", "1-15,20,30")
@@ -1367,6 +1504,8 @@ def normalise(req):
             r["front"] = ["none"]
     else:
         raise SystemExit(f"{r.get('id')}: kind must be raw, war, ord or mma")
+    if r.get("yield") not in (None, "set") or (r.get("yield") and (r["kind"] not in ("raw", "mma") or r.get("via") != "stall")):
+        raise SystemExit(f"{r['id']}: yield is \"set\" (the swept instruction of a raw / mma request carries the yield flag; via stall) or absent")
     r.setdefault("occupancy", ["w8", "w32"])
     r.setdefault("front", ["none"])
     r.setdefault("reps", 20)
@@ -1406,7 +1545,20 @@ def pair_text(r):
     if r["store"] in SHFL_STORES:
         return (f"{r['store']} <- {r['overwriter']} (unwaited rewrite of the source register behind a warp shuffle"
                 + ("; the shuffle carries a read barrier that the overwriter does not wait" if r.get("read_barrier") == "set"
-                   else "; the shuffle carries no read barrier") + ")")
+                   else "; the shuffle carries no read barrier")
+                + ("; the overwriter stands BEHIND the reader that waited the shuffle's write barrier - distance = waiter -> overwriter"
+                   if r.get("behind") == "write_waiter" else
+                   f"; the tested shuffle has NO write barrier either: a younger shuffle {r.get('younger_gap', 1)} cycle(s) behind it carries one, the reader "
+                   "waits that and takes both results, the overwriter stands behind the reader - distance = waiter -> overwriter"
+                   if r.get("behind") == "younger_write" else "")
+                + ("; the overwriter adds (iteration index + 1) x a constant: one late iteration per thread is decoded to its index + 1"
+                   if r["overwriter"] == "IADD3.it" else "") + ")")
+    if r["store"] in WAW_STORES:
+        return (f"{r['store']} <- {r['overwriter']} (write after write: the register is written again d cycles behind a pending scoreboarded "
+                "write; the second writer does not wait the first's write barrier, the reader does"
+                + ("; the second writer is a scoreboarded producer itself (its own barrier, waited by the reader)" if r["overwriter"] in ("LDS", "LDG", "SHFL") else "")
+                + ("; the second writer's value carries (iteration index + 1) x a constant: one late first write per thread is decoded to its index + 1"
+                   if r["overwriter"] == "IADD3.it" else "") + ")")
     return f"{r['store']} <- {r['overwriter']} (unwaited rewrite behind a bare store)"
 
 
@@ -1485,9 +1637,11 @@ def cmd_gen(args):
                         kernels.append({"name": name, "variant": v, "occupancy": occ, "front": front, "distance": dist,
                                         "ctas": ctas, "threads": threads, "smem": smem})
                         jobs.append((d, name))
-        late_delta = LATE_CONST if (r["kind"] == "war" and r["overwriter"] == "IADD3"
-                                    and r["store"] in ("STS.data", "STG.data") + SHFL_STORES) else None
-        fam = {"request": r, "pair": pair_text(r), "provenance": prov, "kernels": kernels, "modes": modes_of(r), "late_delta": late_delta,
+        # (behind a write-barrier waiter a late shuffle is not "+ the constant": the reader has taken the result before)
+        late_delta = LATE_CONST if (r["kind"] == "war" and r["overwriter"] in ("IADD3", "IADD3.it") and not r.get("behind")
+                                    and r["store"] in ("STS.data", "STG.data", "LDS.dst", "LDG.dst", "LDC.dst", "S2R.dst") + SHFL_STORES) else None
+        fam = {"request": r, "pair": pair_text(r) + (" [the swept instruction carries the YIELD flag]" if r.get("yield") else ""),
+               "provenance": prov, "kernels": kernels, "modes": modes_of(r), "late_delta": late_delta,
                "table_cell": table_cell(args.dep_table, r.get("cell"))}
         (d / "family.json").write_text(json.dumps(fam, indent=1) + "\n")
         total += len(kernels)
@@ -2083,6 +2237,9 @@ def cmd_list(_args):
     for k, v in WAR_STORES.items():
         print(f"  store {k:12s} overwriters {', '.join(v[0])}: {v[2]}")
     print("  a shuffle's source register: \"read_barrier\": \"set\" = the shuffle carries a read barrier in the bare variant too (the overwriter does not wait it)")
+    print("  a shuffle's source register: overwriter IADD3.it adds (iteration index + 1) x the constant (which iteration is the late one); \"behind\": \"write_waiter\" = the overwriter behind the reader that waited the shuffle's WRITE barrier (distance = waiter -> overwriter); \"behind\": \"younger_write\" (+ \"younger_gap\": 1..15) = a barrier-less shuffle read under a YOUNGER shuffle's write barrier")
+    print("  write after write (version 18): stores LDS.dst / LDG.dst / LDC.dst / S2R.dst / SHFL.dst / LDS128.dst = the FIRST writer of a register on write barrier 1, the overwriter = the second writer d cycles behind it (IADD3 / IADD3.it: the first writer's value - the constant, so late first writes are counted / decoded; LDS / LDG / SHFL: a scoreboarded second writer); ctl = the second writer waits barrier 1, rb = no first writer")
+    print("  mixed producer classes (version 18): ord pairs with a younger S2R / S2UR / LDC64 and an older LDC / SHFL (\"older_barrier\": \"same\" = both on ONE write barrier); \"yield\": \"set\" on a raw / mma request = its swept instruction carries the yield flag")
     print("kind mma - two tensor instructions of one warp, d issue cycles apart (form; variant; via stall | nop):")
     print("  forms: " + ", ".join(f"{k} = {v}" for k, v in MMA_FORMS.items()))
     for k, v in MMA_VARIANTS.items():
@@ -2169,6 +2326,60 @@ def cmd_selftest(_args):
         # every late iteration adds the overwriter's constant once, in every thread
         assert all(int(x) == (REPEAT * LATE_CONST) & 0xFFFFFFFF for x in (lt - g)), st
         n += 2
+        # IADD3.it: late iteration i adds (i + 1) constants; the good checksum is the plain one's
+        ri = normalise({"id": "selftest", "kind": "war", "store": st, "overwriter": "IADD3.it"})
+        gi, li = model(ri, "good", gids=w), model(ri, "late", gids=w)
+        assert np.array_equal(gi, g) and all(int(x) == (LATE_CONST * REPEAT * (REPEAT + 1) // 2) & 0xFFFFFFFF for x in (li - gi)), st
+        # behind a write-barrier waiter: the same good checksum (the order of two instructions that do not depend on each
+        # other changed), and a late shuffle is another checksum
+        for ov in ("LOP3", "IADD3"):
+            rb_ = normalise({"id": "selftest", "kind": "war", "store": st, "overwriter": ov, "behind": "write_waiter"})
+            gb, lb = model(rb_, "good", gids=w), model(rb_, "late", gids=w)
+            assert np.array_equal(gb, g) and not np.array_equal(gb, lb), (st, ov)
+            assert [int(x) for x in gb] == model(rb_, "good", gids=w, scalar=True) and [int(x) for x in lb] == model(rb_, "late", gids=w, scalar=True), (st, ov)
+            n += 2
+            # a barrier-less shuffle under a younger shuffle's barrier: the checksum takes BOTH results (another one than
+            # the plain shape's), a late older shuffle is another checksum again, and the gap does not enter the model
+            ry = normalise({"id": "selftest", "kind": "war", "store": st, "overwriter": ov, "behind": "younger_write", "younger_gap": 4})
+            gy, ly = model(ry, "good", gids=w), model(ry, "late", gids=w)
+            assert not np.array_equal(gy, g) and not np.array_equal(gy, ly), (st, ov)
+            assert [int(x) for x in gy] == model(ry, "good", gids=w, scalar=True) and [int(x) for x in ly] == model(ry, "late", gids=w, scalar=True), (st, ov)
+            n += 2
+    for st in WAW_STORES:      # version 18 - write after write: `late` = the FIRST writer's value in every iteration
+        for ov in WAR_STORES[st][0]:
+            r = normalise({"id": "selftest", "kind": "war", "store": st, "overwriter": ov})
+            w = np.arange(64, dtype=np.int64)
+            g, lt = model(r, "good", gids=w), model(r, "late", gids=w)
+            assert modes_of(r) == ["good", "late"] and not np.array_equal(g, lt), (st, ov)
+            assert [int(x) for x in g] == model(r, "good", gids=w, scalar=True) and [int(x) for x in lt] == model(r, "late", gids=w, scalar=True), (st, ov)
+            if ov == "IADD3" and st != "SHFL.dst":       # every late first write adds the constant once
+                assert all(int(x) == (REPEAT * LATE_CONST) & 0xFFFFFFFF for x in (lt - g)), (st, ov)
+            if ov == "IADD3.it":                         # late first write of iteration i adds (i + 1) constants
+                assert all(int(x) == (LATE_CONST * REPEAT * (REPEAT + 1) // 2) & 0xFFFFFFFF for x in (lt - g)), (st, ov)
+            # the controls: ctl differs from bare in ONE control code (the second writer waits barrier 1), rb in ONE
+            # instruction (a filler with the same stall in the first writer's place)
+            bare, ctl_, rb_ = (body_war(r, 7, "none", v) for v in ("bare", "ctl", "rb"))
+            dc = [(a, c) for a, c in zip(bare, ctl_) if a.line() != c.line()]
+            dr = [(a, c) for a, c in zip(bare, rb_) if a.line() != c.line()]
+            assert len(bare) == len(ctl_) == len(rb_) and len(dc) == 1 and len(dr) == 1, (st, ov)
+            assert dc[0][0].tag == "O" and dc[0][0].text == dc[0][1].text and dc[0][0].ctl[1:8] == "B------" and dc[0][1].ctl[1:8] == "B-1----", (st, ov)
+            assert dr[0][0].tag == "S" and dr[0][1].sem == ("nop",) and dr[0][0].ctl[-4:] == dr[0][1].ctl[-4:] == "S07]", (st, ov)
+            n += 2
+    for prod, cons in (("IADD3", "STS.data"), ("IMAD", "IADD3.r1")):      # version 18 - the yield flag sits on the swept instruction only
+        ry = normalise({"id": "selftest", "kind": "raw", "producer": prod, "consumer": cons, "yield": "set"})
+        rn = normalise({"id": "selftest", "kind": "raw", "producer": prod, "consumer": cons})
+        by, bn = body_raw(ry, 3, "none"), body_raw(rn, 3, "none")
+        dy = [(a.line(), c.line()) for a, c in zip(by, bn) if a.line() != c.line()]
+        assert len(by) == len(bn) and len(dy) == 1 and ":Y:S03]" in dy[0][0] and ":-:S03]" in dy[0][1], (prod, cons, dy)
+        assert np.array_equal(model(ry, "good", gids=gids), model(rn, "good", gids=gids))
+        n += 1
+    for var in ("acc2", "hold_a_mov", "hold_b_mov"):
+        ry = normalise({"id": "selftest", "kind": "mma", "variant": var, "yield": "set"})
+        rn = normalise({"id": "selftest", "kind": "mma", "variant": var})
+        by, bn = body_mma(ry, 2, "none"), body_mma(rn, 2, "none")
+        dy = [(a.line(), c.line()) for a, c in zip(by, bn) if a.line() != c.line()]
+        assert len(by) == len(bn) and len(dy) == 1 and ":Y:S02]" in dy[0][0] and "QMMA" in dy[0][0], (var, dy)
+        n += 1
     for older, younger in ORD_PAIRS:
         r = normalise({"id": "selftest", "kind": "ord", "older": older, "younger": younger, "older_barrier": "same"})
         g, st = model(r, "good", gids=gids), model(r, "stale", gids=gids)

@@ -51,6 +51,36 @@ decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `
   too. With them as a producer's result the walk printed 168 pairs in 14 census listings (under the switch as well); for
   an atomic it therefore reads the scheduler's own convention (BUG-482), and a test pins that (KNOWN_ISSUES A35).
 
+## Unreleased — 2026-11-11 (session SCH-5: the covers of a warp shuffle's source on two card models, write after write, producers of other classes on one write barrier, the yield flag — a tool version and result files only, no source line changes)
+
+- **`tools/stallfloor/probe.py` 16 – 18.** Kind `war` on a shuffle's source: the overwriter `IADD3.it` (it adds (iteration index + 1) × a
+  constant, so a wrong thread names its late iteration), `behind: write_waiter` (the overwriter behind a waiter of the shuffle's
+  own write barrier), `behind: younger_write` (a barrier-less shuffle under a younger shuffle's write barrier). Version 18: WRITE
+  AFTER WRITE — `store` names the first writer of a register (`LDS.dst`, `LDG.dst`, `LDC.dst`, `S2R.dst`, `SHFL.dst`, `LDS128.dst`),
+  the overwriter is the second (`IADD3`, `IADD3.it`, or a scoreboarded `LDS` / `LDG` / `SHFL`); kind `ord` with a younger producer
+  of another class (`S2R`, `S2UR`, `LDC.64`; older `LDC` / `SHFL`), on one write barrier with `older_barrier: same`; `"yield": "set"`
+  puts the yield flag on the swept instruction of a `raw` / `mma` request. The runner is still version 12's: every batch of these
+  files also ran under `probe.py 14` with the same floors. Selftest 1 054 models.
+- **The three covers of a shuffle's source that vendor text uses are right — on the Server card and on a card of the Workstation
+  Edition alone and at its 400-W limit** (KNOWN_ISSUES A34; `probe_sm120_20261111_b20.json`, `_b21.json`, `_b25.json` and the `_ws_`
+  files of `_b20` / `_b21`). The overwriter behind a waiter of the shuffle's own write barrier 0 not right of 993 392 640
+  thread-launches (0 of 662 261 760 when the shuffle also carries a read barrier nobody waits), a barrier-less shuffle under a
+  younger shuffle's write barrier 0 of 1 324 523 520 — in each of four runs. Without a cover the rewrite is wrong at every
+  occupancy above one warp per SM (654 214 848 of 1 324 523 520 on the Server card); the late read is the loop's first iteration,
+  reaches to 200 cycles, is gone at 300, and with stores in flight in front of the shuffle every iteration is late — a start-up
+  effect of the memory traffic ahead, not a distance to schedule by.
+- **Write after write** (KNOWN_ISSUES A36; `_b22.json`). With the second writer waiting the first's barrier 0 not right of
+  1 379 712 000; an ALU second writer that does not wait leaves the first writer's value at every distance up to 90 once an SM
+  runs 8 warps (behind `LDS`, `LDG`, `S2R`, `SHFL`); behind `LDC` there is a floor, 20 – 45 by occupancy; two producers one unit
+  serves in order need no wait, a shared and a global load in either order do. The scheduler's WAW rule (BUG-485) is what the
+  silicon needs. The same classes and binding floors on a card of the Workstation Edition, alone
+  and at its 400-W limit (`_b22_ws_…`, `_b23_ws_…`).
+- **A write barrier counts producers of different classes too** (KNOWN_ISSUES A32; `_b23.json`): `SHFL` + `LDC.64`, `LDG` + `S2R`,
+  `LDG` + `S2UR`, `LDG` + `LDC.64` on one barrier 0 not right of 369 141 760 each, the same pairs with the older producer bare
+  183 037 088 … 367 697 920.
+- **The yield flag moves no floor** (`_b24.json`): seven pairs with and without it — ALU → store data 3, → load address 4, ALU →
+  ALU 4 / 5, two `QMMA.SF` 1, the A-fragment hold 5, the B fragment 1 — on six grids.
+
 ## Unreleased — 2026-11-11 (session SCH-4: the stall-floor probes on grids that hold two CTAs per SM and on production's card model in two clock states — tools and result files only, no source line changes)
 
 - **`tools/stallfloor/probe.py` 12 – 15.** The shared memory a probe kernel declares is per grid: `c2w9s` (49 152 B per CTA) and `c4w8`
