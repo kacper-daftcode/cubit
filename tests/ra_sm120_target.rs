@@ -54,7 +54,9 @@ fn sm120_puts_every_multi_register_operand_on_its_grid() {
             if sp.width >= 4 { quads += 1 } else { pairs += 1 }
         }
     }
-    assert_eq!((pairs, quads), (379, 319), "the kernel's pairs (IMAD.WIDE, addresses, LDC.64, CS2R, LDSM.2, HMMA B) and quads");
+    // 427 = 379 + the kernel's 48 `CS2R Rn, SRZ` words: since BUG-491 the certified function gives every 64-bit `CS2R`
+    // the pair as a span of its own (the target had the pair in its definition set before, without a span)
+    assert_eq!((pairs, quads), (427, 319), "the kernel's pairs (IMAD.WIDE, addresses, LDC.64, CS2R, LDSM.2, HMMA B) and quads");
     // as many registers as by hand, and `.reg` says so: 126 symbols on R0..R124, register count 128
     let homes: BTreeSet<u8> = m.values().copied().collect();
     assert_eq!((m.len(), homes.len(), *homes.iter().max().unwrap()), (126, 125, 124));
@@ -138,7 +140,7 @@ fn sm120_footprints() {
     assert_eq!(s.ruses, set(&[6, 7, 64, 65, 66, 67]));
     // CS2R writes the pair unless it is the 32-bit form
     assert_eq!(x("CS2R R88, SRZ ;").rdefs, set(&[88, 89]));
-    assert_eq!(base("CS2R R88, SRZ ;").rdefs, set(&[88]));
+    assert_eq!(base("CS2R R88, SRZ ;").rdefs, set(&[88, 89]), "the role table's reading has the pair too (BUG-491)");
     assert_eq!(x("CS2R.32 R5, SR_CLOCKHI ;").rdefs, set(&[5]));
     // LDSM: .2 two registers, .4 four
     assert_eq!(x("LDSM.16.MT88.2 R72, [R80+0x80] ;").rdefs, set(&[72, 73]));

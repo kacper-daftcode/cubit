@@ -1357,6 +1357,16 @@ pub(crate) fn dest_regs_plain(insn: &Instruction) -> Vec<(bool, u16)> {
                     || insn.opcode_full.contains("WIDE")) && *num < 255 {
                     out.push((false, *num as u16 + 1));
                 }
+                // BUG-491: `CS2R Rd, <SR>` without `.32` writes the pair `Rd:Rd+1` (`CS2R R8, SRZ`
+                // zeroes R8 and R9; the encoder's register grid and the register allocator's target
+                // have had the pair since BUG-488). Without the second register here a store that
+                // reads `Rd+1` got no read barrier against the `CS2R` that rewrites it, a `CS2R` that
+                // rewrites a pending result in `Rd+1` did not wait its producer, the scoreboard
+                // verifier counted neither, and a reader of `Rd+1` had no producer in the dependency
+                // walk (which took the pair on its own from 2026-11-11 until this line).
+                if op == "CS2R" && !insn.modifiers.iter().any(|m| m == ".32") && *num < 254 {
+                    out.push((false, *num as u16 + 1));
+                }
                 if insn.opcode_full.contains(".128") {
                     if *num < 254 { out.push((false, *num as u16 + 2)); }
                     if *num < 253 { out.push((false, *num as u16 + 3)); }

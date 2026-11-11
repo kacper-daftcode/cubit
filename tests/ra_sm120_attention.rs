@@ -175,11 +175,14 @@ fn the_target_neutral_plan_of_the_kernel_is_pinned() {
     assert!(f.entry_pins.is_empty());
     assert_eq!(f.renamed, 3704);
     // the staging quad R88..R91 (an LDG.E.128 destination whose low pair is also an IMAD.WIDE
-    // addend) lands on R47, a 64-bit address pair on R41: assembles, faults on sm_120
+    // addend) lands on R15, a 64-bit address pair on R9: assembles, faults on sm_120
+    // (the homes were R47 / R41 / R37 until BUG-491: the certified function now gives every 64-bit
+    // `CS2R` its register pair, so the kernel's 48 `CS2R Rn, SRZ` words are spans of two and the
+    // neutral plan orders its groups otherwise -- the same counts, still off the sm_120 grid)
     let m = rplan(&run);
-    assert_eq!([m[&88], m[&89], m[&90], m[&91]], [47, 48, 49, 50]);
-    assert_eq!((m[&2], m[&3]), (41, 42));
-    assert_eq!((m[&14], m[&80]), (37, 37), "two values that never meet share a register");
+    assert_eq!([m[&88], m[&89], m[&90], m[&91]], [15, 16, 17, 18]);
+    assert_eq!((m[&2], m[&3]), (9, 10));
+    assert_eq!((m[&14], m[&80]), (5, 5), "two values that never meet share a register");
     assert!(run.out_text.contains("    .reg R0-R125\n"), "`.reg` untouched");
     // the report of a run without a target carries no target fields
     let json = serde_json::to_value(&run.report).unwrap();

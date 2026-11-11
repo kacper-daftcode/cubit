@@ -4,6 +4,33 @@ User-visible changes, newest first. Table syncs name the blackwell-isa revision 
 (`tables/SOURCE.json` pins it byte for byte). Numbered `BUG-NNN` entries are the encoder /
 decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `docs/TESTS.md`).
 
+## Unreleased — 2026-11-11 (session T-31: BUG-491 in every view — the second register of a 64-bit `CS2R` in the scheduler's destination convention and in the certified transfer function)
+
+- **BUG-491, the other views: every `CS2R` without `.32` defines `Rd` and `Rd+1` in the scheduler's destination
+  convention (`scheduling_pass::dest_regs_plain`) and in the certified transfer function (`reg_liveness::reg_xfer`,
+  which had the pair for an `SR_*LO` register only)** (KNOWN_ISSUES A40). The dependency walk has had the pair
+  since the first step; now the barrier allocator and the scoreboard verifier have it: a store that reads `Rd+1`
+  carries a read barrier that the `CS2R` waits, a `CS2R` that rewrites a pending result in `Rd+1` waits the
+  producer's write barrier, and `CUBIT_VERIFY` counts an overwrite of `Rd+1` in front of the wait as a broken WAR.
+  `CS2R.32` writes one register, as before.
+- **The BEHAVIOUR of the default path's allocator changes with it (it is the same allocator) — for a source in
+  which the second register of a 64-bit `CS2R` is a memory word's late operand in flight or holds a pending result;
+  the PRODUCTS of what serves do not change:** the production sources assemble to the
+  same `.text`, the attention source to the committed cubins and, under `CUBIT_SCHED2_MEMSTALL=table`, to the same
+  schedule — nothing that serves has a `CS2R` whose second register meets a memory word's read barrier or a pending
+  result. The new rule acts on 0 sites of the 101 production sources: of their 144 `CS2R` words (all of the 64-bit form, in 3 sources) none rewrites, through either register, a late operand of a memory word — counted in the probe's view, which tracks memory words without a read barrier too — or a pending result, and the 101 cubins are byte for byte what they were.
+- **cubit's `CUBIT_SYNC_CLASSES` schedules of the five served MoE kernels move** — barriers and wait masks around
+  their `CS2R` words, no stall: 36 control words in the persistent kernel, 68 in fc1, 36 in fc2, 114 in m-tile fc1,
+  48 in m-tile fc2. Every count of the checks on them is unchanged but m-tile fc1's broken WAR (272 → 276: three
+  sites the schedule before the fix has too, counted now; one that an accidental wait used to cover — the class of
+  that schedule's other 272). Of cubit's `CUBIT_SYNC_CLASSES` schedules of the vendor's 749 census kernels 323 change (311 with `CUBIT_SCHED2_MEMSTALL=table`): what the path walks had reported about the second register of a `CS2R` is closed by the allocator — store → overwriter pairs 146 → 16, rewritten sources of a shuffle 20 → 0 — and the simulation counts what it now sees: broken WAR 3 119 → 3 205 (more in 57 kernels, fewer in 18), recycle-stale 6 971 → 6 921; unprotected RAW, write after write and the four classes of the dependency table do not move.
+- The register allocator reads the certified function: on every target a 64-bit `CS2R` is a span of two registers
+  now (the sm_120 target had the pair in its footprints since BUG-488). The sm_120 plan of the attention kernel is
+  unchanged; its target-neutral plan has other homes for the same groups.
+- `tests/bug491_cs2r_views.rs` (4; 4 red before); `tests/ra_sm120_target.rs` and `tests/ra_sm120_attention.rs`
+  follow (the certified reading of `CS2R R88, SRZ`; the fixture's 48 `CS2R Rn, SRZ` words as spans of the
+  allocator's grid, pairs 379 → 427; the homes of the target-neutral plan).
+
 ## Unreleased — 2026-11-11 (session T-31: the dependency table prices the result of the 64-bit `CS2R` at the vendor's 7 — the default 6 was its silicon floor, with no margin)
 
 - **`tables/dep_latency_sm120.json` has a section `producer_forms`, and its one entry prices the result of `CS2R`

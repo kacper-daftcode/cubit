@@ -582,24 +582,11 @@ pub fn dep_class(insn: &Instruction) -> String {
     }
 }
 /// The registers an instruction defines, for the dependency walk: the scheduler's destinations
-/// ([`sp::dest_regs`]) and one hardware footprint that convention does not carry (BUG-491) --
-/// `CS2R Rd, <SR>` without `.32` writes the pair `Rd:Rd+1` (`CS2R R8, SRZ` zeroes R8 and R9; the
-/// encoder's register grid and the register allocator's target have had the pair since BUG-488).
-/// Without the second register a reader of `Rd+1` had no producer here: the legaliser left it at
-/// any distance behind the `CS2R` and `CUBIT_DEP_VERIFY` saw nothing, while the pair's floor on
-/// silicon is 6 issue cycles for either register. Only this walk takes the pair: the barrier
-/// allocator and the scoreboard verifier keep the scheduler's convention (KNOWN_ISSUES A40).
+/// ([`sp::dest_regs`]). BUG-491: a `CS2R` without `.32` defines the pair `Rd:Rd+1` there -- this
+/// walk took the second register on its own for one commit, before the convention had it; a
+/// reader of `Rd+1` is tied to the `CS2R` like a reader of `Rd` (KNOWN_ISSUES A40).
 fn dest_regs(ins: &Instruction) -> Vec<(bool, u16)> {
-    let mut out = sp::dest_regs(ins);
-    if ins.opcode == "CS2R" && !ins.modifiers.iter().any(|m| m == ".32") {
-        if let Some(Operand::Reg { num, .. }) = ins.operands.first() {
-            let hi = (false, *num as u16 + 1);
-            if *num < 254 && !out.contains(&hi) {
-                out.push(hi);
-            }
-        }
-    }
-    out
+    sp::dest_regs(ins)
 }
 
 /// `key` is a register ABOVE the first one of `prod`'s multi-register result (the high half of

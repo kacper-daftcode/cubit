@@ -666,15 +666,17 @@ pub fn reg_xfer(insn: &Instruction) -> RegXfer {
         "dest_only" => {
             def_operand0(insn, &mut x, 1);
         }
-        // CS2R from a 64-bit system register (BUG-118): the
-        // hardware writes the whole even PAIR even though only the low
-        // register prints (vendor anchor: ptxas 13.3 sm_103a gt.ptx probe
-        // 2026-08-24 -- "CS2R R4, SR_GLOBALTIMERLO; STG.E.64 [..], R4").
-        // 32-bit SRs keep the single-register def.
+        // CS2R (BUG-118): the hardware writes the whole even PAIR even though
+        // only the low register prints (vendor anchor: ptxas 13.3 sm_103a
+        // gt.ptx probe 2026-08-24 -- "CS2R R4, SR_GLOBALTIMERLO; STG.E.64
+        // [..], R4"). BUG-491: the pair is a property of the FORM, not of the
+        // register's name -- every `CS2R` without `.32` writes it (`CS2R R8,
+        // SRZ` zeroes R8 and R9 on silicon; 22 116 `CS2R Rn, SRZ` in the
+        // sm_120 census, every one on an even register). Until 2026-11-11 the
+        // pair was given for an `SR_*LO` name only. `CS2R.32` keeps the
+        // single-register def.
         "cs2r" => {
-            let pair = insn.operands.iter().any(|o| matches!(
-                o, Operand::SysReg(name) if name.ends_with("LO")
-            ));
+            let pair = !insn.modifiers.iter().any(|m| m == ".32");
             def_operand0(insn, &mut x, if pair { 2 } else { 1 });
         }
         // Predicate-only or operand-free: known, empty reg xfer.
