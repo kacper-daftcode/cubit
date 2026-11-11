@@ -30,9 +30,12 @@ decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `
   instructions issued in front (one 7 / 8 cycles in front, eight back to back). **A register of the B fragment, upper or lower,
   is not a late operand at all**: rewritten 1 … 90 cycles behind the MMA it never changed the result, while the same rewrite in
   front of the MMA changes it in every thread (the positive control; `probe_sm120_20261111_b8.json`, `_b9.json`).
-- **The older-load law holds inside one memory pipe and not across the two** (`probe_sm120_20261111_b7.json`): an older load
-  without a write barrier is landed when a younger load's barrier clears for `LDS`–`LDS`, `LDS`–`LDSM`, `LDS.128`–`LDS`,
-  `LDG`–`LDG` (0 of 1.9 × 10^8 thread-launches each); a shared and a global load give no order either way (wrong in 91 % / 49 %).
+- **An older load without a write barrier, read when a younger load's barrier clears: across the two memory pipes there is no
+  order in either direction** (`probe_sm120_20261111_b7.json`: older `LDS` / younger `LDG` wrong in 91 % of the thread-launches,
+  older `LDG` / younger `LDS` in 49 %). Inside a pipe the probe stands on the allocator's own ground only — two loads of one
+  thread from one line, one CTA per SM: 0 of 1.9 × 10^8 thread-launches each for `LDS`–`LDS`, `LDS`–`LDSM`, `LDS.128`–`LDS`,
+  `LDG`–`LDG` — and does NOT widen the batching key (same opcode, same width, same address stream): the counter-examples in the
+  comment of the load batching (shared loads 1 KB apart at 2 CTAs per SM, global loads of different streams) are not re-measured.
 - **Write-after-read behind a bare store, swept to 900 cycles with the number of late iterations**: a shared store's data is
   right from 450 – 600 cycles under load, a global store's with 32 warps and 15 stores in front not at 900; the tail is one
   iteration of 256 in a few threads. A load that rewrites a shared store's ADDRESS register never reached it either.
