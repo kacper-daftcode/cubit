@@ -1522,6 +1522,9 @@ MMA_VARIANTS = {"acc2": "another accumulator, the same A fragment, another B fra
                 # positive controls: the same rewrite 45 cycles IN FRONT of the MMA. The model ignores the rewrite, so `good` here
                 # means "the rewritten register is not part of what the MMA reads" - a hold result on that register would be void
                 "sens_a_mov": "CONTROL: MOV rewrites the A-fragment register IN FRONT of the MMA (the result must change: expect 0 % good)",
+                # version 24, fifth build: the accumulator behind the word - the word's result goes to ANOTHER quad (R24..R27)
+                "hold_c_mov": "one MMA whose result goes to another quad; MOV rewrites a register of its ACCUMULATOR d cycles behind it",
+                "sens_c_mov": "CONTROL: MOV rewrites the accumulator register IN FRONT of the MMA whose result goes to another quad (expect 0 % good)",
                 "sens_b_mov": "CONTROL: MOV rewrites the upper B-fragment register IN FRONT of the MMA (expect 0 % good)",
                 "sens_b_shf": "CONTROL: SHF.R.U32.HI rewrites the upper B-fragment register IN FRONT of the MMA (expect 0 % good)",
                 "sens_bl_mov": "CONTROL: MOV rewrites the LOWER B-fragment register IN FRONT of the MMA (expect 0 % good)",
@@ -1589,6 +1592,20 @@ def body_mma(req, d, front="none"):
          Ins("IADD3 R25, PT, PT, R24, 0x1, RZ ;", ("add", "R25", "R24", 1)), Ins("IADD3 R26, PT, PT, R24, 0x2, RZ ;", ("add", "R26", "R24", 2)),
          Ins("IADD3 R27, PT, PT, R24, 0x3, RZ ;", ("add", "R27", "R24", 3)),
          PAD(), PAD()]
+    if var in ("hold_c_mov", "sens_c_mov"):      # (version 24, fifth build) the accumulator R28..R31 behind a word whose result goes to R24..R27
+        creg = f"R{28 + int(req.get('reg') or 0)}"
+        word = f"{form} R24, R16, R12, R28, R14, R14, URZ ;" if fn.startswith("QMMA") else f"{form} R24, R16, R12, R28 ;"
+        wsem = ("tmma", "R24", "R16", "R12", fn, "R28")
+        foldc = [Ins("IMAD R8, R25, 0x3, R24 ;", ("mad", "R8", "R25", 3, "R24")), Ins("IMAD R8, R26, 0x5, R8 ;", ("mad", "R8", "R26", 5, "R8")),
+                 Ins("IMAD R8, R27, 0x7, R8 ;", ("mad", "R8", "R27", 7, "R8")), Ins("IADD3 R10, PT, PT, R10, R8, RZ ;", ("add", "R10", "R10", "R8"))]
+        if var == "sens_c_mov":      # (the model ignores the rewrite: `good` would mean "the register is not read")
+            return b + [Ins(f"MOV {creg}, R6 ;", ("nop",)), PAD(), PAD(), PAD(),
+                        Ins(word, wsem, tag="P", dst=["R24", "R25", "R26", "R27"]), PAD(), PAD(), PAD()] + foldc
+        s, fill = split_distance(d)
+        b.append(Ins(word, wsem, ctl=C(s, y=req.get("yield") == "set"), tag="P", dst=["R24", "R25", "R26", "R27"]))
+        b += fill
+        b.append(Ins(f"MOV {creg}, R6 ;", ("mov", creg, "R6"), tag="O"))
+        return b + [PAD(), PAD(), PAD()] + foldc
     if var.startswith("sens_"):
         if var == "sens_b_ldsm":      # version 23
             b[0:0] = mma_b_restore(sp)
@@ -2088,7 +2105,7 @@ def model(req, mode, gids=None, scalar=False):
             add = sp["k"] * sp["aval"][av] * sp["bval"][bv]
             fz = U(int(np.array([add], np.float32).view(U)[0]))
             for k in range(4):
-                acc = get(reg(sem[1], k))
+                acc = get(reg(sem[5] if len(sem) > 5 else sem[1], k))      # (fifth build: the accumulator quad may be another one than the destination)
                 isz = acc == U(0)
                 if (~isz & ((acc >> U(23)) != U(0x96))).any():
                     raise RuntimeError(f"model: an accumulator the model does not know ({sem})")
@@ -2282,7 +2299,7 @@ def _machine(gid):
                 raise RuntimeError(f"model: an MMA fragment the model does not know ({sem})")
             add = sp["k"] * sp["aval"][av] * sp["bval"][bv]
             for k in range(4):
-                acc = get(reg(sem[1], k))
+                acc = get(reg(sem[5] if len(sem) > 5 else sem[1], k))
                 if acc == 0:
                     R[reg(sem[1], k)] = struct.unpack("<I", struct.pack("<f", float(add)))[0]
                 elif acc >> 23 == 0x96:
@@ -2536,8 +2553,10 @@ def normalise(req):
         r.setdefault("via", "stall")
         if r["form"] not in MMA_FORMS or r["variant"] not in MMA_VARIANTS or r["via"] not in ("stall", "nop"):
             raise SystemExit(f"{r['id']}: mma form / variant / via not in the catalogue (probe.py list)")
-        if r.get("reg") is not None and (r["variant"] not in ("hold_a_mov", "sens_a_mov") or r["reg"] not in (0, 1, 2, 3)):
-            raise SystemExit(f"{r['id']}: reg is 0 .. 3 (version 24, fourth build: WHICH register of the A quad a hold_a_mov / sens_a_mov request rewrites; absent = R17)")
+        if r.get("reg") is not None and (r["variant"] not in ("hold_a_mov", "sens_a_mov", "hold_c_mov", "sens_c_mov") or r["reg"] not in (0, 1, 2, 3)):
+            raise SystemExit(f"{r['id']}: reg is 0 .. 3 (version 24: WHICH register of the A quad a hold_a_mov / sens_a_mov request rewrites - absent = R17 -, of the accumulator quad a hold_c_mov / sens_c_mov request)")
+        if r["variant"] == "hold_c_mov" and any(f not in ("none", "", None) for f in r.get("front", ["none"])):
+            raise SystemExit(f"{r['id']}: hold_c_mov has no tensor traffic in front (the word's result goes to R24..R27, the traffic's accumulator)")
         if r["variant"].startswith("sens_"):
             r["via"] = "stall"
             r["distances"] = "45"
@@ -2596,6 +2615,12 @@ def normalise(req):
     return r
 
 
+def reg_text24(r):
+    if r["variant"] in ("hold_c_mov", "sens_c_mov"):
+        return f" [the rewritten register is R{28 + int(r.get('reg') or 0)} of the accumulator quad R28..R31; the word's result goes to R24..R27]"
+    return f" [the rewritten register is R{16 + r['reg']} of the A quad R16..R19]" if r.get("reg") is not None else ""
+
+
 def pair_text(r):
     if r["kind"] == "reuse":
         return (f"operand-reuse flag, slot {r['slot']}: {r['flagged']} reads R6 with `.reuse`; {REUSE_WRITERS[r['writer']]}; the reader {r['reader']} of R6 "
@@ -2611,9 +2636,9 @@ def pair_text(r):
     if r["kind"] == "raw":
         return f"{r['producer']} -> {r['consumer']}" + (" [the consumer takes the producer's SECOND result register]" if r.get("result") == 1 else "")
     if r["kind"] == "mma" and r["variant"].startswith("sens_"):
-        return f"{MMA_FORMS[r['form']]}: {MMA_VARIANTS[r['variant']]}" + (f" [the rewritten register is R{16 + r['reg']} of the A quad R16..R19]" if r.get("reg") is not None else "")
+        return f"{MMA_FORMS[r['form']]}: {MMA_VARIANTS[r['variant']]}" + reg_text24(r)
     if r["kind"] == "mma" and r["variant"].startswith("hold_"):
-        return f"{MMA_FORMS[r['form']]}: the operand hold ({MMA_VARIANTS[r['variant']]})" + (f" [the rewritten register is R{16 + r['reg']} of the A quad R16..R19]" if r.get("reg") is not None else "")
+        return f"{MMA_FORMS[r['form']]}: the operand hold ({MMA_VARIANTS[r['variant']]})" + reg_text24(r)
     if r["kind"] == "mma":
         return (f"{MMA_FORMS[r['form']]} -> the same, issue spacing ({MMA_VARIANTS[r['variant']]}; "
                 + ("first MMA + a NOP of one cycle + fillers" if r["via"] == "nop" else "the first MMA's stall + fillers") + ")")
@@ -3968,6 +3993,33 @@ def cmd_selftest(_args):
         except SystemExit:
             continue
         raise AssertionError(("the fourth build must refuse", bad))
+    # fifth build: the hold of each ACCUMULATOR register behind a word whose result goes to another quad
+    for form in ("QMMA.SF.E4M3.E2M1", "HMMA.BF16"):
+        for reg_ in (0, 1, 2, 3):
+            r = normalise({"id": "xx", "kind": "mma", "form": form, "variant": "hold_c_mov", "reg": reg_})
+            b = body_mma(r, 3)
+            w, o = [a for a in b if a.tag == "P"], [a for a in b if a.tag == "O"]
+            assert len(w) == 1 and w[0].text.split()[1:5] == ["R24,", "R16,", "R12,", "R28" + ("," if form.startswith("QMMA") else "")] and w[0].sem[5] == "R28", (form, reg_)
+            assert len(o) == 1 and o[0].text == f"MOV R{28 + reg_}, R6 ;" and b.index(o[0]) > b.index(w[0]) and not misaligned(kernel_text("x", r, 188, b))
+            assert sum(int(a.ctl[-3:-1]) for a in b[b.index(w[0]):b.index(o[0])]) == 3
+            for mode in modes_of(r):
+                v = model(r, mode, gids=gids)
+                assert [int(x) for x in v] == model(r, mode, gids=gids, scalar=True), (form, reg_, mode)
+                n += 1
+            g = model(r, "good", gids=gids)
+            assert (g != model(r, "drop1", gids=gids)).all()
+            # the word taking the REWRITTEN accumulator register gives another checksum in every thread (what the control must show)
+            bs = body_mma(normalise({"id": "xx", "kind": "mma", "form": form, "variant": "sens_c_mov", "reg": reg_}), 45)
+            k_m, k_w = next(k for k, a in enumerate(bs) if a.text == f"MOV R{28 + reg_}, R6 ;"), next(k for k, a in enumerate(bs) if a.tag == "P")
+            assert k_m < k_w and bs[k_m].sem == ("nop",)
+            bs[k_m].sem = ("mov", f"R{28 + reg_}", 0)      # (the model has no float of the code word: a ZERO accumulator stands for "another content")
+            assert all(_scalar(int(x), prologue(r, 188), bs, "good") != int(y) for x, y in zip(gids, g)), (form, reg_)
+    for bad in ({"variant": "hold_c_mov", "reg": 4}, {"variant": "hold_c_mov", "reg": 0, "front": ["mmax1@7"]}):
+        try:
+            normalise(dict({"id": "xx", "kind": "mma"}, **bad))
+        except SystemExit:
+            continue
+        raise AssertionError(("the fifth build must refuse", bad))
     assert smem_of({"id": "x", "kind": "ord", "nload": 8, "place": "far"}, "c2w9s") == 49152 and smem_of({"id": "x", "kind": "ord", "nload": 8, "place": "far"}, "w32") == 98304
     assert smem_of({"id": "x", "kind": "ord", "nload": 8, "place": "far"}, "c4w8") == 24576
     assert far_layout(288) == (18432, 1280) and far_layout(1024) == (65536, 4096) and far_layout(32) == (2048, 1024)

@@ -382,6 +382,15 @@ decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `
   one cycle longer than the second, on which the hold of 5 had been measured (a rewrite 5 cycles behind: not right in 27 238 016 of
   36 792 320; the verifier's 8 covers it). `CS2R.32 R, SR_CgaSize` → `IMAD`: floor 5, one cycle under the 64-bit forms (`SRZ`, the
   timer: 6).
+- **`probe.py` 24, second part: the accumulator of a tensor instruction is held 8 cycles — the verifier's hold, with no cycle to
+  spare** (`_b44`; selftest 3 330). Kind `mma` learns `hold_c_mov`: an instruction whose result goes to another quad than its
+  accumulator, and a `MOV` that rewrites one accumulator register behind it. The hold is 1, 1, 8, 8 for the four registers, for
+  `QMMA.SF` and `HMMA.16816.F32.BF16`: a rewrite of the third or fourth register 7 cycles behind is not right in 16 950 080 and
+  18 137 728 of 18 396 160 thread-launches, never from 8 on; the same on a card of the Workstation Edition alone and at its
+  400-W limit.
+  The `_ws_` files of `_b40` … `_b43`: on a card of the Workstation Edition, alone and at its 400-W limit, 34 of 36 classes give
+  the Server card's floor; `MOV` in front of the accumulator's second register 1 | 2 | 1 and `FMUL` in front of the accumulator of an
+  `HMMA` 2 | 2 | 1 (a rare event at distance 1; the floor over the three states is 2 for both); none above the default 7.
 
 ## Unreleased — 2026-11-11 (session SCH-4: the stall-floor probes on grids that hold two CTAs per SM and on production's card model in two clock states — tools and result files only, no source line changes)
 
