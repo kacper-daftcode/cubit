@@ -20,13 +20,14 @@ decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `
   ONE shape — a `SHFL.IDX` without a write barrier into the fourth register of an `LDS.128` that is in flight 4 issue
   cycles before it, one in each of three kernels of one family. That shape is counted apart (`CUBIT_VERIFY_WAW: + N`, kind
   `waw-shuffle-into-load`) and no pair line is printed for it: the census has 0 pairs, the vendor's five schedules of the
-  served MoE kernels 0 — under either operand model. **What silicon says** (the stall-floor probes of the same day, one
-  card model; their result file is not in this repository yet): with the second writer waiting on the first's barrier the
+  served MoE kernels 0 — under either operand model. **What silicon says** (the stall-floor probes of the same day on two
+  card models — session SCH-5 below, KNOWN_ISSUES A36): with the second writer waiting on the first's barrier the
   result is right every time; a fixed-latency second writer that does not wait leaves the FIRST writer's value at every
   distance tried, up to 90 cycles, behind a pending `LDS` / `LDG` / `S2R` / `SHFL` once an SM runs 8 warps or more (behind
   a constant-bank load it is right from 45); two producers of one in-order unit that do not wait — `LDS` ← `LDS`, `LDG` ←
   `LDG`, `SHFL` ← `LDS` and the vendor's `LDS.128` ← `SHFL` — are right from distance 1, across the two memory pipes they
-  are not. The shape of the site below, two constant-bank loads into one register, is not measured (KNOWN_ISSUES A35).
+  are not. The shape of the site below, two constant-bank loads into one register, is not measured (KNOWN_ISSUES A35). A
+  permission without a wait is a trial, not a rule: every form that serves keeps the wait.
 - **BUG-489 — the barrier allocator left three shapes of write after write without a wait.** Outside them an overwriter of a
   pending result has waited like a reader since BUG-485. (1) Two loads of one batch into one register: consecutive loads of
   one opcode, width and address line share a write barrier, and the batch loop ends at a READER of the group's results, not
