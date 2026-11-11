@@ -67,6 +67,15 @@ cycles later - the host need not know the content). "control": "stale" = the pos
 producer's word behind the consumer, the model still gives the consumer the new content - expect 0 % good.
     {"id": "tq_cs2r_r3h1", "kind": "raw", "producer": "CS2R", "consumer": "QMMA.r3h", "reg": 1, "front": ["none", "mmax1@7"]}
     {"id": "tq_cs2r_r3h1_c", "kind": "raw", "producer": "CS2R", "consumer": "QMMA.r3h", "reg": 1, "control": "stale"}
+
+Version 25 - "control": "stale" for EVERY kind-`raw` pair (an ordinary pair too: the producer's word behind the consumer
+and its checksum, a filler in its place; expect 0 % good, the class `stale`); consumers IADD.64rr.r1 | .r1h | .r2 | .r2h
+(the register-register IADD.64), PRMT.r3, STG.a0 (the low register of a global store's address pair; producer kind gaddr:
+IADD.64); kind `mma`: hold_c_cs2r / sens_c_cs2r ("reg": 0 | 2) and hold_c_prmt / sens_c_prmt - the accumulator's hold with
+the vendor's overwriters -, "dest": "a" = the word's result goes to its own A quad; `table_cell` reads `producer_forms`.
+    {"id": "pc_mov_iadd_r2h", "kind": "raw", "producer": "MOV", "consumer": "IADD.64rr.r2h"}
+    {"id": "pc_mov_iadd_r2h_c", "kind": "raw", "producer": "MOV", "consumer": "IADD.64rr.r2h", "control": "stale"}
+    {"id": "hv_cs2r_q", "kind": "mma", "variant": "hold_c_cs2r", "reg": 2, "dest": "a", "distances": "1-10,12"}
 """
 from __future__ import annotations
 
@@ -83,7 +92,7 @@ import subprocess
 import sys
 import time
 
-TOOL = "probe.py 24 (2026-11-11)"
+TOOL = "probe.py 25 (2026-11-11)"
 HERE = pathlib.Path(__file__).resolve().parent
 SEED = 0x12345
 REPEAT = 256
@@ -237,6 +246,21 @@ def addr_producer(name):
 
 
 ADDR_PRODUCERS = ["IADD3", "IMAD", "LOP3"]
+
+
+def gaddr_producer(name):
+    """version 25 -> (pre, text, sem, class): the PAIR R7:R6 = the address of the thread's word A (R17:R16). Until it lands
+    the pair holds the address of the thread's word B (R19:R18). Both are words of the kernel's own output buffer and the
+    runner keeps the buffer inside one 4-GiB window: the two addresses differ in the LOW register only - a store through a
+    stale low register goes to word B, and no mixture of the two pairs leaves the buffer. (The HIGH register, role a0h,
+    cannot be probed this way: both addresses share it.) The model's stand-ins: R16 = 0 (word A), R18 = 1 (word B)."""
+    pre = [Ins("MOV R6, R18 ;", ("mov", "R6", "R18")), Ins("MOV R7, R19 ;", ("mov", "R7", "R19"))]
+    if name == "IADD.64":      # the vendor's register-register form; R27:R26 = 0 (the prologue; nothing of this body writes them)
+        return pre, "IADD.64 R6, R16, R26 ;", ("mov2", "R6", "R16"), "IADD"
+    raise SystemExit(f"unknown global-address producer {name!r} (probe.py list)")
+
+
+GADDR_PRODUCERS = ["IADD.64"]
 FOLD4 = [("IMAD R8, R29, 0x3, R28 ;", ("mad", "R8", "R29", 3, "R28")), ("IMAD R8, R30, 0x5, R8 ;", ("mad", "R8", "R30", 5, "R8")),
          ("IMAD R8, R31, 0x7, R8 ;", ("mad", "R8", "R31", 7, "R8")), ("IADD3 R10, PT, PT, R10, R8, RZ ;", ("add", "R10", "R10", "R8"))]
 
@@ -276,7 +300,7 @@ RAW_CONSUMERS = {
     "IMAD.WIDE.r3h": ("data", 7, "IMAD.WIDE", "r3h", "the HIGH word of the 64-bit addend of IMAD.WIDE"),
     "UIADD3.u1": ("udata", 6, "UIADD3", "u1", "the uniform addend of UIADD3"),
     "MOV.u1": ("udata", 6, "MOV", "u1", "the uniform source of MOV R, UR"),
-    # version 22 - pair classes that the dependency table prices by its default (no cell of their own)
+    # version 22 - pair classes the catalogue could not express (CS's seven, EM's table of the default-priced classes)
     "FMUL.r2": ("data", 6, "FMUL", "r2", "the second factor of FMUL.FTZ (the producer brings a finite float or zero)"),
     "FADD.r1": ("data", 6, "FADD", "r1", "the first addend of FADD.FTZ (the producer brings a finite float or zero)"),
     "FFMA.r2": ("data", 6, "FFMA", "r2", "the second factor of FFMA.FTZ Rd, 3.0, R, Rc (the producer brings a finite float or zero; one rounding, exact on the host)"),
@@ -299,7 +323,16 @@ RAW_CONSUMERS = {
     "IMADi.rel": ("rel", 6, "IMAD", "r1", "RELATIVE: IMAD R8, R6, -0xa0, RZ (the vendor's word behind CS2R.32) against the same word 45 cycles later"),
     "IMAD.rel": ("rel", 6, "IMAD", "r1", "RELATIVE: IMAD R8, R6, 0x3, R5 against the same word 45 cycles later"),
     "IADD.64.rel": ("rel", 6, "IADD.64", "r1", "RELATIVE: IADD.64 R24, R6, 0x4 (both registers of the pair) against the same word 45 cycles later"),
+    # version 25 - the register-register IADD.64 (the vendor's form), the second source of PRMT, the address pair of a global store
+    "IADD.64rr.r1": ("data", 6, "IADD", "r1", "the LOW word of the FIRST operand pair of IADD.64 R24, R6, R4 (register-register; the low word of the sum reaches the checksum)"),
+    "IADD.64rr.r1h": ("data", 7, "IADD", "r1h", "the HIGH word of the FIRST operand pair of IADD.64 R24, R6, R4 (the high word of the sum reaches the checksum; a pair producer sits on R6)"),
+    "IADD.64rr.r2": ("data", 6, "IADD", "r2", "the LOW word of the SECOND operand pair of IADD.64 R24, R4, R6 (the low word of the sum reaches the checksum)"),
+    "IADD.64rr.r2h": ("data", 7, "IADD", "r2h", "the HIGH word of the SECOND operand pair of IADD.64 R24, R4, R6 (the high word of the sum reaches the checksum; a pair producer sits on R6)"),
+    "PRMT.r3": ("data", 6, "PRMT", "r3", "the SECOND source register of PRMT R8, R5, 0x7632, R (the upper two bytes of the result come from it)"),
+    "STG.a0": ("gaddr", 6, "STG", "a0", "the LOW register of the 64-bit address pair of a global store (producer kind gaddr: the pair holds the address of the thread's word B until the address of word A lands)"),
 }
+RR_CONSUMERS = ("IADD.64rr.r1", "IADD.64rr.r1h", "IADD.64rr.r2", "IADD.64rr.r2h")      # version 25
+RR_HIGH = ("IADD.64rr.r1h", "IADD.64rr.r2h")
 FLOAT_CONSUMERS = ("FMUL.r2", "FADD.r1", "FFMA.r2")
 FLOAT_PRODUCERS = ("FADD", "FMUL", "CS2R", "MOV.fin")
 # version 22: consumers whose word names the tested register R6 exactly once - with "result": 1 it becomes R7, the
@@ -323,6 +356,9 @@ WAR_STORES = {
     "STG.data": (["LOP3", "IADD3", "LDG", "LDS"], "STG", "the data register of a bare global store (IADD3: as for STS.data)"),
     "STS.addr": (["IADD3", "LDS"], "STS", "the address register of a bare shared store (LDS: a shared LOAD brings the other address - the vendor's practice)"),
     "STG.addr": (["MOV"], "STG", "the address pair (low register) of a bare global store"),
+    # version 25: the UNIFORM operand of a store - the uniform base register of a shared store, rewritten by UMOV behind it.
+    # UMOV.front = the positive control (the rewrite IN FRONT of the store, the model ignoring it: expect 0 % good)
+    "STS.ubase": (["UMOV", "UMOV.front"], "STS", "the UNIFORM base register of STS [UR6+0x24], R (a read barrier on the store in every variant; a late read of the base stores into another valid word of the CTA)"),
     # version 15 - not stores: a warp shuffle reads its source register of ANOTHER lane (`"read_barrier": "set"` puts the
     # vendor's read barrier on the shuffle in the bare variant too; nobody waits it before the reader)
     "SHFL.BFLY.src": (["LOP3", "IADD3", "IADD3.it"], "SHFL", "the source register of SHFL.BFLY PT, Rd, Rs, 0x1, 0x1f (every lane takes lane ^ 1's register)"),
@@ -490,7 +526,7 @@ def body_raw24(req, d, front):
     if kind == "a":
         # (third build) the A classes: the SAME code in every iteration (1.0 in every element), the tested register holds the 2.0 code until the
         # producer lands. The first two builds let the code alternate and dirtied with the other one: a register stale in EVERY iteration moved
-        # the checksum by +d in even and -d in odd iterations and the linear checksum cancelled it (the positive controls of those kernels came out good).
+        # the checksum by +d in even and -d in odd iterations and the linear checksum cancelled it (block 43: the three A controls 100 % good).
         b = [Ins(f"MOV R6, 0x{sp['a0']:x} ;", ("mov", "R6", sp["a0"])), Ins(f"MOV R7, 0x{sp['a0'] + sp['da']:x} ;", ("mov", "R7", sp["a0"] + sp["da"]))]
     for k in range(4):
         srcr = "R7" if (kind == "a" and k == t) else "R6"
@@ -637,13 +673,20 @@ def body_raw(req, d, front):
     if what in T24_WHAT:      # version 24
         return body_raw24(req, d, front)
     s, fill = split_distance(d, req.get("via", "stall"))
+    control = req.get("control") == "stale"      # version 25: the positive control of an ordinary pair
     b = []
     if what == "addr":
         pre, ptext, psem, _ = addr_producer(prod)
     elif what == "udata":
         pre, ptext, psem, _ = uniform_producer(prod)
+    elif what == "gaddr":      # version 25
+        pre, ptext, psem, _ = gaddr_producer(prod)
     else:
+        if cons in RR_HIGH and prod in PAIR_PRODUCERS:      # version 25: a pair producer sits on the even register, its SECOND result is the tested high word
+            rd = 6
         pre, ptext, psem, _ = data_producer(prod, rd)
+    if cons in RR_CONSUMERS and prod not in PAIR_PRODUCERS:      # version 25: the other word of the operand pair R7:R6 is the iteration's own, set long before
+        pre = pre + [Ins("MOV R6, R5 ;", ("mov", "R6", "R5")) if cons in RR_HIGH else Ins("MOV R7, R5 ;", ("mov", "R7", "R5"))]
     if cons == "STS128.d3":
         pre = pre + [Ins("MOV R24, R4 ;", ("mov", "R24", "R4")), Ins("MOV R25, R5 ;", ("mov", "R25", "R5")),
                      Ins("LOP3.LUT R26, R4, 0x33cc33cc, RZ, 0x3c, !PT ;", ("xor", "R26", "R4", 0x33cc33cc))]
@@ -670,9 +713,10 @@ def body_raw(req, d, front):
         if prod == "CS2R":           # the pair holds FINITE floats until the CS2R lands (not the raw inputs)
             pre = pre + fin(6, 4) + fin(7, 5)
     b += pre
-    b += front_ins(front, False)
-    dst = ["UR6"] if what == "udata" else [f"R{rd}", f"R{rd + 1}"] if prod in PAIR_PRODUCERS else [f"R{rd}"]
-    b.append(Ins(ptext, psem, ctl=C(s, y=req.get("yield") == "set"), tag="P", dst=dst))
+    b += front_ins(front, what == "gaddr")
+    dst = ["UR6"] if what == "udata" else ["R6", "R7"] if what == "gaddr" else [f"R{rd}", f"R{rd + 1}"] if prod in PAIR_PRODUCERS else [f"R{rd}"]
+    # (version 25, the control: the model's producer in its place under a filler's text, the real word behind the consumer and its checksum)
+    b.append(Ins("IADD3 R15, PT, PT, R15, 0x1, RZ ;" if control else ptext, psem, ctl=C(s, y=req.get("yield") == "set"), tag="P", dst=dst))
     b += fill
     if cons == "STS.data":
         b += [Ins("STS [R9+0x20], R6 ;", ("sts", "R9", 0x20, "R6", 1), ctl=C(rb="2"), tag="C"),
@@ -745,6 +789,19 @@ def body_raw(req, d, front):
         b += [Ins("IADD R8, R6, R5 ;", ("add", "R8", "R6", "R5"), tag="C"), ADD10()]
     elif cons == "IADD.r2":
         b += [Ins("IADD R8, R5, R6 ;", ("add", "R8", "R5", "R6"), tag="C"), ADD10()]
+    elif cons in ("IADD.64rr.r1", "IADD.64rr.r1h"):      # version 25: R25:R24 = R7:R6 + R5:R4 (the vendor's register-register form)
+        b += [Ins("IADD.64 R24, R6, R4 ;", ("add64", "R24", "R6", "R4"), tag="C"),
+              Ins("MOV R8, R24 ;" if cons == "IADD.64rr.r1" else "MOV R8, R25 ;", ("mov", "R8", "R24" if cons == "IADD.64rr.r1" else "R25")), ADD10()]
+    elif cons in ("IADD.64rr.r2", "IADD.64rr.r2h"):      # version 25: R25:R24 = R5:R4 + R7:R6
+        b += [Ins("IADD.64 R24, R4, R6 ;", ("add64", "R24", "R4", "R6"), tag="C"),
+              Ins("MOV R8, R24 ;" if cons == "IADD.64rr.r2" else "MOV R8, R25 ;", ("mov", "R8", "R24" if cons == "IADD.64rr.r2" else "R25")), ADD10()]
+    elif cons == "PRMT.r3":      # version 25: bytes 2, 3 of R5 and bytes 2, 3 of R6
+        b += [Ins("PRMT R8, R5, 0x7632, R6 ;", ("prmt", "R8", "R5", 0x7632, "R6"), tag="C"), ADD10()]
+    elif cons == "STG.a0":      # version 25: the store goes to word A (the new address) or to word B (a stale low register); both words are read back
+        b += [Ins("STG.E desc[UR4][R6.64], R4 ;", ("stg", "R6", "R4"), ctl=C(rb="2"), tag="C"),
+              Ins("LDG.E R8, desc[UR4][R16.64] ;", ("ldg", "R8", "R16"), ctl=C(wb="1")),
+              Ins("LDG.E R13, desc[UR4][R18.64] ;", ("ldg", "R13", "R18"), ctl=C(wb="3")),
+              Ins("IMAD R8, R13, 0x3, R8 ;", ("mad", "R8", "R13", 3, "R8"), ctl=C(wait="123")), ADD10()]
     else:
         raise SystemExit(f"unknown raw consumer {cons!r} (probe.py list)")
     if req.get("salt") == "set":      # version 22: the iteration's input goes into the checksum too (behind the consumer: no distance moves) -
@@ -757,6 +814,8 @@ def body_raw(req, d, front):
             raise SystemExit(f"{prod} -> {cons}: \"result\": 1 needs a pair producer and a consumer whose word names R6 once")
         c[0].text = re.sub(R6_TOKEN, "R7", c[0].text)
         c[0].sem = tuple("R7" if (isinstance(x, str) and x == "R6") else x for x in c[0].sem)
+    if control:      # version 25: the real producer - behind the consumer and its checksum; the model has applied it in its place
+        b.append(Ins(ptext, ("nop",)))
     return b
 
 
@@ -796,7 +855,7 @@ def smem_of(req, occ):
 # version 21 - N loads of MIXED forms. letter: (mnemonic, registers, bytes of the thread's line it takes)
 ORDN_FORM = {"s": ("LDS", 1, 4), "u": ("LDS.U16", 1, 4), "d": ("LDS.64", 2, 8), "q": ("LDS.128", 4, 16)}
 ORDN_DEST = [24, 25, 26, 27, 28, 29, 30, 31, 16, 17, 18, 19, 14, 7]      # destination registers in this order (temporaries: R6 R8 R12 R13)
-# version 23 - SETS of producers on ONE write barrier (the shapes of an attention kernel): letter: (mnemonic,
+# version 23 - SETS of producers on ONE write barrier (the shapes of the served attention kernel): letter: (mnemonic,
 # registers). A request with one of these letters is a SET request: its kernels declare R0-R79 (.regcount 88).
 SET_FORM = {"G": ("LDG.E", 1), "Q": ("LDG.E.128", 4), "B": ("LDG.E.U8", 1), "c": ("LDC", 1), "C": ("LDC.64", 2),
             "m": ("MUFU.EX2", 1), "h": ("SHFL.BFLY", 1),
@@ -970,7 +1029,7 @@ def body_ordn_mixed(req, d, front, variant):
 
 
 def body_set_mma(req, d, front, variant):
-    """version 23 - the tensor set of an attention kernel: LDSM.16.M88.4 + LDS + LDS
+    """version 23 - the tensor set of the served attention kernel (words [733] - [740] of v43c): LDSM.16.M88.4 + LDS + LDS
     on ONE write barrier, and ONE wait on the reader - an HMMA.16816.F32.BF16 whose A fragment is the LDSM's quad and
     whose B fragment is the two LDS registers. Slot 3 and slot 2 of every thread's line hold the code of 1.0 in every
     element (prologue), so both fragments are uniform whatever the matrix layout is; until its producer lands every
@@ -1488,6 +1547,29 @@ def body_war(req, d, front, variant):
         b += [Ins("LDG.E R8, desc[UR4][R16.64] ;", ("ldg", "R8", "R16"), ctl=C(wb="0")),
               Ins("LDG.E R13, desc[UR4][R18.64] ;", ("ldg", "R13", "R18"), ctl=C(wb="1"), tag="B"),
               Ins("IMAD R8, R13, 0x3, R8 ;", ("mad", "R8", "R13", 3, "R8"), ctl=C(wait="01")), ADD10()]
+    elif store == "STS.ubase":
+        # version 25: a shared store through a UNIFORM base register; UMOV rewrites the base d cycles behind it.
+        # Every lane of the warp stores the SAME value (R4 - lane = the iteration's input of lane 0) through UR6 = the address of lane 0's
+        # line: ONE word per warp (offset 0x24 of that line; its first content is the prologue's constant 0x0f0f0f0f in every thread). The
+        # rewritten base is the CTA's offset 0x10: a store that takes it goes to word 0x34 of the CTA - slot 3 of thread 0, which nothing of
+        # this body reads. Both places are valid shared memory of the CTA: a late read of the base shows as the warp's word NOT written
+        # (the read-back, through a general register, then gives the last iteration's value). The store carries read barrier 2 in every
+        # variant (the vendor's shape): bare = the overwriter does not wait it, rb = it does, ctl = no overwriter.
+        # The model: the thread's own line stands for lane 0's (the same values in every lane), UR6 = 0 or 0x10.
+        b += [Ins("LOP3.LUT R24, R0, 0x1f, RZ, 0xc0, !PT ;", ("and", "R24", "R0", 31)),
+              Ins("IADD3 R6, PT, PT, -R24, R4, RZ ;", ("rsub", "R6", "R24", "R4")),
+              Ins("IMAD R25, R24, -0x40, R9 ;", ("mov", "R25", "R9")),
+              Ins("R2UR UR6, R25 ;", ("mov", "UR6", "R9")), PAD(), PAD()]
+        b += front_ins(front, False)
+        if over == "UMOV.front" and not ctl:      # the POSITIVE CONTROL: the rewrite 45 cycles IN FRONT of the store, the model ignoring it
+            b += [Ins("UMOV UR6, 0x10 ;", ("nop",)), PAD(), PAD()]
+        b.append(Ins("STS [UR6+0x24], R6 ;", ("sts", "UR6", 0x24, "R6", 1), ctl=C(s, rb="2"), tag="S"))
+        b += fill
+        if ctl or over == "UMOV.front":
+            b.append(PAD())
+        else:
+            b.append(Ins("UMOV UR6, 0x10 ;", ("mov", "UR6", 0x10), ctl=C(wait=ow), tag="O"))
+        b += [Ins("LDS R8, [R25+0x24] ;", ("lds", "R8", "R9", 0x24, 1), ctl=C(wb="1"), tag="B"), ADD10("12")]
     return b
 
 
@@ -1525,6 +1607,11 @@ MMA_VARIANTS = {"acc2": "another accumulator, the same A fragment, another B fra
                 # version 24, fifth build: the accumulator behind the word - the word's result goes to ANOTHER quad (R24..R27)
                 "hold_c_mov": "one MMA whose result goes to another quad; MOV rewrites a register of its ACCUMULATOR d cycles behind it",
                 "sens_c_mov": "CONTROL: MOV rewrites the accumulator register IN FRONT of the MMA whose result goes to another quad (expect 0 % good)",
+                # version 25: overwriters of an accumulator register that the vendor's own schedules place 8 cycles behind a tensor word
+                "hold_c_cs2r": "one MMA whose result goes to another quad; the 64-bit CS2R Rn, SRZ zeroes TWO registers of its ACCUMULATOR d cycles behind it",
+                "sens_c_cs2r": "CONTROL: the 64-bit CS2R zeroes the two accumulator registers IN FRONT of the MMA whose result goes to another quad (expect 0 % good)",
+                "hold_c_prmt": "one MMA whose result goes to another quad; PRMT rewrites a register of its ACCUMULATOR d cycles behind it",
+                "sens_c_prmt": "CONTROL: PRMT rewrites the accumulator register IN FRONT of the MMA whose result goes to another quad (expect 0 % good)",
                 "sens_b_mov": "CONTROL: MOV rewrites the upper B-fragment register IN FRONT of the MMA (expect 0 % good)",
                 "sens_b_shf": "CONTROL: SHF.R.U32.HI rewrites the upper B-fragment register IN FRONT of the MMA (expect 0 % good)",
                 "sens_bl_mov": "CONTROL: MOV rewrites the LOWER B-fragment register IN FRONT of the MMA (expect 0 % good)",
@@ -1533,6 +1620,9 @@ MMA_VARIANTS = {"acc2": "another accumulator, the same A fragment, another B fra
                 "sens_b_lds": "CONTROL: LDS rewrites the upper B-fragment register IN FRONT of the MMA and is waited (expect 0 % good)",
                 "sens_bl_lds": "CONTROL: LDS rewrites the LOWER B-fragment register IN FRONT of the MMA and is waited (expect 0 % good)",
                 "sens_b_ldsm": "CONTROL: LDSM.16.M88.4 rewrites the quad of the B fragment IN FRONT of the MMA and is waited (expect 0 % good)"}
+
+
+C_HOLD_VARIANTS = ("hold_c_mov", "sens_c_mov", "hold_c_cs2r", "sens_c_cs2r", "hold_c_prmt", "sens_c_prmt")      # version 25
 
 
 def mma_load_over(var, tgt, sem=None):
@@ -1592,19 +1682,27 @@ def body_mma(req, d, front="none"):
          Ins("IADD3 R25, PT, PT, R24, 0x1, RZ ;", ("add", "R25", "R24", 1)), Ins("IADD3 R26, PT, PT, R24, 0x2, RZ ;", ("add", "R26", "R24", 2)),
          Ins("IADD3 R27, PT, PT, R24, 0x3, RZ ;", ("add", "R27", "R24", 3)),
          PAD(), PAD()]
-    if var in ("hold_c_mov", "sens_c_mov"):      # (version 24, fifth build) the accumulator R28..R31 behind a word whose result goes to R24..R27
+    if var in C_HOLD_VARIANTS:      # (version 24, fifth build; version 25: the vendor's overwriters, "dest") the accumulator R28..R31 behind a word whose result goes to another quad
         creg = f"R{28 + int(req.get('reg') or 0)}"
-        word = f"{form} R24, R16, R12, R28, R14, R14, URZ ;" if fn.startswith("QMMA") else f"{form} R24, R16, R12, R28 ;"
-        wsem = ("tmma", "R24", "R16", "R12", fn, "R28")
-        foldc = [Ins("IMAD R8, R25, 0x3, R24 ;", ("mad", "R8", "R25", 3, "R24")), Ins("IMAD R8, R26, 0x5, R8 ;", ("mad", "R8", "R26", 5, "R8")),
-                 Ins("IMAD R8, R27, 0x7, R8 ;", ("mad", "R8", "R27", 7, "R8")), Ins("IADD3 R10, PT, PT, R10, R8, RZ ;", ("add", "R10", "R10", "R8"))]
-        if var == "sens_c_mov":      # (the model ignores the rewrite: `good` would mean "the register is not read")
-            return b + [Ins(f"MOV {creg}, R6 ;", ("nop",)), PAD(), PAD(), PAD(),
-                        Ins(word, wsem, tag="P", dst=["R24", "R25", "R26", "R27"]), PAD(), PAD(), PAD()] + foldc
+        d0 = 16 if req.get("dest") == "a" else 24      # (version 25) "dest": "a" - the result goes to the word's own A quad (a form of the vendor's kernels)
+        word = f"{form} R{d0}, R16, R12, R28, R14, R14, URZ ;" if fn.startswith("QMMA") else f"{form} R{d0}, R16, R12, R28 ;"
+        wsem = ("tmma", f"R{d0}", "R16", "R12", fn, "R28")
+        dq = [f"R{d0 + k}" for k in range(4)]
+        foldc = [Ins(f"IMAD R8, {dq[1]}, 0x3, {dq[0]} ;", ("mad", "R8", dq[1], 3, dq[0])), Ins(f"IMAD R8, {dq[2]}, 0x5, R8 ;", ("mad", "R8", dq[2], 5, "R8")),
+                 Ins(f"IMAD R8, {dq[3]}, 0x7, R8 ;", ("mad", "R8", dq[3], 7, "R8")), Ins("IADD3 R10, PT, PT, R10, R8, RZ ;", ("add", "R10", "R10", "R8"))]
+        if var.endswith("_cs2r"):      # the vendor's `CS2R R50, SRZ`: the 64-bit form zeroes the register and the next one
+            otext, osem = f"CS2R {creg}, SRZ ;", ("zero2", creg)
+        elif var.endswith("_prmt"):    # the vendor's `PRMT R34, R24, 0x5140, R25`: bytes of two other registers (R6, R7 hold the B2 word - not an accumulator's content)
+            otext, osem = f"PRMT {creg}, R6, 0x5140, R7 ;", ("prmt", creg, "R6", 0x5140, "R7")
+        else:
+            otext, osem = f"MOV {creg}, R6 ;", ("mov", creg, "R6")
+        if var.startswith("sens_"):      # (the model ignores the rewrite: `good` would mean "the register is not read")
+            return b + [Ins(otext, ("nop",)), PAD(), PAD(), PAD(),
+                        Ins(word, wsem, tag="P", dst=dq), PAD(), PAD(), PAD()] + foldc
         s, fill = split_distance(d)
-        b.append(Ins(word, wsem, ctl=C(s, y=req.get("yield") == "set"), tag="P", dst=["R24", "R25", "R26", "R27"]))
+        b.append(Ins(word, wsem, ctl=C(s, y=req.get("yield") == "set"), tag="P", dst=dq))
         b += fill
-        b.append(Ins(f"MOV {creg}, R6 ;", ("mov", creg, "R6"), tag="O"))
+        b.append(Ins(otext, osem, tag="O"))
         return b + [PAD(), PAD(), PAD()] + foldc
     if var.startswith("sens_"):
         if var == "sens_b_ldsm":      # version 23
@@ -2085,6 +2183,11 @@ def model(req, mode, gids=None, scalar=False):
             v = (get(sem[2]).astype(np.uint64) | (get(reg(sem[2], 1)).astype(np.uint64) << np.uint64(32))) + np.uint64(sem[3])
             R[sem[1]] = (v & np.uint64(0xFFFFFFFF)).astype(U)
             R[reg(sem[1], 1)] = (v >> np.uint64(32)).astype(U)
+        elif op == "add64":         # version 25: the pair R(d+1):Rd = R(a+1):Ra + R(b+1):Rb (mod 2^64)
+            v = ((get(sem[2]).astype(np.uint64) | (get(reg(sem[2], 1)).astype(np.uint64) << np.uint64(32)))
+                 + (get(sem[3]).astype(np.uint64) | (get(reg(sem[3], 1)).astype(np.uint64) << np.uint64(32))))
+            R[sem[1]] = (v & np.uint64(0xFFFFFFFF)).astype(U)
+            R[reg(sem[1], 1)] = (v >> np.uint64(32)).astype(U)
         elif op == "qmma":          # every element of the result = its accumulator + 32 * a * b (integer-valued, exact)
             if sem[4] is not None and not int(get(sem[4])[0]):
                 return
@@ -2282,6 +2385,9 @@ def _machine(gid):
         elif op == "add64i":
             v = ((get(sem[2]) | (get(reg(sem[2], 1)) << 32)) + sem[3]) & 0xFFFFFFFFFFFFFFFF
             R[sem[1]], R[reg(sem[1], 1)] = v & M, v >> 32
+        elif op == "add64":         # version 25
+            v = ((get(sem[2]) | (get(reg(sem[2], 1)) << 32)) + (get(sem[3]) | (get(reg(sem[3], 1)) << 32))) & 0xFFFFFFFFFFFFFFFF
+            R[sem[1]], R[reg(sem[1], 1)] = v & M, v >> 32
         elif op == "qmma":
             if sem[4] is not None and not get(sem[4]):
                 return
@@ -2427,6 +2533,8 @@ def modes_of(req):
         if str(req.get("variant", "")).startswith(("hold_", "sens_")):
             return ["good", "drop1"]
         return ["good", "drop2"] if req.get("variant") == "gfalse" else ["good", "drop1", "drop2"]
+    if req["kind"] == "war" and req.get("store") == "STS.ubase":      # version 25: (the read-back goes through a general register: `overtake` would be `late`; the control has no overwriter behind the store)
+        return ["good", "late"] if req.get("overwriter") == "UMOV" else ["good"]
     if req["kind"] == "war" and req.get("store") in SHFL_STORES + WAW_STORES:
         return ["good", "late"]      # (no read-back a late shuffle / a late first write could come behind)
     if req["kind"] == "reuse":      # (no write of the flagged register: nothing a stale reader could show)
@@ -2465,8 +2573,10 @@ def normalise(req):
         if r.get("consumer") not in RAW_CONSUMERS:
             raise SystemExit(f"{r['id']}: raw consumer {r.get('consumer')!r} not in the catalogue (probe.py list)")
         what = RAW_CONSUMERS[r["consumer"]][0]
-        if r.get("producer") not in (ADDR_PRODUCERS if what == "addr" else UNIFORM_PRODUCERS if what == "udata" else DATA_PRODUCERS):
+        if r.get("producer") not in (ADDR_PRODUCERS if what == "addr" else UNIFORM_PRODUCERS if what == "udata" else GADDR_PRODUCERS if what == "gaddr" else DATA_PRODUCERS):
             raise SystemExit(f"{r['id']}: producer {r.get('producer')!r} not in the catalogue for {r['consumer']} (probe.py list)")
+        if what == "gaddr" and (r.get("result") is not None or r.get("salt") is not None or any(str(f).startswith("stg") for f in r.get("front", []))):
+            raise SystemExit(f"{r['id']}: {r['consumer']} has no result / salt field and no stg front (word B is the target of a store through a stale address)")
         if not raw_pair_ok(r["producer"], r["consumer"]):
             raise SystemExit(f"{r['id']}: {r['consumer']} takes a producer that brings a finite float ({', '.join(FLOAT_PRODUCERS)}; MUFU.RCP.r1: MOV.pow2)")
         if r.get("salt") not in (None, "set"):
@@ -2474,7 +2584,11 @@ def normalise(req):
         if r.get("result") not in (None, 0, 1) or (r.get("result") == 1 and (r["producer"] not in PAIR_PRODUCERS or r["consumer"] not in RESULT1_CONSUMERS)):
             raise SystemExit(f"{r['id']}: result is 1 (version 22: the consumer takes the SECOND register of a pair producer - {', '.join(sorted(PAIR_PRODUCERS))}; "
                              f"consumers {', '.join(RESULT1_CONSUMERS)}) or absent")
-        r.setdefault("distances", "1-15,20,30")
+        if r.get("control") not in (None, "stale"):      # version 25
+            raise SystemExit(f"{r['id']}: control is \"stale\" (the positive control: the producer's word behind the consumer and its checksum) or absent")
+        if r.get("control") and r.get("via") not in (None, "stall"):
+            raise SystemExit(f"{r['id']}: a control request is swept via stall")
+        r.setdefault("distances", "2,7" if r.get("control") else "1-15,20,30")
         r.setdefault("via", "stall")
     elif r.get("kind") == "war":
         if r.get("store") not in WAR_STORES or r.get("overwriter") not in WAR_STORES[r["store"]][0]:
@@ -2553,10 +2667,16 @@ def normalise(req):
         r.setdefault("via", "stall")
         if r["form"] not in MMA_FORMS or r["variant"] not in MMA_VARIANTS or r["via"] not in ("stall", "nop"):
             raise SystemExit(f"{r['id']}: mma form / variant / via not in the catalogue (probe.py list)")
-        if r.get("reg") is not None and (r["variant"] not in ("hold_a_mov", "sens_a_mov", "hold_c_mov", "sens_c_mov") or r["reg"] not in (0, 1, 2, 3)):
-            raise SystemExit(f"{r['id']}: reg is 0 .. 3 (version 24: WHICH register of the A quad a hold_a_mov / sens_a_mov request rewrites - absent = R17 -, of the accumulator quad a hold_c_mov / sens_c_mov request)")
-        if r["variant"] == "hold_c_mov" and any(f not in ("none", "", None) for f in r.get("front", ["none"])):
-            raise SystemExit(f"{r['id']}: hold_c_mov has no tensor traffic in front (the word's result goes to R24..R27, the traffic's accumulator)")
+        if r["variant"] in ("hold_c_cs2r", "sens_c_cs2r", "hold_c_prmt", "sens_c_prmt"):      # version 25: the third register by default (the vendor's places)
+            r.setdefault("reg", 2)
+        if r.get("reg") is not None and (r["variant"] not in ("hold_a_mov", "sens_a_mov") + C_HOLD_VARIANTS or r["reg"] not in (0, 1, 2, 3)):
+            raise SystemExit(f"{r['id']}: reg is 0 .. 3 (version 24: WHICH register of the A quad a hold_a_mov / sens_a_mov request rewrites - absent = R17 -, of the accumulator quad a hold_c_* / sens_c_* request)")
+        if r["variant"].endswith("_c_cs2r") and r["reg"] not in (0, 2):
+            raise SystemExit(f"{r['id']}: the 64-bit CS2R writes a register PAIR on an even register: reg is 0 (R28, R29) or 2 (R30, R31)")
+        if r.get("dest") not in (None, "a") or (r.get("dest") and r["variant"] not in C_HOLD_VARIANTS):
+            raise SystemExit(f"{r['id']}: dest is \"a\" (version 25: the result of a hold_c_* / sens_c_* word goes to its own A quad R16..R19) or absent")
+        if r["variant"] in C_HOLD_VARIANTS and r["variant"].startswith("hold_") and any(f not in ("none", "", None) for f in r.get("front", ["none"])):
+            raise SystemExit(f"{r['id']}: {r['variant']} has no tensor traffic in front (the word's result goes to R24..R27, the traffic's accumulator)")
         if r["variant"].startswith("sens_"):
             r["via"] = "stall"
             r["distances"] = "45"
@@ -2616,8 +2736,10 @@ def normalise(req):
 
 
 def reg_text24(r):
-    if r["variant"] in ("hold_c_mov", "sens_c_mov"):
-        return f" [the rewritten register is R{28 + int(r.get('reg') or 0)} of the accumulator quad R28..R31; the word's result goes to R24..R27]"
+    if r["variant"] in C_HOLD_VARIANTS:
+        k = 28 + int(r.get("reg") or 0)
+        return (" [the rewritten register is " + (f"R{k} and R{k + 1}" if r["variant"].endswith("_cs2r") else f"R{k}") + " of the accumulator quad R28..R31; the word's result goes to "
+                + ("its own A quad R16..R19 (version 25)" if r.get("dest") == "a" else "R24..R27") + "]")
     return f" [the rewritten register is R{16 + r['reg']} of the A quad R16..R19]" if r.get("reg") is not None else ""
 
 
@@ -2634,7 +2756,9 @@ def pair_text(r):
     if r["kind"] == "raw" and RAW_CONSUMERS[r["consumer"]][0] in T24_WHAT:      # version 24
         return text24(r)
     if r["kind"] == "raw":
-        return f"{r['producer']} -> {r['consumer']}" + (" [the consumer takes the producer's SECOND result register]" if r.get("result") == 1 else "")
+        return (f"{r['producer']} -> {r['consumer']}" + (" [the consumer takes the producer's SECOND result register]" if r.get("result") == 1 else "")
+                + (" [POSITIVE CONTROL, version 25: the producer's word stands BEHIND the consumer and its checksum (a filler in its place), the model gives the consumer the new content - expect 0 % good]"
+                   if r.get("control") == "stale" else ""))
     if r["kind"] == "mma" and r["variant"].startswith("sens_"):
         return f"{MMA_FORMS[r['form']]}: {MMA_VARIANTS[r['variant']]}" + reg_text24(r)
     if r["kind"] == "mma" and r["variant"].startswith("hold_"):
@@ -2695,6 +2819,11 @@ def pair_text(r):
                 + ("; the second writer is a scoreboarded producer itself (its own barrier, waited by the reader)" if r["overwriter"] in ("LDS", "LDG", "SHFL") else "")
                 + ("; the second writer's value carries (iteration index + 1) x a constant: one late first write per thread is decoded to its index + 1"
                    if r["overwriter"] == "IADD3.it" else "") + ")")
+    if r["store"] == "STS.ubase":      # version 25
+        return (f"{r['store']} <- {r['overwriter']} (version 25: `UMOV UR6, 0x10` rewrites the UNIFORM base register of `STS [UR6+0x24], R6` "
+                + ("45 cycles IN FRONT of the store, the model ignoring it - the POSITIVE CONTROL: expect 0 % good" if r["overwriter"] == "UMOV.front"
+                   else "d issue cycles behind the store; the store carries a read barrier in every variant: bare = the overwriter does not wait it, ctl = no overwriter, rb = the overwriter waits it")
+                + "; every lane of a warp stores the same value through UR6 = the address of lane 0's line; a store that takes the rewritten base goes to another valid word of the CTA)")
     return f"{r['store']} <- {r['overwriter']} (unwaited rewrite behind a bare store)"
 
 
@@ -2706,7 +2835,7 @@ def sha256(path):
     return h.hexdigest()
 
 
-def table_cell(dep_path, cell):
+def _table_cell0(dep_path, cell):
     """the price of the pair on cubit's table (the cell, or the default that applies), for the margin"""
     if not cell or not os.path.isfile(dep_path):
         return None
@@ -2722,6 +2851,37 @@ def table_cell(dep_path, cell):
         # version 24, second build: an operand register of a tensor word (a fragment, the accumulator, the uniform operand)
         return {"producer": cell["producer"], "consumer": cell["consumer"], "role": role, "L": d["mma_input"], "source": "default mma_input (no dense cell)"}
     return {"producer": cell["producer"], "consumer": cell["consumer"], "role": role, "L": L, "source": "default (no dense cell)"}
+
+
+def table_cell(dep_path, cell, pword=None):
+    """version 25: _table_cell0 + the table's `producer_forms` (cubit's dep_stall::latency): the result of a producer FORM
+    the table names - the producer class without any of the listed modifiers, e.g. `CS2R` without `.32` - is never read
+    closer than the form's own number, in any role but its exceptions. `pword` = the mnemonic of the producer's word."""
+    c = _table_cell0(dep_path, cell)
+    if c is None or not pword:
+        return c
+    mods = str(pword).split(".")[1:]
+    for f in json.load(open(dep_path)).get("producer_forms", []):
+        if f.get("producer") != cell["producer"] or any(str(m).lstrip(".") in mods for m in f.get("without", [])):
+            continue
+        plain = cell["role"][:-1] if cell["role"].endswith("h") else cell["role"]
+        if any(e.get("consumer") == cell["consumer"] and e.get("role") == plain for e in f.get("except", [])):
+            return dict(c, source=c["source"] + f"; the producer form `{pword}` is named by the table (L {f['L']}), this consumer role is its exception")
+        if c["L"] is None or c["L"] < f["L"]:
+            return dict(c, L=f["L"], source=f"producer form `{pword}` (producer_forms: L {f['L']}; without it: {c['source']} {c['L']})",
+                        basis=f.get("basis", ""), silicon=f.get("silicon", ""))
+        return dict(c, source=c["source"] + f"; the producer form `{pword}` is named by the table (L {f['L']}, not above this price)")
+    return c
+
+
+def producer_word(r):
+    """version 25: the mnemonic (with its modifiers) of the producer's word of a raw request - what `producer_forms` reads"""
+    if r.get("kind") != "raw":
+        return None
+    try:
+        return next(i.text for i in body_raw(dict(r, control=None), 3, "none") if i.tag == "P").split()[0]
+    except (StopIteration, Poison):
+        return None
 
 
 def cmd_gen(args):
@@ -2787,7 +2947,7 @@ def cmd_gen(args):
         fam = {"request": r, "pair": pair_text(r) + (" [the swept instruction carries the YIELD flag]" if r.get("yield") else "")
                                  + (" [COLD: every load reads another line of the never-written tail of another CTA's block of the output buffer, chosen by lane and iteration]" if r.get("cold") else ""),
                "provenance": prov, "kernels": kernels, "modes": modes_of(r), "late_delta": late_delta,
-               "table_cell": table_cell(args.dep_table, r.get("cell"))}
+               "table_cell": table_cell(args.dep_table, r.get("cell"), producer_word(r))}
         (d / "family.json").write_text(json.dumps(fam, indent=1) + "\n")
         total += len(kernels)
 
@@ -2825,6 +2985,8 @@ def cmd_gen(args):
             raise SystemExit(f"{r['id']}: the checksum of `good` is 0 in {100 * float((cand['good'] == 0).mean()):.0f} % of the threads - a kernel that never ran would pass; give the request the field salt = set")
         if any(np.array_equal(cand["good"], v) for m, v in cand.items() if m != "good") and r["kind"] != "mma":
             raise SystemExit(f"{r['id']}: a failure hypothesis gives the checksums of `good` - the probe could not see it")
+        if r["kind"] == "raw" and r.get("control") == "stale" and "stale" in cand and not (cand["good"] != cand["stale"]).all():      # version 25
+            raise SystemExit(f"{r['id']}: a consumer that is stale in every iteration gives the checksum of `good` in some thread - this control could not show it there")
         if r["kind"] == "reuse" and "stale" in cand and not (cand["good"] != cand["stale"]).all():
             raise SystemExit(f"{r['id']}: a stale reader gives the checksum of `good` in some thread - the probe could not see it there")
         np.savez_compressed(out / r["id"] / "model.npz", **cand)
@@ -3389,6 +3551,9 @@ def cmd_list(_args):
           "which upper register) take " + "; ".join(f"{k}: {', '.join(v)}" for k, v in T24_PRODUCERS.items() if k in ("acc", "a", "b")) + "; RELATIVE consumers QMMA.u6 (UMOV), IMADi.rel, "
           "IMAD.rel, IADD.64.rel (" + ", ".join(T24_PRODUCERS["rel"]) + "): the result at the swept distance against the same word's 45 cycles later; \"control\": \"stale\" = the positive "
           "control (the producer's word behind the consumer - expect 0 % good); fronts none | mmaxK@S | sts128xK@S | stsxK@S")
+    print("  version 25: \"control\": \"stale\" on EVERY raw request (an ordinary pair: the producer's word behind the consumer and its checksum - expect 0 % good, class stale); consumers "
+          + ", ".join(RR_CONSUMERS) + " (the register-register IADD.64), PRMT.r3, STG.a0 (global-address producers: " + ", ".join(GADDR_PRODUCERS) + "); kind mma: hold_c_cs2r / sens_c_cs2r "
+          "(\"reg\": 0 | 2), hold_c_prmt / sens_c_prmt, \"dest\": \"a\" = the result of a hold_c_* / sens_c_* word goes to its own A quad; table_cell reads the table's producer_forms")
     print("kind war - a register of a BARE store rewritten behind it:")
     for k, v in WAR_STORES.items():
         print(f"  store {k:12s} overwriters {', '.join(v[0])}: {v[2]}")
@@ -3427,11 +3592,12 @@ def cmd_selftest(_args):
     import numpy as np
     gids = np.array([0, 5, 1023, 1024, 40000, NGID - 1])
     n = 0
+    n25 = 0
     for cons in RAW_CONSUMERS:
         what = RAW_CONSUMERS[cons][0]
         if what in T24_WHAT:      # version 24: their own part below
             continue
-        for prod in (ADDR_PRODUCERS if what == "addr" else UNIFORM_PRODUCERS if what == "udata" else DATA_PRODUCERS):
+        for prod in (ADDR_PRODUCERS if what == "addr" else UNIFORM_PRODUCERS if what == "udata" else GADDR_PRODUCERS if what == "gaddr" else DATA_PRODUCERS):
             if cons in ("IADD.64.r1h", "SHF.L.U64.HI.r1") and prod not in PAIR_PRODUCERS:
                 continue
             if prod == "CS2R" and RAW_CONSUMERS[cons][1] % 2:
@@ -3446,6 +3612,22 @@ def cmd_selftest(_args):
                 assert [int(x) for x in v] == model(r, mode, gids=gids, scalar=True), (prod, cons, mode)
                 n += 1
             assert not np.array_equal(model(r, "good", gids=gids), model(r, "stale", gids=gids)), (prod, cons)
+            # version 25: the positive control of an ordinary pair - the request's model, the producer's word behind the consumer and its checksum
+            rc = normalise({"id": "selftest", "kind": "raw", "producer": prod, "consumer": cons, "control": "stale"})
+            g_, st_ = model(r, "good", gids=gids), model(r, "stale", gids=gids)
+            assert np.array_equal(g_, model(rc, "good", gids=gids)) and np.array_equal(st_, model(rc, "stale", gids=gids)), (prod, cons, "the control's model is the request's")
+            assert [int(x) for x in st_] == model(rc, "stale", gids=gids, scalar=True), (prod, cons)
+            # a consumer stale in EVERY iteration must change the checksum in EVERY thread (address consumers of the thread's four words: in most)
+            assert (g_ != st_).all() or what == "addr", (prod, cons, "a stale consumer must change every thread's checksum")
+            for dd in (1, 7, 16):
+                b_, bc_ = body_raw(r, dd, "none"), body_raw(rc, dd, "none")
+                pt_, pc_ = next(a for a in b_ if a.tag == "P"), next(a for a in bc_ if a.tag == "P")
+                assert len(bc_) == len(b_) + 1 and [a.line() for a in bc_[:-1] if a.tag != "P"] == [a.line() for a in b_ if a.tag != "P"], (prod, cons, dd)
+                assert pc_.text == "IADD3 R15, PT, PT, R15, 0x1, RZ ;" and pc_.sem == pt_.sem and pc_.ctl == pt_.ctl and pc_.dst == pt_.dst, (prod, cons, dd)
+                assert bc_[-1].text == pt_.text and bc_[-1].sem == ("nop",) and bc_[-1].tag is None and bc_.index(pc_) < next(k for k, a in enumerate(bc_) if a.tag == "C"), (prod, cons, dd)
+                # (a pair the card would refuse - a 64-bit producer on an odd register - is refused by kernel_text for the request and for its control alike)
+                assert misaligned("\n".join(i.line() for i in bc_)) == misaligned("\n".join(i.line() for i in b_)), (prod, cons, dd)
+            n25 += 1
     # version 22: the pair's SECOND result register - the consumer's word differs in R6 -> R7 and in nothing else
     for prod in sorted(PAIR_PRODUCERS):
         for cons in RESULT1_CONSUMERS:
@@ -4020,6 +4202,130 @@ def cmd_selftest(_args):
         except SystemExit:
             continue
         raise AssertionError(("the fifth build must refuse", bad))
+    # ---- version 25
+    assert n25 >= 300, n25
+    R_, _get, ex_ = _machine(0)      # add64 against plain arithmetic
+    for a_, b_ in ((0xFFFFFFFF_FFFFFFFF, 1), (0x00000001_FFFFFFFF, 0x00000002_00000001), (0x12345678_9ABCDEF0, 0x0FEDCBA9_87654321), (0, 0)):
+        R_["R6"], R_["R7"], R_["R4"], R_["R5"] = a_ & 0xFFFFFFFF, a_ >> 32, b_ & 0xFFFFFFFF, b_ >> 32
+        ex_(("add64", "R24", "R6", "R4"))
+        assert (R_["R25"] << 32) | R_["R24"] == (a_ + b_) & 0xFFFFFFFFFFFFFFFF, (a_, b_)
+    # the words of the new consumers, the tested register and the pair's other word
+    for cons, prod, cw, pw, other in (("IADD.64rr.r1", "MOV", "IADD.64 R24, R6, R4 ;", "MOV R6, R4 ;", "MOV R7, R5 ;"), ("IADD.64rr.r1h", "MOV", "IADD.64 R24, R6, R4 ;", "MOV R7, R4 ;", "MOV R6, R5 ;"),
+                                      ("IADD.64rr.r2", "MOV", "IADD.64 R24, R4, R6 ;", "MOV R6, R4 ;", "MOV R7, R5 ;"), ("IADD.64rr.r2h", "MOV", "IADD.64 R24, R4, R6 ;", "MOV R7, R4 ;", "MOV R6, R5 ;"),
+                                      ("IADD.64rr.r1", "IMAD.WIDE", "IADD.64 R24, R6, R4 ;", "IMAD.WIDE.U32 R6, R4, R5, RZ ;", None),
+                                      ("IADD.64rr.r1h", "IMAD.WIDE", "IADD.64 R24, R6, R4 ;", "IMAD.WIDE.U32 R6, R4, R5, RZ ;", None),
+                                      ("PRMT.r3", "SEL", "PRMT R8, R5, 0x7632, R6 ;", "SEL R6, R4, R5, !P2 ;", None)):
+        bb = body_raw(normalise({"id": "xx", "kind": "raw", "producer": prod, "consumer": cons}), 5, "none")
+        assert next(a.text for a in bb if a.tag == "C") == cw and next(a.text for a in bb if a.tag == "P") == pw, (cons, prod)
+        assert (other is None and not any(a.text in ("MOV R7, R5 ;", "MOV R6, R5 ;") for a in bb)) or sum(a.text == other for a in bb) == 1, (cons, prod)
+        assert next(a.dst for a in bb if a.tag == "P") == (("R6", "R7") if prod == "IMAD.WIDE" else (pw.split()[1].rstrip(","),)), (cons, prod)
+        assert sum(int(a.ctl[-3:-1]) for a in bb[next(k for k, a in enumerate(bb) if a.tag == "P"):next(k for k, a in enumerate(bb) if a.tag == "C")]) == 5
+    # STG.a0: every address the kernel can form is word A or word B of the thread; a stale low register stores to word B
+    for ctl_ in (None, "stale"):
+        rg = normalise(dict({"id": "xx", "kind": "raw", "producer": "IADD.64", "consumer": "STG.a0"}, **({"control": ctl_} if ctl_ else {})))
+        bg = body_raw(rg, 4, "sts128x15@4")
+        assert [a.text for a in bg[:2]] == ["MOV R6, R18 ;", "MOV R7, R19 ;"] and sum(a.text == "IADD.64 R6, R16, R26 ;" for a in bg) == 1
+        assert all(a.text.split(None, 1)[1].split(",")[0].strip() not in ("R6", "R7") or a.text in ("MOV R6, R18 ;", "MOV R7, R19 ;", "IADD.64 R6, R16, R26 ;") for a in bg), "another writer of the address pair"
+        assert not any(re.match(r"\S+\s+R2[67]\b", a.text) for a in bg) and not any("R26" in i.text or "R27" in i.text for i in prologue(rg, 188) if not i.text.startswith(("MOV R26, RZ", "MOV R27, RZ")))
+        assert [a.text for a in bg if a.tag == "C"] == ["STG.E desc[UR4][R6.64], R4 ;"] and not misaligned(kernel_text("x", rg, 188, bg))
+        g_, st_ = model(rg, "good", gids=gids), model(rg, "stale", gids=gids)
+        assert (g_ != st_).all() and [int(x) for x in g_] == model(rg, "good", gids=gids, scalar=True) and [int(x) for x in st_] == model(rg, "stale", gids=gids, scalar=True)
+        n += 2
+    for bad in ({"producer": "MOV", "consumer": "STG.a0"}, {"producer": "IADD.64", "consumer": "STG.a0", "front": ["stgx4@4"]}, {"producer": "IADD.64", "consumer": "STG.a0", "result": 1},
+                {"producer": "MOV", "consumer": "IADD.64rr.r1", "control": "yes"}, {"producer": "MOV", "consumer": "IADD.64rr.r1", "control": "stale", "via": "fill"}):
+        try:
+            normalise(dict({"id": "xx", "kind": "raw"}, **bad))
+        except SystemExit:
+            continue
+        raise AssertionError(("version 25 must refuse", bad))
+    assert normalise({"id": "xx", "kind": "raw", "producer": "MOV", "consumer": "IADD.64rr.r1", "control": "stale"})["distance_list"] == [2, 7]
+    assert "POSITIVE CONTROL" in pair_text(normalise({"id": "xx", "kind": "raw", "producer": "MOV", "consumer": "IADD.r1", "control": "stale"}))
+    assert "POSITIVE CONTROL" not in pair_text(normalise({"id": "xx", "kind": "raw", "producer": "MOV", "consumer": "IADD.r1"}))
+    # the accumulator's hold with the vendor's overwriters; "dest": "a"
+    for form in ("QMMA.SF.E4M3.E2M1", "HMMA.BF16"):
+        for var_, reg_, dest_ in (("cs2r", 0, None), ("cs2r", 2, None), ("cs2r", 2, "a"), ("prmt", 0, None), ("prmt", 1, None), ("prmt", 2, None), ("prmt", 3, None), ("prmt", 2, "a"), ("mov", 2, "a"), ("mov", 3, "a")):
+            q_ = {"id": "xx", "kind": "mma", "form": form, "variant": f"hold_c_{var_}", "reg": reg_}
+            if dest_:
+                q_["dest"] = dest_
+            r = normalise(q_)
+            ot = {"cs2r": f"CS2R R{28 + reg_}, SRZ ;", "prmt": f"PRMT R{28 + reg_}, R6, 0x5140, R7 ;", "mov": f"MOV R{28 + reg_}, R6 ;"}[var_]
+            d0 = "R16" if dest_ else "R24"
+            for dd in (1, 7, 8, 12):
+                b = body_mma(r, dd)
+                w, o = [a for a in b if a.tag == "P"], [a for a in b if a.tag == "O"]
+                assert len(w) == 1 and w[0].text.split()[1:5] == [d0 + ",", "R16,", "R12,", "R28" + ("," if form.startswith("QMMA") else "")] and w[0].sem[5] == "R28" and w[0].sem[1] == d0, (form, var_, reg_)
+                assert len(o) == 1 and o[0].text == ot and b.index(o[0]) > b.index(w[0]) and not misaligned(kernel_text("x", r, 188, b)), (form, var_, reg_)
+                assert sum(int(a.ctl[-3:-1]) for a in b[b.index(w[0]):b.index(o[0])]) == dd
+                assert [a.text.split()[2].rstrip(",") for a in b[-4:-1]] == [f"R{int(d0[1:]) + k}" for k in (1, 2, 3)], (form, var_, dest_)
+            for mode in modes_of(r):
+                v = model(r, mode, gids=gids)
+                assert [int(x) for x in v] == model(r, mode, gids=gids, scalar=True), (form, var_, reg_, mode)
+                n += 1
+            g = model(r, "good", gids=gids)
+            assert (g != model(r, "drop1", gids=gids)).all()
+            # the control's kernel: the overwriter 45 cycles in front, the model ignoring it; the word taking the REWRITTEN register(s) gives another checksum in every thread
+            bs = body_mma(normalise(dict(q_, variant=f"sens_c_{var_}")), 45)
+            k_m, k_w = next(k for k, a in enumerate(bs) if a.text == ot), next(k for k, a in enumerate(bs) if a.tag == "P")
+            assert k_m < k_w and bs[k_m].sem == ("nop",) and sum(int(a.ctl[-3:-1]) for a in bs[k_m:k_w]) == 60 and sum(a.text == ot for a in bs) == 1
+            bs[k_m].sem = ("zero2", f"R{28 + reg_}") if var_ == "cs2r" else ("mov", f"R{28 + reg_}", 0)      # (PRMT / MOV: a ZERO accumulator stands for "another content")
+            assert all(_scalar(int(x), prologue(r, 188), bs, "good") != int(y) for x, y in zip(gids, g)), (form, var_, reg_)
+    # the bodies of the fifth build's hold_c_mov / sens_c_mov without "dest" are unchanged in text (checked against the fifth build by s10/cmp25.py)
+    for bad in ({"variant": "hold_c_cs2r", "reg": 1}, {"variant": "sens_c_cs2r", "reg": 3}, {"variant": "hold_c_prmt", "reg": 4}, {"variant": "hold_a_mov", "dest": "a"},
+                {"variant": "hold_c_mov", "dest": "b"}, {"variant": "hold_c_prmt", "front": ["mmax1@7"]}):
+        try:
+            normalise(dict({"id": "xx", "kind": "mma"}, **bad))
+        except SystemExit:
+            continue
+        raise AssertionError(("version 25 must refuse", bad))
+    assert normalise({"id": "xx", "kind": "mma", "variant": "hold_c_cs2r"})["reg"] == 2 and normalise({"id": "xx", "kind": "mma", "variant": "sens_c_prmt"})["reg"] == 2
+    assert "R30 and R31" in pair_text(normalise({"id": "xx", "kind": "mma", "variant": "hold_c_cs2r"})) and "its own A quad" in pair_text(normalise({"id": "xx", "kind": "mma", "variant": "hold_c_prmt", "dest": "a"}))
+    assert pair_text(normalise({"id": "xx", "kind": "mma", "variant": "hold_c_mov", "reg": 3})).endswith("[the rewritten register is R31 of the accumulator quad R28..R31; the word's result goes to R24..R27]")
+    # table_cell reads producer_forms (a table that has the section)
+    import tempfile
+    with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as tf:
+        json.dump({"defaults": {"data": 6, "mma_input": 7, "guard": 13, "uniform": 13},
+                   "cells": [{"producer": "CS2R", "consumer": "LOP3", "role": "r1", "L": 5}, {"producer": "CS2R", "consumer": "STS", "role": "r1", "L": 4}, {"producer": "CS2R", "consumer": "SHF", "role": "r1", "L": 9}],
+                   "producer_forms": [{"producer": "CS2R", "without": [".32"], "L": 7, "except": [{"consumer": "STS", "role": "r1"}]}]}, tf)
+    try:
+        tcf = lambda c, r_, w: table_cell(tf.name, {"producer": "CS2R", "consumer": c, "role": r_}, w)      # noqa: E731
+        assert tcf("IMAD", "r1", "CS2R")["L"] == 7 and tcf("IMAD", "r1", "CS2R")["source"].startswith("producer form")
+        assert tcf("IMAD", "r1", "CS2R.32")["L"] == 6 and tcf("IMAD", "r1", None)["L"] == 6 and tcf("IMAD", "r1", "CS2R.32")["source"] == "default (no dense cell)"
+        assert tcf("LOP3", "r1", "CS2R")["L"] == 7 and tcf("LOP3", "r1", "CS2R.32")["L"] == 5 and tcf("LOP3", "r1h", "CS2R")["L"] == 7
+        assert tcf("STS", "r1", "CS2R")["L"] == 4 and "exception" in tcf("STS", "r1", "CS2R")["source"] and tcf("STS", "r1h", "CS2R")["L"] == 6
+        assert tcf("SHF", "r1", "CS2R")["L"] == 9 and "not above" in tcf("SHF", "r1", "CS2R")["source"]
+        assert tcf("QMMA", "r3", "CS2R")["L"] == 7 and table_cell(tf.name, {"producer": "MOV", "consumer": "IADD", "role": "r1"}, "MOV")["L"] == 6
+    finally:
+        os.unlink(tf.name)
+    # third build: the uniform base register of a shared store (kind war, STS.ubase)
+    rw = normalise({"id": "xx", "kind": "war", "store": "STS.ubase", "overwriter": "UMOV"})
+    rwc = normalise({"id": "xx", "kind": "war", "store": "STS.ubase", "overwriter": "UMOV.front", "controls": False})
+    assert modes_of(rw) == ["good", "late"] and modes_of(rwc) == ["good"]
+    gw, lw = model(rw, "good", gids=gids), model(rw, "late", gids=gids)
+    assert (gw != lw).all() and [int(x) for x in gw] == model(rw, "good", gids=gids, scalar=True) and [int(x) for x in lw] == model(rw, "late", gids=gids, scalar=True)
+    assert np.array_equal(gw, model(rwc, "good", gids=gids)), "the control's model is the request's"
+    # the warp's value: R4 - lane is the same number in every lane of a warp (gids 0 and 5 are lanes of one warp)
+    assert int(gw[0]) == int(gw[1]) and int(lw[0]) == int(lw[1])
+    n += 3
+    for dd in (1, 6, 12):
+        for var_ in ("bare", "ctl", "rb"):
+            bw = body_war(rw, dd, "sts128x15@4", var_)
+            ks, um = next(k for k, a in enumerate(bw) if a.tag == "S"), [k for k, a in enumerate(bw) if a.text == "UMOV UR6, 0x10 ;"]
+            assert bw[ks].line() == f"[B------:R2:W-:-:S{dd:02d}] STS [UR6+0x24], R6 ;" and sum(a.text.startswith("R2UR UR6, R25") for a in bw[:ks]) == 1, (dd, var_)
+            assert sum(int(a.ctl[-3:-1]) for a in bw[next(k for k, a in enumerate(bw) if a.text.startswith("R2UR")):ks]) >= 45
+            assert (um == [] if var_ == "ctl" else (len(um) == 1 and um[0] > ks and sum(int(a.ctl[-3:-1]) for a in bw[ks:um[0]]) == dd
+                                                     and bw[um[0]].ctl.startswith("[B--2---" if var_ == "rb" else "[B------"))), (dd, var_)
+            assert [a.line() for a in bw[-2:]] == ["[B------:R-:W1:-:S15] LDS R8, [R25+0x24] ;", "[B-12---:R-:W-:-:S15] IADD3 R10, PT, PT, R10, R8, RZ ;"]
+            # nothing but the tested store writes shared memory through a uniform register, and no other word of the body reads slot 3 of a line
+            assert sum("[UR" in a.text for a in bw) == 1 and not any("+0x3" in a.text for a in bw), (dd, var_)
+        bc = body_war(rwc, dd, "none", "bare")
+        ks, um = next(k for k, a in enumerate(bc) if a.tag == "S"), [k for k, a in enumerate(bc) if a.text == "UMOV UR6, 0x10 ;"]
+        assert len(um) == 1 and um[0] < ks and bc[um[0]].sem == ("nop",) and sum(int(a.ctl[-3:-1]) for a in bc[um[0]:ks]) == 45 and not any(a.tag == "O" for a in bc)
+        assert um[0] > next(k for k, a in enumerate(bc) if a.text.startswith("R2UR")), "the control's rewrite stands behind the R2UR of the iteration"
+        bc[um[0]].sem = ("mov", "UR6", 0x10)      # the control's kernel as the card runs it: the store takes the rewritten base - another checksum in every thread
+        assert all(_scalar(int(x), prologue(rwc, 188), bc, "good") != int(y) for x, y in zip(gids, gw)), dd
+    assert producer_word(normalise({"id": "xx", "kind": "raw", "producer": "CS2R", "consumer": "IMAD.r1", "salt": "set"})) == "CS2R"
+    assert producer_word(normalise({"id": "xx", "kind": "raw", "producer": "CS2R.32.CgaSize", "consumer": "IMADi.rel"})) == "CS2R.32"
+    assert producer_word(normalise({"id": "xx", "kind": "raw", "producer": "MOV", "consumer": "IADD.r1", "control": "stale"})) == "MOV"
     assert smem_of({"id": "x", "kind": "ord", "nload": 8, "place": "far"}, "c2w9s") == 49152 and smem_of({"id": "x", "kind": "ord", "nload": 8, "place": "far"}, "w32") == 98304
     assert smem_of({"id": "x", "kind": "ord", "nload": 8, "place": "far"}, "c4w8") == 24576
     assert far_layout(288) == (18432, 1280) and far_layout(1024) == (65536, 4096) and far_layout(32) == (2048, 1024)

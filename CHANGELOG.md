@@ -547,6 +547,15 @@ decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `
   The `_ws_` files of `_b40` … `_b43`: on a card of the Workstation Edition, alone and at its 400-W limit, 34 of 36 classes give
   the Server card's floor; `MOV` in front of the accumulator's second register 1 | 2 | 1 and `FMUL` in front of the accumulator of an
   `HMMA` 2 | 2 | 1 (a rare event at distance 1; the floor over the three states is 2 for both); none above the default 7.
+- **`probe.py` 25: a positive control for every kind-`raw` pair; the accumulator's hold against `CS2R` and `PRMT` is 8 too; the
+  uniform base of a shared store is held 1 cycle** (`_b45`, `_b46` and their `_ws_` files; selftest 3 604). `"control": "stale"`
+  now works on any `raw` request: the producer's instruction behind the consumer and its checksum — a class whose control is not
+  wrong has no result. New consumers: the register-register `IADD.64` (low and high word of either operand pair), `PRMT.r3`,
+  `STG.a0`; kind `mma` `hold_c_cs2r` / `hold_c_prmt` with `"dest": "a"`; kind `war` `STS.ubase`; `table_cell` reads
+  `producer_forms`. Measured on a card of each edition, the Workstation card alone and at its 400-W limit: `CS2R R, SRZ` and `PRMT`
+  on the third or fourth accumulator register 8 cycles behind a tensor instruction are right (0 of 18 396 160), 7 cycles behind
+  not right in 15 652 160 … 18 143 936; `UMOV` rewriting the uniform base of a shared store 1 cycle behind it
+  never reaches the store; 28 pair requests of default-priced classes give floors 1 … 5, none above the default.
 
 ## Unreleased — 2026-11-11 (session SCH-4: the stall-floor probes on grids that hold two CTAs per SM and on production's card model in two clock states — tools and result files only, no source line changes)
 
