@@ -58,8 +58,8 @@ const EXCEPTIONS: &[(&str, &str, &str)] = &[
     ("HFMA2_R_R_R_FI_FI", "", "cubit mishandles the row's words (not tagged; T-23): field word bit 123: cubit 'HFMA2 R16, R64, R80, 203.25, 203.25' re-encode mismatch:000fe200000000505a5a5a5a40107431 for 'HFMA2 R16, R64, R80.reuse, 203.25, 203.25'"),
     ("HSET2_R_R_FI_FI_P", "AND,BF,BF16_V2,EQ", "field bit 12 (pred tok 5) moves guard 0: '@P6 HSET2.BF16_V2.BF.EQ.AND R16, R96, -2.4233807008389482662e-25, -0.0030975341796875, PT'"),
     ("HSET2_R_R_FI_FI_P", "AND,EQ", "cubit mishandles the row's words (not tagged; T-23): cubit prints 'HSET2.EQ.AND R32, R48, 1.2964953521779640022e-40, 0.003101348876953125, PT' for 'HSET2.EQ.AND R32, R48, 203.25, 203.25, PT' (+3 more)"),
-    ("HSET2_R_R_R_P", "AND,BF,BF16_V2,EQ", "bit 60 outside the fields moves operand 3 of the same form: 'HSET2.BF16_V2.BF.EQ.AND R32, R48, R64.H1_H1, PT'"),
-    ("HSET2_R_R_R_P", "AND,EQ", "bit 60 outside the fields moves operand 3 of the same form: 'HSET2.EQ.AND R32, R48, R64.H1_H1, PT'"),
+    ("HSET2_R_R_R_P", "AND,BF,BF16_V2,EQ", "re-measured since: rows-hset2-rrr-production-2026-11-10 bit 60 outside the fields moves operand 3 of the same form: 'HSET2.BF16_V2.BF.EQ.AND R32, R48, R64.H1_H1, PT'"),
+    ("HSET2_R_R_R_P", "AND,EQ", "re-measured since: rows-hset2-rrr-production-2026-11-10 bit 60 outside the fields moves operand 3 of the same form: 'HSET2.EQ.AND R32, R48, R64.H1_H1, PT'"),
 ];
 
 include!("sm120_rows_common.inc");
