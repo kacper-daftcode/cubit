@@ -56,7 +56,7 @@ import subprocess
 import sys
 import time
 
-TOOL = "probe.py 18 (2026-11-11)"
+TOOL = "probe.py 19 (2026-11-11)"
 HERE = pathlib.Path(__file__).resolve().parent
 SEED = 0x12345
 REPEAT = 256
@@ -509,29 +509,33 @@ def body_ord(req, d, front, variant):
     far = req.get("far")
     if far and younger not in ("LDS", "LDS128", "LDSM", "LDS64"):
         raise SystemExit("ord: `far` is for a younger SHARED load (LDS, LDS128, LDSM, LDS64)")
-    ybase = "R14" if far is True else "R9"
+    ybase = "R14" if far is True else "R7" if far == "base2" else "R9"      # version 19: "base2" = another base register, the same address
     yoff = 0x230 if far == "off" else 0x30
     # "younger_guard": the younger load under a predicate - true (P0) or false (P3: the load does not happen; what its
     # write barrier then does for the reader's wait is the question)
     yg = {"true": "@P0 ", "false": "@P3 "}.get(req.get("younger_guard"), "")
     if far is True:
         b.append(Ins("LOP3.LUT R14, R9, 0x400, RZ, 0x3c, !PT ;", ("xor", "R14", "R9", 0x400)))
+    if far == "base2":      # version 19: the younger shared load through ANOTHER base register on the SAME line
+        b.append(Ins("MOV R7, R9 ;", ("mov", "R7", "R9")))
+    # version 19 - "older_guard": "true" = the OLDER shared load under a guard that is true (P0, set in the prologue)
+    og = "@P0 " if req.get("older_guard") == "true" else ""
     # what the older load brings changes every iteration (a store with read barrier 3, waited by the fold); its destination
     # holds a marker (b) until the load lands
     if older == "LDS":
         b += [Ins("STS [R9+0x20], R4 ;", ("sts", "R9", 0x20, "R4", 1), ctl=C(rb="3")), Ins("MOV R6, R5 ;", ("mov", "R6", "R5"))]
         b += front_ins(front, False)
-        b.append(Ins("LDS R6, [R9+0x20] ;", ("lds", "R6", "R9", 0x20, 1), ctl=C(s, wb=wb0), tag="P", dst=["R6"]))
+        b.append(Ins(f"{og}LDS R6, [R9+0x20] ;", ("lds", "R6", "R9", 0x20, 1), ctl=C(s, wb=wb0), tag="P", dst=["R6"]))
     elif older == "LDSU16":      # 16 bits, zero-extended
         b += [Ins("STS [R9+0x20], R4 ;", ("sts", "R9", 0x20, "R4", 1), ctl=C(rb="3")), Ins("MOV R6, R5 ;", ("mov", "R6", "R5"))]
         b += front_ins(front, False)
-        b.append(Ins("LDS.U16 R6, [R9+0x20] ;", ("ldsu16", "R6", "R9", 0x20), ctl=C(s, wb=wb0), tag="P", dst=["R6"]))
+        b.append(Ins(f"{og}LDS.U16 R6, [R9+0x20] ;", ("ldsu16", "R6", "R9", 0x20), ctl=C(s, wb=wb0), tag="P", dst=["R6"]))
     elif older == "LDS64":
         b += [Ins("MOV R26, R4 ;", ("mov", "R26", "R4")), Ins("MOV R27, R5 ;", ("mov", "R27", "R5")),
               Ins("STS.64 [R9+0x20], R26 ;", ("sts", "R9", 0x20, "R26", 2), ctl=C(rb="3")),
               Ins("MOV R28, R5 ;", ("mov", "R28", "R5")), Ins("MOV R29, R5 ;", ("mov", "R29", "R5"))]
         b += front_ins(front, False)
-        b.append(Ins("LDS.64 R28, [R9+0x20] ;", ("lds", "R28", "R9", 0x20, 2), ctl=C(s, wb=wb0), tag="P", dst=["R28", "R29"]))
+        b.append(Ins(f"{og}LDS.64 R28, [R9+0x20] ;", ("lds", "R28", "R9", 0x20, 2), ctl=C(s, wb=wb0), tag="P", dst=["R28", "R29"]))
     elif older == "LDS128":
         b += [Ins("MOV R24, R4 ;", ("mov", "R24", "R4")), Ins("MOV R25, R5 ;", ("mov", "R25", "R5")),
               Ins("LOP3.LUT R26, R4, 0x33cc33cc, RZ, 0x3c, !PT ;", ("xor", "R26", "R4", 0x33cc33cc)),
@@ -540,7 +544,7 @@ def body_ord(req, d, front, variant):
               Ins("MOV R28, R5 ;", ("mov", "R28", "R5")), Ins("MOV R29, R5 ;", ("mov", "R29", "R5")),
               Ins("MOV R30, R5 ;", ("mov", "R30", "R5")), Ins("MOV R31, R5 ;", ("mov", "R31", "R5"))]
         b += front_ins(front, False)
-        b.append(Ins("LDS.128 R28, [R9+0x20] ;", ("lds", "R28", "R9", 0x20, 4), ctl=C(s, wb=wb0), tag="P", dst=["R28", "R29", "R30", "R31"]))
+        b.append(Ins(f"{og}LDS.128 R28, [R9+0x20] ;", ("lds", "R28", "R9", 0x20, 4), ctl=C(s, wb=wb0), tag="P", dst=["R28", "R29", "R30", "R31"]))
     elif older == "LDC":      # version 18: the constant-bank load of the seed; its destination holds the marker until it lands
         b.append(Ins("MOV R6, R5 ;", ("mov", "R6", "R5")))
         b += front_ins(front, False)
@@ -958,7 +962,7 @@ def prologue(req, ctas):
               Ins("IADD3 R13, PT, PT, R9, 0x20, RZ ;", ("add", "R13", "R9", 0x20))]
     else:
         p.append(Ins("MOV R6, RZ ;", ("mov", "R6", 0)))
-    if req["kind"] == "ord" and req.get("younger_guard"):
+    if req["kind"] == "ord" and (req.get("younger_guard") or req.get("older_guard")):
         p += [Ins("ISETP.EQ.U32.AND P0, PT, RZ, RZ, PT ;", ("nop",)), Ins("ISETP.NE.U32.AND P3, PT, RZ, RZ, PT ;", ("nop",))]
     if req["kind"] == "ord" and req.get("nload") and req.get("place") == "far":
         # R14 = the thread's word in the second region; word k := a per-thread constant (a store with read barrier 5, waited)
@@ -1469,8 +1473,11 @@ def normalise(req):
                 raise SystemExit(f"{r['id']}: an N-load request is older = younger = LDS, nload 2..8, place near | far | base2, barrier last | all | none")
         if r.get("older_barrier") not in (None, "same"):
             raise SystemExit(f"{r['id']}: older_barrier is \"same\" or absent")
-        if r.get("far") not in (None, False, True, "off") or r.get("younger_guard") not in (None, "true", "false"):
-            raise SystemExit(f"{r['id']}: far is true | \"off\" (the same base register, 0x200 away), younger_guard is \"true\" | \"false\"")
+        if r.get("far") not in (None, False, True, "off", "base2") or r.get("younger_guard") not in (None, "true", "false"):
+            raise SystemExit(f"{r['id']}: far is true | \"off\" (the same base register, 0x200 away) | \"base2\" (another base register, the same line), "
+                             f"younger_guard is \"true\" | \"false\"")
+        if r.get("older_guard") not in (None, "true") or (r.get("older_guard") and (r.get("nload") or r.get("older") not in ("LDS", "LDSU16", "LDS64", "LDS128"))):
+            raise SystemExit(f"{r['id']}: older_guard is \"true\" (version 19), on the older SHARED load of a two-load request")
         if r.get("younger_guard") and r.get("younger") == "LDG":
             raise SystemExit(f"{r['id']}: a guarded younger load is a shared load")
             if max(parse_distances(r["distances"])) > 15:
@@ -1538,10 +1545,11 @@ def pair_text(r):
     if r["kind"] == "ord":
         return (f"{r['older']} without a write barrier, read behind the wait on a younger {r['younger']}'s barrier "
                 f"(the younger load at stall {r.get('younger_stall', 2)} in front of the reader"
-                + ("; the younger load on the SAME base register, 0x200 bytes away" if r.get("far") == "off"
+                + ("; the younger load through ANOTHER base register that holds the same address (the same line)" if r.get("far") == "base2"
+                   else "; the younger load on the SAME base register, 0x200 bytes away" if r.get("far") == "off"
                    else "; the younger load reads ANOTHER line of shared memory, 1 KB away" if r.get("far") else "")
                 + ({"true": "; the younger load under a guard that is TRUE", "false": "; the younger load under a guard that is FALSE (it does not happen)"}
-                   .get(r.get("younger_guard"), "")) + ")")
+                   .get(r.get("younger_guard"), "")) + ("; the OLDER load under a guard that is TRUE" if r.get("older_guard") else "") + ")")
     if r["store"] in SHFL_STORES:
         return (f"{r['store']} <- {r['overwriter']} (unwaited rewrite of the source register behind a warp shuffle"
                 + ("; the shuffle carries a read barrier that the overwriter does not wait" if r.get("read_barrier") == "set"
@@ -2246,6 +2254,7 @@ def cmd_list(_args):
         print(f"  variant {k:7s} {v}")
     print("kind ord - an OLDER load without a write barrier, read behind the wait on a YOUNGER load's barrier (older, younger):")
     print("  " + ", ".join(f"({a}, {b})" for a, b in ORD_PAIRS) + "; distance = older -> younger; `younger_stall` (default 2) = younger -> reader")
+    print("  version 19, two-load requests: \"far\": \"base2\" = the younger shared load through ANOTHER base register that holds the same address (the same line); \"older_guard\": \"true\" = the older shared load under a guard that is true")
     print("  N loads in flight and ONE wait: \"nload\": 2..8, \"place\": near | base2 | far (>= 1 KB apart), \"barrier\": last (the older loads bare) | all (one shared barrier) | none (positive control: no wait); distance = load -> load, 1..15")
     print("  two loads on ONE write barrier: \"older_barrier\": \"same\" (does the scoreboard count its producers?)")
     print("occupancy:", "; ".join(f"{k} = {v}" for k, v in OCC.items()))
@@ -2306,7 +2315,11 @@ def cmd_selftest(_args):
         assert not np.array_equal(g, st), (older, younger)
         n += 2
     for older, younger, extra in [("LDS", "LDS64", {"far": "off"}), ("LDS64", "LDS64", {"far": "off"}), ("LDS", "LDS128", {"younger_guard": "true", "far": True}),
-                                  ("LDS", "LDS128", {"younger_guard": "false", "far": True}), ("LDSU16", "LDS", {"far": True}), ("LDS64", "LDS", {})]:
+                                  ("LDS", "LDS128", {"younger_guard": "false", "far": True}), ("LDSU16", "LDS", {"far": True}), ("LDS64", "LDS", {}),
+                                  ("LDS", "LDS64", {"far": "base2"}), ("LDS64", "LDS64", {"far": "base2"}), ("LDSU16", "LDS", {"far": "base2"}),
+                                  ("LDS", "LDS128", {"far": "base2"}), ("LDS", "LDS128", {"far": "base2", "younger_guard": "true"}),
+                                  ("LDS", "LDS", {"older_guard": "true"}), ("LDS", "LDS", {"older_guard": "true", "far": True}),
+                                  ("LDS64", "LDS64", {"older_guard": "true", "far": "base2"}), ("LDS128", "LDS", {"older_guard": "true"})]:
         r = normalise(dict({"id": "selftest", "kind": "ord", "older": older, "younger": younger}, **extra))
         g, st = model(r, "good", gids=gids), model(r, "stale", gids=gids)
         assert [int(x) for x in g] == model(r, "good", gids=gids, scalar=True) and [int(x) for x in st] == model(r, "stale", gids=gids, scalar=True)

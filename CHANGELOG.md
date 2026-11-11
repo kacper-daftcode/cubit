@@ -118,6 +118,13 @@ decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `
   183 037 088 … 367 697 920.
 - **The yield flag moves no floor** (`_b24.json`): seven pairs with and without it — ALU → store data 3, → load address 4, ALU →
   ALU 4 / 5, two `QMMA.SF` 1, the A-fragment hold 5, the B fragment 1 — on six grids.
+- **`probe.py` 19 and two more cover shapes of a bare shared load** (KNOWN_ISSUES A32; `_b26.json`): two-load requests learn
+  `far: base2` (the younger load through another base register that holds the same address) and `older_guard: true` (selftest
+  1 072). A bare older load under a younger load's barrier is right in all ten shapes — the vendor's four pairs with the
+  younger load through another base register on the same line (also under a true and a false guard), and four with a guarded
+  older load: 0 not right of 5 465 415 680 thread-launches, the block's positive control wrong in 285 467 168 of
+  286 361 600; the same zeros on a card of the Workstation Edition, alone and at its 400-W limit
+  (`_b26_ws_…`).
 
 ## Unreleased — 2026-11-11 (session SCH-4: the stall-floor probes on grids that hold two CTAs per SM and on production's card model in two clock states — tools and result files only, no source line changes)
 
