@@ -186,7 +186,8 @@ decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `
   in six shapes. The overwriter of a shuffle's source behind a wait on a younger shuffle's READ barrier, or on a younger
   `LDS`'s write barrier: 0 of 1 793 049 600 each (the unwaited rewrite of the same block wrong in 196 597 600 of 312 734 720).
   N = 3 … 13 shared loads of mixed forms behind one wait: 0 of 5 955 840 000; N loads with the yield flag on every load: 0 of
-  1 905 868 800. The Server card, one clock state.
+  1 905 868 800. The Server card; the same zeros, with both positive controls wrong, on a card of the Workstation Edition
+  alone and at its 400-W limit (`_b28_ws_…`, `_b29_ws_…`, `_b30_ws_…`).
 - **Fifteen pair classes without a table cell, measured** (`_b31.json`; `probe.py` 21 as it is): producer → consumer classes the
   dependency table prices by its default 6 have floors of 3 (eight classes into store data), 4 (`PRMT` → `LEA`), 5 (five
   classes) and 6 (`CS2R` → `LOP3` r1) — none above the default; 0 not right of 2 207 539 200 thread-launches at and above
