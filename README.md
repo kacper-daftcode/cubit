@@ -113,7 +113,8 @@ served MoE kernels scheduled this way give identical bits, 16.7 % and 12.7 % slo
 `CUBIT_VERIFY=1` runs the read-only scoreboard verifier on every kernel it
 assembles (frozen or scheduled) and prints each unprotected RAW / broken WAR, and each store or asynchronous copy
 (`LDGSTS`) whose registers are rewritten on some path of the flow graph with no wait on its read barrier (`STORE PATH`,
-`CUBIT_VERIFY_PATHS`);
+`CUBIT_VERIFY_PATHS`; a dispatch — `BRX` — is followed into every block only a register-indirect branch can reach, a
+return ends the walk);
 `CUBIT_VERIFY_RBPROBE=1`
 adds the read-barrier coverage probe of the legality oracle (`tools/sched_oracle.py`, KNOWN_ISSUES A4).
 `CUBIT_VERIFY_JSON=<file>` appends one JSON line per kernel with the counts of these three checks — the scoreboard

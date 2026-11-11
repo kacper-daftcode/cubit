@@ -33,10 +33,20 @@
 //! guarded by a predicate known to be false does not write. Without that, paths that cannot
 //! execute would be reported.
 //!
+//! A dispatch (`BRX R, base`, `JMX`: the table lives in the constant section, not in the text)
+//! is followed into every block that only a register-indirect branch can reach — the blocks no
+//! branch names and no fall-through enters (`cfg_flow`) — and into the block behind it. That
+//! is a superset of the table: a path that exists is not missed, and a pair may be reported
+//! along an edge the table does not have. (Until 2026-11-11 the walk ended at a dispatch, so
+//! a store in front of a `BRX` was checked against nothing behind it.)
+//!
 //! What it does not see: a register neither the scheduler's operand model nor the register
-//! allocator's footprints list as written, and paths through register-indirect control flow
-//! (`BRX`, `JMX`, `RET`: the walk ends there; `run_verify` reports such edges). It is
-//! read-only: no schedule changes, and the three counters of `CUBIT_VERIFY` are not touched.
+//! allocator's footprints list as written; what lies behind a return or an absolute jump
+//! (`RET`, `JMP`: the walk ends there — a return site is not in the text, and "every
+//! instruction behind a `CALL`" is a superset that reports pairs no execution has); and a
+//! called routine (`CALL`: the walk goes on behind the call, the callee's own writes and waits
+//! are not carried to the caller). It is read-only: no schedule changes, and the three
+//! counters of `CUBIT_VERIFY` are not touched.
 
 use crate::ir::Instruction;
 use crate::scheduling_pass as sp;
@@ -150,6 +160,10 @@ fn pred_dests(ins: &Instruction) -> u8 {
 struct Flow<'a> {
     insns: &'a [Instruction],
     addr2idx: HashMap<u32, usize>,
+    /// The blocks only a register-indirect branch can reach (`cfg_flow`: no branch names them,
+    /// no fall-through enters them) — where a dispatch may continue. Its table is in the
+    /// constant section, not in the text, so each of them is a successor of every dispatch.
+    indirect: Vec<usize>,
 }
 
 impl<'a> Flow<'a> {
@@ -158,7 +172,8 @@ impl<'a> Flow<'a> {
         for (i, ins) in insns.iter().enumerate() {
             addr2idx.insert(ins.addr, i);
         }
-        Flow { insns, addr2idx }
+        let indirect = crate::cfg_flow::Cfg::build(insns).indirect_targets;
+        Flow { insns, addr2idx, indirect }
     }
 
     /// The instructions that can follow `i` on a path with `facts`, each with the facts that hold
@@ -216,8 +231,14 @@ impl<'a> Flow<'a> {
                     }
                 }
             }
-            // register-indirect control flow: no static target, the walk ends here
-            "BRX" | "BRXU" | "JMX" | "JMXU" | "JMP" | "RET" => {}
+            // a dispatch through a register: every block only such a branch can reach, and the
+            // block behind it (the dispatch base: the first case follows the branch)
+            "BRX" | "BRXU" | "JMX" | "JMXU" => {
+                out.extend(self.indirect.iter().map(|&t| (t, facts)));
+                out.extend(next.map(|j| (j, facts)));
+            }
+            // a return, a jump to an absolute address: no target in this text, the walk ends here
+            "JMP" | "RET" => {}
             _ => out.extend(next.map(|j| (j, facts))),
         }
         out
@@ -541,5 +562,76 @@ mod tests {
         let mut low = lines;
         low[2] = "    [B------:R-:W-:Y:S01] MOV R60, RZ ;";
         assert_eq!(unwaited_store_overwrites(&kernel(&low), false)[0].reg, 60);
+    }
+
+    /// A dispatch as nvcc lays it out: `BRX` through a table in the constant section, the case
+    /// blocks behind it, each ending in a branch to the join. The store in front of the dispatch
+    /// holds read barrier 3; the second case rewrites its data register and nobody waits.
+    const DISPATCH: &[&str] = &[
+        "    [B------:R3:W-:-:S01] STS.64 [R84+0x10], R28 ;",
+        "    [B------:R-:W-:-:S04] BRX R44 -0x40 ;",
+        "    [B------:R-:W-:-:S02] IADD3 R9, PT, PT, RZ, 0x1, R9 ;",
+        "    [B------:R-:W-:-:S01] BRA L_join ;",
+        "    [B------:R-:W-:-:S03] MOV R28, RZ ;",
+        "    [B------:R-:W-:-:S01] BRA L_join ;",
+        "    [B------:R-:W-:-:S02] IADD3 R10, PT, PT, RZ, 0x1, R10 ;",
+        "L_join:",
+        "    [B---3--:R-:W-:-:S01] NOP ;",
+        "    [B------:R-:W-:-:S01] MOV R29, RZ ;",
+        "    [B------:R-:W-:-:S01] EXIT ;",
+    ];
+
+    #[test]
+    fn a_dispatch_is_followed_into_every_block_only_it_can_reach() {
+        let k = kernel(DISPATCH);
+        assert_eq!(crate::cfg_flow::Cfg::build(&k).indirect_targets, vec![2, 4, 6], "the three case blocks: no branch names them");
+        // the second case rewrites the store's data register with no wait on barrier 3 on the way:
+        // STS S01 + BRX S04 = 5 issue cycles. (The walk used to end at the BRX: no finding.)
+        let f = unwaited_store_overwrites(&k, false);
+        assert_eq!(f.iter().map(|x| (x.store, x.overwriter, x.reg, x.data, x.read_bar, x.distance)).collect::<Vec<_>>(), [(0, 4, 28, true, Some(3), 5)]);
+        let rep = sp::verify_scoreboard_report(&k, None);
+        assert_eq!((rep.store_paths, rep.store_paths_shared_addr), (1, 0));
+        // the join waits on the barrier: the second register of the pair, rewritten behind it, is safe
+        assert!(!f.iter().any(|x| x.overwriter == 8));
+    }
+
+    #[test]
+    fn a_wait_in_the_case_block_protects_the_store_behind_a_dispatch() {
+        // the overwriter itself waits
+        let mut lines = DISPATCH.to_vec();
+        lines[4] = "    [B---3--:R-:W-:-:S03] MOV R28, RZ ;";
+        assert!(unwaited_store_overwrites(&kernel(&lines), false).is_empty());
+        // the dispatch waits: every case is behind the wait
+        let mut lines = DISPATCH.to_vec();
+        lines[1] = "    [B---3--:R-:W-:-:S04] BRX R44 -0x40 ;";
+        assert!(unwaited_store_overwrites(&kernel(&lines), false).is_empty());
+        // the first case (the block behind the dispatch) is a successor too
+        let mut lines = DISPATCH.to_vec();
+        lines[2] = "    [B------:R-:W-:-:S02] MOV R29, RZ ;";
+        lines[4] = "    [B------:R-:W-:-:S03] NOP ;";
+        let f = unwaited_store_overwrites(&kernel(&lines), false);
+        assert_eq!(f.iter().map(|x| (x.overwriter, x.reg, x.distance)).collect::<Vec<_>>(), [(2, 29, 5)]);
+    }
+
+    /// The limits that stay: the walk ends at a return, and a local store is a store like the
+    /// shared one (the scoreboard simulation tracks neither).
+    #[test]
+    fn a_return_ends_the_walk_and_a_local_store_is_walked() {
+        let k = kernel(&[
+            "    [B------:R3:W-:-:S01] STS.64 [R84+0x10], R28 ;",
+            "    [B------:R-:W-:-:S01] RET.REL.NODEC R152 0x0 ;",
+            "    [B------:R-:W-:-:S01] MOV R28, RZ ;",
+            "    [B------:R-:W-:-:S01] EXIT ;",
+        ]);
+        assert!(unwaited_store_overwrites(&k, false).is_empty(), "nothing behind a return is on the walk");
+        let k = kernel(&[
+            "    [B------:R2:W-:-:S01] STL.64 [R1+0x28], R10 ;",
+            "    [B------:R-:W-:-:S02] MOV R11, RZ ;",
+            "    [B------:R-:W-:-:S01] MOV R1, RZ ;",
+            "    [B------:R-:W-:-:S01] EXIT ;",
+        ]);
+        let f = unwaited_store_overwrites(&k, false);
+        assert_eq!(f.iter().map(|x| (x.overwriter, x.reg, x.data, x.distance)).collect::<Vec<_>>(), [(2, 1, false, 3), (1, 11, true, 1)]);
+        assert!(is_shared_store_address(&k, &f[0]) && !is_shared_store_address(&k, &f[1]));
     }
 }

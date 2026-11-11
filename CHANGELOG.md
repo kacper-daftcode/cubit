@@ -31,7 +31,7 @@ decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `
   same on both cards in both states. The fast state (busy clock mean ≥ 2 800 MHz) was reached on one of the two cards only. No
   table and no edition entry changes with these files.
 
-## Unreleased — 2026-11-11 (session T-28: a candidate schedule is held to its seed by the DISTANCE of every finding, not only by its key — `cubit legality-diff`; the mechanics of a 'silicon' edition of the sm_120 dependency table — opt-in by name, shipped with no entry; `cubit asm` refuses a kernel with a multi-register operand off its grid on sm_120 — BUG-488; every other default path byte for byte)
+## Unreleased — 2026-11-11 (session T-28: a candidate schedule is held to its seed by the DISTANCE of every finding, not only by its key — `cubit legality-diff`; the mechanics of a 'silicon' edition of the sm_120 dependency table — opt-in by name, shipped with no entry; `cubit asm` refuses a kernel with a multi-register operand off its grid on sm_120 — BUG-488; `CUBIT_VERIFY`'s store-path walk follows a dispatch; every other default path byte for byte)
 
 - **`cubit legality-diff <seed.jsonl> <candidate.jsonl>` — the rule a candidate schedule is held to against its seed: no
   finding the seed does not have, and none CLOSER than the seed has it.** `CUBIT_VERIFY_JSON` gives the findings of the three
@@ -93,6 +93,21 @@ decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `
   because not measured on sm_120: `MOV.64`, the data of a wide `STG`, the tensor forms outside BUG-037 (`.SF`, `.SP`).
   `tests/bug488_sm120_register_grid.rs` reads the result file: a kernel around every word that faulted is refused, a kernel
   around every control is written.
+
+- **`CUBIT_VERIFY`: the store-path walk follows a dispatch.** The path-sensitive check of the stores' read barriers
+  (`src/store_paths.rs`, 2026-11-10) ended its walk at a register-indirect branch, so a store in front of a `BRX` was
+  checked against nothing behind it — in an nvcc-shaped kernel that is every store in front of a `switch`. The table of a
+  dispatch lives in the constant section, not in the text; the walk now continues in every block that only a
+  register-indirect branch can reach (no branch names it, no fall-through enters it: `cfg_flow`, the graph the barrier
+  allocator already walks under `CUBIT_SYNC_CLASSES`) and in the block behind the dispatch — a superset of the table, so a
+  path that exists is not missed and a pair may be reported along an edge the table does not have. Measured: the vendor's
+  schedule of a served kernel with three dispatches stays at 0 pairs and a candidate of it that faulted on silicon keeps
+  its 4; the production sources, the attention builds and the committed production cubins keep their 36 recorded pairs;
+  the 166 census listings contain no dispatch. What stays outside the walk: a return (`RET` — a return site is not in the
+  text, and "every instruction behind a `CALL`" reports pairs no execution has), a called routine's own writes and waits,
+  and the same walk for scoreboarded results (a reader of a load on a path without the wait) — KNOWN_ISSUES A30. A local
+  store (`STL`) is walked like a shared one. Read-only as before: no schedule changes, no byte changes.
+  `src/store_paths.rs` (3 more unit tests, the first two red on the old walk), `tests/store_paths_verify.rs`.
 
 ## Unreleased — 2026-11-10 (session SCH-3: the stall-floor probes as one tool with an absolute, host-computed oracle; the store cells of the sm_120 dependency table re-measured — no cell moves; tools and result files only, no source line changes)
 

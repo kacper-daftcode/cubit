@@ -9,6 +9,12 @@
 //! barrier, distance — on the six listings it was run on (shipped / `k2` / `k2b` 0, `v42` 4, `v43` 3,
 //! `v43b` 3). The vendor's own schedules are clean under it: 0 pairs in the 166 listings of the sm_120
 //! census on a data register or on the address pair of a global store.
+//!
+//! A dispatch is followed (2026-11-11): `BRX R, base` continues in every block only a register-indirect
+//! branch can reach — its table is in the constant section, not in the text — so a store in front of a
+//! dispatch is checked against the case blocks behind it. Until then the walk ended at the `BRX`. The
+//! vendor's schedule of a served kernel with three dispatches stays at 0 pairs, and a candidate of it
+//! that faulted on silicon keeps its 4 (witnesses of the push gate, outside the repository).
 
 use std::process::Command;
 
@@ -78,4 +84,54 @@ fn the_report_carries_the_counts() {
         f.iter().map(|x| (x.store, x.overwriter, x.reg, x.data, x.read_bar, x.distance)).collect::<Vec<_>>(),
         [(1177, 733, 68, true, Some(3), 67), (1348, 730, 64, true, Some(5), 58), (1349, 733, 68, true, Some(3), 67)]
     );
+}
+
+/// A store in front of a dispatch, its data register rewritten in a case block with no wait on the
+/// store's read barrier: reported with the dispatch followed (the walk used to end at the `BRX`).
+#[test]
+fn a_store_in_front_of_a_dispatch_is_checked_against_the_case_blocks() {
+    let kernel = |case_wait: &str| {
+        format!(
+            concat!(
+                ".entry k\n    .reg R0-R31\n    .regcount 40\n    .param u64 p0 offset=0x0\n",
+                "    [B------:R3:W-:-:S01] STS.64 [R4+0x10], R8 ;\n",
+                "    [B------:R-:W-:Y:S05] BRX R12 -0x40 ;\n",
+                "    [B------:R-:W-:-:S02] IADD3 R14, PT, PT, RZ, 0x1, R14 ;\n",
+                "    [B------:R-:W-:Y:S05] BRA L_join ;\n",
+                "    [B{}:R-:W-:-:S03] MOV R8, RZ ;\n",
+                "    [B------:R-:W-:Y:S05] BRA L_join ;\n",
+                "    [B------:R-:W-:-:S02] IADD3 R15, PT, PT, RZ, 0x1, R15 ;\n",
+                "L_join:\n",
+                "    [B---3--:R-:W-:-:S01] NOP ;\n",
+                "    [B------:R-:W-:Y:S05] EXIT ;\n.endentry\n"
+            ),
+            case_wait
+        )
+    };
+    let run = |text: String, name: &str| -> (bool, String) {
+        let src = std::env::temp_dir().join(format!("cubit_store_paths_{}_{name}.sass", std::process::id()));
+        std::fs::write(&src, text).unwrap();
+        let out = tmp(name);
+        let o = Command::new(env!("CARGO_BIN_EXE_cubit"))
+            .args(["asm", src.to_str().unwrap(), "-t", "tables/sm120.json.gz", "-o", out.to_str().unwrap()])
+            .env_clear()
+            .env("CUBIT_VERIFY", "1")
+            .output()
+            .expect("run cubit");
+        let _ = std::fs::remove_file(&src);
+        let _ = std::fs::remove_file(&out);
+        (o.status.success(), String::from_utf8_lossy(&o.stderr).into_owned())
+    };
+    let (ok, err) = run(kernel("------"), "dispatch");
+    assert!(ok, "{err}");
+    let lines: Vec<&str> = err.lines().filter(|l| l.contains("STORE PATH:")).map(str::trim).collect();
+    assert_eq!(
+        lines,
+        ["STORE PATH: insn[0] STS.64 (read barrier 3) data R8 <- rewritten by insn[4] MOV 6 issue cycles later on a path with no wait on barrier 3"],
+        "{err}"
+    );
+    // the case block waits on the store's read barrier: clean
+    let (ok, err) = run(kernel("---3--"), "dispatch_waited");
+    assert!(ok, "{err}");
+    assert!(!err.contains("STORE PATH"), "{err}");
 }
