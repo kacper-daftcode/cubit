@@ -31,7 +31,7 @@ decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `
   same on both cards in both states. The fast state (busy clock mean ≥ 2 800 MHz) was reached on one of the two cards only. No
   table and no edition entry changes with these files.
 
-## Unreleased — 2026-11-11 (session T-28: a candidate schedule is held to its seed by the DISTANCE of every finding, not only by its key — `cubit legality-diff`; the mechanics of a 'silicon' edition of the sm_120 dependency table — opt-in by name, shipped with no entry; `cubit asm` refuses a kernel with a multi-register operand off its grid on sm_120 — BUG-488; `CUBIT_VERIFY`'s store-path walk follows a dispatch; every other default path byte for byte)
+## Unreleased — 2026-11-11 (session T-28: a candidate schedule is held to its seed by the DISTANCE of every finding, not only by its key — `cubit legality-diff`; the mechanics of a 'silicon' edition of the sm_120 dependency table — opt-in by name, shipped with no entry; `cubit asm` refuses a kernel with a multi-register operand off its grid on sm_120 — BUG-488; `CUBIT_VERIFY`'s store-path walk follows a dispatch; `depdump --scheduler`; every other default path byte for byte)
 
 - **`cubit legality-diff <seed.jsonl> <candidate.jsonl>` — the rule a candidate schedule is held to against its seed: no
   finding the seed does not have, and none CLOSER than the seed has it.** `CUBIT_VERIFY_JSON` gives the findings of the three
@@ -108,6 +108,21 @@ decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `
   and the same walk for scoreboarded results (a reader of a load on a path without the wait) — KNOWN_ISSUES A30. A local
   store (`STL`) is walked like a shared one. Read-only as before: no schedule changes, no byte changes.
   `src/store_paths.rs` (3 more unit tests, the first two red on the old walk), `tests/store_paths_verify.rs`.
+
+- **`examples/depdump.rs --scheduler`: the scheduler's view of every instruction beside the certified sets.** The
+  certified transfer functions (`reg_liveness::reg_xfer`, `pred_liveness::pred_xfer`) are fail-closed — a family outside
+  their table has `known: false` and EMPTY definition / use sets: 59 008 of the 1 811 600 instructions of the sm_120 census
+  (28 opcodes: `IADD` / `IADD.64` 18 738, `QMMA` 12 448, `USHF` 7 076, `ULEA` 6 823, `OMMA` 4 290, `USEL` 2 356, …), 111 of
+  the 2 576 of a served MoE kernel. A schedule search that builds its dependency graph from `depdump` patched those words by
+  hand. The sets exist: under `CUBIT_SYNC_CLASSES=1` the scheduler's own operand model (`sync_class::scheduler_xfer` — what
+  the verifier and the barrier allocator judge an nvcc-shaped kernel with) lists them, with the pair of every 64-bit operand,
+  the high half of a 64-bit address base and the fragments of a tensor instruction. `--scheduler` prints that view as
+  `"sd"` / `"su"` (`[domain, number]`: `r`, `p`, `u`, `q`); without the flag the output is byte for byte what it was.
+  **Neither view is complete alone — a graph takes the union** (docs/SM120_ASYNC_IDIOMS.md, "The two operand models";
+  KNOWN_ISSUES A33): the scheduler's has nothing at all for 741 census instructions (the unguarded `ELECT`, `UTMACCTL`,
+  `UPLOP3` from true inputs, `UGETNEXTWORKID`), one destination register for the 4-bit tensor instruction `OMMA`, and not
+  the shared destination base of the three-operand `LDGSTS`. No rule of either model changes with this commit.
+  `tests/scheduler_view_of_unlisted_words.rs` pins the view for the words of the served kernel and for the four gaps.
 
 ## Unreleased — 2026-11-10 (session SCH-3: the stall-floor probes as one tool with an absolute, host-computed oracle; the store cells of the sm_120 dependency table re-measured — no cell moves; tools and result files only, no source line changes)
 

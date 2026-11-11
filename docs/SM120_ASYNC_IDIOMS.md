@@ -162,6 +162,33 @@ covers them: `tools/stallfloor/war_census.py` builds the vendor's write-after-re
 an opcode, `examples/opgaps.rs` for the definitions and uses the scheduler's operand convention misses). The limits of
 all of it: one card type (Server Edition, ≤ 2 430 MHz), 10 calls per control, the sites of these two kernels.
 
+### The two operand models (2026-11-11)
+
+cubit has two answers to "which registers does this instruction read and write", and a tool that moves instructions
+needs to know which one it holds:
+
+* **the certified transfer functions** (`reg_liveness::reg_xfer`, `pred_liveness::pred_xfer`; the register allocator
+  stands on them): roles from the table's `operand_roles` section, **fail-closed** — a family outside the table has
+  `known: false` and empty sets. On the sm_120 census that is 59 008 of 1 811 600 instructions in 28 opcodes (`IADD` /
+  `IADD.64` 18 738, `QMMA` 12 448 — the plain and the scaled form —, `USHF` 7 076, `ULEA` 6 823, `OMMA` 4 290, `USEL`
+  2 356, `UTMALDG` 1 921, `LDL` 1 130, `STL` 1 100, `UVIMNMX` 888, …); on the vendor's schedule of a served MoE kernel
+  111 of 2 576 (`QMMA.SF` 48, `IADD.64` 37, `P2R` 11, `ULEA` 6, `USHF` 4, `ARRIVES.LDGSTSBAR` 3, `CS2UR` 1, `R2P` 1).
+* **the scheduler's view** (`scheduling_pass::dest_regs` / `src_regs`, public as `sync_class::scheduler_xfer`; the
+  verifier and the barrier allocator stand on it): operand 0 is the destination, the rest are sources, plus a list of
+  special families; under `CUBIT_SYNC_CLASSES=1` completed by the certified sets where they exist, by the pair of every
+  64-bit operand, the high half of a 64-bit address base, the descriptor's second register and the predicate register
+  as a whole. It has sets for every one of the 111 words above.
+
+`examples/depdump.rs` prints the first; with `--scheduler` it adds the second as `sd` / `su`. **A dependency graph takes
+the union.** Where the scheduler's view is not complete, counted on the census under the switch: nothing at all for 741
+instructions (317 unguarded `ELECT Pn, URZ, PT` — in none of the 2 918 `ELECT` is the predicate it writes a definition —,
+313 `UTMACCTL.PF [UR]`, 99 `UPLOP3.LUT` from true inputs, 12 `UGETNEXTWORKID`); ONE destination register and single-register sources for the 4-bit
+tensor instruction `OMMA` (4 290 sites; the 8-bit `QMMA` has its fragments); no use of the shared destination base of
+the three-operand copy `LDGSTS [Rb+imm], desc[UR][Ra.64], Pn` (2 513 sites — the two-operand form has it through the
+certified sets, and the overwriters of that base are covered by the store-path check); `CS2UR UR, SR_…LO` defines one
+uniform register (the per-thread `CS2R` from a 64-bit system register writes a pair). None of these is in a kernel
+cubit schedules for production; a search on an nvcc-shaped kernel has to know them (KNOWN_ISSUES A33).
+
 ### Where the served kernels stand (2026-11-10)
 
 Scheduled by cubit from the plain instruction text — no control code of ptxas kept — with
