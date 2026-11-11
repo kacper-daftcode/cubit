@@ -62,8 +62,10 @@ fn new_rows_have_closed_fields_and_f2fp_keeps_its_refusals() {
         let f2fp = &raw["instructions"]["F2FP_R_R_UR"]["mod_groups"]["BF16,F32,PACK_AB"];
         assert_eq!(u128::from_str_radix(&f2fp["and_base"].as_str().unwrap()[2..], 16).unwrap()
             & (0xffu128 << 64), 0xffu128 << 64);
-        assert_eq!(u128::from_str_radix(&f2fp["variable_mask"].as_str().unwrap()[2..], 16).unwrap(),
-            0xf11000ff3ffffffffffff000u128);
+        // The inert RC byte is baked in and_base and stays outside the mask (no constant bit under the mask).
+        let mask = u128::from_str_radix(&f2fp["variable_mask"].as_str().unwrap()[2..], 16).unwrap();
+        assert_eq!(mask, 0x00000000f11000003ffffffffffff000u128);
+        assert_eq!(mask & (0xffu128 << 64), 0, "{arch}: the RC byte must not be under the mask");
         assert_eq!(f2fp["claim_forbid"].as_array().unwrap().len(), 5);
     }
 }

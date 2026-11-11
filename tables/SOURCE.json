@@ -1,7 +1,7 @@
 {
   "schema": 2,
-  "repository": "/srv/k31-depth-loop/mirrors/blackwell-isa",
-  "base_revision": "465aa4fa85f575a43d19232b5ddca791358a2969",
+  "repository": "https://github.com/kacper-daftcode/blackwell-isa",
+  "base_revision": "80d324a548fb420baa6c22ae0b7e5e891a07a0b1",
   "tables": {
     "sm120.json": {
       "arch": "SM120",
@@ -16,7 +16,7 @@
     },
     "sm103a.json": {
       "arch": "SM103a",
-      "base_sha256": "eb123dbcd6c9478e8551d987d14727a44f26127be94ff17390f0c6f97e859360",
+      "base_sha256": "db6117b3e4a497c9e0bce567f0e68c90459c3e80ba28a3b1451d5727b6e53e53",
       "instruction_forms": 551,
       "encoding_variants": 37541,
       "sched_only_entries": 0,
@@ -28,7 +28,7 @@
     },
     "sm100a.json": {
       "arch": "SM100a",
-      "base_sha256": "8cf7f2ea2490dc13b9e5d27ae13e89738753278faac1a4e59ecc367ed14174bc",
+      "base_sha256": "67ea52a3cd1c10bb5a07424ccfdbc22f0e7606d7ee2ae944d434197a9b6ee5f5",
       "instruction_forms": 550,
       "encoding_variants": 37535,
       "sched_only_entries": 0,
