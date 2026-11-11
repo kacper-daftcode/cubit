@@ -180,6 +180,13 @@ decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `
   branch, behind a write by an unflagged reader of the slot, through another slot, without the yield flag, with no write.
   A flag may stay only where the register is not written before the next reader through that slot; clearing it is always
   correct.
+- **`probe.py` 21: the barrier recycle, two further covers of a shuffle's source, mixed-form load bursts** (KNOWN_ISSUES A32,
+  A34; `_b28.json` – `_b30.json`; selftest 2 429). A reader of the OLDER load's register with no wait, 1 / 2 / 4 cycles behind
+  a younger load whose own word waited the older load's barrier and set it again: 0 not right of 3 941 683 200 thread-launches
+  in six shapes. The overwriter of a shuffle's source behind a wait on a younger shuffle's READ barrier, or on a younger
+  `LDS`'s write barrier: 0 of 1 793 049 600 each (the unwaited rewrite of the same block wrong in 196 597 600 of 312 734 720).
+  N = 3 … 13 shared loads of mixed forms behind one wait: 0 of 5 955 840 000; N loads with the yield flag on every load: 0 of
+  1 905 868 800. The Server card, one clock state.
 
 ## Unreleased — 2026-11-11 (session SCH-4: the stall-floor probes on grids that hold two CTAs per SM and on production's card model in two clock states — tools and result files only, no source line changes)
 

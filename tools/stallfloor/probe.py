@@ -62,7 +62,7 @@ import subprocess
 import sys
 import time
 
-TOOL = "probe.py 20 (2026-11-11)"
+TOOL = "probe.py 21 (2026-11-11)"
 HERE = pathlib.Path(__file__).resolve().parent
 SEED = 0x12345
 REPEAT = 256
@@ -451,6 +451,113 @@ def smem_of(req, occ):
     return smem
 
 
+# version 21 - N loads of MIXED forms. letter: (mnemonic, registers, bytes of the thread's line it takes)
+ORDN_FORM = {"s": ("LDS", 1, 4), "u": ("LDS.U16", 1, 4), "d": ("LDS.64", 2, 8), "q": ("LDS.128", 4, 16)}
+ORDN_DEST = [24, 25, 26, 27, 28, 29, 30, 31, 16, 17, 18, 19, 14, 7]      # destination registers in this order (temporaries: R6 R8 R12 R13)
+
+
+def ordn_plan(req):
+    """the loads of a mixed N-load request, oldest first: [(guard, letter, first destination register, byte offset)].
+    `forms` = one token per load, comma-separated: s | u | d | q with an optional prefix g (under @P0: true) or f (under
+    @P3: false - the load does not happen and its registers keep their markers)."""
+    free = [r for r in ORDN_DEST if not (r == 7 and req.get("place") == "base2")]
+    toks = []
+    for t in [x.strip() for x in str(req["forms"]).split(",")]:
+        g = t[:1] if t[:1] in ("g", "f") else ""
+        if t[len(g):] not in ORDN_FORM:
+            raise SystemExit(f"{req.get('id')}: forms token {t!r}: s | u | d | q with an optional prefix g | f")
+        toks.append((g, t[len(g):]))
+    used, regof = set(), {}
+    for width in (4, 2, 1):      # the wide destinations first: they need aligned registers
+        for k, (g, let) in enumerate(toks):
+            nreg = ORDN_FORM[let][1]
+            if nreg != width:
+                continue
+            reg = next((r for r in free if r % nreg == 0 and all((r + j) in free and (r + j) not in used for j in range(nreg))), None)
+            if reg is None:
+                raise SystemExit(f"{req.get('id')}: no destination register left for load {k + 1} ({g}{let}) (14 registers; 13 with place base2)")
+            used.update(range(reg, reg + nreg))
+            regof[k] = reg
+    plan, off = [], 0
+    for k, (g, let) in enumerate(toks):
+        nbytes = ORDN_FORM[let][2]
+        off = (off + nbytes - 1) // nbytes * nbytes      # an access is aligned to its size
+        if off + nbytes > 64:
+            raise SystemExit(f"{req.get('id')}: the loads do not fit the thread's 64 bytes")
+        plan.append((g, let, regof[k], off))
+        off += nbytes
+    return plan
+
+
+def ordn_no_gaddr(req):
+    """a mixed N-load request whose loads write R16..R19: its prologue leaves the global addresses (and the store through them) out"""
+    return bool(req.get("kind") == "ord" and req.get("forms")
+                and any(16 <= reg + k <= 19 for _g, let, reg, _o in ordn_plan(req) for k in range(ORDN_FORM[let][1])))
+
+
+def body_ordn_mixed(req, d, front, variant):
+    """N loads of mixed forms of one thread in flight, d issue cycles apart, ONE wait of the reader (`barrier` last | all |
+    none, variant ctl as in body_ordn). Every destination register holds a marker that changes each iteration until its
+    load lands; the reader takes every register - three a word into four temporaries, then two a word, one issue cycle
+    apart, the first on the wait."""
+    plan = ordn_plan(req)
+    n, place, bar = len(plan), req["place"], req["barrier"]
+    ys = int(req.get("younger_stall", 2))
+    ctl = variant == "ctl"
+    y = req.get("yield") == "set"
+    regs = [reg + k for _g, let, reg, _o in plan for k in range(ORDN_FORM[let][1])]
+    b = [Ins(f"MOV R{r}, R5 ;", ("mov", f"R{r}", "R5")) for r in regs]
+    if place == "base2":
+        b.append(Ins("MOV R7, R9 ;", ("mov", "R7", "R9")))
+    b += front_ins(front, False)
+    for k, (g, let, reg, off) in enumerate(plan):
+        last = k == n - 1
+        mn, nreg, _nb = ORDN_FORM[let]
+        base = "R7" if (place == "base2" and k % 2) else "R9"
+        text = f"{'@P0 ' if g == 'g' else '@P3 ' if g == 'f' else ''}{mn} R{reg}, [{base}{('+0x%x' % off) if off else ''}] ;"
+        dst = [f"R{reg + j}" for j in range(nreg)]
+        if g == "f":
+            sem, dst = ("nop",), []
+        elif let == "u":
+            sem = ("ldsu16", f"R{reg}", "R9", off)
+        else:
+            sem = ("lds", f"R{reg}", "R9", off, nreg)
+        if ctl:
+            b.append(Ins(text, sem, ctl=C(1, wb="0", y=y), tag="P", dst=dst))
+            b.append(Ins("IADD3 R15, PT, PT, R15, 0x1, RZ ;", ("nop",), ctl=C(ys if last else d, wait="0")))
+        else:
+            wb = "1" if (bar != "none" and (last or bar == "all")) else "-"
+            b.append(Ins(text, sem, ctl=C(ys if last else d, wb=wb, y=y), tag="P", dst=dst))
+    cw = "0" if ctl else "" if bar == "none" else "1"
+    tmp = ["R6", "R8", "R12", "R13"]
+    words, i = [], 0
+    for j in range(4):
+        if i < len(regs):
+            words.append((tmp[j], None, regs[i:i + 3]))
+            i += 3
+    j = 0
+    while i < len(regs):
+        words.append((tmp[j % 4], tmp[j % 4], regs[i:i + 2]))
+        i += 2
+        j += 1
+    for k, (t, acc, grp) in enumerate(words):
+        srcs = ([acc] if acc else []) + [f"R{r}" for r in grp]
+        ct = C(1, wait=cw) if k == 0 else C(1)
+        if len(srcs) == 3:
+            b.append(Ins(f"IADD3 {t}, PT, PT, {srcs[0]}, {srcs[1]}, {srcs[2]} ;", ("add3", t, srcs[0], srcs[1], srcs[2]), ctl=ct, tag="C"))
+        elif len(srcs) == 2:
+            b.append(Ins(f"IADD3 {t}, PT, PT, {srcs[0]}, {srcs[1]}, RZ ;", ("add", t, srcs[0], srcs[1]), ctl=ct, tag="C"))
+        else:
+            b.append(Ins(f"MOV {t}, {srcs[0]} ;", ("mov", t, srcs[0]), ctl=ct, tag="C"))
+    b.append(PAD())
+    ut = [t for t in tmp if any(w[0] == t for w in words)]
+    b.append(Ins("IMAD R6, R6, 0x3, RZ ;", ("mad", "R6", "R6", 3, "RZ")))
+    for j, t in enumerate(ut[1:], 1):
+        b.append(Ins(f"IMAD R6, {t}, 0x{2 * j + 3:x}, R6 ;", ("mad", "R6", t, 2 * j + 3, "R6")))
+    b.append(Ins("IADD3 R10, PT, PT, R10, R6, RZ ;", ("add", "R10", "R10", "R6")))
+    return b
+
+
 def body_ordn(req, d, front, variant):
     """N shared loads of one thread in flight (`nload` 2..8), d issue cycles apart, and ONE wait of the reader:
     `barrier` last = only the youngest load carries the write barrier (the vendor's cover of bare loads), all = every
@@ -463,9 +570,12 @@ def body_ordn(req, d, front, variant):
     oldest register at the wake-up and each further one 15 cycles later - a tight test of the oldest load only.
     `barrier` none = the POSITIVE CONTROL: no load carries a barrier and the reader does not wait (it must be wrong).
     variant ctl: every load is waited before the next is issued (must be right at every distance)."""
+    if req.get("forms"):      # version 21: loads of mixed forms
+        return body_ordn_mixed(req, d, front, variant)
     n, place, bar = int(req["nload"]), req["place"], req["barrier"]
     ys = int(req.get("younger_stall", 2))
     ctl = variant == "ctl"
+    yl = req.get("yield") == "set"      # version 21: the loads carry the yield flag
     _fb, stride = far_layout(int(req.get("_threads", 1024)))
     b = [Ins(f"MOV R{24 + k}, R5 ;", ("mov", f"R{24 + k}", "R5")) for k in range(n)]
     if place == "base2":
@@ -479,11 +589,11 @@ def body_ordn(req, d, front, variant):
             base = "R7" if (place == "base2" and k % 2) else "R9"
             text, sem = f"LDS R{24 + k}, [{base}{('+0x%x' % (4 * k)) if k else ''}] ;", ("lds", f"R{24 + k}", "R9", 4 * k, 1)
         if ctl:
-            b.append(Ins(text, sem, ctl=C(1, wb="0"), tag="P", dst=[f"R{24 + k}"]))
+            b.append(Ins(text, sem, ctl=C(1, wb="0", y=yl), tag="P", dst=[f"R{24 + k}"]))
             b.append(Ins("IADD3 R15, PT, PT, R15, 0x1, RZ ;", ("nop",), ctl=C(ys if last else d, wait="0")))
         else:
             wb = "1" if (bar != "none" and (last or bar == "all")) else "-"
-            b.append(Ins(text, sem, ctl=C(ys if last else d, wb=wb), tag="P", dst=[f"R{24 + k}"]))
+            b.append(Ins(text, sem, ctl=C(ys if last else d, wb=wb, y=yl), tag="P", dst=[f"R{24 + k}"]))
     cw = "0" if ctl else "" if bar == "none" else "1"
     tmp = ["R6", "R8", "R12", "R13"]
     for j in range((n + 1) // 2):      # the snapshots: one issue cycle apart, the first on the wait
@@ -516,8 +626,13 @@ def body_ord(req, d, front, variant):
     # "older_barrier": "same" = the older load carries the SAME write barrier as the younger one (two producers on one
     # scoreboard, one wait): right at every distance if the scoreboard COUNTS its producers, stale like the bare older
     # load if it only follows the last one
-    wb0 = "0" if ctl else "1" if req.get("older_barrier") == "same" else "-"
-    cw = "01" if ctl else "1"
+    # version 21 - "older_barrier": "recycle" = the older load carries write barrier 1; the YOUNGER load's own word waits
+    # barrier 1 (the older load has landed when it issues) and sets barrier 1 again; the reader of the OLDER load's
+    # register does not wait at all - it stands `younger_stall` cycles behind the younger load's issue
+    recycle = req.get("older_barrier") == "recycle" and not ctl
+    yw = "1" if recycle else ""
+    wb0 = "0" if ctl else "1" if req.get("older_barrier") in ("same", "recycle") else "-"
+    cw = "01" if ctl else "" if recycle else "1"
     b = []
     # "far": the younger SHARED load reads another line of the CTA's shared memory, 1 KB away (another thread's 64 bytes:
     # R14 = R9 ^ 0x400, always inside the 64 KB the kernel declares); what it brings is not used and not modelled
@@ -576,28 +691,28 @@ def body_ord(req, d, front, variant):
         b.append(Ins("LDG.E R6, desc[UR4][R16.64] ;", ("ldg", "R6", "R16"), ctl=C(s, wb=wb0), tag="P", dst=["R6"]))
     b += fill
     if younger == "LDS":
-        b.append(Ins(f"{yg}LDS R8, [{ybase}+0x{yoff:x}] ;", ("poison", "R8", 1) if (far or yg) else ("lds", "R8", "R9", 0x30, 1), ctl=C(ys, wb="1")))
+        b.append(Ins(f"{yg}LDS R8, [{ybase}+0x{yoff:x}] ;", ("poison", "R8", 1) if (far or yg) else ("lds", "R8", "R9", 0x30, 1), ctl=C(ys, wait=yw, wb="1")))
     elif younger == "LDS128":      # another access width than the older load (only behind an older LDS / LDS.U16: R24-R27 are free there)
-        b.append(Ins(f"{yg}LDS.128 R24, [{ybase}+0x{yoff:x}] ;", ("poison", "R24", 4), ctl=C(ys, wb="1")))
+        b.append(Ins(f"{yg}LDS.128 R24, [{ybase}+0x{yoff:x}] ;", ("poison", "R24", 4), ctl=C(ys, wait=yw, wb="1")))
     elif younger == "LDS64":       # (R30:R31: free behind every older form that pairs with it)
-        b.append(Ins(f"{yg}LDS.64 R30, [{ybase}+0x{yoff:x}] ;", ("poison", "R30", 2), ctl=C(ys, wb="1")))
+        b.append(Ins(f"{yg}LDS.64 R30, [{ybase}+0x{yoff:x}] ;", ("poison", "R30", 2), ctl=C(ys, wait=yw, wb="1")))
     elif younger == "LDSM":
-        b.append(Ins(f"{yg}LDSM.16.M88.4 R24, [{ybase}+0x{yoff:x}] ;", ("poison", "R24", 4), ctl=C(ys, wb="1")))
+        b.append(Ins(f"{yg}LDSM.16.M88.4 R24, [{ybase}+0x{yoff:x}] ;", ("poison", "R24", 4), ctl=C(ys, wait=yw, wb="1")))
     elif younger == "S2R":       # version 18: a younger producer of another class (what it brings is not used)
-        b.append(Ins("S2R R8, SR_TID.X ;", ("mov", "R8", "R0"), ctl=C(ys, wb="1")))
+        b.append(Ins("S2R R8, SR_TID.X ;", ("mov", "R8", "R0"), ctl=C(ys, wait=yw, wb="1")))
     elif younger == "S2UR":      # ... into a uniform register (UR4 is the descriptor's)
-        b.append(Ins("S2UR UR6, SR_CTAID.X ;", ("nop",), ctl=C(ys, wb="1")))
+        b.append(Ins("S2UR UR6, SR_CTAID.X ;", ("nop",), ctl=C(ys, wait=yw, wb="1")))
     elif younger == "LDC64":     # ... the pair R30:R31 (the output pointer: not modelled)
-        b.append(Ins("LDC.64 R30, c[0x0][0x380] ;", ("poison", "R30", 2), ctl=C(ys, wb="1")))
+        b.append(Ins("LDC.64 R30, c[0x0][0x380] ;", ("poison", "R30", 2), ctl=C(ys, wait=yw, wb="1")))
     else:
-        b.append(Ins("LDG.E R8, desc[UR4][R18.64] ;", ("ldg", "R8", "R18"), ctl=C(ys, wb="1")))
+        b.append(Ins("LDG.E R8, desc[UR4][R18.64] ;", ("ldg", "R8", "R18"), ctl=C(ys, wait=yw, wb="1")))
     if older == "LDS64":
         b.append(Ins("IADD3 R13, PT, PT, R28, R29, RZ ;", ("add", "R13", "R28", "R29"), ctl=C(wait=cw), tag="C"))
     elif older == "LDS128":
         b.append(Ins("IADD3 R13, PT, PT, R28, R31, RZ ;", ("add", "R13", "R28", "R31"), ctl=C(wait=cw), tag="C"))
     else:
         b.append(Ins("MOV R13, R6 ;", ("mov", "R13", "R6"), ctl=C(wait=cw), tag="C"))
-    b.append(Ins("IADD3 R10, PT, PT, R10, R13, RZ ;", ("add", "R10", "R10", "R13"), ctl=C(wait="3")))
+    b.append(Ins("IADD3 R10, PT, PT, R10, R13, RZ ;", ("add", "R10", "R10", "R13"), ctl=C(wait="13" if recycle else "3")))
     return b
 
 
@@ -665,13 +780,14 @@ def body_war(req, d, front, variant):
         mode = "bfly" if store == "SHFL.BFLY.src" else "idx"
         rbset = req.get("read_barrier") == "set"
         srb = "2" if (variant == "rb" or rbset) else "-"
-        behind = req.get("behind") in ("write_waiter", "younger_write")
+        behind = req.get("behind") in ("write_waiter", "younger_write", "younger_read", "younger_lds")
         younger = req.get("behind") == "younger_write"
+        ycover = req.get("behind") if req.get("behind") in ("younger_read", "younger_lds") else None      # version 21
         if over == "IADD3.it":      # version 16: R7 = (iteration index + 1) * the odd constant (R7 is 0 before the loop)
             b.append(Ins(f"IADD3 R7, PT, PT, R7, 0x{LATE_CONST:x}, RZ ;", ("add", "R7", "R7", LATE_CONST)))
         # the source value must DIFFER between lanes 2k and 2k + 1 (a + b does not: b = gid ^ an odd constant)
         b.append(Ins("IMAD R6, R4, 0x9, R5 ;", ("mad", "R6", "R4", 9, "R5")))
-        if younger:      # version 17: the YOUNGER shuffle's own source (it differs between the lanes of a pair too)
+        if younger or ycover == "younger_read":      # version 17: the YOUNGER shuffle's own source (it differs between the lanes of a pair too)
             b.append(Ins("IMAD R14, R5, 0x3, R4 ;", ("mad", "R14", "R5", 3, "R4")))
         b += front_ins(front, False)
         # (behind: the reader waits the WRITE barrier only - with a read barrier on the shuffle that is the shape of a barred
@@ -685,6 +801,20 @@ def body_war(req, d, front, variant):
                          ctl=C(int(req.get("younger_gap", 1)), rb=srb, wb="-"), tag="S"))
             b.append(Ins(f"SHFL.{mode.upper()} PT, R13, R14, 0x1, 0x1f ;", ("shfl", "R13", "R14", mode, 1), ctl=C(wb="1")))
             b.append(Ins("IMAD R8, R13, 0x3, R8 ;", ("mad", "R8", "R13", 3, "R8"), ctl=C(s, wait="1")))
+        elif ycover:
+            # version 21 - two further covers of the vendor's text. The tested shuffle carries its own write barrier 1 and NO
+            # read barrier (variant rb: read barrier 2, waited by the overwriter); `younger_gap` cycles behind it a younger
+            # producer of the same unit - a shuffle with READ barrier 4 and write barrier 3 (younger_read) or a shared load
+            # with write barrier 3 (younger_lds); a filler WAITS that barrier (4 / 3) at stall s; behind it the rewrite of
+            # the tested shuffle's source (the swept distance = waiter -> overwriter); both results are read behind the
+            # overwriter, behind a wait on both write barriers
+            b.append(Ins(f"SHFL.{mode.upper()} PT, R8, R6, 0x1, 0x1f ;", ("shfl", "R8", "R6", mode, 1),
+                         ctl=C(int(req.get("younger_gap", 1)), rb=srb, wb="1"), tag="S"))
+            if ycover == "younger_read":
+                b.append(Ins(f"SHFL.{mode.upper()} PT, R13, R14, 0x1, 0x1f ;", ("shfl", "R13", "R14", mode, 1), ctl=C(rb="4", wb="3")))
+            else:      # slot 3 of the thread holds R20..R23
+                b.append(Ins("LDS R13, [R9+0x30] ;", ("lds", "R13", "R9", 0x30, 1), ctl=C(wb="3")))
+            b.append(Ins("IADD3 R15, PT, PT, R15, 0x1, RZ ;", ("nop",), ctl=C(s, wait="4" if ycover == "younger_read" else "3")))
         elif behind:
             # version 16: the shuffle, then the reader of its result (it WAITS the shuffle's write barrier) at stall s, then
             # the rewrite of the source: the swept distance is waiter -> overwriter
@@ -701,7 +831,10 @@ def body_war(req, d, front, variant):
             b.append(Ins("IADD3 R6, PT, PT, R6, R7, RZ ;", ("add", "R6", "R6", "R7"), ctl=C(wait=ow), tag="O"))
         else:
             b.append(Ins(f"IADD3 R6, PT, PT, R6, 0x{LATE_CONST:x}, RZ ;", ("add", "R6", "R6", LATE_CONST), ctl=C(wait=ow), tag="O"))
-        if younger:
+        if ycover:
+            b.append(Ins("IMAD R8, R13, 0x3, R8 ;", ("mad", "R8", "R13", 3, "R8"), ctl=C(wait="13")))
+            b.append(ADD10(""))
+        elif younger:
             b.append(ADD10(""))
         elif not behind:
             b.append(ADD10(rwait))
@@ -1066,7 +1199,7 @@ def prologue(req, ctas):
          Ins("STS.128 [R9+0x10], R20 ;", ("sts", "R9", 0x10, "R20", 4)), Ins("STS.128 [R9+0x20], R20 ;", ("sts", "R9", 0x20, "R20", 4)),
          PAD(), PAD(), PAD(), PAD()]
     if req["kind"] != "mma":
-        p += [Ins("IMAD.WIDE.U32 R16, R1, 0x4, R2 ;", ("gaddr", "R16", 0)),                          # A = &out[gid]
+        p += [] if ordn_no_gaddr(req) else [Ins("IMAD.WIDE.U32 R16, R1, 0x4, R2 ;", ("gaddr", "R16", 0)),                          # A = &out[gid]
               Ins(f"MOV R14, 0x{half:x} ;", ("nop",)),
               Ins("IMAD.WIDE.U32 R18, R14, 0x1, R16 ;", ("gaddr", "R18", 1)),                        # B = A + half
               Ins("STG.E desc[UR4][R18.64], R20 ;", ("stg", "R18", "R20")),
@@ -1102,7 +1235,8 @@ def prologue(req, ctas):
               Ins("IADD3 R13, PT, PT, R9, 0x20, RZ ;", ("add", "R13", "R9", 0x20))]
     else:
         p.append(Ins("MOV R6, RZ ;", ("mov", "R6", 0)))
-    if (req["kind"] == "ord" and (req.get("younger_guard") or req.get("older_guard"))) or (req["kind"] == "reuse" and req.get("between") == "cbranch"):
+    if (req["kind"] == "ord" and (req.get("younger_guard") or req.get("older_guard") or (req.get("forms") and any(x.strip()[:1] in ("g", "f") for x in str(req["forms"]).split(","))))) \
+            or (req["kind"] == "reuse" and req.get("between") == "cbranch"):
         p += [Ins("ISETP.EQ.U32.AND P0, PT, RZ, RZ, PT ;", ("nop",)), Ins("ISETP.NE.U32.AND P3, PT, RZ, RZ, PT ;", ("nop",))]
     if req["kind"] == "ord" and req.get("nload") and req.get("place") == "far":
         # R14 = the thread's word in the second region; word k := a per-thread constant (a store with read barrier 5, waited)
@@ -1243,6 +1377,8 @@ def model(req, mode, gids=None, scalar=False):
             R[sem[1]] = get(sem[2])
         elif op == "add":
             R[sem[1]] = get(sem[2]) + get(sem[3])
+        elif op == "add3":
+            R[sem[1]] = get(sem[2]) + get(sem[3]) + get(sem[4])
         elif op == "xor":
             R[sem[1]] = get(sem[2]) ^ get(sem[3])
         elif op == "and":
@@ -1406,6 +1542,8 @@ def _machine(gid):
             R[sem[1]] = get(sem[2])
         elif op == "add":
             R[sem[1]] = (get(sem[2]) + get(sem[3])) & M
+        elif op == "add3":
+            R[sem[1]] = (get(sem[2]) + get(sem[3]) + get(sem[4])) & M
         elif op == "xor":
             R[sem[1]] = get(sem[2]) ^ get(sem[3])
         elif op == "and":
@@ -1594,29 +1732,43 @@ def normalise(req):
             raise SystemExit(f"{r['id']}: store {r.get('store')!r} / overwriter {r.get('overwriter')!r} not in the catalogue (probe.py list)")
         if r.get("read_barrier") not in (None, "set") or (r.get("read_barrier") and r["store"] not in SHFL_STORES):
             raise SystemExit(f"{r['id']}: read_barrier is \"set\" (a shuffle that carries a read barrier nobody waits) or absent")
-        if r.get("behind") not in (None, "write_waiter", "younger_write") or (r.get("behind") and r["store"] not in SHFL_STORES):
+        if r.get("behind") not in (None, "write_waiter", "younger_write", "younger_read", "younger_lds") or (r.get("behind") and r["store"] not in SHFL_STORES):
             raise SystemExit(f"{r['id']}: behind is \"write_waiter\" (the overwriter behind the reader that waited the shuffle's write barrier), "
-                             "\"younger_write\" (a barrier-less shuffle read under a younger shuffle's write barrier) or absent")
-        if r.get("behind") == "younger_write":
+                             "\"younger_write\" (a barrier-less shuffle read under a younger shuffle's write barrier), \"younger_read\" / \"younger_lds\" "
+                             "(version 21: the overwriter behind a wait on a younger shuffle's READ barrier / a younger LDS's write barrier) or absent")
+        if r.get("behind") in ("younger_write", "younger_read", "younger_lds"):
             r.setdefault("younger_gap", 1)
             if r.get("read_barrier") or not (isinstance(r["younger_gap"], int) and 1 <= r["younger_gap"] <= 15):
-                raise SystemExit(f"{r['id']}: behind younger_write: the tested shuffle carries no barrier; younger_gap 1..15")
+                raise SystemExit(f"{r['id']}: behind {r['behind']}: the tested shuffle carries no read barrier of its own in the bare series; younger_gap 1..15")
         r.setdefault("distances", "1-30,45" if r["store"] in SHFL_STORES else "1-15,18-75:3,90,105,150")
         r.setdefault("controls", True)
         r.setdefault("control_distances", "1,6,15,30,60,105")
     elif r.get("kind") == "ord":
+        if r.get("forms"):      # version 21: N loads of mixed forms
+            r["nload"] = len(str(r["forms"]).split(","))
         if r.get("nload"):
             r.setdefault("older", "LDS")
             r.setdefault("younger", "LDS")
             r.setdefault("place", "near")
             r.setdefault("barrier", "last")
-            r.setdefault("distances", "1-4,8,15")
-            if not (isinstance(r["nload"], int) and 2 <= r["nload"] <= 8) or (r["older"], r["younger"]) != ("LDS", "LDS") \
+            r.setdefault("distances", "1-4,8,11" if r.get("yield") else "1-4,8,15")
+            if not (isinstance(r["nload"], int) and 2 <= r["nload"] <= (13 if r.get("forms") else 8)) or (r["older"], r["younger"]) != ("LDS", "LDS") \
                     or r["place"] not in ("near", "far", "base2") or r["barrier"] not in ("last", "all", "none") or r.get("far") \
                     or r.get("older_barrier"):
                 raise SystemExit(f"{r['id']}: an N-load request is older = younger = LDS, nload 2..8, place near | far | base2, barrier last | all | none")
-        if r.get("older_barrier") not in (None, "same"):
-            raise SystemExit(f"{r['id']}: older_barrier is \"same\" or absent")
+            if r.get("forms"):
+                if r["place"] == "far" or r["nload"] < 2:
+                    raise SystemExit(f"{r['id']}: a mixed N-load request has 2..13 loads, place near | base2")
+                ordn_plan(r)
+                if ordn_no_gaddr(r) and any(str(f).startswith("stg") for f in r.get("front", [])):
+                    raise SystemExit(f"{r['id']}: front stg... needs the global addresses, which this request's loads overwrite (R16..R19)")
+            if r.get("yield") and max(parse_distances(r["distances"])) > 11:
+                raise SystemExit(f"{r['id']}: with the yield flag the loads are at most 11 cycles apart")
+        if r.get("older_barrier") not in (None, "same", "recycle"):
+            raise SystemExit(f"{r['id']}: older_barrier is \"same\", \"recycle\" (version 21) or absent")
+        if r.get("older_barrier") == "recycle" and (r.get("older") not in ("LDS", "LDSU16", "LDS64", "LDS128", "LDG")
+                                                     or r.get("younger") not in ("LDS", "LDS128", "LDS64", "LDSM", "LDG") or r.get("younger_guard")):
+            raise SystemExit(f"{r['id']}: older_barrier recycle: two loads (the younger one unguarded)")
         if r.get("far") not in (None, False, True, "off", "base2") or r.get("younger_guard") not in (None, "true", "false"):
             raise SystemExit(f"{r['id']}: far is true | \"off\" (the same base register, 0x200 away) | \"base2\" (another base register, the same line), "
                              f"younger_guard is \"true\" | \"false\"")
@@ -1684,8 +1836,8 @@ def normalise(req):
         r["control_distances"] = r["distances"]
     else:
         raise SystemExit(f"{r.get('id')}: kind must be raw, war, ord, mma or reuse")
-    if r.get("yield") not in (None, "set") or (r.get("yield") and (r["kind"] not in ("raw", "mma") or r.get("via") != "stall")):
-        raise SystemExit(f"{r['id']}: yield is \"set\" (the swept instruction of a raw / mma request carries the yield flag; via stall) or absent")
+    if r.get("yield") not in (None, "set") or (r.get("yield") and not ((r["kind"] in ("raw", "mma") and r.get("via") == "stall") or (r["kind"] == "ord" and r.get("nload")))):
+        raise SystemExit(f"{r['id']}: yield is \"set\" (the swept instruction of a raw / mma request, via stall, or the loads of an N-load request carry the yield flag) or absent")
     r.setdefault("occupancy", ["w8", "w32"])
     r.setdefault("front", ["none"])
     r.setdefault("reps", 20)
@@ -1715,12 +1867,24 @@ def pair_text(r):
     if r["kind"] == "mma":
         return (f"{MMA_FORMS[r['form']]} -> the same, issue spacing ({MMA_VARIANTS[r['variant']]}; "
                 + ("first MMA + a NOP of one cycle + fillers" if r["via"] == "nop" else "the first MMA's stall + fillers") + ")")
+    if r["kind"] == "ord" and r.get("forms"):
+        names = {"s": "LDS", "u": "LDS.U16", "d": "LDS.64", "q": "LDS.128"}
+        toks = [x.strip() for x in str(r["forms"]).split(",")]
+        what = " ".join(("@true " if t[:1] == "g" else "@false " if t[:1] == "f" else "") + names[t[-1]] for t in toks)
+        return (f"{len(toks)} shared loads of MIXED forms of one thread in flight, oldest first: {what}; ONE wait of the reader ("
+                + ("the thread's own line, one base register" if r["place"] == "near" else "the thread's own line, every second load through another base register") + "; "
+                + {"last": "only the youngest load carries the write barrier", "all": "every load on the SAME write barrier",
+                   "none": "POSITIVE CONTROL: no barrier and no wait - expect 0 % good"}[r["barrier"]] + ")")
     if r["kind"] == "ord" and r.get("nload"):
         where = {"near": "words of the thread's own line, one base register", "base2": "words of the thread's own line, every second load through another base register",
                  "far": "words >= 1 KB apart in the CTA's shared memory"}[r["place"]]
         return (f"{r['nload']} LDS of one thread in flight, ONE wait of the reader ({where}; "
                 + {"last": "only the youngest load carries the write barrier", "all": "every load on the SAME write barrier",
                    "none": "POSITIVE CONTROL: no barrier and no wait - expect 0 % good"}[r["barrier"]] + ")")
+    if r["kind"] == "ord" and r.get("older_barrier") == "recycle":
+        return (f"{r['older']} on write barrier 1, a younger {r['younger']} whose own word WAITS barrier 1 and sets it again (the recycle of a barrier), "
+                f"the reader of the older load's register does NOT wait and stands {r.get('younger_stall', 2)} cycle(s) behind the younger load "
+                "(distance = older -> younger; ctl = two barriers, the reader waits both)")
     if r["kind"] == "ord" and r.get("older_barrier") == "same":
         return (f"{r['older']} and a younger {r['younger']} on ONE write barrier, one wait of the reader "
                 f"(the younger load at stall {r.get('younger_stall', 2)} in front of the reader)")
@@ -1740,7 +1904,13 @@ def pair_text(r):
                    if r.get("behind") == "write_waiter" else
                    f"; the tested shuffle has NO write barrier either: a younger shuffle {r.get('younger_gap', 1)} cycle(s) behind it carries one, the reader "
                    "waits that and takes both results, the overwriter stands behind the reader - distance = waiter -> overwriter"
-                   if r.get("behind") == "younger_write" else "")
+                   if r.get("behind") == "younger_write" else
+                   f"; the shuffle carries its own write barrier; a younger shuffle with a READ barrier stands {r.get('younger_gap', 1)} cycle(s) behind it, a word "
+                   "waits that read barrier, the overwriter stands behind that word - distance = waiter -> overwriter"
+                   if r.get("behind") == "younger_read" else
+                   f"; the shuffle carries its own write barrier; a younger LDS with a write barrier stands {r.get('younger_gap', 1)} cycle(s) behind it, a word "
+                   "waits that write barrier, the overwriter stands behind that word - distance = waiter -> overwriter"
+                   if r.get("behind") == "younger_lds" else "")
                 + ("; the overwriter adds (iteration index + 1) x a constant: one late iteration per thread is decoded to its index + 1"
                    if r["overwriter"] == "IADD3.it" else "") + ")")
     if r["store"] in WAW_STORES:
@@ -1831,7 +2001,7 @@ def cmd_gen(args):
                                         "ctas": ctas, "threads": threads, "smem": smem})
                         jobs.append((d, name))
         # (behind a write-barrier waiter a late shuffle is not "+ the constant": the reader has taken the result before)
-        late_delta = LATE_CONST if (r["kind"] == "war" and r["overwriter"] in ("IADD3", "IADD3.it") and not r.get("behind")
+        late_delta = LATE_CONST if (r["kind"] == "war" and r["overwriter"] in ("IADD3", "IADD3.it") and r.get("behind") in (None, "younger_read", "younger_lds")
                                     and r["store"] in ("STS.data", "STG.data", "LDS.dst", "LDG.dst", "LDC.dst", "S2R.dst") + SHFL_STORES) else None
         if r["kind"] == "reuse":      # a stale reader of a linear form: the number of stale iterations is decoded from a mixture
             late_delta = reuse_late_delta(r)
@@ -2443,6 +2613,9 @@ def cmd_list(_args):
         print(f"  variant {k:7s} {v}")
     print("kind ord - an OLDER load without a write barrier, read behind the wait on a YOUNGER load's barrier (older, younger):")
     print("  " + ", ".join(f"({a}, {b})" for a, b in ORD_PAIRS) + "; distance = older -> younger; `younger_stall` (default 2) = younger -> reader")
+    print("  version 21: \"older_barrier\": \"recycle\" = the younger load's own word waits the older load's write barrier and sets it again, the reader of the older load does not wait; "
+          "N loads: \"yield\": \"set\" = the loads carry the yield flag; \"forms\": \"s,d,gq,...\" = N loads of mixed forms (s LDS, u LDS.U16, d LDS.64, q LDS.128; prefix g = under a true guard, f = under a false guard), up to 13")
+    print("  version 21, a shuffle's source: \"behind\": \"younger_read\" = the overwriter behind a word that waited a YOUNGER shuffle's READ barrier; \"younger_lds\" = ... a younger LDS's write barrier (+ \"younger_gap\")")
     print("  version 19, two-load requests: \"far\": \"base2\" = the younger shared load through ANOTHER base register that holds the same address (the same line); \"older_guard\": \"true\" = the older shared load under a guard that is true")
     print("  N loads in flight and ONE wait: \"nload\": 2..8, \"place\": near | base2 | far (>= 1 KB apart), \"barrier\": last (the older loads bare) | all (one shared barrier) | none (positive control: no wait); distance = load -> load, 1..15")
     print("  two loads on ONE write barrier: \"older_barrier\": \"same\" (does the scoreboard count its producers?)")
@@ -2603,6 +2776,77 @@ def cmd_selftest(_args):
                 assert not np.array_equal(g, st), (nl, place, bar)
                 # one stale register alone must move the checksum too: the weights of the fold are distinct and odd
                 n += 2
+    w = np.arange(64, dtype=np.int64)      # version 21 - the two further covers of a shuffle's source, the recycle, mixed N loads
+    for st in SHFL_STORES:
+        plain = model(normalise({"id": "selftest", "kind": "war", "store": st, "overwriter": "IADD3"}), "good", gids=w)
+        for bh in ("younger_read", "younger_lds"):
+            for ov in ("LOP3", "IADD3", "IADD3.it"):
+                r = normalise({"id": "selftest", "kind": "war", "store": st, "overwriter": ov, "behind": bh, "younger_gap": 4})
+                g, lt = model(r, "good", gids=w), model(r, "late", gids=w)
+                assert modes_of(r) == ["good", "late"] and not np.array_equal(g, lt) and not np.array_equal(g, plain), (st, bh, ov)
+                assert [int(x) for x in g] == model(r, "good", gids=w, scalar=True) and [int(x) for x in lt] == model(r, "late", gids=w, scalar=True), (st, bh, ov)
+                if ov == "IADD3":       # every late iteration adds the constant once
+                    assert all(int(x) == (REPEAT * LATE_CONST) & 0xFFFFFFFF for x in (lt - g)), (st, bh)
+                if ov == "IADD3.it":    # late iteration i adds (i + 1) constants
+                    assert all(int(x) == (LATE_CONST * REPEAT * (REPEAT + 1) // 2) & 0xFFFFFFFF for x in (lt - g)), (st, bh)
+                bare, ctl_, rb_ = (body_war(r, 7, "none", v) for v in ("bare", "ctl", "rb"))
+                # ctl = no overwriter (a filler in its place); rb = the tested shuffle carries read barrier 2 and the overwriter waits it
+                assert len(bare) == len(ctl_) == len(rb_), (st, bh, ov)
+                dc = [(a, c) for a, c in zip(bare, ctl_) if a.line() != c.line()]
+                dr = [(a, c) for a, c in zip(bare, rb_) if a.line() != c.line()]
+                assert len(dc) == 1 and dc[0][0].tag == "O" and dc[0][1].sem == ("nop",), (st, bh, ov)
+                assert len(dr) == 2 and dr[0][0].tag == "S" and ":R2:" in dr[0][1].ctl and dr[1][0].tag == "O" and dr[1][1].ctl[1:8] == "B--2---", (st, bh, ov)
+                # the waiter waits the younger producer's barrier only (4 = the younger shuffle's read barrier, 3 = the load's write barrier)
+                wt = [a for a in bare if a.sem == ("nop",) and a.ctl[1:8] != "B------"]
+                assert len(wt) == 1 and wt[0].ctl[1:8] == ("B----4-" if bh == "younger_read" else "B---3--") and wt[0].ctl[-4:] == "S07]", (st, bh, ov)
+                assert bare[[a.tag for a in bare].index("S")].ctl[9:16] == "R-:W1:-", (st, bh)
+                n += 2
+    for older, younger in (("LDS", "LDS"), ("LDS", "LDS128"), ("LDS64", "LDS64"), ("LDG", "LDG"), ("LDS128", "LDS")):
+        r = normalise({"id": "selftest", "kind": "ord", "older": older, "younger": younger, "older_barrier": "recycle", "younger_stall": 1})
+        g, st_ = model(r, "good", gids=gids), model(r, "stale", gids=gids)
+        assert [int(x) for x in g] == model(r, "good", gids=gids, scalar=True) and [int(x) for x in st_] == model(r, "stale", gids=gids, scalar=True)
+        assert not np.array_equal(g, st_), (older, younger, "recycle")
+        bare = body_ord(r, 3, "none", "bare")
+        yi = next(k for k, a in enumerate(bare) if a.ctl[1:8] == "B-1----" and ":W1:" in a.ctl)      # the younger load: waits 1, sets 1
+        assert bare[yi].ctl[-4:] == "S01]" and bare[yi + 1].tag == "C" and bare[yi + 1].ctl[1:8] == "B------" and bare[yi + 2].ctl[1:8] == "B-1-3--", (older, younger)
+        assert [a for a in bare if a.tag == "P"][0].ctl[9:14] == "R-:W1" and [a for a in bare if a.tag == "P"][0].ctl[-4:] == "S03]", (older, younger)
+        n += 2
+    for forms, place, bar in (("s,s,s", "near", "last"), ("s,d,s,gq,s", "near", "last"), ("s,s,s,s,s,s,s,s,s,s,s,s,s", "near", "last"),
+                              ("s,s,s,s,s,s,s,s,s,s,s,s,s", "base2", "last"), ("s,d,s,s,d,s,s,s,s,s,d", "near", "last"), ("u,s,d,s,s,s,s,fq", "base2", "last"),
+                              ("gs,s,gs,s,s,s,s,s,s,q", "base2", "last"), ("d,d,d,q", "near", "all"), ("s,u,d,q,s", "near", "none"), ("s,s,d,s,s,s,s,s,s,s,s,d", "near", "all")):
+        for extra in ({}, {"yield": "set"}):
+            r = normalise(dict({"id": "selftest", "kind": "ord", "forms": forms, "place": place, "barrier": bar}, **extra))
+            g, st_ = model(r, "good", gids=gids), model(r, "stale", gids=gids)
+            assert [int(x) for x in g] == model(r, "good", gids=gids, scalar=True) and [int(x) for x in st_] == model(r, "stale", gids=gids, scalar=True), forms
+            assert not np.array_equal(g, st_), forms
+            plan = ordn_plan(r)
+            regs = [reg + k for _g, let, reg, _o in plan for k in range(ORDN_FORM[let][1])]
+            assert len(set(regs)) == len(regs) and not (set(regs) & {6, 8, 12, 13, 9, 10, 11, 15}) and all(16 <= x <= 31 or x in (7, 14) for x in regs), forms
+            assert all(reg % ORDN_FORM[let][1] == 0 and off % ORDN_FORM[let][2] == 0 and off + ORDN_FORM[let][2] <= 64 for _g, let, reg, off in plan), forms
+            bare = body_ord(r, 4, "none", "bare")
+            loads = [a for a in bare if a.tag == "P"]
+            assert len(loads) == r["nload"] == len(plan), forms
+            # the barrier: the youngest load only (last), every load (all), none; the swept stall on every load but the youngest
+            assert [a.ctl[12:14] for a in loads] == {"last": ["W-"] * (len(loads) - 1) + ["W1"], "all": ["W1"] * len(loads), "none": ["W-"] * len(loads)}[bar], forms
+            assert all(a.ctl[-4:] == "S04]" for a in loads[:-1]) and loads[-1].ctl[-4:] == "S02]", forms
+            assert all((":Y:S" in a.ctl) == bool(extra) for a in loads), forms
+            # every destination register is read by exactly one snapshot word, the first of which carries the wait
+            snaps = [a for a in bare if a.tag == "C"]
+            read = [x for a in snaps for x in a.sem[2:] if x in [f"R{q}" for q in regs]]
+            assert sorted(read) == sorted(f"R{q}" for q in regs) and snaps[0].ctl[1:8] == ("B------" if bar == "none" else "B-1----"), forms
+            assert all(a.ctl[1:8] == "B------" and a.ctl[-4:] == "S01]" for a in snaps[1:]), forms
+            assert misaligned("\n".join("    " + a.line() for a in bare)) == [], forms
+            # one stale register alone moves the checksum: (checked on the model) the loads' values differ from the markers
+            n += 2
+    assert ordn_no_gaddr(normalise({"id": "xx", "kind": "ord", "forms": "s,s,s,s,s,s,s,s,s"})) and not ordn_no_gaddr(normalise({"id": "xx", "kind": "ord", "forms": "s,s,s,s,d,d"}))
+    assert not any("R16" in a.text or "R18" in a.text for a in prologue(normalise({"id": "xx", "kind": "ord", "forms": "s,s,s,s,s,s,s,s,s"}), 188))
+    for nl in (2, 8):      # (C) the yield flag on the loads of the plain N-load family: one flag per load, nothing else moves
+        ry, rn = (normalise(dict({"id": "selftest", "kind": "ord", "nload": nl, "barrier": "all"}, **x)) for x in ({"yield": "set"}, {}))
+        by, bn = body_ord(ry, 4, "none", "bare"), body_ord(rn, 4, "none", "bare")
+        dy = [(a.line(), c.line()) for a, c in zip(by, bn) if a.line() != c.line()]
+        assert len(by) == len(bn) and len(dy) == nl and all(":Y:S" in a and ":-:S" in c and a.replace(":Y:S", ":-:S") == c for a, c in dy), nl
+        assert np.array_equal(model(ry, "good", gids=gids), model(rn, "good", gids=gids))
+        n += 1
     w = np.arange(64, dtype=np.int64)      # version 20 - kind reuse
     for form in REUSE_FORMS:
         for writer in REUSE_WRITERS:
