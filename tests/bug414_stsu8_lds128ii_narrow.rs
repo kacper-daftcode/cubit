@@ -231,7 +231,7 @@ fn t414_6_postures_arshield() {
 #[test]
 fn t414_7_graft_hygiene() {
     // Current byte-pinned cut; historical fixture provenance remains unchanged.
-    const CURRENT_VENDORED_CANON: &str = "b230bc541119ee47454d8718583619f32c296186" /* 2026-11-06 T-11 (was c258f8a, T-10) */ /* 2026-11-06 T-10 (was b75cc20, T-9) */;
+    const CURRENT_VENDORED_CANON: &str = "465aa4fa85f575a43d19232b5ddca791358a2969" /* 2026-11-06 T-11 (was c258f8a, T-10) */ /* 2026-11-06 T-10 (was b75cc20, T-9) */;
     assert_eq!(CANON414, "9c0e4cec355119065444f59d0710de372b9d0577", "historical fixture revision drift");
 
     let src = std::fs::read_to_string("tables/SOURCE.json").unwrap();
