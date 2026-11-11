@@ -4,6 +4,25 @@ User-visible changes, newest first. Table syncs name the blackwell-isa revision 
 (`tables/SOURCE.json` pins it byte for byte). Numbered `BUG-NNN` entries are the encoder /
 decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `docs/TESTS.md`).
 
+## Unreleased — 2026-11-11 (pull-request pair cubit #6 + blackwell-isa #4 of the B300 lane: the FlashKDA forms on sm103a / sm100a — `MOVM.16.MT88`, the `UTMALDG.1D` descriptor form, `UBLKCP.G.S`, the RC byte of `F2FP.BF16.F32.PACK_AB Rd, Ra, URb`)
+
+- **Tables vendored from blackwell-isa `306d13d`: batch 2 of the lane's K3.1 served-kernel forms** — the lane's three
+  table commits re-applied row for row on top of batch 1 (sm103a 553 → 555 forms, 37 542 → 37 545 rows; sm100a 552 → 554,
+  37 536 → 37 539; sm120 / sm121a unchanged; rows without `_src` unchanged, 336 / 336). **`MOVM.16.MT88 Rd, Ra`** (a new
+  key, ONE row whose mask is exactly its three fields: guard, `Rd`, `Ra`; [95:32] is closed — the 534 text-inert words of
+  the candidate returned earlier are refused). **`UTMALDG.1D [URa], [URb], desc[URc]`** (a new row of an existing key).
+  **`UBLKCP.G.S [URa], [URb], URc`** (a new key, dotted as on sm120). **`F2FP.BF16.F32.PACK_AB Rd, Ra, URb`** (an
+  existing row CHANGED): the vendor's inert RC byte `0xff` at [71:64] is now in `and_base` and outside the mask — the
+  canonical word is the compiler's; a word with another value there no longer decodes by this row (no word of the
+  gate's B300 corpus did). The row is otherwise the legacy row it was: its mask is not yet its fields.
+- No engine change. `tests/k31_movm.rs` (3) over `tests/fixtures/k31_movm_nvdisasm.jsonl` (1 971 records),
+  `tests/k31_flashkda_residue.rs` (3) over `k31_flashkda_residue_nvdisasm.jsonl` (296); the probes
+  `tools/probes/re_k31_movm.py`, `re_k31_flashkda_residue.py`. Two existing pins change meaning: the donor tables now
+  carry exactly one `MOVM` key (`tests/bug283_movm_lane.rs`, `tests/bug316_movm_namespace.rs`). The gatekeeper named
+  every fixture word again with nvdisasm 13.1: 1 970 of 1 970 and 293 of 293 distinct (word, target) texts identical.
+  The lane's count on the served FlashKDA cubin (sm_100, 132 kernels): `roundtrip-strict` 280 960 → 289 088 of
+  289 088 words. Encoding evidence only: no GPU execution, no semantics, no timing.
+
 ## Unreleased — 2026-11-11 (session T-32: KNOWN_ISSUES A47 — law (d) over what serves: the twelve places one cycle under it, the baseline of the push gate's hold step)
 
 - **Documents only, no code.** The push gate's hold step judges law (d) as it stands since the probes of the accumulator

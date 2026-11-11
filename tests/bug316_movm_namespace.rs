@@ -107,12 +107,11 @@ fn t316_1_structure_graft_and_donors() {
             }
         }
     }
-    // donors byte-untouched: still no MOVM keys at all (315-kand, owner scope)
+    // K2 S1 adds only the measured MT88 form, not the returned namespace rows.
     for leg in ["sm100a", "sm103a"] {
         let t = tab(leg);
-        for k in t.entries.keys() {
-            assert!(!k.starts_with("MOVM"), "{leg}: donor carries {k}");
-        }
+        let keys: Vec<_> = t.entries.keys().filter(|k| k.starts_with("MOVM")).map(String::as_str).collect();
+        assert_eq!(keys, ["MOVM.16.MT88_R_R"], "{leg}");
     }
 }
 
