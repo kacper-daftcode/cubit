@@ -4,6 +4,33 @@ User-visible changes, newest first. Table syncs name the blackwell-isa revision 
 (`tables/SOURCE.json` pins it byte for byte). Numbered `BUG-NNN` entries are the encoder /
 decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `docs/TESTS.md`).
 
+## Unreleased — 2026-11-11 (the operand hold has a third reader: a fixed-latency rewrite of the uniform register of a store's address stands 7 issue cycles behind the store — under `CUBIT_SYNC_CLASSES` and `CUBIT_SCHED2_MEMSTALL=table`; the default path is not touched)
+
+- **A store reads the uniform register of its address — the descriptor of `STG.E desc[UR4][Ra.64], Rd`, the uniform base of
+  `STS [UR4+imm], Rd` — when the memory pipe serves it, and nothing held a rewrite of it off** (KNOWN_ISSUES A45). The read
+  barrier a store carries is waited by the overwriters of its GENERAL registers (the allocator's late operands are general
+  registers), the dependency table has no write-after-read row, and the operand hold knew two readers (a tensor
+  instruction, a word of the uniform datapath). What kept `UMOV UR4, …` away was the first scheduling pass's blanket stall
+  of 4 behind every store — the margin `CUBIT_SCHED2_MEMSTALL=table` takes away. cubit's schedule of the served fc2 under
+  that variable had `@P0 STG.E.128 desc[UR4][R22.64], R16 [S01] ; BSYNC.RECONVERGENT B2 [S05] ; UMOV UR4, 0xffffffff`: 6 issue
+  cycles and no wait on the store's read barrier, where the vendor's schedule of the same words has 7. Found by an
+  independent check of that schedule.
+- **`sync_class::hold_need` has the third reader: a fixed-latency writer of the uniform register of a store's address
+  stands `STORE_UNIFORM_OPERAND_HOLD` = 7 issue cycles behind the store** — the distance the vendor's schedules keep where
+  no word waits the store's barrier (656 such rewrites in the vendor's census from 7 on, 82 at exactly 7); a scoreboarded writer
+  of the register (`LDCU`) lands late and is not held. The number is the vendor's practice, not a measured floor: one shape
+  of the census stands closer (a `ULOP3` on the uniform index of a guarded `STS.128`, 3 cycles, 14 builds of one kernel) and no
+  probe has run on the pair. `sync_class::hold_operands` reads a store's uniform registers off its operands (the
+  scheduler's convention does not list the base of `[URn+imm]`).
+- **Reach:** the operand hold runs under `CUBIT_SYNC_CLASSES` and under `CUBIT_SCHED2_MEMSTALL=table` only: the default
+  path, every production source and every committed cubin are byte for byte what they were, and the attention source under
+  `CUBIT_SCHED2_MEMSTALL=table` builds the same schedule (it has no such pair). Of cubit's schedules of the five served MoE
+  kernels ONE control word moves: fc2 under `CUBIT_SCHED2_MEMSTALL=table`, the `BSYNC` in front of the `UMOV` from 5 to 6
+  (stall sum 7 171 → 7 172); the other four and all five without that variable are byte for byte, and every count of every
+  check on them is what it was. Of cubit's schedules of the vendor's 749 census kernels 0 change under the switch set
+  (stall sum 4 696 940 → 4 696 940) and 94 with `CUBIT_SCHED2_MEMSTALL=table` (4 309 395 → 4 309 545); no check count moves.
+- `tests/store_uniform_operand_hold.rs` (2; 1 red before), a unit test of `sync_class`.
+
 ## Unreleased — 2026-11-11 (`CUBIT_VERIFY_FLOW=1`: the three kinds of the scoreboard simulation — unprotected RAW, broken WAR, recycle-stale — walked on the paths of the flow graph; a view of its own beside the three counts of `CUBIT_VERIFY`, opt-in, nothing recorded moves)
 
 - **`CUBIT_VERIFY=1 CUBIT_VERIFY_FLOW=1` prints, behind the classic line, `CUBIT_VERIFY_FLOW: N unprotected RAW, N broken WAR,

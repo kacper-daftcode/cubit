@@ -464,6 +464,10 @@ pub fn unlisted_scoreboard_result(op: &str) -> bool {
 ///   2 246 sites, none below; a per-thread reader of the same register may be followed at 1).
 ///   One cycle there computed the shared-memory address of an mbarrier from 0xffffffff: the
 ///   ILLEGAL_ADDRESS of the producer loop of the served fc1.
+/// * **a store reads the uniform register of its address late** — `STG.E.128 desc[UR4][R22.64],
+///   R16 [S02] ; BSYNC [S05] ; UMOV UR4, 0xffffffff`: the vendor never rewrites it closer than 7
+///   where no word waits the store's read barrier (174 sites, 84 at exactly 7). A fixed-latency
+///   writer of the register keeps that distance; a scoreboarded one lands late.
 pub fn hold_need(reader: &Instruction, writer: &Instruction, key: RegKey) -> Option<u8> {
     let (uniform, k) = key;
     let w = writer.opcode.as_str();
@@ -473,6 +477,16 @@ pub fn hold_need(reader: &Instruction, writer: &Instruction, key: RegKey) -> Opt
             || crate::scheduling_pass::is_warp_mma(w)
             || classify(writer).is_some();
         return if slow { None } else { Some(MMA_OPERAND_HOLD) };
+    }
+    // a store reads the uniform register of its address — the descriptor of a global store, the
+    // uniform base of a shared one — when the memory pipe serves it, like its general registers;
+    // the read barrier it carries is waited by the overwriters of those, and a uniform register
+    // is not among them. The vendor's schedules keep a rewrite of it 7 issue cycles behind the
+    // store where nothing waits the barrier (the census of the production cubins: 174 such
+    // sites, 84 at exactly 7, none below); nothing was measured below that.
+    if uniform && k < 63 && crate::scheduling_pass::is_store(reader.opcode.as_str()) {
+        let slow = crate::scheduling_pass::is_long_latency(w) || writer.ctrl.write_bar != 7 || classify(writer).is_some();
+        return if slow { None } else { Some(STORE_UNIFORM_OPERAND_HOLD) };
     }
     if uniform && k < 64 && w == "UMOV" {
         let r = reader.opcode.as_str();
@@ -539,7 +553,12 @@ pub fn hold_operands(insns: &mut [Instruction]) -> (usize, u32) {
             if matches!(op, "EXIT" | "RET" | "BRX" | "JMX") || (op == "BRA" && !crate::cfg_flow::is_conditional(&insns[i])) {
                 break;
             }
-            let uses = crate::scheduling_pass::src_regs(&insns[i]);
+            let mut uses = crate::scheduling_pass::src_regs(&insns[i]);
+            for k in store_uniform_operands(&insns[i]) {
+                if !uses.contains(&k) {
+                    uses.push(k);
+                }
+            }
             for key in defs.iter().filter(|k| uses.contains(k)) {
                 if let Some(h) = hold_need(&insns[i], &insns[j], *key) {
                     if (h as u32) > d {
@@ -858,6 +877,30 @@ mod tests {
         let src = format!(".entry t\n    .param u64 io\n{body}    EXIT ;\n.endentry\n");
         let f = crate::sass_file::parse_sass_file_str_strict(&src).unwrap();
         f.kernels[0].instructions[0].clone()
+    }
+
+    /// The third reader of the operand hold: a store, for the uniform register of its address, against a
+    /// fixed-latency writer.
+    #[test]
+    fn the_hold_names_the_uniform_registers_of_a_store_and_fixed_latency_writers_only() {
+        let ins = |s: &str| crate::parse_sass(s, 0).unwrap();
+        assert_eq!(STORE_UNIFORM_OPERAND_HOLD, 7);
+        assert_eq!(store_uniform_operands(&ins("STG.E.128 desc[UR4][R22.64], R16")), [(true, 4)]);
+        assert_eq!(store_uniform_operands(&ins("STS.128 [UR4+0x10], R8")), [(true, 4)]);
+        assert_eq!(store_uniform_operands(&ins("STS [R20+UR5+0x20], R6")), [(true, 5)]);
+        assert_eq!(store_uniform_operands(&ins("STS [R20+0x20], R6")), []);
+        assert_eq!(store_uniform_operands(&ins("LDG.E R4, desc[UR4][R2.64]")), [], "a load is not a store");
+        let store = ins("@P0 STG.E.128 desc[UR4][R22.64], R16");
+        assert_eq!(hold_need(&store, &ins("UMOV UR4, 0xffffffff"), (true, 4)), Some(7));
+        assert_eq!(hold_need(&store, &ins("R2UR UR4, R20"), (true, 4)), Some(7));
+        assert_eq!(hold_need(&store, &ins("UIADD3 UR4, UPT, UPT, UR4, 0x1, URZ"), (true, 4)), Some(7));
+        // a load of the register lands late: no distance is asked of it
+        assert_eq!(hold_need(&store, &ins("LDCU.64 UR4, c[0x0][0x358]"), (true, 4)), None);
+        // the store's general registers are the read barrier's, not the hold's
+        assert_eq!(hold_need(&store, &ins("MOV R22, RZ"), (false, 22)), None);
+        // a load that reads the descriptor is followed at once, as before; the uniform datapath keeps its 3
+        assert_eq!(hold_need(&ins("LDG.E R4, desc[UR4][R2.64]"), &ins("UMOV UR4, 0x400"), (true, 4)), None);
+        assert_eq!(hold_need(&ins("ULEA UR4, UR5, UR4, 0x18"), &ins("UMOV UR5, 0xffffffff"), (true, 5)), Some(UNIFORM_OPERAND_HOLD));
     }
 
     #[test]
