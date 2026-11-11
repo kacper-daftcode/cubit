@@ -26,6 +26,68 @@ use crate::table::IsaTable;
 /// latencies itself, as under plain `CUBIT_SCHED2`.
 pub static DEP_LEGALISER_FOLLOWS: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
+/// `CUBIT_SCHED2_MEMSTALL=table` (opt-in; `cubit asm` with `CUBIT_SCHED2=1` and a table in
+/// `CUBIT_SCHED2_LAT`): the stall behind a memory word is the dependency table's.
+///
+/// Under `CUBIT_SCHED2` [`schedule`] still writes stalls of its own on memory words. They are
+/// older than the table and than the allocator that runs behind this pass:
+///
+/// * **4** on every load and special-register read ("memory-issue / address-WAR margin") and on
+///   every store (the operand-latch margin; **9** in front of a back edge) - the cover of a time
+///   when the read-barrier pass did not reach every overwriter. `reallocate_barriers` sets the
+///   read barriers by liveness, and `CUBIT_VERIFY` checks them on every path
+///   (`CUBIT_VERIFY_RBPROBE=1`: also for a word that carries no read barrier);
+/// * **10** on a load whose destination register number a predicate writer reads earlier in the
+///   text of the loop (`load_result_loop_carried`, "retired before the back edge") - a reader of
+///   the result waits the load's write barrier on every path, whatever the register is called.
+///
+/// ptxas writes neither. Behind a shared-memory load it stalls 4 where the next word is a
+/// memory word (27 718 of 32 718 sites in the 381 distinct kernels of the sm_120 census, never
+/// more than 7) and 1 where it is not (32 628 of 38 298). With the variable neither is written.
+/// A memory word is then held to what the table says - its `mem`, `ldc` and `bar` rows and the
+/// scoreboard arming distance, which `dep_stall::apply` enforces on every control-flow path
+/// behind the allocator - and to this pass's spacing of two adjacent words of one memory pipe
+/// (`issue_pipe`).
+///
+/// Two distances that those margins kept by accident become requirements by name under the
+/// variable, as under `CUBIT_SYNC_CLASSES` (`cubit asm` sets both up): what has to have landed
+/// in front of `EXIT` and the other settle words (`dep_stall`'s landing rows,
+/// `sync_class::settle_need`), and the operand hold of an MMA and of a uniform-datapath reader
+/// (`sync_class::hold_operands`).
+///
+/// **One stall of this pass stays:** **8** on a load for which the pass's own text-order barrier
+/// allocation had no free barrier (its "recycle drain"). `reallocate_barriers` replaces that
+/// allocation, so in the final schedule the load usually drains nothing - but the stall is the
+/// margin of a barrier re-used while its first group is in flight, and that has not been
+/// measured (KNOWN_ISSUES A32). Under the variable it has its name, `CUBIT_RECYCLE_DRAIN=<n>`
+/// (default 8; the knob of the default scheduler's drain): lowering it is an experiment, not a
+/// form for production, until the measurement exists.
+///
+/// Honoured only where the legaliser follows ([`DEP_LEGALISER_FOLLOWS`] with a table in
+/// `CUBIT_SCHED2_LAT`): without it the margins are all that stands behind a memory word.
+/// `cubit asm` refuses the variable without the table, and any value but `table`
+/// ([`mem_stall_request`]). Unset: nothing changes.
+pub fn mem_stall_from_table() -> bool {
+    matches!(mem_stall_request(), Ok(true))
+        && std::env::var("CUBIT_SCHED2").is_ok()
+        && std::env::var("CUBIT_SCHED2_LAT").is_ok_and(|v| !v.is_empty() && v != "0")
+        && DEP_LEGALISER_FOLLOWS.load(std::sync::atomic::Ordering::Relaxed)
+}
+
+/// `CUBIT_SCHED2_MEMSTALL` as written: `Ok(true)` for `table`, `Ok(false)` when unset or empty,
+/// the message of the refusal for any other value (a misspelt opt-in must not build the default
+/// schedule silently).
+pub fn mem_stall_request() -> Result<bool, String> {
+    match std::env::var("CUBIT_SCHED2_MEMSTALL") {
+        Err(_) => Ok(false),
+        Ok(v) if v.is_empty() => Ok(false),
+        Ok(v) if v == "table" => Ok(true),
+        Ok(v) => Err(format!(
+            "CUBIT_SCHED2_MEMSTALL={v}: the only value is `table` (the stall behind a memory word from the dependency table); unset = the scheduler's own margins"
+        )),
+    }
+}
+
 // ── Latency model (SM120 / Blackwell) ────────────────────────────────────────
 
 const LATENCY_ALU: u8 = 4;      // IADD3, LOP3, SHF, SEL, MOV, PRMT
@@ -932,6 +994,12 @@ struct SchedulerState {
     /// kept ON by default for GPU correctness. CUBIT_SCHED2_NOMEMSTALL=1 drops them
     /// (smaller stalls, closer to the gt diff — but exposes the WAR at high occupancy).
     mem_war_stall: bool,
+    /// `CUBIT_SCHED2_MEMSTALL=table` ([`mem_stall_from_table`]): behind a memory word this pass
+    /// writes what the table's rows ask for and no margin of its own -- `mem_war_stall` is off.
+    mem_table: bool,
+    /// Under `mem_table`: the retirement stall of this pass's recycle drain (`CUBIT_RECYCLE_DRAIN`,
+    /// default 8 -- what the pass writes without the variable).
+    recycle_drain: u8,
     strategy: BarrierAlloc,
     /// When set (`CUBIT_GATHER_RDBAR`), reserve barrier 0 for read-barriers and set
     /// `rb=0` on every gather load — mirroring nvcc's PV discipline (experimental).
@@ -973,7 +1041,9 @@ impl SchedulerState {
             dep_lat: std::env::var("CUBIT_SCHED2").is_ok()
                 && std::env::var("CUBIT_SCHED2_LAT").is_ok_and(|v| !v.is_empty() && v != "0")
                 && DEP_LEGALISER_FOLLOWS.load(std::sync::atomic::Ordering::Relaxed),
-            mem_war_stall: std::env::var("CUBIT_SCHED2_NOMEMSTALL").is_err(),
+            mem_war_stall: std::env::var("CUBIT_SCHED2_NOMEMSTALL").is_err() && !mem_stall_from_table(),
+            mem_table: mem_stall_from_table(),
+            recycle_drain: std::env::var("CUBIT_RECYCLE_DRAIN").ok().and_then(|s| s.parse().ok()).unwrap_or(8),
             deficit_margin: std::env::var("CUBIT_SCHED2_MARGIN").ok()
                 .and_then(|s| s.parse().ok()).unwrap_or(1),
             strategy: BarrierAlloc::from_env(),
@@ -2103,9 +2173,13 @@ pub fn schedule(insns: &mut [Instruction], table: Option<&IsaTable>) {
                     st.pending_drain = 0;
                     // (CUBIT_SYNC_CLASSES: this pass's barriers are re-derived on the control-flow
                     // graph by `reallocate_barriers`; the drain's retirement stall of its text-order
-                    // allocation would stay behind as eight idle cycles on a load that drains nothing)
+                    // allocation would stay behind as eight idle cycles on a load that drains nothing.
+                    // CUBIT_SCHED2_MEMSTALL=table: the stall stays -- it is the margin of a barrier
+                    // re-used in flight, which nobody has measured (KNOWN_ISSUES A32) -- but under its
+                    // name: `CUBIT_RECYCLE_DRAIN`, the knob of the default scheduler's drain below)
                     if !crate::sync_class::enabled() {
-                        insns[i].ctrl.stall = insns[i].ctrl.stall.max(8);
+                        let drain = if st.mem_table { st.recycle_drain } else { 8 };
+                        insns[i].ctrl.stall = insns[i].ctrl.stall.max(drain);
                     }
                 }
                 st.current_load_barrier = Some(nb);

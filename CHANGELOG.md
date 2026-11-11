@@ -4,6 +4,53 @@ User-visible changes, newest first. Table syncs name the blackwell-isa revision 
 (`tables/SOURCE.json` pins it byte for byte). Numbered `BUG-NNN` entries are the encoder /
 decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `docs/TESTS.md`).
 
+## Unreleased — 2026-11-11 (session T-30: `CUBIT_SCHED2_MEMSTALL=table` — under the dependency-aware schedule the stall behind a memory word is the dependency table's and no margin of the first pass; opt-in, the default path and every existing switch set byte for byte)
+
+- **`CUBIT_SCHED2_MEMSTALL=table`** (opt-in; `cubit asm` with `CUBIT_SCHED2=1` and a table in `CUBIT_SCHED2_LAT`, refused
+  without the table and with any other value). Under `CUBIT_SCHED2` the first scheduling pass still wrote stalls of its
+  own on memory words, all older than the dependency table and than the allocator behind the pass: **4** on every load
+  and every store (9 on a store in front of a back edge) — the margin for an overwriter of a late operand from the time
+  before the read barriers were set by liveness; **10** on a load whose destination register number a predicate writer
+  reads earlier in the text of the loop ("the next iteration's compare reads it") — a test on register numbers, which a
+  register the loop uses for two values trips; **8** on a load for which the pass's own text-order barrier allocation
+  had no free barrier (the retirement stall of its recycle drain). ptxas writes none of them: behind a shared-memory
+  load it stalls 4 where the next word is a memory word (27 718 of 32 718 sites in the 381 distinct kernels of the
+  sm_120 census, never more than 7) and 1 where it is not (32 628 of 38 298). The schedule search found the
+  difference as time: the sparse-MLA attention kernel's dependency-aware schedule with 66 such stalls lowered by hand
+  — legal by every check — runs 1.0 % faster on two card models. With the variable the 4 / 9 and the 10 are not
+  written: a memory word is held to the table's rows (`mem` 4, `ldc` 8, `bar` → `mem` 6, the arming distance 2),
+  which the legaliser enforces on every path behind the allocator, and to the pass's spacing of two adjacent words
+  of one memory pipe.
+- **Two distances those margins had kept by accident are requirements by name under the variable**, as under
+  `CUBIT_SYNC_CLASSES`: what has to have landed in front of `EXIT` and the other settle words (the legaliser's landing
+  rows — the attention kernel's epilogue stood 15 cycles behind a predicate result by the margins and would stand at
+  12 without them; the row is 13) and the operand hold of an MMA and of a uniform-datapath reader. `CUBIT_DEP_VERIFY`
+  on a frozen listing knows the landing rows only under `CUBIT_SYNC_CLASSES`: a schedule made with the older switch
+  `CUBIT_SCHED2_NOMEMSTALL` (the margins off, nothing in their place; unchanged) can break one unseen.
+- **The 8 stays under the variable** — it is the margin of a barrier re-used while its first group is in flight, which
+  has not been measured (KNOWN_ISSUES A32) — and has its name there: `CUBIT_RECYCLE_DRAIN=<n>` (default 8, the knob of
+  the default scheduler's drain; in the batched-load branch it is read only under the variable). Lowering it is an
+  experiment, not a form for production.
+- **What it does, in static issue cycles — not time: no schedule made with the variable has run on silicon yet.**
+  The sparse-MLA attention kernel (1 489 instructions): 308 control words differ from the default dependency-aware
+  schedule (222 stalls lower, 86 higher — the legaliser placing the table's distances —, 18 yield flags), no wait mask
+  and no barrier; stall sum 5 160 → 4 587; one pass of its loop 3 134 → 2 819 cycles (the hand-lowered schedule:
+  2 935); 61 of the 66 hand-lowered stalls stand at or below the hand's value, the other 5 are the loads that carry
+  the 8. cubit's five schedules of the served MoE kernels under `CUBIT_SYNC_CLASSES` (under which the 10 and the
+  batched loads' 8 were never written): stall sums −6.7 %, −6.0 %, −8.5 %, −10.0 %, −8.3 % (246 … 747 control words
+  each). cubit's own schedules of the vendor's texts, the sm_120 census under the same switch set (749 of 752 kernels
+  schedule, with and without the variable; 1 807 964 instructions): stall sum 4 696 818 → 4 309 356 (−8.25 %),
+  smaller in every kernel.
+- **Legality:** in each of those kernels every count of the three checks is what it was without the variable
+  (`CUBIT_VERIFY`'s scoreboard and its three path walks, `CUBIT_DEP_VERIFY` 0 below the table in all four classes — on
+  the attention kernel also under `CUBIT_SYNC_CLASSES`, under the edition, and in the probe's view
+  `CUBIT_VERIFY_RBPROBE=1`, which tracks the loads and stores that carry no read barrier: the margins' own subject);
+  `cubit legality-diff` of the attention schedule against the default one: 0 new, 0 closer. On the census 2 851 more
+  overwriters are moved behind an operand hold (12 719 → 15 570): distances the margins had kept.
+- `tests/sched2_memstall_table.rs` (6; 4 red before): the margins as the default writes them and the table's numbers
+  under the variable on a small loop, legality in every view, the refusals, the drain's stall and its name, the landing
+  row and the operand hold; the default path and the older switch byte for byte.
+
 ## Unreleased — 2026-11-11 (session T-29: write after write — `CUBIT_VERIFY` reports a register whose scoreboarded result is pending and is written again, on every path; under `CUBIT_SYNC_CLASSES` the barrier allocator closes its own schedule under that walk, BUG-489; `CUBIT_VERIFY` checks the source registers of a warp shuffle on every path; BUG-490: in the certified transfer sets an atomic or `SYNCS` word that returns nothing reads the register behind its memory operand; the default path byte for byte)
 
 - **`CUBIT_VERIFY` reports write after write on every path** (`store_paths::unwaited_rewrites`; lines `WRITE AFTER WRITE` and

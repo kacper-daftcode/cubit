@@ -154,6 +154,13 @@ pub struct DepLatTable {
     resource_pairs: HashMap<(usize, String, String), u8>,
     /// The write-after-read holds an edition carries (name, cycles); empty otherwise.
     pub edition_holds: Vec<(String, u8)>,
+    /// The landing rows (`sync_class::settle_need`: what has to have landed in front of `EXIT`,
+    /// `BSYNC`, `CALL`, a register-indirect transfer, a conditional branch behind an MMA) are
+    /// requirements of this table without `CUBIT_SYNC_CLASSES` too. Set by `cubit asm` under
+    /// `CUBIT_SCHED2_MEMSTALL=table`: the scheduler's margins behind memory words kept those
+    /// distances by accident, and without the margins nothing else does. `false` everywhere
+    /// else -- the default path.
+    pub landing_rows: bool,
 }
 
 /// The bundled sm_120 table (ptxas census + silicon floors; see its `provenance`).
@@ -189,6 +196,7 @@ impl DepLatTable {
             edition: None,
             resource_pairs: HashMap::new(),
             edition_holds: Vec::new(),
+            landing_rows: false,
         })
     }
 
@@ -211,6 +219,7 @@ impl DepLatTable {
             edition: None,
             resource_pairs: HashMap::new(),
             edition_holds: Vec::new(),
+            landing_rows: false,
         }
     }
 
@@ -958,7 +967,8 @@ fn needs_of(
     // register (`BRX`, `RET`) or splits the warp behind a cooperative MMA (a conditional `BRA`):
     // every fixed-latency result in flight, whether the word reads it or not
     // (`sync_class::settle_need`: ptxas's distances in the served MoE cubin).
-    if crate::sync_class::enabled() && !t.only_barriers && crate::sync_class::is_settle_word(cons) {
+    // (`landing_rows`: the same rows by name, without the switch -- CUBIT_SCHED2_MEMSTALL=table)
+    if (crate::sync_class::enabled() || t.landing_rows) && !t.only_barriers && crate::sync_class::is_settle_word(cons) {
         for e in st {
             let (key, d) = (e.0, e.1 as usize);
             if key >= KEY_RES || d == c {

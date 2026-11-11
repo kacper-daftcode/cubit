@@ -4668,12 +4668,32 @@ fn cmd_asm_directive_format(
         // every path). Two directly adjacent MMAs get one NOP between them to carry the 16 cycles
         // (ptxas: `HMMA S15; NOP S01; HMMA`). Default: the drain scheme below, unchanged.
         let mma_ptxas = std::env::var("CUBIT_MMA_PTXAS").ok().as_deref() == Some("1");
-        let dep_table = cubit::dep_stall::DepLatTable::from_env()?;
+        let mut dep_table = cubit::dep_stall::DepLatTable::from_env()?;
         if dep_table.is_some() && std::env::var("CUBIT_SCHED2").is_err() {
             anyhow::bail!("CUBIT_SCHED2_LAT needs CUBIT_SCHED2=1 (the table replaces SCHED2's per-opcode latencies)");
         }
         if mma_ptxas && dep_table.is_none() {
             anyhow::bail!("CUBIT_MMA_PTXAS=1 needs CUBIT_SCHED2=1 CUBIT_SCHED2_LAT=<table>: without the legaliser nothing keeps the MMA distances");
+        }
+        // CUBIT_SCHED2_MEMSTALL=table (opt-in, with CUBIT_SCHED2 + CUBIT_SCHED2_LAT): schedule() wrote
+        // neither of its own margins behind a memory word (4 on every load and store, 10 on a
+        // "loop-carried" load); the table's rows hold the memory words apart, on every path, in the
+        // legaliser below. Refused where that legaliser does not run -- schedule() ignored the
+        // variable there, and the kernel must not be written as if it had been honoured.
+        match cubit::scheduling_pass::mem_stall_request() {
+            Err(e) => anyhow::bail!(e),
+            Ok(true) if dep_table.is_none() => anyhow::bail!(
+                "CUBIT_SCHED2_MEMSTALL=table needs CUBIT_SCHED2=1 CUBIT_SCHED2_LAT=<table>: without the legaliser nothing holds a memory word to the table's rows on every path"
+            ),
+            Ok(_) => {}
+        }
+        // ... and with the margins gone, the two distances they kept by accident are requirements by
+        // name, as under CUBIT_SYNC_CLASSES: what has to have landed in front of `EXIT` and the other
+        // settle words (the legaliser's landing rows), and the operand hold of an MMA and of a
+        // uniform-datapath reader (`sync_class::hold_operands`, further down).
+        let mem_table = cubit::scheduling_pass::mem_stall_from_table();
+        if let Some(dt) = dep_table.as_mut() {
+            dt.landing_rows = mem_table;
         }
         if let Some(dt) = &dep_table {
             // arch lock: latencies are measured per architecture (an sm_103a number is not an sm_120 number)
@@ -5673,7 +5693,8 @@ fn cmd_asm_directive_format(
         // the register (8) and behind a uniform-datapath reader of a `UMOV`'s target (3): these
         // two write-after-read cases are covered by distance, no barrier holds them
         // (`sync_class::hold_need`). A stall bump like the ones above: before the OPEX law.
-        if sync_classes && !fully_frozen {
+        // CUBIT_SCHED2_MEMSTALL=table: the same, by name (the margins behind memory words are gone).
+        if (sync_classes || mem_table) && !fully_frozen {
             let (moved, cycles) = cubit::sync_class::hold_operands(&mut insns_with_ctrl);
             if moved > 0 {
                 println!("  {}: {} overwriters moved behind the operand hold of their reader ({} cycles)", def.name, moved, cycles);

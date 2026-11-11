@@ -89,7 +89,13 @@ sparse-MLA kernel loses 6 prologue waits, bits identical, time within noise — 
 after every producer); with `CUBIT_SCHED2_LAT=sm120` the latencies come from the pair table
 `tables/dep_latency_sm120.json` (ptxas's practice, measured on sm_120 silicon) and hold on every control-flow
 path, and `CUBIT_MMA_PTXAS=1` replaces the MMA writeback drains by ptxas's issue distances. Measured on the
-sparse-MLA attention kernel: bits identical, −15 % time (stall cycles −48 %). All three are opt-in and for
+sparse-MLA attention kernel: bits identical, −15 % time (stall cycles −48 %). `CUBIT_SCHED2_MEMSTALL=table` (with
+`CUBIT_SCHED2` and the table; refused without) takes the first pass's own margins off the memory words — 4 behind
+every load and store, 10 behind a load it takes for loop-carried — and leaves them to the table's rows (4 in front
+of a memory word, as ptxas writes it); the landing rows in front of `EXIT` and the operand hold of an MMA, which
+those margins had kept by accident, become requirements by name, and the retirement stall of a recycled barrier
+stays (`CUBIT_RECYCLE_DRAIN`). On the attention kernel one pass of the loop goes from 3 134 to 2 819 static cycles
+with every check clean — not measured on silicon yet (KNOWN_ISSUES A38). All of these are opt-in and for
 sm_120, and the table is a `cubit asm` feature: `cubit::assemble` and the Python module do not honour
 `CUBIT_SCHED2_LAT` (they have no legaliser behind the passes; under plain `CUBIT_SCHED2` they run the
 scoreboard arming rule). They are certified on hand-written kernels: `cubit asm` names the instructions whose
