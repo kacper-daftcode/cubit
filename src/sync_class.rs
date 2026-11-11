@@ -484,10 +484,36 @@ pub fn hold_need(reader: &Instruction, writer: &Instruction, key: RegKey) -> Opt
     None
 }
 
+/// The uniform registers of a store's address: the descriptor of `desc[URn][Ra.64]`, the uniform
+/// base of `[URn+imm]` / `[Ra+URn+imm]` (the scheduler's convention does not list the base of
+/// the form without a general register). Empty for a word that is not a store.
+pub fn store_uniform_operands(insn: &Instruction) -> Vec<RegKey> {
+    let mut out: Vec<RegKey> = Vec::new();
+    if !crate::scheduling_pass::is_store(insn.opcode.as_str()) {
+        return out;
+    }
+    for o in &insn.operands {
+        let u = match o {
+            Operand::Desc { ur_idx, .. } => Some(*ur_idx),
+            Operand::Addr { ur_reg: Some(u), .. } => Some(*u),
+            _ => None,
+        };
+        if let Some(u) = u {
+            if u < 63 && !out.contains(&(true, u as u16)) {
+                out.push((true, u as u16));
+            }
+        }
+    }
+    out
+}
+
 /// An MMA's source registers are read over this many issue cycles.
 pub const MMA_OPERAND_HOLD: u8 = 8;
 /// A uniform-datapath reader against a `UMOV` of one of its operands.
 pub const UNIFORM_OPERAND_HOLD: u8 = 3;
+/// A store against a fixed-latency rewrite of the uniform register of its address (the vendor's
+/// smallest distance; no measurement below it).
+pub const STORE_UNIFORM_OPERAND_HOLD: u8 = 7;
 
 /// Raises stalls until every overwriter stands `hold_need` cycles behind the readers in front of
 /// it on the straight-line text (a transfer that cannot fall through ends the walk; the stall of

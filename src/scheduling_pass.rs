@@ -269,7 +269,7 @@ pub(crate) fn store_data_gprs(insn: &Instruction) -> Vec<u8> {
 /// `ATOMS.MAX.S32 RZ, [R157+UR7+0x15100], R58` of the sparse-MLA kernels with a read barrier;
 /// cubit protected only the address registers of the family). A later writer of one of these
 /// before the latch is a WAR the overwriter must wait.
-fn atom_data_gprs(insn: &Instruction) -> Vec<u8> {
+pub(crate) fn atom_data_gprs(insn: &Instruction) -> Vec<u8> {
     let op = insn.opcode.as_str();
     if !(is_atom_with_return(op) || is_reduction(op)) { return Vec::new(); }
     let bases: Vec<u8> = mem_addr_base_regs(insn).into_iter()
@@ -289,7 +289,7 @@ fn atom_data_gprs(insn: &Instruction) -> Vec<u8> {
 /// QK tiles of the leading warp per SMSP, cold-context runs pass). ptxas avoids the hazard
 /// structurally (double-buffered fragments); cubit reuses fragment registers, so it must
 /// protect them with a read-barrier on the MMA, waited by the overwriting load.
-fn mma_src_gprs(insn: &Instruction) -> Vec<u8> {
+pub(crate) fn mma_src_gprs(insn: &Instruction) -> Vec<u8> {
     if !is_warp_mma(insn.opcode.as_str()) { return Vec::new(); }
     // NEEDS 38 (T-10, 2026-11-06): `CUBIT_MMA_SRC_RB=0` switches the rule OFF -- no read barrier on an
     // MMA for its source fragments, so an overwriting load does not wait it (ptxas sets a read barrier
@@ -427,7 +427,7 @@ fn is_barrier_insn(op: &str) -> bool {
 /// Only memory loads and special-register reads use write barriers.
 /// ALU instructions (including IMAD.WIDE) use stall-based synchronization
 /// instead — matching nvcc behavior where IMAD.WIDE gets stall=6, wbar=7.
-fn insn_needs_write_bar(insn: &Instruction, table: Option<&IsaTable>, sched2: bool) -> bool {
+pub(crate) fn insn_needs_write_bar(insn: &Instruction, table: Option<&IsaTable>, sched2: bool) -> bool {
     let op = insn.opcode.as_str();
     // CUBIT_SYNC_CLASSES: a synchronisation word's class decides. The predicate of a phase check
     // (`SYNCS.PHASECHK.TRANS64[.TRYWAIT]`) and of `USETMAXREG.TRY_ALLOC` is a scoreboard result;
@@ -498,7 +498,7 @@ pub(crate) fn is_warp_mma(op: &str) -> bool {
 
 /// Returns true when the instruction is a store (no result, fire-and-forget).
 #[allow(dead_code)]
-fn insn_is_store(insn: &Instruction, table: Option<&IsaTable>) -> bool {
+pub(crate) fn insn_is_store(insn: &Instruction, table: Option<&IsaTable>) -> bool {
     if let Some(cc) = table.and_then(|t| t.ctrl_class(&insn.key)) {
         return cc.is_store();
     }
@@ -1646,7 +1646,7 @@ pub(crate) fn src_regs_plain(insn: &Instruction) -> Vec<(bool, u16)> {
 ///
 /// Returns the address GPR numbers read by a long-latency load. Empty for
 /// non-loads (we only protect the memory-pipe operand read here).
-fn load_addr_gprs(insn: &Instruction) -> Vec<u8> {
+pub(crate) fn load_addr_gprs(insn: &Instruction) -> Vec<u8> {
     let op = insn.opcode.as_str();
     if !is_long_latency(op) || is_store(op) { return Vec::new(); }
     // Global memory uses a 64-bit address pair (base, base+1); shared/local (LDS/LDL)
@@ -4513,6 +4513,44 @@ fn stall_gap(insns: &[Instruction], midx: usize, i: usize, wrap: Option<(usize, 
     }
 }
 
+/// Two producers on one write barrier complete in issue order (the younger does not displace
+/// the older's result from the barrier): the same completion-latency class = same opcode +
+/// width AND (for MEMORY loads) the same address stream/line — completion order across
+/// different streams is not issue order: global is cache-outcome order; shared/local reorders
+/// under cross-CTA MIO arbitration at >=2 CTAs/SM (the skinny_fp8_mm tree-reduce repro).
+/// Non-memory variable-latency producers (MUFU, S2R, ...) of the same opcode complete in order
+/// on their pipe. CUBIT_SHARED_BATCH=1 restores the old (unsafe) shared assumption to mirror
+/// the allocator's A/B gate.
+pub(crate) fn same_completion_class(older: &Instruction, younger: &Instruction) -> bool {
+    let wof = |of: &str| {
+        if of.contains(".128") {
+            16u8
+        } else if of.contains(".64") {
+            8
+        } else if of.contains(".U16") || of.contains(".S16") {
+            2
+        } else if of.contains(".U8") || of.contains(".S8") {
+            1
+        } else {
+            4
+        }
+    };
+    if older.opcode != younger.opcode {
+        return false;
+    }
+    if wof(older.opcode_full.as_str()) != wof(younger.opcode_full.as_str()) {
+        return false;
+    }
+    if load_kind_sched2(younger.opcode.as_str()) == 2 && std::env::var("CUBIT_SHARED_BATCH").ok().as_deref() == Some("1") {
+        return true;
+    }
+    match (load_addr_key(older), load_addr_key(younger)) {
+        (Some((kp, op_)), Some((ki, oi))) => kp == ki && (oi - op_).abs() < 0x80,
+        (None, None) => true,
+        _ => false,
+    }
+}
+
 /// One instruction of the scoreboard simulation: checks first (RAW / recycle /
 /// WAR), then state updates — the exact internal order the pre-347 single
 /// pass used. `wrap = Some(..)` marks a wrap re-walk: findings dedupe against
@@ -4698,43 +4736,7 @@ fn sb_step(
         // latency class (opcode/width) become unprotected — the last-only barrier now
         // tracks this producer, which may complete first. Same-opcode/width batch-mates
         // complete in issue order, so they stay protected (not a recycle).
-        let wof = |of: &str| {
-            if of.contains(".128") {
-                16u8
-            } else if of.contains(".64") {
-                8
-            } else if of.contains(".U16") || of.contains(".S16") {
-                2
-            } else if of.contains(".U8") || of.contains(".S8") {
-                1
-            } else {
-                4
-            }
-        };
-        // Same completion-latency class = same opcode + width AND (for MEMORY loads)
-        // the same address stream/line — completion order across different streams is
-        // not issue order: global is cache-outcome order; shared/local reorders under
-        // cross-CTA MIO arbitration at >=2 CTAs/SM (the skinny_fp8_mm tree-reduce
-        // repro). Non-memory variable-latency producers (MUFU, S2R, ...) of the same
-        // opcode complete in order on their pipe. CUBIT_SHARED_BATCH=1 restores the
-        // old (unsafe) shared assumption to mirror the allocator's A/B gate.
-        let shared_batch_unsafe = std::env::var("CUBIT_SHARED_BATCH").ok().as_deref() == Some("1");
-        let same_lat = |p: usize| {
-            if insns[p].opcode != insns[i].opcode {
-                return false;
-            }
-            if wof(insns[p].opcode_full.as_str()) != wof(insns[i].opcode_full.as_str()) {
-                return false;
-            }
-            if load_kind_sched2(insns[i].opcode.as_str()) == 2 && shared_batch_unsafe {
-                return true;
-            }
-            match (load_addr_key(&insns[p]), load_addr_key(&insns[i])) {
-                (Some((kp, op_)), Some((ki, oi))) => kp == ki && (oi - op_).abs() < 0x80,
-                (None, None) => true,
-                _ => false,
-            }
-        };
+        let same_lat = |p: usize| same_completion_class(&insns[p], &insns[i]);
         let losers: Vec<u16> = st
             .pending
             .iter()
@@ -4919,6 +4921,26 @@ fn run_verify_keys(
             "CUBIT_VERIFY: {} unprotected RAW, {} broken WAR, {} recycle-stale",
             rep.raw, rep.war, rep.recycle
         );
+        // CUBIT_VERIFY_FLOW=1: the same three kinds on the paths of the flow graph (`sb_flow`): the
+        // simulation above follows the text, also across a word that never falls through. A view
+        // of its own, next to the three counts; nothing above changes with it.
+        if crate::sb_flow::enabled() {
+            let flow = crate::sb_flow::walk(insns, table, rb_probe);
+            for f in &flow.findings {
+                eprintln!("{}", crate::sb_flow::describe(insns, f));
+            }
+            eprintln!(
+                "CUBIT_VERIFY_FLOW: {} unprotected RAW, {} broken WAR, {} recycle-stale on the paths of the flow graph ({} walk(s) end at a return or an absolute jump with their barrier unwaited, {} without the correlation of predicates)",
+                flow.count("raw"),
+                flow.count("war"),
+                flow.count("recycle-stale"),
+                flow.ends,
+                flow.uncorrelated
+            );
+            for line in crate::sb_flow::describe_apart(&flow) {
+                eprintln!("{line}");
+            }
+        }
         if rep.waw > 0 {
             eprintln!(
                 "CUBIT_VERIFY_WAW: {} pending result(s) written again on a path with no wait on the producer's write barrier; not in the counts above",

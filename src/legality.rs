@@ -102,6 +102,33 @@ pub fn report(kernel: &str, insns: &[Instruction], table: Option<&IsaTable>, dep
     if let Some((name, entries)) = &dep_table.edition {
         line["dep"]["edition"] = json!({"name": name, "entries": entries});
     }
+    // the three kinds of the simulation on the flow graph (`sb_flow`, opt-in: `CUBIT_VERIFY_FLOW=1`);
+    // without the variable the line is as before
+    if crate::sb_flow::enabled() {
+        let flow = crate::sb_flow::walk(insns, table, false);
+        let findings: Vec<Value> = flow
+            .findings
+            .iter()
+            .map(|f| {
+                json!({
+                    "kind": f.kind, "at": f.at, "other": f.other, "register": crate::sb_flow::reg_name(f.reg),
+                    "barrier": f.barrier, "distance": f.distance,
+                    "at_text": text(insns, f.at), "other_text": text(insns, f.other),
+                })
+            })
+            .collect();
+        line["flow"] = json!({
+            "raw": flow.count("raw"), "war": flow.count("war"), "recycle_stale": flow.count("recycle-stale"),
+            "ends": flow.ends, "uncorrelated": flow.uncorrelated,
+            "war_by_load": flow.war_by_load.len(),
+            "store_uniform_apart": flow.store_uniform_apart.len(),
+            "store_uniform_nearest": flow.store_uniform_apart.iter().map(|x| x.3).min(),
+            "store_uniform_distances": flow.store_uniform_apart.iter().map(|x| x.3).collect::<Vec<u32>>(),
+            "load_uniform_apart": flow.load_uniform_apart.len(),
+            "load_uniform_distances": flow.load_uniform_apart.iter().map(|x| x.3).collect::<Vec<u32>>(),
+            "findings": findings,
+        });
+    }
     line
 }
 

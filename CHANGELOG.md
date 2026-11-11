@@ -4,6 +4,55 @@ User-visible changes, newest first. Table syncs name the blackwell-isa revision 
 (`tables/SOURCE.json` pins it byte for byte). Numbered `BUG-NNN` entries are the encoder /
 decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `docs/TESTS.md`).
 
+## Unreleased — 2026-11-11 (`CUBIT_VERIFY_FLOW=1`: the three kinds of the scoreboard simulation — unprotected RAW, broken WAR, recycle-stale — walked on the paths of the flow graph; a view of its own beside the three counts of `CUBIT_VERIFY`, opt-in, nothing recorded moves)
+
+- **`CUBIT_VERIFY=1 CUBIT_VERIFY_FLOW=1` prints, behind the classic line, `CUBIT_VERIFY_FLOW: N unprotected RAW, N broken WAR,
+  N recycle-stale on the paths of the flow graph`, one `FLOW RAW` / `FLOW WAR` / `FLOW RECYCLE-STALE` line per finding, and what
+  it counts apart; `CUBIT_VERIFY_JSON` carries the object `flow` under the variable** (`src/sb_flow.rs`; KNOWN_ISSUES A43).
+  The simulation behind the three classic counts walks the words in TEXT order: the scoreboard of one word is handed to the
+  next, also across a word that never falls through, and its loop pass re-walks the text from the target of every backward
+  branch. On a kernel laid out with out-of-line blocks — behind the hot text, entered by a forward branch, left by a
+  backward one — that is not the execution, in both directions: it reports what no path has, and a forward branch carries
+  nothing to its target. The view asks the same questions of the paths (the walk of `store_paths`: every path, predicates
+  correlated, a dispatch followed): from every scoreboarded producer the readers reached with its write barrier unwaited (or
+  set again for a result of another completion class), from every memory word with a read barrier the first overwriter of
+  a late operand on each path with nothing that releases it in front. The per-word rules are the simulation's.
+- **What started it:** cubit's `CUBIT_SYNC_CLASSES` schedule of a served kernel (the m-tile form of fc1) has 276 "broken WAR"
+  lines, all of ONE store at the end of a loop body. Its read barrier is waited by the first overwriter on its only path —
+  the third word behind the back branch's target; the vendor's schedule of the same store has the same shape. The 276 are
+  the words of the out-of-line blocks that stand behind the unconditional back branch in the text (45) and of the text from
+  the targets of those blocks' backward returns (231). On the paths: 0.
+- **The five served MoE kernels, classic → view (unprotected RAW / broken WAR / recycle-stale; persistent, fc1, fc2, m-tile
+  fc1, m-tile fc2).** The vendor's own schedules under `CUBIT_SYNC_CLASSES`: 4 / 0 / 278, 4 / 2 / 143, 10 / 2 / 292, 4 / 1 / 155, 10 / 2 / 347 → 0 / 0 / 278, 0 / 0 / 139, 0 / 0 / 219, 0 / 0 / 156, 0 / 0 / 275
+  — every unprotected RAW and every broken WAR the simulation reports on them is a line of the text order. cubit's schedules
+  of the same texts, under the switch: 0 / 0 / 22, 1 / 0 / 1, 0 / 0 / 4, 0 / 276 / 1, 0 / 0 / 10 → 0 / 0 / 22, 0 / 0 / 1, 0 / 0 / 4, 0 / 0 / 1, 0 / 0 / 10; read without the switch:
+  0 / 26 / 22, 1 / 0 / 1, 0 / 3 / 4, 0 / 302 / 1, 0 / 3 / 10 → 0 / 0 / 22, 0 / 0 / 2, 0 / 0 / 4, 0 / 0 / 1, 0 / 0 / 10; in the read-barrier probe's view: 0 / 26 / 22, 1 / 25 / 1, 0 / 30 / 4, 0 / 339 / 1, 0 / 39 / 10 → 0 / 0 / 22, 0 / 0 / 2, 0 / 0 / 4, 0 / 0 / 1, 0 / 0 / 10.
+- **What serves:** the 101 production sources as they assemble — classic 0 / 4 / 926, view 0 / 0 / 926 (the four
+  broken WAR of the simulation are loads that rewrite a tensor instruction's fragment 42 – 47 issue cycles behind it: counted
+  apart by the view, see below); the 160 committed production cubins — classic 0 / 0 / 2 257, view 0 / 2 / 2 257: **two places in one
+  cubin of an older build, which the text order does not see** (KNOWN_ISSUES A44; no hazard by the measured operand hold). The
+  attention kernels are the same in both views.
+- **A store's uniform address register** — the descriptor of `STG.E desc[UR4][Ra.64], Rd`, the uniform base of
+  `STS [UR4+imm], Rd` — is read as late as its general registers and no walk of the stores named it. The view walks it: a
+  rewrite on a path with no wait on the store's read barrier is a finding closer than 7 issue cycles and is counted apart
+  from 7 on (`sync_class::STORE_UNIFORM_OPERAND_HOLD`: the distance the vendor's schedules keep). What serves has none of
+  either (101 sources, 160 cubins). The vendor's census (752 kernels): 656 such rewrites from 7 on, 82 of them at exactly 7 —
+  and 14 closer, one place in 14 builds of one kernel (a `ULOP3` on the uniform index of a guarded `STS.128` 3 cycles behind it).
+  The same register of a LOAD's address is counted in a rubric of its own at every distance, never as a finding — no rule
+  names it: the vendor's census has 6 such rewrites behind a load that carries a read barrier, 6 of them at the
+  nearest distance, 1; what serves from cubit has none (0 in the sources, 0 in the committed cubins).
+- **Counted apart, not findings:** an overwriter whose own result lands late (a load, a scoreboarded producer, a tensor
+  instruction) — the vendor's practice, right where it was measured — and the uniform-register rewrites from 7 on. A word
+  under `@!PT` never executes and `RZ` / `URZ` are no registers: the view leaves both out (the simulation counts an
+  "overwrite of R255" on the vendor's pads in the views that track a word without a read barrier).
+- **What the view does not decide** (A43): a dispatch is followed into every block only a register-indirect branch can
+  reach — neither the table nor a superset of it; a path ends at a return and a called routine is not entered (the walks that
+  end so are counted); the operand model is the simulation's (the vendor's census: 418 unprotected RAW of the view, all in
+  12 kernels of one family, on the B fragment of `HMMA.1688.F32.TF32`).
+- The three classic counts, their lines and the keys of `CUBIT_VERIFY_JSON` are unchanged; without the variable nothing is
+  printed or written that was not before.
+- `tests/verify_flow.rs` (3; 3 red before), unit tests of `sb_flow` (7).
+
 ## Unreleased — 2026-11-11 (pull-request pair cubit #5 + blackwell-isa #3 of the B300 lane: the four `ExpertsKernel` forms on sm103a / sm100a — `DEPBAR {…}`, the uniform `CCTL.E.C.LDCU.IV.DEEP`, `UBLKCP.S.G` with a descriptor, `UBLKPF.L2`)
 
 - **Tables vendored from blackwell-isa `ff1c320`: batch 1 of the lane's K3.1 served-kernel forms — four rows per table

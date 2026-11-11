@@ -75,21 +75,21 @@ pub struct StorePathFinding {
 const NPRED: u8 = 7;
 /// States one (store, register) walk may visit with predicate correlation before it falls back
 /// to the walk without it (at most one state per instruction; reports a superset).
-const FACT_STATE_BUDGET: usize = 60_000;
+pub(crate) const FACT_STATE_BUDGET: usize = 60_000;
 
 /// Predicate values known on a path: from the last conditional branch on the predicate until an
 /// instruction writes it.
 #[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Default)]
-struct Facts {
+pub(crate) struct Facts {
     known: u8,
     value: u8,
 }
 
 impl Facts {
-    fn get(self, n: u8) -> Option<bool> {
+    pub(crate) fn get(self, n: u8) -> Option<bool> {
         ((self.known >> n) & 1 == 1).then_some((self.value >> n) & 1 == 1)
     }
-    fn with(self, n: u8, v: bool) -> Facts {
+    pub(crate) fn with(self, n: u8, v: bool) -> Facts {
         Facts { known: self.known | (1 << n), value: (self.value & !(1 << n)) | ((v as u8) << n) }
     }
     fn without(self, mask: u8) -> Facts {
@@ -98,7 +98,7 @@ impl Facts {
 }
 
 /// (predicate, the value it must have for the instruction to execute) of a guard on P0..P6.
-fn guard_need(ins: &Instruction) -> Option<(u8, bool)> {
+pub(crate) fn guard_need(ins: &Instruction) -> Option<(u8, bool)> {
     match &ins.guard {
         Some(g) if !g.uniform && g.pred < NPRED => Some((g.pred, !g.negated)),
         _ => None,
@@ -106,7 +106,7 @@ fn guard_need(ins: &Instruction) -> Option<(u8, bool)> {
 }
 
 /// Does the instruction execute on a path with these facts? An unknown predicate may be true.
-fn executes(ins: &Instruction, facts: Facts) -> bool {
+pub(crate) fn executes(ins: &Instruction, facts: Facts) -> bool {
     match guard_need(ins) {
         Some((n, need)) => facts.get(n).is_none_or(|v| v == need),
         None => true,
@@ -114,7 +114,7 @@ fn executes(ins: &Instruction, facts: Facts) -> bool {
 }
 
 /// The barriers the instruction waits on: its wait mask, or the scoreboard a `DEPBAR` drains.
-fn waits(ins: &Instruction) -> u8 {
+pub(crate) fn waits(ins: &Instruction) -> u8 {
     let mut wm = ins.ctrl.wait_mask;
     if ins.opcode == "DEPBAR" {
         if let Some(crate::ir::Operand::Imm32(v)) = ins.operands.first() {
@@ -157,7 +157,7 @@ fn pred_dests(ins: &Instruction) -> u8 {
     m
 }
 
-struct Flow<'a> {
+pub(crate) struct Flow<'a> {
     insns: &'a [Instruction],
     addr2idx: HashMap<u32, usize>,
     /// The blocks only a register-indirect branch can reach (`cfg_flow`: no branch names them,
@@ -167,7 +167,7 @@ struct Flow<'a> {
 }
 
 impl<'a> Flow<'a> {
-    fn new(insns: &'a [Instruction]) -> Self {
+    pub(crate) fn new(insns: &'a [Instruction]) -> Self {
         let mut addr2idx = HashMap::new();
         for (i, ins) in insns.iter().enumerate() {
             addr2idx.insert(ins.addr, i);
@@ -179,7 +179,7 @@ impl<'a> Flow<'a> {
     /// The instructions that can follow `i` on a path with `facts`, each with the facts that hold
     /// there. `correlate == false` forgets the predicates (every conditional branch has both
     /// outcomes).
-    fn succ(&self, i: usize, facts: Facts, correlate: bool) -> Vec<(usize, Facts)> {
+    pub(crate) fn succ(&self, i: usize, facts: Facts, correlate: bool) -> Vec<(usize, Facts)> {
         let ins = &self.insns[i];
         let facts = facts.without(pred_dests(ins));
         let next = (i + 1 < self.insns.len()).then_some(i + 1);

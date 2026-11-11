@@ -52,6 +52,7 @@ pub mod ptx_lower;
 #[cfg(feature = "python")]
 pub mod python;
 pub mod sass_file;
+pub mod sb_flow;
 pub mod sched;
 pub mod stallfix;
 pub mod store_paths;

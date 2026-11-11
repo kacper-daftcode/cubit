@@ -132,6 +132,10 @@ register that a word reads through an operand slot with the operand-reuse flag (
 path before the next word that reads it through that slot, with the flag or without — that reader gets the old
 content at every distance; a branch does not end the window, and the slot is the flag bit the table gives the
 operand, not the position of its field (`REUSE FLAG`, `CUBIT_VERIFY_REUSE`; KNOWN_ISSUES A39);
+`CUBIT_VERIFY_FLOW=1` adds a view of the PATHS beside the three counts: the simulation follows the text — also across a word that never
+falls through, which on a kernel with out-of-line blocks reports what no execution has and misses what a forward branch
+carries — and the view asks the same three questions of every path of the flow graph (`CUBIT_VERIFY_FLOW: …`, the object
+`flow` of the JSON line; it also walks the uniform register of a store's address; KNOWN_ISSUES A43).
 `CUBIT_VERIFY_RBPROBE=1`
 adds the read-barrier coverage probe of the legality oracle (`tools/sched_oracle.py`, KNOWN_ISSUES A4).
 `CUBIT_VERIFY_JSON=<file>` appends one JSON line per kernel with the counts of these three checks — the scoreboard
