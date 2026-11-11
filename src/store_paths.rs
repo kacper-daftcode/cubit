@@ -250,6 +250,75 @@ impl<'a> Flow<'a> {
         self.walk_from(s, reg, barriers, correlate, Facts::default())
     }
 
+    /// The overwriters of the source register `reg` of the shuffle `s` reached on a path with
+    /// none of the waits that release it. `release` holds the shuffle's own barriers; a younger
+    /// shuffle passed on the path adds its write barrier (the unit is served in order: when the
+    /// younger result has landed, the older shuffle has read its source). A shuffle that
+    /// rewrites the register is no pair and does not end the path. Each with the smallest
+    /// issue distance of such a path, and `true` when every such path carries a wait of the
+    /// vendor's two further covers — the READ barrier of a younger shuffle, the write barrier
+    /// of a younger shared-memory load (`ShuffleSourceFinding::practice`).
+    fn walk_shuffle(&self, s: usize, reg: u8, release: u8, correlate: bool, facts: Facts) -> Option<Vec<(usize, u32, bool)>> {
+        // per overwriter: (smallest distance, reached on a path with no practice cover either)
+        let mut found: HashMap<usize, (u32, bool)> = HashMap::new();
+        // state: instruction, predicate facts, releasing barriers, practice barriers, a practice wait passed
+        type State = (usize, Facts, u8, u8, bool);
+        let mut seen: HashSet<State> = HashSet::new();
+        let mut heap: BinaryHeap<Reverse<(u32, State)>> = BinaryHeap::new();
+        let d0 = self.insns[s].ctrl.stall as u32;
+        for (j, f) in self.succ(s, facts, correlate) {
+            heap.push(Reverse((d0, (j, f, release, 0u8, false))));
+        }
+        while let Some(Reverse((d, state))) = heap.pop() {
+            if !seen.insert(state) {
+                continue;
+            }
+            if correlate && seen.len() > FACT_STATE_BUDGET {
+                return None;
+            }
+            let (i, f, rel, soft, hit) = state;
+            let ins = &self.insns[i];
+            let w = waits(ins);
+            if w & rel != 0 {
+                continue;
+            }
+            let hit = hit || w & soft != 0;
+            let is_shuffle = ins.opcode == "SHFL";
+            if !is_shuffle && executes(ins, f) && gpr_dests(ins).contains(&reg) {
+                let e = found.entry(i).or_insert((d, !hit));
+                e.0 = e.0.min(d);
+                e.1 |= !hit;
+                continue;
+            }
+            // A younger word of the unit that certainly executes on this path. A shuffle — also
+            // one that rewrites the register itself: the unit serves the two in order, so it is
+            // no pair, and the walk goes on behind it (its write lands late; a fixed-latency
+            // word behind it can still overtake both): a wait on its WRITE barrier releases the
+            // older one's source too (measured); a wait on its READ barrier, or on the write
+            // barrier of a younger shared-memory load, is the vendor's practice.
+            let (mut rel2, mut soft2) = (rel, soft);
+            if guard_need(ins).is_none_or(|(n, need)| f.get(n) == Some(need)) {
+                let bar = |b: u8| if b < sp::NUM_BARRIERS as u8 { 1u8 << b } else { 0 };
+                if is_shuffle {
+                    rel2 |= bar(ins.ctrl.write_bar);
+                    soft2 |= bar(ins.ctrl.read_bar);
+                } else if ins.opcode == "LDS" {
+                    soft2 |= bar(ins.ctrl.write_bar);
+                }
+            }
+            let d2 = d + ins.ctrl.stall as u32;
+            for (j, g) in self.succ(i, f, correlate) {
+                let next = (j, g, rel2, soft2 & !rel2, hit);
+                if !seen.contains(&next) {
+                    heap.push(Reverse((d2, next)));
+                }
+            }
+        }
+        let mut v: Vec<(usize, u32, bool)> = found.into_iter().map(|(o, (d, bare))| (o, d, !bare)).collect();
+        v.sort();
+        Some(v)
+    }
+
     /// [`Flow::walk`] with the predicate values that are known when `s` has executed.
     fn walk_from(&self, s: usize, reg: u8, barriers: u8, correlate: bool, facts: Facts) -> Option<Vec<(usize, u32)>> {
         let mut found: HashMap<usize, u32> = HashMap::new();
@@ -521,6 +590,105 @@ pub fn describe_rewrite(insns: &[Instruction], f: &RewriteFinding) -> String {
         },
         f.distance,
         f.write_bar,
+    )
+}
+
+// ───────────────────────── a shuffle's source ─────────────────────────
+
+/// A source register of a warp shuffle rewritten on a path with none of the waits that release
+/// it (KNOWN_ISSUES A34).
+///
+/// A `SHFL` reads its register operands when its unit serves it, not at issue: an instruction
+/// that rewrites one of them without a wait is wrong at every issue distance tried once an SM
+/// runs more than one warp — the shuffle takes its source when the stores issued in front of
+/// it have been served, so there is no distance to measure. Three waits release the source,
+/// each measured right: a wait on the shuffle's read barrier; a wait on its own write barrier
+/// (the result has landed, so the operands were read); a wait on the write barrier of a
+/// younger shuffle (the unit is served in order). The scoreboard simulation does not model
+/// the operand at all — a shuffle has no address — so a schedule that dropped the wait passed.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ShuffleSourceFinding {
+    /// index of the shuffle
+    pub shuffle: usize,
+    /// index of the instruction that rewrites `reg`
+    pub overwriter: usize,
+    /// the lowest source register of the shuffle that the overwriter writes on that path
+    pub reg: u8,
+    /// the shuffle's read barrier
+    pub read_bar: Option<u8>,
+    /// the shuffle's write barrier
+    pub write_bar: Option<u8>,
+    /// the smallest issue distance (sum of the stall counts from the shuffle) of such a path
+    pub distance: u32,
+    /// every such path carries a wait of the vendor's two further covers — on the READ barrier
+    /// of a younger shuffle or on the write barrier of a younger shared-memory load (the unit
+    /// has passed the older shuffle when a younger word of it has been served). The vendor's
+    /// practice, not measured as a cover: counted apart
+    pub practice: bool,
+}
+
+/// The shuffle → overwriter pairs of a scheduled kernel: for every `SHFL`, the instructions
+/// that rewrite one of its general-register sources on a path of the flow graph that carries
+/// none of the three releasing waits (the walk of the stores' read barriers, with the same
+/// predicate correlation, dispatches and limits). An overwriter that is itself a shuffle is no
+/// pair: the vendor's assembler chains shuffles through one register 4 cycles apart.
+pub fn unwaited_shuffle_sources(insns: &[Instruction]) -> Vec<ShuffleSourceFinding> {
+    let flow = Flow::new(insns);
+    let mut out = Vec::new();
+    for (s, ins) in insns.iter().enumerate() {
+        if ins.opcode != "SHFL" {
+            continue;
+        }
+        let bar = |b: u8| (b < sp::NUM_BARRIERS as u8).then_some(b);
+        let (read_bar, write_bar) = (bar(ins.ctrl.read_bar), bar(ins.ctrl.write_bar));
+        let release = read_bar.map_or(0, |b| 1u8 << b) | write_bar.map_or(0, |b| 1u8 << b);
+        let mut regs: Vec<u8> = sp::src_regs(ins)
+            .into_iter()
+            .filter(|(u, r)| !*u && *r < 255)
+            .map(|(_, r)| r as u8)
+            .collect();
+        regs.sort_unstable();
+        regs.dedup();
+        // the shuffle has executed: its guard held
+        let start = guard_need(ins).map_or(Facts::default(), |(n, need)| Facts::default().with(n, need));
+        // per overwriter: the smallest distance with its register, and whether every register's
+        // every path is covered by the practice
+        let mut found: HashMap<usize, (u32, u8, bool)> = HashMap::new();
+        for r in regs {
+            let hits = flow
+                .walk_shuffle(s, r, release, true, start)
+                .or_else(|| flow.walk_shuffle(s, r, release, false, start))
+                .unwrap_or_default();
+            for (o, d, practice) in hits {
+                let e = found.entry(o).or_insert((d, r, practice));
+                if d < e.0 {
+                    (e.0, e.1) = (d, r);
+                }
+                e.2 &= practice;
+            }
+        }
+        let mut rows: Vec<(usize, (u32, u8, bool))> = found.into_iter().collect();
+        rows.sort();
+        for (o, (d, r, practice)) in rows {
+            out.push(ShuffleSourceFinding { shuffle: s, overwriter: o, reg: r, read_bar, write_bar, distance: d, practice });
+        }
+    }
+    out
+}
+
+/// One line per pair, as `CUBIT_VERIFY` prints it.
+pub fn describe_shuffle_source(insns: &[Instruction], f: &ShuffleSourceFinding) -> String {
+    let b = |x: Option<u8>| x.map_or("-".to_string(), |v| v.to_string());
+    format!(
+        "  SHUFFLE SOURCE: insn[{}] {} [R{}:W{}] source R{} <- rewritten by insn[{}] {} {} issue cycles later on a path with none of the waits that release it (the shuffle's read barrier, its write barrier, a younger shuffle's write barrier)",
+        f.shuffle,
+        insns[f.shuffle].opcode_full,
+        b(f.read_bar),
+        b(f.write_bar),
+        f.reg,
+        f.overwriter,
+        insns[f.overwriter].opcode_full,
+        f.distance,
     )
 }
 
@@ -919,5 +1087,205 @@ mod tests {
             "    [B------:R-:W-:-:S01] EXIT ;",
         ]);
         assert_eq!(rewrites(&k), [(0, 2, 9, 2, None, 6)]);
+    }
+
+    // ───────────── a shuffle's source ─────────────
+
+    fn shuffles(k: &[Instruction]) -> Vec<(usize, usize, u8, u32)> {
+        unwaited_shuffle_sources(k).iter().map(|x| (x.shuffle, x.overwriter, x.reg, x.distance)).collect()
+    }
+
+    /// The measured shape: a shuffle, and a fixed-latency word that rewrites its source register
+    /// in front of every wait.
+    const SHUFFLE: &[&str] = &[
+        "    [B------:R2:W1:Y:S04] SHFL.BFLY PT, R23, R13, 0x1, 0x1f ;",
+        "    [B------:R-:W-:Y:S06] MOV R13, RZ ;",
+        "    [B-1----:R-:W-:Y:S04] IADD3 R5, PT, PT, R23, 0x1, RZ ;",
+        "    [B------:R-:W-:-:S01] EXIT ;",
+    ];
+
+    #[test]
+    fn a_shuffles_source_rewritten_with_no_wait_is_a_pair() {
+        let k = kernel(SHUFFLE);
+        // the scoreboard simulation does not model the operand: nothing in the three counts
+        let rep = sp::verify_scoreboard_report(&k, None);
+        assert_eq!((rep.raw, rep.war, rep.recycle), (0, 0, 0));
+        assert_eq!(shuffles(&k), [(0, 1, 13, 4)]);
+        assert_eq!(rep.shfl_sources, 1);
+        let f = &unwaited_shuffle_sources(&k)[0];
+        assert_eq!((f.read_bar, f.write_bar), (Some(2), Some(1)));
+        let line = describe_shuffle_source(&k, f);
+        assert!(line.contains("SHUFFLE SOURCE: insn[0] SHFL.BFLY [R2:W1] source R13 <- rewritten by insn[1] MOV 4 issue cycles later on a path with none of the waits that release it"), "{line}");
+        // a read barrier that nobody waits changes nothing, and a shuffle with no barrier at all is the same pair
+        for cc in ["B------:R-:W1:Y:S04", "B------:R-:W-:Y:S04"] {
+            let mut bare = SHUFFLE.to_vec();
+            let first = format!("    [{cc}] SHFL.BFLY PT, R23, R13, 0x1, 0x1f ;");
+            bare[0] = &first;
+            bare[2] = "    [B------:R-:W-:Y:S04] IADD3 R5, PT, PT, R6, 0x1, RZ ;";
+            assert_eq!(shuffles(&kernel(&bare)), [(0, 1, 13, 4)]);
+        }
+        // a register that is not a source of the shuffle may be rewritten at once: its destination, any other
+        let mut other = SHUFFLE.to_vec();
+        other[1] = "    [B-1----:R-:W-:Y:S06] MOV R23, RZ ;";
+        assert!(shuffles(&kernel(&other)).is_empty());
+        // a lane or mask operand in a register is a source like the value
+        let k = kernel(&[
+            "    [B------:R-:W1:Y:S04] SHFL.IDX PT, R35, R25, R23, 0x1f ;",
+            "    [B------:R-:W-:Y:S02] MOV R23, RZ ;",
+            "    [B------:R-:W-:Y:S02] MOV R25, RZ ;",
+            "    [B------:R-:W-:-:S01] EXIT ;",
+        ]);
+        assert_eq!(shuffles(&k), [(0, 1, 23, 4), (0, 2, 25, 6)]);
+    }
+
+    #[test]
+    fn each_of_the_three_waits_releases_a_shuffles_source() {
+        // (1) the overwriter waits on the shuffle's read barrier
+        let mut rb = SHUFFLE.to_vec();
+        rb[1] = "    [B--2---:R-:W-:Y:S06] MOV R13, RZ ;";
+        assert!(shuffles(&kernel(&rb)).is_empty());
+        // (2) a wait on the shuffle's own write barrier stands in front of the overwriter (the result
+        // has landed, so the operands were read) -- on a shuffle without a read barrier, and on one
+        // that carries a read barrier the overwriter does not wait
+        for cc in ["B------:R-:W1:Y:S04", "B------:R2:W1:Y:S04"] {
+            let first = format!("    [{cc}] SHFL.BFLY PT, R23, R13, 0x1, 0x1f ;");
+            let k = kernel(&[
+                &first,
+                "    [B-1----:R-:W-:Y:S04] IADD3 R5, PT, PT, R23, 0x1, RZ ;",
+                "    [B------:R-:W-:Y:S06] MOV R13, RZ ;",
+                "    [B------:R-:W-:-:S01] EXIT ;",
+            ]);
+            assert!(shuffles(&k).is_empty(), "{cc}");
+        }
+        // (3) a shuffle with no barrier, a younger shuffle with a write barrier behind it, and the
+        // wait on the younger one's barrier in front of the overwriter (the unit is served in order)
+        let younger = [
+            "    [B------:R-:W-:Y:S01] SHFL.BFLY PT, R23, R13, 0x1, 0x1f ;",
+            "    [B------:R-:W3:Y:S04] SHFL.BFLY PT, R24, R14, 0x1, 0x1f ;",
+            "    [B---3--:R-:W-:Y:S04] IADD3 R5, PT, PT, R23, R24, RZ ;",
+            "    [B------:R-:W-:Y:S06] MOV R13, RZ ;",
+            "    [B------:R-:W-:-:S01] EXIT ;",
+        ];
+        assert!(shuffles(&kernel(&younger)).is_empty());
+        // ... without that wait: a pair (the younger shuffle's own source R14 is not rewritten)
+        let mut unwaited = younger;
+        unwaited[2] = "    [B------:R-:W-:Y:S04] IADD3 R5, PT, PT, R6, 0x1, RZ ;";
+        assert_eq!(shuffles(&kernel(&unwaited)), [(0, 3, 13, 9)]);
+        // ... and a younger shuffle that may not execute on the path lends no barrier
+        let mut guarded = younger;
+        guarded[1] = "    [B------:R-:W3:Y:S04] @P0 SHFL.BFLY PT, R24, R14, 0x1, 0x1f ;";
+        assert_eq!(shuffles(&kernel(&guarded)), [(0, 3, 13, 9)]);
+        // an older shuffle's barrier is not a cover: only a YOUNGER result says the unit has passed
+        let k = kernel(&[
+            "    [B------:R-:W3:Y:S04] SHFL.BFLY PT, R24, R14, 0x1, 0x1f ;",
+            "    [B------:R-:W-:Y:S01] SHFL.BFLY PT, R23, R13, 0x1, 0x1f ;",
+            "    [B---3--:R-:W-:Y:S04] IADD3 R5, PT, PT, R24, 0x1, RZ ;",
+            "    [B------:R-:W-:Y:S06] MOV R13, RZ ;",
+            "    [B------:R-:W-:-:S01] EXIT ;",
+        ]);
+        assert_eq!(shuffles(&k), [(1, 3, 13, 5)]);
+    }
+
+    #[test]
+    fn a_shuffle_that_rewrites_the_register_is_no_pair_and_the_walk_goes_on_behind_it() {
+        // the vendor chains shuffles through one register 4 cycles apart: `SHFL R47 <- R18`, then
+        // `SHFL R18 <- R45`. The second is no overwriter to report (one unit, in order) -- but its
+        // write lands late, so a fixed-latency word behind it can still overtake both: the walk
+        // goes on. Here the `SEL` stands behind a wait on the YOUNGER shuffle's write barrier.
+        let lines = [
+            "    [B------:R0:W1:Y:S04] SHFL.BFLY PT, R47, R18, 0x1, 0x1f ;",
+            "    [B------:R-:W2:Y:S04] SHFL.BFLY PT, R18, R45, 0x1, 0x1f ;",
+            "    [B-12---:R-:W-:Y:S02] IADD3 R5, PT, PT, R47, R18, RZ ;",
+            "    [B------:R-:W-:Y:S01] SEL R18, R35, R18, !P4 ;",
+            "    [B------:R-:W-:-:S01] EXIT ;",
+        ];
+        assert!(shuffles(&kernel(&lines)).is_empty());
+        // with no wait in front of the `SEL` it is the first fixed-latency overwriter of the older
+        // shuffle's source, 10 issue cycles behind it
+        let mut bare = lines;
+        bare[2] = "    [B------:R-:W-:Y:S02] IADD3 R5, PT, PT, R6, 0x1, RZ ;";
+        assert_eq!(shuffles(&kernel(&bare)), [(0, 3, 18, 10)]);
+        // a shuffle whose destination is its own source: an overwriter of the result behind the wait
+        // on the write barrier is released like any other
+        let k = kernel(&[
+            "    [B------:R0:W3:Y:S04] SHFL.IDX PT, R22, R22, R20, 0x1f ;",
+            "    [B---3--:R-:W-:Y:S01] SEL R22, R35, R22, !P4 ;",
+            "    [B------:R-:W-:-:S01] EXIT ;",
+        ]);
+        assert!(shuffles(&k).is_empty());
+    }
+
+    #[test]
+    fn the_vendors_two_further_covers_are_counted_apart() {
+        let practice = |k: &[Instruction]| -> Vec<(usize, usize, u8, bool)> {
+            unwaited_shuffle_sources(k).iter().map(|x| (x.shuffle, x.overwriter, x.reg, x.practice)).collect()
+        };
+        // several shuffles read one register; only the YOUNGEST carries a read barrier, and the
+        // overwriter waits on that one (the vendor's shape: 121 such pairs in the sm_120 census).
+        // The unit is served in order, so the older shuffles have read the register too — the
+        // vendor's practice, not measured as a cover: a pair counted apart for each older shuffle.
+        let lines = [
+            "    [B------:R-:W1:Y:S01] SHFL.IDX PT, R7, R22, R36, 0x1f ;",
+            "    [B------:R-:W2:Y:S01] SHFL.IDX PT, R3, R51, R36, 0x1f ;",
+            "    [B------:R0:W4:Y:S01] SHFL.IDX PT, R5, R37, R36, 0x1f ;",
+            "    [B0-----:R-:W-:Y:S01] FMUL.FTZ R36, R25, R34 ;",
+            "    [B-12-4-:R-:W-:Y:S01] IADD3 R9, PT, PT, R7, R3, R5 ;",
+            "    [B------:R-:W-:-:S01] EXIT ;",
+        ];
+        let k = kernel(&lines);
+        assert_eq!(practice(&k), [(0, 3, 36, true), (1, 3, 36, true)]);
+        let rep = sp::verify_scoreboard_report(&k, None);
+        assert_eq!((rep.shfl_sources, rep.shfl_sources_practice), (0, 2));
+        // without that wait the three are pairs like any other
+        let mut bare = lines;
+        bare[3] = "    [B------:R-:W-:Y:S01] FMUL.FTZ R36, R25, R34 ;";
+        assert_eq!(practice(&kernel(&bare)), [(0, 3, 36, false), (1, 3, 36, false), (2, 3, 36, false)]);
+        // a shuffle with no barrier, a shared-memory load issued behind it, and the wait on that
+        // load's write barrier in front of the overwriter (the vendor's shape: 55 such pairs)
+        let lines = [
+            "    [B------:R-:W-:Y:S01] SHFL.BFLY PT, R93, R92, 0x1, 0x1f ;",
+            "    [B------:R-:W0:Y:S04] LDS.U8 R95, [R96+0xa90f] ;",
+            "    [B0-----:R-:W-:-:S02] IMAD.SHL.U32 R98, R95, 0x800000, RZ ;",
+            "    [B------:R-:W-:Y:S01] MOV R92, R0 ;",
+            "    [B------:R-:W-:-:S01] EXIT ;",
+        ];
+        assert_eq!(practice(&kernel(&lines)), [(0, 3, 92, true)]);
+        // a load of the other memory pipe is no word of the shuffle's unit
+        let mut global = lines;
+        global[1] = "    [B------:R-:W0:Y:S04] LDG.E.U8 R95, desc[UR4][R96.64] ;";
+        assert_eq!(practice(&kernel(&global)), [(0, 3, 92, false)]);
+        // ... and a shared load issued IN FRONT of the shuffle says nothing about it
+        let k = kernel(&[
+            "    [B------:R-:W0:Y:S04] LDS.U8 R95, [R96+0xa90f] ;",
+            "    [B------:R-:W-:Y:S01] SHFL.BFLY PT, R93, R92, 0x1, 0x1f ;",
+            "    [B0-----:R-:W-:-:S02] IMAD.SHL.U32 R98, R95, 0x800000, RZ ;",
+            "    [B------:R-:W-:Y:S01] MOV R92, R0 ;",
+            "    [B------:R-:W-:-:S01] EXIT ;",
+        ]);
+        assert_eq!(practice(&k), [(1, 3, 92, false)]);
+    }
+
+    #[test]
+    fn the_shuffle_walk_is_path_sensitive() {
+        // the releasing wait stands on one arm only: the pair is reached through the taken branch
+        let k = kernel(&[
+            "    [B------:R2:W1:Y:S04] SHFL.BFLY PT, R23, R13, 0x1, 0x1f ;",
+            "    [B------:R-:W-:-:S01] @P3 BRA L_skip ;",
+            "    [B-1----:R-:W-:-:S01] IADD3 R5, PT, PT, R23, 0x1, RZ ;",
+            "L_skip:",
+            "    [B------:R-:W-:-:S01] MOV R13, RZ ;",
+            "    [B------:R-:W-:-:S01] EXIT ;",
+        ]);
+        assert_eq!(shuffles(&k), [(0, 3, 13, 5)]);
+        // an overwriter under a guard known to be false on the path does not write
+        let k = kernel(&[
+            "    [B------:R2:W1:Y:S04] SHFL.BFLY PT, R23, R13, 0x1, 0x1f ;",
+            "    [B------:R-:W-:-:S01] @!P5 BRA L_out ;",
+            "    [B------:R-:W-:-:S01] @!P5 MOV R13, RZ ;",
+            "L_out:",
+            "    [B--2---:R-:W-:-:S01] MOV R13, RZ ;",
+            "    [B------:R-:W-:-:S01] EXIT ;",
+        ]);
+        assert!(shuffles(&k).is_empty());
     }
 }

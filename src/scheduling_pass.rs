@@ -4067,6 +4067,13 @@ pub struct VerifyReport {
     /// such pairs of a shared-memory load and a shuffle without a write barrier — not in `waw`:
     /// the one shape the vendor's assembler leaves without a wait (3 pairs in the sm_120 census)
     pub waw_shuffle_into_load: usize,
+    /// shuffle -> overwriter pairs: a source register of a `SHFL` rewritten on some path of the
+    /// flow graph with none of the three waits that release it
+    /// (`store_paths::unwaited_shuffle_sources`; not part of the three classic counts)
+    pub shfl_sources: usize,
+    /// such pairs behind a wait of the vendor's two further covers only (a younger shuffle's read
+    /// barrier, a younger shared-memory load's write barrier) — not in `shfl_sources`
+    pub shfl_sources_practice: usize,
 }
 
 /// BUG-370: classification of a statically UNRESOLVABLE control-flow edge,
@@ -4230,7 +4237,9 @@ pub fn verify_scoreboard_findings(insns: &[Instruction], table: Option<&IsaTable
                 1 => "war",
                 2 => "recycle-stale",
                 3 => "waw",
-                _ => "waw-shuffle-into-load",
+                4 => "waw-shuffle-into-load",
+                5 => "shfl-source",
+                _ => "shfl-source-practice",
             },
             at,
             other,
@@ -4694,12 +4703,22 @@ fn run_verify_keys(
         .partition(|f| crate::store_paths::is_shuffle_into_shared_load(insns, f));
     rep.waw = rewrites.len();
     rep.waw_shuffle_into_load = shuffle_into_load.len();
+    // A shuffle's source registers on every path (`store_paths::unwaited_shuffle_sources`): the
+    // simulation above registers under a read barrier only address registers (and an atomic's
+    // data); a shuffle has none, so its sources were protected by nothing here (KNOWN_ISSUES A34).
+    let (shuffle_practice, shuffle_sources): (Vec<_>, Vec<_>) =
+        crate::store_paths::unwaited_shuffle_sources(insns).into_iter().partition(|f| f.practice);
+    rep.shfl_sources = shuffle_sources.len();
+    rep.shfl_sources_practice = shuffle_practice.len();
     if print {
         for f in &paths {
             eprintln!("{}", crate::store_paths::describe(insns, f));
         }
         for f in &rewrites {
             eprintln!("{}", crate::store_paths::describe_rewrite(insns, f));
+        }
+        for f in &shuffle_sources {
+            eprintln!("{}", crate::store_paths::describe_shuffle_source(insns, f));
         }
         eprintln!(
             "CUBIT_VERIFY: {} unprotected RAW, {} broken WAR, {} recycle-stale",
@@ -4709,6 +4728,18 @@ fn run_verify_keys(
             eprintln!(
                 "CUBIT_VERIFY_WAW: {} pending result(s) written again on a path with no wait on the producer's write barrier; not in the counts above",
                 rep.waw
+            );
+        }
+        if rep.shfl_sources > 0 {
+            eprintln!(
+                "CUBIT_VERIFY_SHFL: {} source register(s) of a shuffle rewritten on a path with none of the waits that release it; not in the counts above",
+                rep.shfl_sources
+            );
+        }
+        if rep.shfl_sources_practice > 0 {
+            eprintln!(
+                "CUBIT_VERIFY_SHFL: + {} such pair(s) behind a wait on a younger shuffle's read barrier or a younger shared-memory load's write barrier only (not counted: the vendor's practice, the unit is served in order)",
+                rep.shfl_sources_practice
             );
         }
         if rep.waw_shuffle_into_load > 0 {
@@ -4741,6 +4772,9 @@ fn run_verify_keys(
     // kind 4: the same on the vendor's shuffle-into-load shape, counted apart
     keys.extend(rewrites.iter().map(|f| (3u8, f.writer, f.producer, f.reg as u16)));
     keys.extend(shuffle_into_load.iter().map(|f| (4u8, f.writer, f.producer, f.reg as u16)));
+    // kind 5: a shuffle's source rewritten (`at` rewrites a source register of the shuffle `other`)
+    keys.extend(shuffle_sources.iter().map(|f| (5u8, f.overwriter, f.shuffle, f.reg as u16)));
+    keys.extend(shuffle_practice.iter().map(|f| (6u8, f.overwriter, f.shuffle, f.reg as u16)));
     keys.sort_unstable();
     (rep, keys)
 }

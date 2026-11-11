@@ -12,6 +12,15 @@
 //! `ps_s2_waw_vendor` (ptxas's form) and `ps_s2_waw_exclusive` (complementary guards: the two writers never both
 //! execute) are the controls.
 //!
+//! A SHUFFLE'S SOURCE (KNOWN_ISSUES A34; law: a fixed-latency word that rewrites a source register of a `SHFL` stands
+//! behind a wait that releases that source). `ps_s2_shfl_none` — `[R2:W1] SHFL.BFLY PT, R23, R13` and `MOV R13, RZ` in
+//! front of every wait — failed first: the verifier did not model the operand at all. `ps_s2_shfl_vendor` (ptxas's
+//! form: the overwriter waits on the shuffle's read barrier) is a control. `ps_s2_shfl_barw` is the shape of five
+//! sites of cubit's own schedule: the overwriter stands behind a wait on the shuffle's own WRITE barrier, on a
+//! shuffle that also carries a read barrier it does not wait. The test was written to ask for a finding of class
+//! `needs-probe` there; the probes of the same day measured that cover right (0 of 662 261 760 thread-launches), so
+//! it is a control too: released, no finding.
+//!
 //! The assertions fix a FORM, not names: a finding is any object of any `findings` array of the `CUBIT_VERIFY_JSON`
 //! line that carries both instruction indices as numbers and the register as a string. Indices are those of the
 //! fixture (first instruction = 0).
@@ -108,5 +117,35 @@ fn the_second_writer_waiting_on_the_first_ones_barrier_is_clean() {
 fn two_writers_under_complementary_guards_are_no_pair() {
     let line = legality("ps_s2_waw_exclusive"); // [3] @!P0 LDC.64 R28 / [4] @P0 LDC.64 R28
     assert!(naming(&line, 3, 4, "R28").is_empty(), "{line}");
+    assert_eq!(counters(&line), (0, 0, 0));
+}
+
+// ---- a shuffle's source ----
+
+#[test]
+fn a_shuffles_source_rewritten_behind_none_of_the_three_waits_is_reported() {
+    // [3] [R2:W1] SHFL.BFLY PT, R23, R13 ; [4] [B------] MOV R13, RZ ; [5] [B-1----] reads R23
+    let line = legality("ps_s2_shfl_none");
+    let f = naming(&line, 3, 4, "R13");
+    assert!(!f.is_empty(), "no finding names the shuffle [3] and the overwriter [4] of its source R13: {line}");
+    assert!(f.iter().all(|x| x["kind"] == "shfl-source"), "{f:?}");
+    // beside the three classic counts, not inside them
+    assert_eq!(counters(&line), (0, 0, 0));
+    assert_eq!(line["scoreboard"]["shfl_sources"], 1);
+}
+
+#[test]
+fn the_overwriter_waiting_on_the_shuffles_read_barrier_is_clean() {
+    let line = legality("ps_s2_shfl_vendor"); // ptxas: [6] [B--2---] MOV R13, RZ
+    assert!(naming(&line, 3, 6, "R13").is_empty(), "{line}");
+    assert_eq!(counters(&line), (0, 0, 0));
+}
+
+#[test]
+fn a_barred_shuffles_source_rewritten_behind_a_wait_on_its_write_barrier_is_released() {
+    // [3] [R2:W1] SHFL.BFLY PT, R23, R13 ; [4] [B-1----] reads R23 ; [6] [B------] MOV R13, RZ -- the cover measured
+    // right on a shuffle with and without a read barrier
+    let line = legality("ps_s2_shfl_barw");
+    assert!(naming(&line, 3, 6, "R13").is_empty(), "{line}");
     assert_eq!(counters(&line), (0, 0, 0));
 }

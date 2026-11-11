@@ -118,13 +118,16 @@ return ends the walk), and each register whose scoreboarded result is still pend
 some path with no wait on the producer's write barrier (`WRITE AFTER WRITE`, `CUBIT_VERIFY_WAW`; writers under
 complementary guards are no pair). Under `CUBIT_SYNC_CLASSES` the barrier allocator closes its own schedule under that
 walk — such a writer waits (BUG-489; `CUBIT_WAW_WAIT=1` does the same on the default path, which is otherwise byte for
-byte what it was; `CUBIT_WAW_WAIT=0` is the allocator as it was);
+byte what it was; `CUBIT_WAW_WAIT=0` is the allocator as it was). And each source register of a warp shuffle that an
+instruction rewrites on some path with none of the waits that release it — the shuffle's read barrier, its own write
+barrier, a younger shuffle's write barrier (`SHUFFLE SOURCE`, `CUBIT_VERIFY_SHFL`; KNOWN_ISSUES A34);
 `CUBIT_VERIFY_RBPROBE=1`
 adds the read-barrier coverage probe of the legality oracle (`tools/sched_oracle.py`, KNOWN_ISSUES A4).
 `CUBIT_VERIFY_JSON=<file>` appends one JSON line per kernel with the counts of these three checks — the scoreboard
 simulation, the stores' read barriers on every path, the fixed-latency dependencies against the table — and every
-finding with its instruction indices (`src/legality.rs`, schema `cubit-legality-1`; a write-after-write pair is a finding
-of kind `waw` in the scoreboard list, beside its three counts): a tool that holds a candidate
+finding with its instruction indices (`src/legality.rs`, schema `cubit-legality-1`; a write-after-write pair and a
+rewritten shuffle source are findings of kind `waw` / `shfl-source` in the scoreboard list, beside its three counts): a
+tool that holds a candidate
 schedule against its seed takes the set difference instead of parsing the text. It prints nothing, changes no byte and
 does not need the other two variables.
 `cubit legality-diff <seed.jsonl> <candidate.jsonl>` is that comparison: the findings of the candidate whose key the seed

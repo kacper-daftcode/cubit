@@ -1,0 +1,14 @@
+.entry ps_s2_shfl_vendor
+    .reg R0-R31
+    .param u64 out offset=0x0
+    [B------:R-:W0:Y:S01] LDCU.64 UR6, c[0x0][0x358] ;
+    [B------:R-:W3:Y:S04] LDC.64 R2, c[0x0][0x380] ;
+    [B---3--:R-:W-:Y:S06] IADD3 R13, PT, PT, R2, 0x1, RZ ;
+    [B------:R2:W1:Y:S04] SHFL.BFLY PT, R23, R13, 0x1, 0x1f ;
+    [B-1----:R-:W-:Y:S04] IADD3 R5, PT, PT, R23, 0x1, RZ ;
+    [B------:R-:W-:Y:S06] IADD3 R4, PT, PT, R5, 0x1, RZ ;
+    [B--2---:R-:W-:Y:S04] MOV R13, RZ ;
+    [B0-----:R-:W-:Y:S04] STG.E desc[UR6][R2.64], R4 ;
+    [B------:R-:W-:Y:S02] STG.E desc[UR6][R2.64+0x4], R13 ;
+    [B------:R-:W-:Y:S05] EXIT ;
+.endentry

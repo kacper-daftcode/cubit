@@ -4,7 +4,7 @@ User-visible changes, newest first. Table syncs name the blackwell-isa revision 
 (`tables/SOURCE.json` pins it byte for byte). Numbered `BUG-NNN` entries are the encoder /
 decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `docs/TESTS.md`).
 
-## Unreleased — 2026-11-11 (session T-29: write after write — `CUBIT_VERIFY` reports a register whose scoreboarded result is pending and is written again, on every path; under `CUBIT_SYNC_CLASSES` the barrier allocator closes its own schedule under that walk, BUG-489; the default path byte for byte)
+## Unreleased — 2026-11-11 (session T-29: write after write — `CUBIT_VERIFY` reports a register whose scoreboarded result is pending and is written again, on every path; under `CUBIT_SYNC_CLASSES` the barrier allocator closes its own schedule under that walk, BUG-489; `CUBIT_VERIFY` checks the source registers of a warp shuffle on every path; the default path byte for byte)
 
 - **`CUBIT_VERIFY` reports write after write on every path** (`store_paths::unwaited_rewrites`; lines `WRITE AFTER WRITE` and
   `CUBIT_VERIFY_WAW`; in `CUBIT_VERIFY_JSON` findings of kind `waw` in the scoreboard list and the counts `scoreboard.waw` /
@@ -44,6 +44,27 @@ decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `
   (the second load waits the barrier before it sets it again: `[B-----5:R-:W5]`); the other four schedules are
   byte-identical, and nothing built without the switch changes. `tests/bug489_waw_in_a_batch.rs` (8, all red before),
   `tests/ps_s2_sites.rs` (3, written by session EM-7 as failing-first tests; 1 red before).
+- **`CUBIT_VERIFY` checks the source registers of a warp shuffle on every path** (`store_paths::unwaited_shuffle_sources`;
+  lines `SHUFFLE SOURCE` and `CUBIT_VERIFY_SHFL`; in `CUBIT_VERIFY_JSON` findings of kind `shfl-source` in the scoreboard
+  list, counts `scoreboard.shfl_sources` / `scoreboard.shfl_sources_practice`; KNOWN_ISSUES A34). A `SHFL` reads its
+  register operands when its unit serves it, not at issue, and the scoreboard simulation registers under a read barrier
+  only the address registers of a long-latency producer: a shuffle has none, so a schedule that dropped the wait of an
+  overwriter of a shuffle's source passed with every count at 0 — while the barrier allocator under `CUBIT_SYNC_CLASSES`
+  did protect that operand. The walk goes from every shuffle, along every path, to the first instruction that rewrites
+  one of its general-register sources. Three waits release the source — each measured right by the stall-floor probes of
+  the same day, on both card models: on the shuffle's read barrier, on its own write barrier, on the write barrier of a
+  younger shuffle (the unit is served in order). A shuffle that rewrites the register is no pair (the vendor chains
+  shuffles through one register 4 cycles apart), and the walk goes on behind it. **What it says about the vendor's own
+  text** (the sm_120 census, every path): 0 pairs outside FIVE covers — the three measured ones and two more that are
+  the vendor's practice and are counted apart (`CUBIT_VERIFY_SHFL: + N`, kind `shfl-source-practice`): a wait on the READ
+  barrier of a younger shuffle (several shuffles read one register, only the youngest carries the read barrier, and the
+  overwriter waits on that one) and a wait on the write barrier of a younger shared-memory load (a shuffle with no
+  barrier at all in front of an `LDS`). 188 pairs of the census stand behind those two alone — 121 behind the first, 55
+  behind the second, 12 behind either —, all on shuffles without a read barrier; the vendor's five schedules of the
+  served MoE kernels and cubit's five have 0 of either kind. No schedule changes: under `CUBIT_SYNC_CLASSES` the allocator
+  protects a shuffle's source already; on the default path it does not, the verifier names such a pair, and nothing that
+  serves has one. `tests/shfl_source_paths.rs` (3), `tests/ps_s2_sites.rs` (+3, written by session EM-7; 1 red before),
+  five unit tests.
 - **A defect met on the way, not repaired here:** the certified transfer function (`reg_liveness::reg_xfer`, the register
   allocator's) takes the first register operand that is not `RZ` as the destination of an atomic, so for a form that
   returns nothing — `ATOMG.E.ADD.S32.STRONG.GPU PT, RZ, desc[UR10][R10.64], R17`, `ATOMS.MAX.S32 RZ, [..], R58` — the DATA

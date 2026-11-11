@@ -84,6 +84,7 @@ pub fn report(kernel: &str, insns: &[Instruction], table: Option<&IsaTable>, dep
             "wrap_raw": rep.wrap_raw, "wrap_war": rep.wrap_war, "wrap_recycle": rep.wrap_recycle,
             "unresolved_edges": rep.unresolved_edges,
             "waw": rep.waw, "waw_shuffle_into_load": rep.waw_shuffle_into_load,
+            "shfl_sources": rep.shfl_sources, "shfl_sources_practice": rep.shfl_sources_practice,
             "findings": scoreboard,
         },
         "store_paths": {
