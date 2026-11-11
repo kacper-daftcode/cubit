@@ -40,6 +40,12 @@ Classes of a thread-launch (256 iterations each):
               kernels of every series must be 100 % good, else the series has NO result (`oracle: FAILED`)
 Floor of a series = the smallest swept distance from which every swept distance is 100 % good in every launch; the
 binding floor of a request = the largest over its conditions. Floors enter cubit's table only through its gate.
+
+Kind `reuse` (version 20) - the operand-reuse flag: a word reads R6 through one of its three source-register slots with
+`.reuse`, R6 is written again, a reader takes R6 through the same slot d issue cycles behind the write. `stale` = the
+reader took the OLD content. Variants: bare (the flag), ctl (the same text without it: the write's own floor).
+    {"id": "ru_a_clean_w1", "kind": "reuse", "flagged": "IADD3i.A", "writer": "clean", "words": 1,
+     "occupancy": ["w1", "w8", "w32", "c2w9s"]}
 """
 from __future__ import annotations
 
@@ -56,7 +62,7 @@ import subprocess
 import sys
 import time
 
-TOOL = "probe.py 19 (2026-11-11)"
+TOOL = "probe.py 20 (2026-11-11)"
 HERE = pathlib.Path(__file__).resolve().parent
 SEED = 0x12345
 REPEAT = 256
@@ -107,6 +113,17 @@ def PAD():
 
 def FILL1():
     return Ins("IADD3 R15, PT, PT, R15, 0x1, RZ ;", ("nop",), ctl=C(1))
+
+
+class Lbl(Ins):
+    """version 20: a label on its own line (no control code; nothing for the host model)"""
+    __slots__ = ()
+
+    def __init__(self, name):
+        Ins.__init__(self, name, ("nop",), tag="L")
+
+    def line(self):
+        return f"{self.text}:"
 
 
 # ------------------------------------------------------------------------------------------------ the catalogue
@@ -905,6 +922,129 @@ def body_mma(req, d, front="none"):
 
 
 
+# ------------------------------------------------------------------------------------------------ kind reuse (version 20)
+# The operand-reuse flag. A 128-bit word has three flag bits - 122 / 123 / 124 - one per 8-bit source-register field at
+# bit 24 (slot A) / 32 (slot B) / 64 (slot C). In the vendor's four served MoE texts (1 308 flags on 1 076 words) every
+# flag is followed by a reader of the SAME register through the SAME slot within 11 words and 11 issue cycles, with no
+# write of the register, no label and no branch between, and every word of the window carries the yield flag at a
+# stall <= 5: the texts cannot say what the hardware does when the register IS written inside the window.
+# name: (slot, the word with {d} = its destination and {r} = the tested operand (R6 or R6.reuse), what it does for the
+#        host model, the coefficient of R6 in its result (None: not linear), the vendor's row of that flag and its count)
+REUSE_FORMS = {
+    "IADD3i.A": ("A", "IADD3 {d}, PT, PT, {r}, 0x630, RZ ;", lambda d: ("add", d, "R6", 0x630), 1, "IADD3_R_P_P_R_II_R operand 4: 10 flags"),
+    "IMADi.A": ("A", "IMAD {d}, {r}, 0x3, R5 ;", lambda d: ("mad", d, "R6", 3, "R5"), 3, "IMAD_R_R_II_R operand 2: 27 flags"),
+    "PRMT.A": ("A", "PRMT {d}, {r}, 0x7632, R5 ;", lambda d: ("prmt", d, "R6", 0x7632, "R5"), None, "PRMT_R_R_II_R operand 2: 208 flags"),
+    "IADD3.B": ("B", "IADD3 {d}, PT, PT, R5, {r}, RZ ;", lambda d: ("add", d, "R5", "R6"), 1, "IADD3_R_P_P_R_R_R operand 5: 86 flags"),
+    "MOV.B": ("B", "MOV {d}, {r} ;", lambda d: ("mov", d, "R6"), 1, "MOV_R_R operand 2: 5 flags"),
+    "IMADi.C": ("C", "IMAD {d}, R5, 0x3, {r} ;", lambda d: ("mad", d, "R5", 3, "R6"), 1, "IMAD_R_R_II_R operand 4: 10 flags"),
+    "PRMT.C": ("C", "PRMT {d}, R5, 0x7632, {r} ;", lambda d: ("prmt", d, "R5", 0x7632, "R6"), None, "PRMT_R_R_II_R operand 4: 226 flags"),
+}
+REUSE_FIRST = {"A": "IADD3i.A", "B": "IADD3.B", "C": "IMADi.C"}
+REUSE_WRITERS = {"none": "NO write of the flagged register: the positive control (the flag may not change a result)",
+                 "clean": "the write by a word that does not read through the flagged slot",
+                 "other": "the write by a word that reads ANOTHER register through the flagged slot",
+                 "self": "a word that reads the flagged register through the flagged slot (no flag) and writes it",
+                 "selff": "the flagged word ITSELF writes its flagged register (no other flagged word in front)",
+                 "lds": "the write by a shared load on write barrier 1, which the reader waits"}
+REUSE_BETWEEN = {None: "", "branch": "a taken BRA directly in front of the reader", "cbranch": "a taken conditional BRA directly in front of the reader",
+                 "branch_f": "a taken BRA directly behind the flagged word",
+                 "wait_r": "a global load is in flight in front of the flagged word and the READER waits its write barrier (the warp blocks)",
+                 "wait_x": "a global load is in flight in front of the flagged word and the word behind the flagged word waits its write barrier (the warp blocks)"}
+
+
+def reuse_writer(name, slot, flag):
+    """-> (text, sem, write barrier): the WRITE of R6. R7 holds B = A + the constant, R14 the constant."""
+    r6 = "R6.reuse" if flag else "R6"
+    mov = ("MOV R6, R7 ;", ("mov", "R6", "R7"), "-")                                   # reads through slot B only
+    addi = ("IADD3 R6, PT, PT, R7, 0x0, RZ ;", ("add", "R6", "R7", 0), "-")              # reads through slot A (and RZ through C)
+    if name == "clean":
+        return addi if slot == "B" else mov
+    if name == "other":
+        return addi if slot == "A" else mov if slot == "B" else ("IADD3 R6, PT, PT, RZ, RZ, R7 ;", ("add", "R6", "RZ", "R7"), "-")
+    if name in ("self", "selff"):
+        if slot == "A":
+            return f"IADD3 R6, PT, PT, {r6}, 0x{LATE_CONST:x}, RZ ;", ("add", "R6", "R6", LATE_CONST), "-"
+        if slot == "B":
+            return f"IADD3 R6, PT, PT, R14, {r6}, RZ ;", ("add", "R6", "R14", "R6"), "-"
+        return f"IMAD R6, R14, 0x1, {r6} ;", ("mad", "R6", "R14", 1, "R6"), "-"
+    if name == "lds":
+        return "LDS R6, [R9+0x20] ;", ("lds", "R6", "R9", 0x20, 1), "1"
+    raise SystemExit(f"reuse: unknown writer {name!r}")
+
+
+def reuse_filler(slot, kind, y, wait=""):
+    """a one-cycle word of the window: clean = it does not read through the flagged slot, other = it reads R15 (RZ in slot C)
+    through it. MOV reads through slot B only; IADD3 with an immediate through A, and RZ through C."""
+    if (slot != "B") == (kind == "clean"):
+        return Ins("MOV R15, R15 ;", ("nop",), ctl=C(1, wait=wait, y=y))
+    return Ins("IADD3 R15, PT, PT, R15, 0x1, RZ ;", ("nop",), ctl=C(1, wait=wait, y=y))
+
+
+def reuse_extra(r):
+    """issue cycles between the swept word and the reader that are not the swept word's own stall"""
+    return (int(r["words"]) - 1) + (5 if r.get("between") in ("branch", "cbranch") else 0) \
+        + (1 if (r.get("between") == "wait_x" and r["writer"] == "none") else 0)
+
+
+def reuse_late_delta(r):
+    """a stale reader of a linear form: checksum = good + (stale iterations) x this"""
+    coef = REUSE_FORMS[r["reader"]][3]
+    return None if (r["writer"] == "none" or coef is None) else (-coef * LATE_CONST) & 0xFFFFFFFF
+
+
+def body_reuse(req, d, front, variant):
+    """variant bare = the flag(s), ctl = the same text without `.reuse`. Tags: F the flagged word, P the write, C the reader,
+    X a word a taken branch skips, L a label. The swept distance d = the stall of the swept word (the write; with
+    writer none the flagged word) + the words between it and the reader."""
+    flag = variant == "bare"
+    slot, writer, k, btw = req["slot"], req["writer"], int(req["words"]), req.get("between")
+    y = req.get("window_yield", "set") == "set"
+    _fs, ftext, fsem, _fc, _frow = REUSE_FORMS[req["flagged"]]
+    _rs, rtext, rsem, _rc, _rrow = REUSE_FORMS[req["reader"]]
+    sw = d - reuse_extra(req)
+    if not 1 <= sw <= (11 if y else 15):
+        raise SystemExit(f"{req['id']}: distance {d} needs a stall of {sw} on the swept word (1..{11 if y else 15})")
+    b = [Ins("IADD3 R6, PT, PT, R4, R5, RZ ;", ("add", "R6", "R4", "R5")),                                   # A
+         Ins(f"IADD3 R7, PT, PT, R6, 0x{LATE_CONST:x}, RZ ;", ("add", "R7", "R6", LATE_CONST))]              # B = A + the constant
+    if writer in ("self", "selff") and slot != "A":
+        b.append(Ins(f"MOV R14, 0x{LATE_CONST:x} ;", ("mov", "R14", LATE_CONST)))
+    if writer == "lds":      # what the load brings: B, stored with read barrier 3 (waited by the checksum word)
+        b.append(Ins("STS [R9+0x20], R7 ;", ("sts", "R9", 0x20, "R7", 1), ctl=C(rb="3")))
+    b += front_ins(front, False)
+    if btw in ("wait_r", "wait_x"):      # word B of the thread (it holds R20): a global load in flight on write barrier 1
+        b.append(Ins("LDG.E R12, desc[UR4][R18.64] ;", ("ldg", "R12", "R18"), ctl=C(2, wb="1")))
+    fill = [reuse_filler(slot, req["fill"], y) for _ in range(k - 1)]
+
+    def jump(cond):
+        return [Ins(("@P0 " if cond else "") + "BRA L_r ;", ("nop",), ctl=C(5, y=y)),
+                Ins("IADD3 R15, PT, PT, R15, 0x1, RZ ;", ("nop",), tag="X"), Lbl("L_r")]
+
+    if writer == "none":
+        b.append(Ins(ftext.format(d="R8", r="R6.reuse" if flag else "R6"), fsem("R8"), ctl=C(sw, y=y), tag="F"))
+        if btw == "wait_x":
+            b.append(reuse_filler(slot, "clean", y, wait="1"))
+        b += fill
+    else:
+        if writer != "selff":
+            b.append(Ins(ftext.format(d="R8", r="R6.reuse" if flag else "R6"), fsem("R8"), ctl=C(int(req["fstall"]), y=y), tag="F"))
+        if btw == "branch_f":
+            b += jump(False)
+        if btw == "wait_x":
+            b.append(reuse_filler(slot, "clean", y, wait="1"))
+        wtext, wsem, wwb = reuse_writer(writer, slot, flag and writer == "selff")      # (self: the same word WITHOUT the flag)
+        b.append(Ins(wtext, wsem, ctl=C(sw, wb=wwb, y=y), tag="P", dst=["R6"]))
+        b += fill
+    if btw in ("branch", "cbranch"):
+        b += jump(btw == "cbranch")
+    rwait = "1" if (writer == "lds" or btw == "wait_r") else ""
+    b.append(Ins(rtext.format(d="R13", r="R6.reuse" if (flag and req.get("chain")) else "R6"), rsem("R13"), ctl=C(2, wait=rwait, y=y), tag="C"))
+    b.append(PAD())
+    b.append(Ins("IADD3 R10, PT, PT, R10, R13, RZ ;", ("add", "R10", "R10", "R13"), ctl=C(wait="3" if writer == "lds" else "")))
+    if writer != "selff":      # the flagged word's own result (it read A): part of the checksum too
+        b.append(Ins("IADD3 R10, PT, PT, R10, R8, RZ ;", ("add", "R10", "R10", "R8")))
+    return b
+
+
 def prologue(req, ctas):
     """the same for every kernel of a request (and, but for the address of word B, of the tool)"""
     half = 1024 * ctas * 4
@@ -962,7 +1102,7 @@ def prologue(req, ctas):
               Ins("IADD3 R13, PT, PT, R9, 0x20, RZ ;", ("add", "R13", "R9", 0x20))]
     else:
         p.append(Ins("MOV R6, RZ ;", ("mov", "R6", 0)))
-    if req["kind"] == "ord" and (req.get("younger_guard") or req.get("older_guard")):
+    if (req["kind"] == "ord" and (req.get("younger_guard") or req.get("older_guard"))) or (req["kind"] == "reuse" and req.get("between") == "cbranch"):
         p += [Ins("ISETP.EQ.U32.AND P0, PT, RZ, RZ, PT ;", ("nop",)), Ins("ISETP.NE.U32.AND P3, PT, RZ, RZ, PT ;", ("nop",))]
     if req["kind"] == "ord" and req.get("nload") and req.get("place") == "far":
         # R14 = the thread's word in the second region; word k := a per-thread constant (a store with read barrier 5, waited)
@@ -1062,6 +1202,8 @@ def model(req, mode, gids=None, scalar=False):
         body = body_ord(req, 15, "none", "bare")
     elif req["kind"] == "mma":
         body = body_mma(dict(req, via="stall"), 15, req.get("_model_front", "none"))
+    elif req["kind"] == "reuse":
+        body = body_reuse(req, max(req["distance_list"]), "none", "bare")
     else:
         body = body_raw(dict(req, via="stall"), 15, "none")
     if mode in ("drop1", "drop2"):      # mma: the first / the second MMA changed nothing in any iteration
@@ -1411,6 +1553,8 @@ def modes_of(req):
         return ["good", "drop2"] if req.get("variant") == "gfalse" else ["good", "drop1", "drop2"]
     if req["kind"] == "war" and req.get("store") in SHFL_STORES + WAW_STORES:
         return ["good", "late"]      # (no read-back a late shuffle / a late first write could come behind)
+    if req["kind"] == "reuse":      # (no write of the flagged register: nothing a stale reader could show)
+        return ["good", "stale"] if req.get("writer") != "none" else ["good"]
     return ["good", "stale"] if req["kind"] in ("raw", "ord") else ["good", "late", "overtake"]
 
 
@@ -1509,8 +1653,37 @@ def normalise(req):
                 mma_front(f)
         else:
             r["front"] = ["none"]
+    elif r.get("kind") == "reuse":
+        r.setdefault("flagged", REUSE_FIRST.get(r.get("slot"), ""))
+        if r["flagged"] not in REUSE_FORMS:
+            raise SystemExit(f"{r['id']}: reuse: flagged form {r.get('flagged')!r} not in the catalogue (probe.py list)")
+        if r.get("slot") not in (None, REUSE_FORMS[r["flagged"]][0]):
+            raise SystemExit(f"{r['id']}: reuse: the flagged form {r['flagged']} reads R6 through slot {REUSE_FORMS[r['flagged']][0]}, not {r['slot']}")
+        r["slot"] = REUSE_FORMS[r["flagged"]][0]
+        r.setdefault("reader", REUSE_FIRST[r["slot"]])
+        r.setdefault("writer", "clean")
+        r.setdefault("words", 1)
+        r.setdefault("fill", "clean")
+        r.setdefault("fstall", 1)
+        r.setdefault("window_yield", "set")
+        r.setdefault("chain", False)
+        r.setdefault("between", None)
+        if (r["reader"] not in REUSE_FORMS or r["writer"] not in REUSE_WRITERS or r["fill"] not in ("clean", "other")
+                or not (isinstance(r["words"], int) and 1 <= r["words"] <= 5) or r["fstall"] not in (1, 2)
+                or r["window_yield"] not in ("set", "none") or r["chain"] not in (False, True) or r["between"] not in REUSE_BETWEEN):
+            raise SystemExit(f"{r['id']}: reuse: reader in the catalogue, writer {' | '.join(REUSE_WRITERS)}, words 1..5, fill clean | other, fstall 1 | 2, "
+                             "window_yield set | none, chain true | false, between branch | cbranch | branch_f | wait_r | wait_x or absent")
+        if (r["writer"] == "lds" and r["between"] in ("wait_r", "wait_x")) or (r["writer"] == "none" and r["between"] == "branch_f"):
+            raise SystemExit(f"{r['id']}: reuse: writer lds has no wait shape (both use write barrier 1); writer none has no branch_f shape")
+        lo = 1 + reuse_extra(r)
+        hi = (11 if r["window_yield"] == "set" else 15) + reuse_extra(r)
+        r.setdefault("distances", f"{lo}-{hi}")
+        if min(parse_distances(r["distances"])) < lo or max(parse_distances(r["distances"])) > hi:
+            raise SystemExit(f"{r['id']}: reuse: distances {lo}..{hi} (the swept word's stall is 1..{hi - lo + 1}; with the yield flag at most 11)")
+        r["controls"] = True
+        r["control_distances"] = r["distances"]
     else:
-        raise SystemExit(f"{r.get('id')}: kind must be raw, war, ord or mma")
+        raise SystemExit(f"{r.get('id')}: kind must be raw, war, ord, mma or reuse")
     if r.get("yield") not in (None, "set") or (r.get("yield") and (r["kind"] not in ("raw", "mma") or r.get("via") != "stall")):
         raise SystemExit(f"{r['id']}: yield is \"set\" (the swept instruction of a raw / mma request carries the yield flag; via stall) or absent")
     r.setdefault("occupancy", ["w8", "w32"])
@@ -1524,6 +1697,15 @@ def normalise(req):
 
 
 def pair_text(r):
+    if r["kind"] == "reuse":
+        return (f"operand-reuse flag, slot {r['slot']}: {r['flagged']} reads R6 with `.reuse`; {REUSE_WRITERS[r['writer']]}; the reader {r['reader']} of R6 "
+                f"{r['words']} word(s) behind the " + ("flagged word" if r["writer"] == "none" else "write")
+                + (f" ({r['words'] - 1} filler(s) that " + ("do not read" if r["fill"] == "clean" else "read another register") + " through the slot)" if r["words"] > 1 else "")
+                + "; distance = issue cycles " + ("flagged word" if r["writer"] == "none" else "write") + " -> reader"
+                + ("; the flagged word at stall 2" if (r["fstall"] == 2 and r["writer"] not in ("none", "selff")) else "")
+                + ("; the reader carries the flag too" if r["chain"] else "")
+                + ("; the window's words carry the yield flag" if r["window_yield"] == "set" else "; NO yield flag in the window")
+                + (f"; {REUSE_BETWEEN[r['between']]}" if r["between"] else "") + "; ctl = the same text without the flag")
     if r["kind"] == "raw":
         return f"{r['producer']} -> {r['consumer']}"
     if r["kind"] == "mma" and r["variant"].startswith("sens_"):
@@ -1629,6 +1811,8 @@ def cmd_gen(args):
             variants = ["raw"]
         if r["kind"] == "ord":
             variants = ["bare"] + (["ctl"] if r.get("controls") else [])
+        if r["kind"] == "reuse":
+            variants = ["bare", "ctl"]
         for occ in r["occupancy"]:
             ctas, threads = GEOM[occ]
             smem = smem_of(r, occ)
@@ -1638,7 +1822,8 @@ def cmd_gen(args):
                     dl = r["distance_list"] if v in ("bare", "raw") else parse_distances(r["control_distances"])
                     for dist in dl:
                         name = f"{r['id']}_{v}_{occ}_{front_id(front)}_d{dist:04d}"
-                        body = (body_raw(r, dist, front) if r["kind"] == "raw" else body_ord(rk, dist, front, v) if r["kind"] == "ord"
+                        body = (body_reuse(r, dist, front, v) if r["kind"] == "reuse"
+                                else body_raw(r, dist, front) if r["kind"] == "raw" else body_ord(rk, dist, front, v) if r["kind"] == "ord"
                                 else body_mma(r, dist, front) if r["kind"] == "mma"
                                 else body_war(r, dist, front, v))
                         (d / "k" / f"{name}.sass").write_text(kernel_text(name, rk, ctas, body, smem))
@@ -1648,6 +1833,8 @@ def cmd_gen(args):
         # (behind a write-barrier waiter a late shuffle is not "+ the constant": the reader has taken the result before)
         late_delta = LATE_CONST if (r["kind"] == "war" and r["overwriter"] in ("IADD3", "IADD3.it") and not r.get("behind")
                                     and r["store"] in ("STS.data", "STG.data", "LDS.dst", "LDG.dst", "LDC.dst", "S2R.dst") + SHFL_STORES) else None
+        if r["kind"] == "reuse":      # a stale reader of a linear form: the number of stale iterations is decoded from a mixture
+            late_delta = reuse_late_delta(r)
         fam = {"request": r, "pair": pair_text(r) + (" [the swept instruction carries the YIELD flag]" if r.get("yield") else ""),
                "provenance": prov, "kernels": kernels, "modes": modes_of(r), "late_delta": late_delta,
                "table_cell": table_cell(args.dep_table, r.get("cell"))}
@@ -1686,6 +1873,8 @@ def cmd_gen(args):
                 raise SystemExit(f"{r['id']}: the vectorised model and the scalar interpreter disagree in mode {mode}")
         if any(np.array_equal(cand["good"], v) for m, v in cand.items() if m != "good") and r["kind"] != "mma":
             raise SystemExit(f"{r['id']}: a failure hypothesis gives the checksums of `good` - the probe could not see it")
+        if r["kind"] == "reuse" and "stale" in cand and not (cand["good"] != cand["stale"]).all():
+            raise SystemExit(f"{r['id']}: a stale reader gives the checksum of `good` in some thread - the probe could not see it there")
         np.savez_compressed(out / r["id"] / "model.npz", **cand)
     print(f"host models of {len(reqs)} requests written in {time.time() - t0:.0f} s (each checked against the scalar interpreter on 8 threads)")
     (out / "batch.json").write_text(json.dumps({"requests": [r["id"] for r in reqs], "kernels": total, "provenance": prov}, indent=1) + "\n")
@@ -2257,6 +2446,13 @@ def cmd_list(_args):
     print("  version 19, two-load requests: \"far\": \"base2\" = the younger shared load through ANOTHER base register that holds the same address (the same line); \"older_guard\": \"true\" = the older shared load under a guard that is true")
     print("  N loads in flight and ONE wait: \"nload\": 2..8, \"place\": near | base2 | far (>= 1 KB apart), \"barrier\": last (the older loads bare) | all (one shared barrier) | none (positive control: no wait); distance = load -> load, 1..15")
     print("  two loads on ONE write barrier: \"older_barrier\": \"same\" (does the scoreboard count its producers?)")
+    print("kind reuse (version 20) - the operand-reuse flag: a word reads R6 through slot A / B / C (the register field at bit 24 / 32 / 64) with `.reuse`, R6 is written again, a reader takes R6 through the slot d cycles behind the write:")
+    for k, v in REUSE_FORMS.items():
+        print(f"  flagged / reader form {k:9s} slot {v[0]}: {v[1].format(d='Rd', r='R6.reuse')}  (the vendor's row: {v[4]})")
+    for k, v in REUSE_WRITERS.items():
+        print(f"  writer {k:6s} {v}")
+    print("  \"words\": 1..5 = the reader k words behind the write (fillers \"fill\": clean | other); \"fstall\": 1 | 2; \"chain\": true = the reader flagged too; \"window_yield\": set | none; "
+          "\"between\": " + " | ".join(f"{k} ({v})" for k, v in REUSE_BETWEEN.items() if k) + "; variants bare (the flag) and ctl (no flag)")
     print("occupancy:", "; ".join(f"{k} = {v}" for k, v in OCC.items()))
     print("front: none | sts128xK@S | stsxK@S | stgxK@S  (K stores of a constant at stall S in front of the tested instruction)")
     return 0
@@ -2407,6 +2603,42 @@ def cmd_selftest(_args):
                 assert not np.array_equal(g, st), (nl, place, bar)
                 # one stale register alone must move the checksum too: the weights of the fold are distinct and odd
                 n += 2
+    w = np.arange(64, dtype=np.int64)      # version 20 - kind reuse
+    for form in REUSE_FORMS:
+        for writer in REUSE_WRITERS:
+            for btw in REUSE_BETWEEN:
+                if (writer == "lds" and btw in ("wait_r", "wait_x")) or (writer == "none" and btw == "branch_f"):
+                    continue
+                for extra in ({"words": 1}, {"words": 3, "fill": "other", "chain": True, "fstall": 2}, {"words": 5, "window_yield": "none"}):
+                    r = normalise(dict({"id": "selftest", "kind": "reuse", "flagged": form, "writer": writer, "between": btw}, **extra))
+                    g = model(r, "good", gids=w)
+                    assert [int(x) for x in g] == model(r, "good", gids=w, scalar=True), (form, writer, btw, extra)
+                    n += 1
+                    if writer == "none":
+                        assert modes_of(r) == ["good"] and reuse_late_delta(r) is None, (form, writer)
+                    else:
+                        st = model(r, "stale", gids=w)
+                        assert [int(x) for x in st] == model(r, "stale", gids=w, scalar=True) and (g != st).all(), (form, writer, btw, extra)
+                        n += 1
+                        rc = REUSE_FORMS[r["reader"]][3]      # every stale iteration moves the checksum by the reader's coefficient x the constant
+                        assert rc is not None and all(int(x) == (-REPEAT * rc * LATE_CONST) & 0xFFFFFFFF for x in (st - g)), (form, writer, btw)
+                        assert reuse_late_delta(r) == (-rc * LATE_CONST) & 0xFFFFFFFF and reuse_late_delta(r) % 2 == 1
+                    for dd in (r["distance_list"][0], r["distance_list"][-1]):
+                        bare, ctl_ = body_reuse(r, dd, "none", "bare"), body_reuse(r, dd, "none", "ctl")
+                        # the control differs from the tested kernel in the flags and in nothing else
+                        assert len(bare) == len(ctl_) and all(a.ctl == c.ctl and a.sem == c.sem and a.tag == c.tag for a, c in zip(bare, ctl_)), (form, writer, btw)
+                        diff = [(a.text, c.text) for a, c in zip(bare, ctl_) if a.text != c.text]
+                        assert len(diff) == (2 if r["chain"] else 1) and all(a.replace(".reuse", "") == c for a, c in diff), (form, writer, btw, diff)
+                        assert not any(".reuse" in c.text for c in ctl_) and sum(a.text.count(".reuse") for a in bare) == len(diff), (form, writer, btw)
+                        # the swept distance = the stalls from the swept word to the reader (a skipped word and a label do not count)
+                        run = [a for a in bare if a.tag not in ("X", "L")]
+                        i0 = next(k for k, a in enumerate(run) if a.tag == ("F" if writer == "none" else "P"))
+                        i1 = next(k for k, a in enumerate(run) if a.tag == "C")
+                        assert sum(int(a.ctl[-3:-1]) for a in run[i0:i1]) == dd, (form, writer, btw, dd)
+                        # the vendor's window: the yield flag on every word from the flagged one to the word in front of the reader
+                        if r["window_yield"] == "set" and writer != "selff":
+                            j0 = next(k for k, a in enumerate(run) if a.tag == "F")
+                            assert all(":Y:S" in a.ctl for a in run[j0:i1]), (form, writer, btw)
     assert smem_of({"id": "x", "kind": "ord", "nload": 8, "place": "far"}, "c2w9s") == 49152 and smem_of({"id": "x", "kind": "ord", "nload": 8, "place": "far"}, "w32") == 98304
     assert smem_of({"id": "x", "kind": "ord", "nload": 8, "place": "far"}, "c4w8") == 24576
     assert far_layout(288) == (18432, 1280) and far_layout(1024) == (65536, 4096) and far_layout(32) == (2048, 1024)

@@ -172,6 +172,14 @@ decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `
   older load: 0 not right of 5 465 415 680 thread-launches, the block's positive control wrong in 285 467 168 of
   286 361 600; the same zeros on a card of the Workstation Edition, alone and at its 400-W limit
   (`_b26_ws_…`).
+- **`probe.py` 20 and the operand-reuse flag** (KNOWN_ISSUES A39; `_b27.json`): a new kind, `reuse` (selftest 2 353) — a word
+  reads a register through a source-register slot with the flag, the register is written, a reader takes it through the same
+  slot 1 … 5 words later. The reader gets the OLD value: not right in 1 082 070 784 of 4 434 032 640 thread-launches, in 36
+  of 36 shapes with an ALU writer, where the same text without the flag has 0; on a card of the Workstation Edition
+  1 074 012 576 alone and 1 023 852 000 at its 400-W limit (`_b27_ws_…`). Zero in every run: across a taken
+  branch, behind a write by an unflagged reader of the slot, through another slot, without the yield flag, with no write.
+  A flag may stay only where the register is not written before the next reader through that slot; clearing it is always
+  correct.
 
 ## Unreleased — 2026-11-11 (session SCH-4: the stall-floor probes on grids that hold two CTAs per SM and on production's card model in two clock states — tools and result files only, no source line changes)
 
