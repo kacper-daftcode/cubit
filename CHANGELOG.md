@@ -4,6 +4,26 @@ User-visible changes, newest first. Table syncs name the blackwell-isa revision 
 (`tables/SOURCE.json` pins it byte for byte). Numbered `BUG-NNN` entries are the encoder /
 decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `docs/TESTS.md`).
 
+## Unreleased — 2026-11-11 (session T-30: BUG-491 — a 64-bit `CS2R` writes a register pair; the scheduler's dependency model knew one register)
+
+- **BUG-491: `CS2R Rd, <SR>` without `.32` writes the pair `Rd:Rd+1`, and a reader of `Rd+1` was tied to nothing**
+  (KNOWN_ISSUES A40). The scheduler's destination convention named `Rd` only and the certified transfer function
+  named the pair only for an `SR_*LO` register, so the dependency legaliser left a reader of the second register at
+  any distance behind the `CS2R` — `CS2R R32, SRZ` with `FMUL.FTZ R4, R6, R33` right behind it was scheduled 4 cycles
+  apart — and `CUBIT_DEP_VERIFY` reported nothing; the pair's floor on silicon is 6 for either register. The
+  dependency walk takes the pair now (`dep_stall::dest_regs`: the legaliser and `CUBIT_DEP_VERIFY`), as the
+  encoder's register grid and the register allocator's target have since BUG-488. `CS2R.32` writes one register, as
+  before. The barrier allocator, the liveness and the scoreboard verifier keep the scheduler's convention: with the
+  pair there the schedules of the five served MoE kernels re-derive their scoreboard, which wants its own
+  measurement (KNOWN_ISSUES A40).
+- **Reach:** cubit's own `CUBIT_SYNC_CLASSES` schedules of the vendor's census texts held 24 readers of a second
+  register closer than 6 in 12 kernels (4 and 5 cycles, where the vendor keeps 7 and 8; 1 and 2 under
+  `CUBIT_SCHED2_MEMSTALL=table`); after the fix: the same 24 stand at 6 and 7 — 12 of the census's 749 schedules change, by 2 stall cycles each (by 5 under the variable); every other schedule is byte for byte what it was and no check count moves. Nothing that serves has a reader of either
+  register within 9 issue cycles of a `CS2R` (267 kernels, 768 `CS2R` words), so no production source and no
+  committed cubin moves; cubit's schedules of the five served MoE kernels are byte for byte what they were (their
+  four pairs within 9 cycles stand at exactly 6: a 64-bit reader takes both registers).
+- `tests/bug491_cs2r_pair.rs` (2; 2 red before).
+
 ## Unreleased — 2026-11-11 (session T-30: under `CUBIT_SCHED2_MEMSTALL=table` the stall of the first pass's recycle drain is judged on the final allocation — kept only where a barrier is set over producers in flight that are not a measured set)
 
 - **`CUBIT_SCHED2_MEMSTALL=table`: the retirement stall of the recycle drain (8, `CUBIT_RECYCLE_DRAIN`) stays only where

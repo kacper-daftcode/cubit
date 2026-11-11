@@ -531,6 +531,26 @@ pub fn dep_class(insn: &Instruction) -> String {
         _ => op.into(),
     }
 }
+/// The registers an instruction defines, for the dependency walk: the scheduler's destinations
+/// ([`sp::dest_regs`]) and one hardware footprint that convention does not carry (BUG-491) --
+/// `CS2R Rd, <SR>` without `.32` writes the pair `Rd:Rd+1` (`CS2R R8, SRZ` zeroes R8 and R9; the
+/// encoder's register grid and the register allocator's target have had the pair since BUG-488).
+/// Without the second register a reader of `Rd+1` had no producer here: the legaliser left it at
+/// any distance behind the `CS2R` and `CUBIT_DEP_VERIFY` saw nothing, while the pair's floor on
+/// silicon is 6 issue cycles for either register. Only this walk takes the pair: the barrier
+/// allocator and the scoreboard verifier keep the scheduler's convention (KNOWN_ISSUES A40).
+fn dest_regs(ins: &Instruction) -> Vec<(bool, u16)> {
+    let mut out = sp::dest_regs(ins);
+    if ins.opcode == "CS2R" && !ins.modifiers.iter().any(|m| m == ".32") {
+        if let Some(Operand::Reg { num, .. }) = ins.operands.first() {
+            let hi = (false, *num as u16 + 1);
+            if *num < 254 && !out.contains(&hi) {
+                out.push(hi);
+            }
+        }
+    }
+    out
+}
 
 /// `key` is a register ABOVE the first one of `prod`'s multi-register result (the high half of
 /// an `IMAD.WIDE` product, the second register of a `.64` result).
@@ -538,7 +558,7 @@ fn upper_result_register(prod: &Instruction, key: u16) -> bool {
     if key >= KEY_PRED {
         return false;
     }
-    let dests = sp::dest_regs(prod);
+    let dests = dest_regs(prod);
     let gpr = |k: u16| dests.iter().any(|(uniform, d)| !*uniform && *d == k);
     gpr(key) && dests.iter().any(|(uniform, d)| !*uniform && *d < key)
 }
@@ -581,7 +601,7 @@ fn roles_of(cons: &Instruction, key: u16) -> Vec<String> {
     let width_of = |base: u8| -> u16 {
         widths.iter().filter(|(b, _)| *b == base).map(|(_, w)| *w as u16).max().unwrap_or(1).max(1)
     };
-    let dests: Vec<(bool, u16)> = sp::dest_regs(cons);
+    let dests: Vec<(bool, u16)> = dest_regs(cons);
     let mut npos: usize = 0;
     for o in cons.operands.iter() {
         let is_pred = matches!(o, Operand::Pred { .. } | Operand::UPred { .. });
@@ -728,7 +748,7 @@ fn semantics(insns: &[Instruction], t: &DepLatTable) -> Vec<Sem> {
             let mut uses: Vec<u16> = sp::src_regs(ins).into_iter().map(|(u, k)| key_of(u, k)).collect();
             uses.sort_unstable();
             uses.dedup();
-            let mut defs: Vec<u16> = sp::dest_regs(ins).into_iter().map(|(u, k)| key_of(u, k)).collect();
+            let mut defs: Vec<u16> = dest_regs(ins).into_iter().map(|(u, k)| key_of(u, k)).collect();
             defs.sort_unstable();
             defs.dedup();
             // PT / RZ / URZ never carry a dependency (`@!UPT UIADD3 URZ, ...` writes nothing)
@@ -1196,7 +1216,7 @@ pub fn blind_spots(insns: &[Instruction]) -> Vec<(usize, &'static str)> {
                 break;
             }
         }
-        for (uniform, k) in sp::dest_regs(ins) {
+        for (uniform, k) in dest_regs(ins) {
             if !uniform && k < 255 {
                 last_def.insert(k, i);
             }
