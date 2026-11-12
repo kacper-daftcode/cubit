@@ -151,6 +151,27 @@ of the prologue). "lead": qmma (absent: the tensor readers first, the MOV reader
 the first MOV carries the ONE wait); hypothesis stale3 = only the MOV readers took the markers.
     {"id": "mx7_ft", "kind": "ord", "forms": "S,S,D,D,S,S,D", "barrier": "all", "yield": "set", "pguard": "ft", "distances": "1,4"}
     {"id": "mx5m_cc", "kind": "ord", "forms": "D,D,S,S,D", "barrier": "all", "yield": "set", "pguard": "cc", "lead": "mov", "distances": "1,4"}
+
+Version 30 - kind `ord`, the COVER SET: the in-order cover of a BARE shared load (no write barrier) by a YOUNGER load of the
+same pipe that carries the write barrier. "forms" = "<bare>,<cover>": bare nS (`LDS`) | nD (`LDS.64`) | nkq (`@P2 LDS.128`);
+cover S | D | q (unguarded `LDS` | `LDS.64` | `LDS.128`) | gq (`@P0 LDS.128`). The bare load's register holds a marker until
+its load lands; its readers: "reader": qmma (a bare LDS only, the default there: `@P2 QMMA.SF ... Runit, Rbare, URZ`, the
+register as a block scale) | mov (unguarded `MOV` words: one per register). The ONE wait on the cover's barrier stands on the
+first reader word ("carrier": reader, the default) or on a `MOV` that reads the cover's first register, "rgap" cycles in front
+of the first reader ("carrier": mov - the form of the vendor's text); "rdist" = the cover -> the first word behind it (absent:
+2); the swept distance = the bare load -> the cover (a stall and fillers of 15). "wait": end = the positive control: the
+reader words first, at the place they have in the request, the `MOV` of the cover's register with the wait behind them.
+"pguard": two letters of t | f | c, P0 (the cover `gq`) then P2 (the tensor reader, the bare `nkq`). "slow": bare | cover |
+none = the loads read two regions behind the threads' lines instead of the lines: the slow region (one 16-byte record per lane
+128 B apart: the 32 lanes of a warp on ONE bank at different words) and the fast region (one record per lane, the access size
+apart); bare = the bare load from the slow region and the cover from the fast one, cover = the reverse, none = both fast.
+Hypothesis stale = every reader word of the bare load's register took its marker.
+    {"id": "fz_s_f", "kind": "ord", "forms": "nS,gq", "barrier": "all", "yield": "set", "pguard": "ft", "distances": "1,4,35"}
+    {"id": "fz_s_f_ew", "kind": "ord", "forms": "nS,gq", "barrier": "all", "yield": "set", "pguard": "ft", "distances": "1,4,35", "wait": "end"}
+    {"id": "fz_d_f_v", "kind": "ord", "forms": "nD,gq", "barrier": "all", "yield": "set", "pguard": "ft", "carrier": "mov", "rdist": 71, "rgap": 98, "distances": "32"}
+Version 30 - "noload": true on a scale set of S alone: the same text with NO load at all (a filler in the place of every
+load, the scale registers set to the unit scale at the top of the iteration) - one hypothesis, good.
+    {"id": "nl2_ll", "kind": "ord", "forms": "S,S", "barrier": "all", "yield": "set", "pguard": "ll", "noload": true, "distances": "1,4"}
 """
 from __future__ import annotations
 
@@ -167,7 +188,7 @@ import subprocess
 import sys
 import time
 
-TOOL = "probe.py 29 (2026-11-12)"
+TOOL = "probe.py 30 (2026-11-12)"
 HERE = pathlib.Path(__file__).resolve().parent
 SEED = 0x12345
 PTR_STANDIN = [0, 0]      # version 28: the scalar interpreter's stand-in for the output pointer R2:R3 (the selftest sets it nonzero: no fold may depend on it)
@@ -944,6 +965,10 @@ def smem_of(req, occ):
             if occ in SMEM_OF:
                 raise SystemExit(f"{req['id']}: {need} B of shared memory do not fit the grid {occ} ({smem} B per CTA)")
             smem = (need + 0xFFF) & ~0xFFF
+    if req.get("kind") == "ord" and is_cov(req) and req.get("slow"):      # version 30: the slow and the fast region stand behind the threads' lines
+        _sb, fb_, st_ = cov_regions(dict(req, _threads=threads))
+        if fb_ + 32 * st_ > smem:
+            raise SystemExit(f"{req['id']}: the two regions of slow end at {fb_ + 32 * st_} B - they do not fit the grid {occ} ({smem} B per CTA)")
     if smem > SMEM_PER_CTA_MAX:
         raise SystemExit(f"{req['id']}: {smem} B of shared memory per CTA (the card allows {SMEM_PER_CTA_MAX})")
     return smem
@@ -977,7 +1002,7 @@ SET_OCC = ("w1", "w2", "w4", "w8", "w9", "w12", "w16", "g8", "c2w9s")      # thr
 def is_set(req):
     """version 23: a request of kind ord whose `forms` name a producer that is not a shared load of the thread's line"""
     return bool(req.get("kind") == "ord" and req.get("forms")
-                and any(t.strip()[-1:] in SET_FORM for t in str(req["forms"]).split(",")))
+                and (any(t.strip()[-1:] in SET_FORM for t in str(req["forms"]).split(",")) or str(req["forms"]).strip()[:1] == "n"))      # (version 30: a cover set - its first token is a bare load)
 
 
 def set_nreg(let):
@@ -989,6 +1014,8 @@ def set_plan(req):
     offset in the thread's line (s u d q), the quad of the warp's B words (Q: 0..7), the byte of the warp's 128 B bytes
     (B), else None. Destinations R32 .. R72: the quads first, then the pairs, then the singles, each in the order of the
     producers."""
+    if is_cov(req):      # version 30: [bare, cover]
+        return cov_plan(req)
     toks = []
     for t in [x.strip() for x in str(req["forms"]).split(",")]:
         g = t[:1] if (t[:1] in ("g", "k") and len(t) > 1) else ""      # version 28: k = under the SECOND predicate (@P2)
@@ -1300,7 +1327,7 @@ SF_LET = ("S", "D")
 
 def is_sf(req):
     """version 29: a SET request whose producers are the letters S / D (the scale set)"""
-    return bool(is_set(req) and any(t.strip() in SF_LET for t in str(req["forms"]).split(",")))
+    return bool(is_set(req) and not is_cov(req) and any(t.strip() in SF_LET for t in str(req["forms"]).split(",")))
 
 
 def sf_layout(plan):
@@ -1343,7 +1370,8 @@ def sf_text(r):
             + "; both are written at the top of every iteration by ISETP.GE.AND"
             + f"; the first reader stands {r['rdist'] if r.get('rdist') else 2} cycles behind the last arming"
             + ("; POSITIVE CONTROL (wait end): the same text with the readers' ONE wait bit moved to the first word BEHIND the reader words - expect not good wherever a reader executes"
-               if r.get("wait") == "end" else "; the first reader word carries the ONE wait (also where its guard is false)") + mixed + "]")
+               if r.get("wait") == "end" else "; the first reader word carries the ONE wait (also where its guard is false)") + mixed
+            + ("; NO LOAD (version 30): a filler stands in the place of every load and the scale registers hold the unit scale from the top of every iteration - the layout alone" if r.get("noload") else "") + "]")
 
 
 def sf_rw(ins):
@@ -1364,9 +1392,9 @@ def sf_rw(ins):
         d0, a0, b0, c0 = (regs(o)[0] for o in ops[:4])
         rd = set(range(a0, a0 + 4)) | {b0, b0 + 1} | set(range(c0, c0 + 4)) | {regs(ops[4])[0], regs(ops[5])[0]}
         return g, op, rd, list(range(d0, d0 + 4)), None
-    if op in ("MOV", "LOP3.LUT", "IADD3", "IMAD", "SHF.L.U32", "LDS", "LDS.64"):
+    if op in ("MOV", "LOP3.LUT", "IADD3", "IMAD", "SHF.L.U32", "LDS", "LDS.64", "LDS.128"):      # (version 30: LDS.128)
         wr = regs(ops[0])
-        return g, op, {x for o in ops[1:] for x in regs(o)}, wr + ([wr[0] + 1] if op == "LDS.64" else []), None
+        return g, op, {x for o in ops[1:] for x in regs(o)}, wr + ([wr[0] + 1] if op == "LDS.64" else [wr[0] + 1, wr[0] + 2, wr[0] + 3] if op == "LDS.128" else []), None
     raise SystemExit(f"sf_audit: a word the audit does not know: {ins.text}")
 
 
@@ -1393,7 +1421,7 @@ def sf_audit(req, body):
                     continue
                 tw, kind = lastw[r]
                 if kind == "lds":
-                    if ins.tag not in ("C", "C2", "C3"):
+                    if ins.tag not in ("C", "C2", "C3", "CK"):      # (version 30: CK = the MOV of a cover's register)
                         bad.append(f"`{ins.text}`: reads R{r} behind a load and is no reader word of the set")
                     elif r in lastfixed and t - lastfixed[r] < (15 if tensor else 6):
                         bad.append(f"`{ins.text}`: the marker of R{r} only {t - lastfixed[r]} cycles in front ({15 if tensor else 6})")
@@ -1439,7 +1467,8 @@ def body_set_sf(req, d, front, variant):
     b = []
     for _g, let, reg, _a in plan:
         if let == "S":
-            b.append(Ins(f"MOV R{reg}, 0x{SF_MARK:x} ;", ("mov", f"R{reg}", SF_MARK)))
+            mk_ = SF_UNIT if req.get("noload") else SF_MARK      # (version 30: noload - the unit scale from the top of the iteration)
+            b.append(Ins(f"MOV R{reg}, 0x{mk_:x} ;", ("mov", f"R{reg}", mk_)))
         else:
             b += [Ins(f"MOV R{reg + j}, R5 ;", ("mov", f"R{reg + j}", "R5")) for j in (0, 1)]
     b += [Ins("LOP3.LUT R13, R11, 0x1, RZ, 0xc0, !PT ;", ("and", "R13", "R11", 1)),
@@ -1461,7 +1490,10 @@ def body_set_sf(req, d, front, variant):
         else:
             off, kd = 8 * kd, kd + 1
             text, sem, dst = f"LDS.64 R{reg}, [{base}{('+0x%x' % off) if off else ''}] ;", ("lds", f"R{reg}", "R9", off, 2), [f"R{reg}", f"R{reg + 1}"]
-        b.append(Ins(text, sem, ctl=C(slast if k == n - 1 else d, wb="1", y=y), tag="P", dst=dst))
+        if req.get("noload"):      # version 30: a filler in the place of the load
+            b.append(Ins("IADD3 R15, PT, PT, R15, 0x1, RZ ;", ("nop",), ctl=C(slast if k == n - 1 else d)))
+        else:
+            b.append(Ins(text, sem, ctl=C(slast if k == n - 1 else d, wb="1", y=y), tag="P", dst=dst))
     b += [Ins("IADD3 R15, PT, PT, R15, 0x1, RZ ;", ("nop",), ctl=C(st)) for st in rfill]
     endw = req.get("wait") == "end"      # the positive control: the readers' ONE wait bit stands on the first word BEHIND the reader words
     lead_mov = req.get("lead") == "mov"
@@ -1495,6 +1527,175 @@ def body_set_sf(req, d, front, variant):
     return b
 
 
+# version 30 - the COVER SET of kind ord: the in-order cover of a BARE shared load (no write barrier) by a YOUNGER load of the
+# same pipe that carries the write barrier; the readers of the bare load's register(s) stand behind ONE wait on that barrier.
+# token: (letter, guard prefix as in a set: "" | g = under P0 | k = under P2)
+COV_BARE = {"nS": ("S", ""), "nD": ("D", ""), "nkq": ("q", "k")}
+COV_COVER = {"S": ("S", ""), "D": ("D", ""), "q": ("q", ""), "gq": ("q", "g")}
+COV_MN = {"S": "LDS", "D": "LDS.64", "q": "LDS.128"}
+COV_K = (SF_UNIT, 0x2468ace1, 0x0f1e2d3c, 0x4b5a6978)      # "slow": the 16-byte record of a lane in the two regions (word 0 = the unit scale's code)
+COV_SLOW = ("bare", "cover", "none")
+COV_RS, COV_RF = 64, 65      # "slow": R64 = the lane's record in the slow region, R65 = in the fast region (prologue; never rewritten)
+
+
+def is_cov(req):
+    """version 30: a request of kind ord whose first `forms` token is a BARE load (the prefix n)"""
+    return bool(req.get("kind") == "ord" and req.get("forms") and str(req["forms"]).strip()[:1] == "n")
+
+
+def cov_plan(req):
+    """the two loads of a cover set, [bare, cover]: (guard, letter, first destination register, None) - the bare load's
+    destination on R32, the cover's behind it on the next register that suits its width"""
+    toks = [x.strip() for x in str(req["forms"]).split(",")]
+    if len(toks) != 2 or toks[0] not in COV_BARE or toks[1] not in COV_COVER:
+        raise SystemExit(f"{req.get('id')}: a cover set (version 30) is \"<bare>,<cover>\" - bare nS | nD | nkq, cover S | D | q | gq")
+    (bl, bg), (cl, cg) = COV_BARE[toks[0]], COV_COVER[toks[1]]
+    nb, nc = set_nreg(bl), set_nreg(cl)
+    return [(bg, bl, 32, None), (cg, cl, (32 + nb + nc - 1) // nc * nc, None)]
+
+
+def cov_reader(req):
+    """the reader of the bare load's register(s): qmma (`@P2 QMMA.SF`, the register as its second block scale; a bare LDS only) | mov"""
+    return req.get("reader") or ("qmma" if COV_BARE[str(req["forms"]).split(",")[0].strip()][0] == "S" else "mov")
+
+
+def cov_live(req):
+    """does the bare load execute somewhere AND does a reader word of its register execute somewhere"""
+    return not ((COV_BARE[str(req["forms"]).split(",")[0].strip()][1] == "k" or cov_reader(req) == "qmma") and req["pguard"][1] == "f")
+
+
+def cov_regions(req):
+    """"slow" -> (the slow region's base, the fast region's base, the fast region's stride): both behind the threads' 64-byte
+    lines; the slow region = one 16-byte record per lane 128 B apart (the warp's 32 lanes on ONE bank at different words), the
+    fast region = one record per lane, the access size of the widest load that reads it apart (every lane its own bank(s))"""
+    threads = int(req.get("_threads", 512))
+    slow = req.get("slow")
+    wide = max(set_nreg(let) for k, (_g, let, _r, _a) in enumerate(cov_plan(req)) if not (slow == "bare" and k == 0) and not (slow == "cover" and k == 1))
+    sb = (threads * 64 + 0xFFF) & ~0xFFF
+    return sb, sb + 0x1000, 4 * wide
+
+
+def cov_text(r):
+    (bg, bl, _rb, _x), (cg, cl, _rc, _y) = cov_plan(r)
+    pg = r["pguard"]
+    w = {"t": "true in every iteration", "f": "FALSE in every iteration (the word never executes)", "c": "a bit of (iteration counter x 0x9e3779b1) (true where the bit is 0)"}
+    tensor = cov_reader(r) == "qmma"
+    rd, rg = int(r.get("rdist") or 2), int(r.get("rgap") or 1)
+    place = {None: "both loads read the thread's own line (the bare load through R9, the cover through the second base register)",
+             "bare": "SLOW BARE LOAD: the bare load reads the slow region (the warp's 32 lanes on ONE bank at different words, 128 B apart), the cover the fast region (every lane its own bank)",
+             "cover": "SLOW COVER: the cover reads the slow region (the warp's 32 lanes on ONE bank at different words, 128 B apart), the bare load the fast region (every lane its own bank)",
+             "none": "both loads read the fast region (every lane its own bank)"}[r.get("slow")]
+    if r.get("wait") == "end":
+        waits = (f"POSITIVE CONTROL (wait end): the reader word(s) stand {rd + (rg if r.get('carrier') == 'mov' else 0)} cycles behind the cover with NO wait in front of them; "
+                 "the `MOV` that reads the cover's first register stands behind them and carries the wait - expect not good wherever the bare load had not landed")
+    elif r.get("carrier") == "mov":
+        waits = f"the ONE wait on the cover's barrier stands on a `MOV` that reads the cover's first register, {rd} cycles behind the cover; the first reader word {rg} cycle(s) behind that `MOV`, no wait of its own"
+    else:
+        waits = f"the first reader word stands {rd} cycles behind the cover and carries the ONE wait on the cover's barrier"
+    return ("a COVER SET (version 30: R0-R79): a BARE " + (f"`@P2 {COV_MN[bl]}`" if bg == "k" else f"`{COV_MN[bl]}`") + " (NO write barrier; its register holds a marker until the load lands), "
+            "then - the swept distance behind it - the COVER " + (f"`@P0 {COV_MN[cl]}`" if cg == "g" else f"`{COV_MN[cl]}`") + " on write barrier 1; the readers of the bare load's register: "
+            + ("`@P2 QMMA.SF ... Runit, Rbare, URZ` (the register as a block scale)" if tensor else f"{set_nreg(bl)} unguarded `MOV` word(s)") + f"; {waits}; {place}"
+            + (f"; P0 (the cover's guard) = {w[pg[0]]}" if cg == "g" else "")
+            + (f"; P2 = {w[pg[1]]}" if (bg == "k" or tensor) else "")
+            + ("; both predicates are written at the top of every iteration by ISETP.GE.AND" if (cg == "g" or bg == "k" or tensor) else "")
+            + "; hypothesis stale = every reader word of the bare load's register took its marker")
+
+
+def body_set_cov(req, d, front, variant):
+    """version 30 - the cover set. Every iteration: the markers into the destinations of both loads; with a tensor reader its A
+    quad and accumulator quad; P0 and P2; the BARE load; d issue cycles behind it the COVER on write barrier 1; `rdist` cycles
+    behind the cover the readers' group - carrier reader: the reader words (the first carries the wait), the MOV of the cover's
+    first register; carrier mov: that MOV (with the wait), `rgap` cycles behind it the reader words; wait end (the control): the
+    reader words at the same place with no wait in front, then that MOV with the wait; 30 cycles behind the group the fold."""
+    plan = set_plan(req)
+    if variant != "bare" or req["barrier"] != "all" or front not in ("none", "", None):
+        raise SystemExit(f"{req.get('id')}: a cover set has barrier all (the ONE write barrier is the cover's), no front, no ctl variant")
+    y = req.get("yield") == "set"
+    pg = req["pguard"]
+    sp, form = MMA_SPEC[SF_FORM], MMA_FORMS[SF_FORM]
+    L = sf_layout(plan)
+    a, c1, one, tmp = L["a"], L["c1"], L["one"], L["tmp"]
+    (bg, bl, rb, _x), (cg, cl, rc, _y) = plan
+    tensor = cov_reader(req) == "qmma"
+    slow = req.get("slow")
+    endw = req.get("wait") == "end"
+    carrier = req.get("carrier") or "reader"
+    rdist, rgap = int(req.get("rdist") or 2), int(req.get("rgap") or 1)
+    fill = lambda st: Ins("IADD3 R15, PT, PT, R15, 0x1, RZ ;", ("nop",), ctl=C(st))
+
+    def split(dist, smax):
+        if dist <= smax:
+            return dist, []
+        k, rest = divmod(dist - smax, 15)
+        return smax, [15] * k + ([rest] if rest else [])
+
+    def mark(let, reg):
+        if let == "S":
+            return [Ins(f"MOV R{reg}, 0x{SF_MARK:x} ;", ("mov", f"R{reg}", SF_MARK))]
+        return [Ins(f"MOV R{reg + j}, R5 ;", ("mov", f"R{reg + j}", "R5")) for j in range(set_nreg(let))]
+
+    def load(k, g, let, reg):
+        n = set_nreg(let)
+        dst = [f"R{reg + j}" for j in range(n)]
+        if slow:
+            adr = f"[R{COV_RS}]" if ((slow == "bare" and k == 0) or (slow == "cover" and k == 1)) else f"[R{COV_RF}]"
+            sem = ("ldk", tuple(dst), COV_K[:n])
+        else:
+            off = {"S": 0x20 + 4 * k, "D": 8 * k, "q": 0x10 if k else 0x30}[let]
+            adr = f"[{'R%d' % L['base2'] if k else 'R9'}{('+0x%x' % off) if off else ''}]"
+            sem = ("lds", f"R{reg}", "R9", off, n)
+        gp = {"g": "P0", "k": "P2"}.get(g)
+        if gp:
+            sem = ("g", gp, 1, tuple(dst), sem)
+        return f"{('@' + gp + ' ') if gp else ''}{COV_MN[let]} R{reg}, {adr} ;", sem, dst
+
+    b = mark(bl, rb) + mark(cl, rc)
+    if tensor:
+        b += [Ins("LOP3.LUT R13, R11, 0x1, RZ, 0xc0, !PT ;", ("and", "R13", "R11", 1)),
+              Ins(f"IMAD R{a}, R13, 0x{sp['da']:x}, RZ ;", ("mad", f"R{a}", "R13", sp["da"], "RZ")),
+              Ins(f"IADD3 R{a}, PT, PT, R{a}, 0x{sp['a0']:x}, RZ ;", ("add", f"R{a}", f"R{a}", sp["a0"]))]
+        b += [Ins(f"MOV R{a + k}, R{a} ;", ("mov", f"R{a + k}", f"R{a}")) for k in (1, 2, 3)]
+        b += [Ins(f"LOP3.LUT R{c1}, R4, 0x3fffff, RZ, 0xc0, !PT ;", ("and", f"R{c1}", "R4", 0x3fffff)),
+              Ins(f"LOP3.LUT R{c1}, R{c1}, 0x4b000000, RZ, 0xfc, !PT ;", ("or", f"R{c1}", f"R{c1}", 0x4b000000))]
+        b += [Ins(f"IADD3 R{c1 + k}, PT, PT, R{c1}, 0x{k:x}, RZ ;", ("add", f"R{c1 + k}", f"R{c1}", k)) for k in (1, 2, 3)]
+    b += set_pguard_top(pg)
+    s0, f0 = split(d, 11 if y else 15)
+    text, sem, dst = load(0, bg, bl, rb)
+    b.append(Ins(text, sem, ctl=C(s0, y=y), tag="P", dst=dst))      # the BARE load: no write barrier
+    b += [fill(st) for st in f0]
+    s1, f1 = split(rdist + (rgap if (carrier == "mov" and endw) else 0), 11 if y else 15)
+    text, sem, dst = load(1, cg, cl, rc)
+    b.append(Ins(text, sem, ctl=C(s1, wb="1", y=y), tag="K", dst=dst))      # the COVER: the ONE write barrier
+    b += [fill(st) for st in f1]
+    if tensor:
+        acc = tuple(f"R{c1 + k}" for k in range(4))
+        tm = []
+        rd = [Ins(f"@P2 {form} R{c1}, R{a}, R{L['b1']}, R{c1}, R{one}, R{rb}, URZ ;",
+                  ("g", "P2", 1, acc, ("qmmasf", f"R{c1}", f"R{a}", f"R{L['b1']}", f"R{one}", f"R{rb}", SF_FORM)), ctl=C(1, y=y), tag="C2")]
+    else:
+        tm = [tmp + j for j in range(set_nreg(bl))]
+        rd = [Ins(f"MOV R{t_}, R{rb + j} ;", ("mov", f"R{t_}", f"R{rb + j}"), ctl=C(1), tag="C3") for j, t_ in enumerate(tm)]
+    tk = tmp + 4
+    kmov = lambda st, w_: Ins(f"MOV R{tk}, R{rc} ;", ("mov", f"R{tk}", f"R{rc}"), ctl=C(st, wait="1" if w_ else ""), tag="CK")
+    if endw:      # the positive control: the reader words with no wait in front of them, the wait on the first word behind them
+        b += rd + [kmov(1, True)]
+    elif carrier == "mov":
+        sg, fg = split(rgap, 15)
+        b += [kmov(sg, True)] + [fill(st) for st in fg] + rd
+    else:
+        rd[0] = Ins(rd[0].text, rd[0].sem, ctl=C(1, wait="1", y=(y and tensor)), tag=rd[0].tag)
+        b += rd + [kmov(1, False)]
+    b += [PAD(), PAD()]
+    regs_ = (list(range(c1, c1 + 4)) if tensor else []) + tm + [tk]
+    wts = (3, 5, 7, 11, 13, 17, 19, 23, 29)
+    b.append(Ins(f"IMAD R8, R{regs_[0]}, 0x{wts[0]:x}, RZ ;", ("mad", "R8", f"R{regs_[0]}", wts[0], "RZ")))
+    for reg, wt in zip(regs_[1:], wts[1:]):
+        b.append(Ins(f"IMAD R8, R{reg}, 0x{wt:x}, R8 ;", ("mad", "R8", f"R{reg}", wt, "R8")))
+    b.append(Ins("IADD3 R10, PT, PT, R10, R8, RZ ;", ("add", "R10", "R10", "R8")))
+    sf_audit(req, b)
+    return b
+
+
 def body_set(req, d, front, variant):
     """version 23 - a SET of producers of one thread in flight, d issue cycles apart, ONE wait of the reader (`barrier`
     all = every producer sets the SAME write barrier, none = the positive control: no barrier and no wait, last = only
@@ -1504,6 +1705,8 @@ def body_set(req, d, front, variant):
     other registers of the pairs and quads. A register whose content the host cannot know (LDC.64 of the output
     pointer, MUFU.EX2) is read as (register - its reference): 0 when the producer has landed."""
     plan = set_plan(req)
+    if is_cov(req):      # version 30
+        return body_set_cov(req, d, front, variant)
     if any(let == "M" for _g, let, _r, _a in plan):
         return body_set_mma(req, d, front, variant)
     if any(let in ("S", "D") for _g, let, _r, _a in plan):      # version 29
@@ -3124,7 +3327,7 @@ def prologue(req, ctas):
                   Ins("IADD3 R15, PT, PT, R15, 0x1, RZ ;", ("nop",), ctl=C(wait="5")),
                   Ins("STS.128 [R9+0x20], R28 ;", ("sts", "R9", 0x20, "R28", 4), ctl=C(rb="5")),
                   Ins("IADD3 R15, PT, PT, R15, 0x1, RZ ;", ("nop",), ctl=C(wait="5")), PAD(), PAD()]
-        if lets & set(SF_LET):
+        if lets & set(SF_LET) and not is_cov(req):
             # version 29 - the scale set: slot 2 of every thread's line (the words the LDS take) := the UE8M0 code of the unit
             # scale in every byte - a store with a read barrier, waited, behind the prologue's bare stores of the same slot; the
             # B fragments of the two readers (every element 1.0 | 2.0); the second base register; (second build) with ONE S
@@ -3139,6 +3342,30 @@ def prologue(req, ctas):
             if sum(1 for _g, l_, _r, _a in set_plan(req) if l_ == "S") == 1:
                 p.append(Ins(f"MOV R{sl_['one']}, 0x{SF_UNIT:x} ;", ("mov", f"R{sl_['one']}", SF_UNIT)))
             p += [PAD(), PAD()]
+    if req["kind"] == "ord" and is_cov(req):
+        # version 30 - the cover set: slot 2 of every thread's line (the words a line LDS takes) := the UE8M0 code of the unit
+        # scale - a store with a read barrier, waited, behind the prologue's bare stores of the same slot; the B fragment and the
+        # unit-scale register of the tensor reader; the second base register; with "slow" the lane's two records: R64 / R65 =
+        # their addresses (the lane number x 128 B | x the fast stride, + the regions' bases), the record written by every
+        # thread of the lane (the same constants: stores with a read barrier, waited)
+        cf_, cl_ = MMA_SPEC[SF_FORM], sf_layout(set_plan(req))
+        p += [Ins(f"MOV R{r}, 0x{SF_UNIT:x} ;", ("mov", f"R{r}", SF_UNIT)) for r in (28, 29, 30, 31)]
+        p += [Ins("STS.128 [R9+0x20], R28 ;", ("sts", "R9", 0x20, "R28", 4), ctl=C(rb="5")),
+              Ins("IADD3 R15, PT, PT, R15, 0x1, RZ ;", ("nop",), ctl=C(wait="5")),
+              Ins(f"MOV R{cl_['b1']}, 0x{cf_['b1']:x} ;", ("mov", f"R{cl_['b1']}", cf_["b1"])), Ins(f"MOV R{cl_['b1'] + 1}, 0x{cf_['b1']:x} ;", ("mov", f"R{cl_['b1'] + 1}", cf_["b1"])),
+              Ins(f"MOV R{cl_['base2']}, R9 ;", ("mov", f"R{cl_['base2']}", "R9")),
+              Ins(f"MOV R{cl_['one']}, 0x{SF_UNIT:x} ;", ("mov", f"R{cl_['one']}", SF_UNIT))]
+        if req.get("slow"):
+            sb_, fb_, st_ = cov_regions(req)
+            p += [Ins("LOP3.LUT R13, R0, 0x1f, RZ, 0xc0, !PT ;", ("and", "R13", "R0", 0x1f)),
+                  Ins(f"IMAD R{COV_RS}, R13, 0x80, RZ ;", ("nop",)), Ins(f"IADD3 R{COV_RS}, PT, PT, R{COV_RS}, 0x{sb_:x}, RZ ;", ("nop",)),
+                  Ins(f"IMAD R{COV_RF}, R13, 0x{st_:x}, RZ ;", ("nop",)), Ins(f"IADD3 R{COV_RF}, PT, PT, R{COV_RF}, 0x{fb_:x}, RZ ;", ("nop",))]
+            p += [Ins(f"MOV R{29 + k}, 0x{COV_K[1 + k]:x} ;", ("mov", f"R{29 + k}", COV_K[1 + k])) for k in range(3)]
+            p += [Ins(f"STS.128 [R{COV_RS}], R28 ;", ("nop",), ctl=C(rb="5")), Ins("IADD3 R15, PT, PT, R15, 0x1, RZ ;", ("nop",), ctl=C(wait="5")),
+                  Ins(f"{'STS' if st_ == 4 else 'STS.64' if st_ == 8 else 'STS.128'} [R{COV_RF}], R28 ;", ("nop",), ctl=C(rb="5")),
+                  Ins("IADD3 R15, PT, PT, R15, 0x1, RZ ;", ("nop",), ctl=C(wait="5")),
+                  Ins("MOV R13, RZ ;", ("mov", "R13", 0))]
+        p += [PAD(), PAD()]
     return p
 
 
@@ -3378,6 +3605,9 @@ def model(req, mode, gids=None, scalar=False):
                 raise RuntimeError(f"model: an MMA fragment the model does not know ({sem})")
             for k in range(4):
                 R[reg(sem[1], k)] = get(reg(sem[1], k)) + U(sp["k"] * sp["aval"][av] * sp["bval"][bv])
+        elif op == "ldk":           # version 30: a load from a region whose words are constants, the same for every thread: registers := constants
+            for r_, c_ in zip(sem[1], sem[2]):
+                R[r_] = get(c_)
         elif op == "qmmasf":        # version 29: a QMMA.SF with uniform fragments whose two block-scale registers hold, in every byte, the UE8M0 code of x 1 or of x 2 (per thread): result = accumulator + 32 a b x the two scales
             sp = MMA_SPEC[sem[6]]
             av, bv = int(get(sem[2])[0]) & sp["amask"], int(get(sem[3])[0]) & sp["bmask"]
@@ -3618,6 +3848,9 @@ def _machine(gid):
             av, bv = get(sem[2]) & sp["amask"], get(sem[3]) & sp["bmask"]
             for k in range(4):
                 R[reg(sem[1], k)] = (get(reg(sem[1], k)) + sp["k"] * sp["aval"][av] * sp["bval"][bv]) & M
+        elif op == "ldk":           # version 30
+            for r_, c_ in zip(sem[1], sem[2]):
+                R[r_] = c_ & M
         elif op == "qmmasf":        # version 29
             sp = MMA_SPEC[sem[6]]
             av, bv = get(sem[2]) & sp["amask"], get(sem[3]) & sp["bmask"]
@@ -3784,6 +4017,10 @@ def modes_of(req):
         return ["good", "stale"] if req.get("writer") != "none" else ["good"]
     if req["kind"] == "raw" and RAW_CONSUMERS.get(req.get("consumer"), ("",))[0] in ("trel", "rel"):
         return ["good"]      # (version 24: X against a late Y of the same word - a stale X is `other`)
+    if req["kind"] == "ord" and is_cov(req):      # version 30: stale = every reader word of the BARE load's register took its marker
+        return ["good", "stale"] if cov_live(req) else ["good"]
+    if req["kind"] == "ord" and req.get("noload"):      # version 30: a scale set with no load at all - nothing a reader could miss
+        return ["good"]
     if req["kind"] == "ord" and is_sf(req):      # version 29: stale = every reader word that executes took the markers; stale1 / stale2 / stale3 = only the first tensor reader / only the second / only the MOV readers (listed where more than one group executes somewhere)
         grp_ = [("stale1", req["pguard"][0] != "f"), ("stale2", req["pguard"][1] != "f"), ("stale3", any(t_.strip() == "D" for t_ in str(req["forms"]).split(",")))]
         live_ = [m_ for m_, on_ in grp_ if on_]
@@ -3877,7 +4114,29 @@ def normalise(req):
                 if is_set(r):      # version 23
                     set_plan(r)
                     r.setdefault("occupancy", ["w8", "w16"])
-                    if is_sf(r):      # version 29: the scale set
+                    if r.get("noload") is not None and (r["noload"] is not True or is_cov(r) or not is_sf(r) or any(t_.strip() != "S" for t_ in str(r["forms"]).split(","))
+                                                         or r.get("wait", "reader") != "reader"):
+                        raise SystemExit(f"{r['id']}: noload is true (version 30: a scale set of S alone with NO load at all - a filler in the place of every load, the scale "
+                                         "registers hold the unit scale; wait reader) or absent")
+                    if is_cov(r):      # version 30: the cover set
+                        pg_ = r.get("pguard")
+                        if (not (isinstance(pg_, str) and len(pg_) == 2 and all(c_ in ("t", "f", "c") for c_ in pg_))
+                                or r["barrier"] != "all" or r.get("wait", "reader") not in ("reader", "end") or r.get("controls") or r.get("cold") or r.get("pshift") is not None
+                                or r.get("lead") is not None or any(f_ not in ("none", "", None) for f_ in r.get("front", ["none"]))
+                                or r.get("reader") not in (None, "qmma", "mov") or (r.get("reader") == "qmma" and not str(r["forms"]).strip().startswith("nS"))
+                                or r.get("carrier") not in (None, "reader", "mov") or (r.get("rgap") is not None and r.get("carrier") != "mov")
+                                or r.get("slow") not in (None,) + COV_SLOW
+                                or any(not (r.get(k_) is None or (isinstance(r[k_], int) and not isinstance(r[k_], bool) and lo_ <= r[k_] <= 300)) for k_, lo_ in (("rdist", 2), ("rgap", 1)))
+                                or max(parse_distances(r["distances"])) > 300):
+                            raise SystemExit(f"{r['id']}: a cover set (version 30: forms \"<bare>,<cover>\") needs pguard = two letters of t | f | c (P0 for a cover gq, P2 for the "
+                                             "tensor reader and a bare nkq), barrier all, no front, no ctl variant, no cold, no pshift, no lead, wait reader | end (the positive "
+                                             "control), reader qmma (a bare nS only) | mov, carrier reader | mov, rgap 1 .. 300 (carrier mov only), rdist 2 .. 300, slow bare | "
+                                             "cover | none, distances 1 .. 300")
+                        if not cov_live(r):
+                            raise SystemExit(f"{r['id']}: a cover set whose bare load or whose reader never executes (P2 false) can show nothing")
+                        r.setdefault("wait", "reader")
+                        r["controls"] = False
+                    elif is_sf(r):      # version 29: the scale set
                         if (not (isinstance(r.get("pguard"), str) and len(r["pguard"]) == 2 and all(c_ in SET_PG for c_ in r["pguard"]))
                                 or r["barrier"] != "all" or r.get("wait", "reader") not in ("reader", "end") or r.get("controls") or r.get("cold") or r.get("pshift") is not None
                                 or any(f_ not in ("none", "", None) for f_ in r.get("front", ["none"]))
@@ -3918,7 +4177,7 @@ def normalise(req):
                     ordn_plan(r)
                 if ordn_no_gaddr(r) and any(str(f).startswith("stg") for f in r.get("front", [])):
                     raise SystemExit(f"{r['id']}: front stg... needs the global addresses, which this request's loads overwrite (R16..R19)")
-            if r.get("yield") and max(parse_distances(r["distances"])) > 11:
+            if r.get("yield") and not is_cov(r) and max(parse_distances(r["distances"])) > 11:      # (version 30: a cover set sweeps the distance with fillers)
                 raise SystemExit(f"{r['id']}: with the yield flag the loads are at most 11 cycles apart")
         if r.get("older_barrier") not in (None, "same", "recycle"):
             raise SystemExit(f"{r['id']}: older_barrier is \"same\", \"recycle\" (version 21) or absent")
@@ -4120,6 +4379,8 @@ def pair_text(r):
     if r["kind"] == "mma":
         return (f"{MMA_FORMS[r['form']]} -> the same, issue spacing ({MMA_VARIANTS[r['variant']]}; "
                 + ("first MMA + a NOP of one cycle + fillers" if r["via"] == "nop" else "the first MMA's stall + fillers") + ")")
+    if r["kind"] == "ord" and is_cov(r):      # version 30
+        return cov_text(r)
     if r["kind"] == "ord" and r.get("forms"):
         names = SET_NAMES
         toks = [x.strip() for x in str(r["forms"]).split(",")]
@@ -4349,13 +4610,15 @@ def cmd_gen(args):
                 raise SystemExit(f"{r['id']}: the checksum of `good` is 0 in too many threads - a kernel that never ran would pass")
         if r["kind"] == "ord" and r.get("pshift") == 1 and not (cand["good"] != cand["p0old"]).all():      # version 28, second build
             raise SystemExit(f"{r['id']}: the hypothesis p0old gives the checksum of `good` in some thread - the request could not prove the reading there")
+        if r["kind"] == "ord" and is_cov(r) and "stale" in cand and not (cand["good"] != cand["stale"]).all():      # version 30
+            raise SystemExit(f"{r['id']}: a reader that took the bare load's marker in every iteration gives the checksum of `good` in some thread - the probe could not see it there")
         if r["kind"] == "ord" and is_sf(r):      # version 29
             e1_, e2_ = sf_exec(r, np.arange(len(cand["good"])))
             e3_ = np.full(len(cand["good"]), any(t_.strip() == "D" for t_ in str(r["forms"]).split(",")), bool)
             for m_, ex_ in (("stale", e1_ | e2_ | e3_), ("stale1", e1_), ("stale2", e2_), ("stale3", e3_)):
                 if m_ in cand and not np.array_equal(cand["good"] != cand[m_], ex_):
                     raise SystemExit(f"{r['id']}: the hypothesis {m_} does not differ from `good` in exactly the threads in which its reader word executes - the probe could not see it there")
-        if r["kind"] == "ord" and r.get("pguard") and not is_sf(r) and "stale" in cand:      # version 28
+        if r["kind"] == "ord" and r.get("pguard") and not is_sf(r) and not is_cov(r) and "stale" in cand:      # version 28
             if not np.array_equal(cand["good"] != cand["stale"], set_exec(r, np.arange(len(cand["good"])))):
                 raise SystemExit(f"{r['id']}: the hypothesis stale does not differ from `good` in exactly the threads in which a producer of the set executes - the probe could not see it there")
         if r["kind"] == "lb" and not (cand["good"] != cand["late"]).all():       # version 26, third build
@@ -4976,6 +5239,9 @@ def cmd_list(_args):
     print("kind ord (version 29) - the SCALE SET: \"forms\" of S (an unguarded LDS into a block-scale register of two guarded QMMA.SF readers) and D (second build: an unguarded LDS.64 read by MOV words), "
           "2 .. 7 loads on one write barrier; \"pguard\": two letters of t | f | l | c (P0 the first tensor reader, P2 the second); \"rdist\"; \"lead\": mov; \"wait\": reader | end (the control); "
           "hypotheses stale, stale1, stale2, stale3; sf_audit counts the cycles")
+    print("kind ord (version 30) - the COVER SET: \"forms\" = \"<bare>,<cover>\" - bare nS (LDS) | nD (LDS.64) | nkq (@P2 LDS.128), no write barrier; cover S | D | q | gq (@P0 LDS.128) on "
+          "the write barrier; \"reader\": qmma (@P2 QMMA.SF, a bare nS) | mov; \"carrier\": reader | mov (+ \"rgap\"); \"rdist\"; \"wait\": reader | end (the control); \"pguard\": two letters of "
+          "t | f | c; \"slow\": bare | cover | none (the bank-conflict region against the conflict-free one); hypothesis stale. \"noload\": true on a scale set of S alone = no load at all")
     print("occupancy:", "; ".join(f"{k} = {v}" for k, v in OCC.items()))
     print("front: none | sts128xK@S | stsxK@S | stgxK@S  (K stores of a constant at stall S in front of the tested instruction)")
     return 0
@@ -6207,6 +6473,107 @@ def cmd_selftest(_args):
             raise AssertionError(f"a request that must be refused was taken: {bad}")
         except SystemExit:
             pass
+    # version 30 - the cover set: a BARE shared load in front of a younger load on the write barrier, ONE wait
+    for forms, pgs_ in (("nS,gq", ("ft", "tt", "ct", "fc")), ("nD,gq", ("ft", "tt", "ct")), ("nkq,gq", ("ft", "tt", "ct", "fc")), ("nS,S", ("tt", "tc")), ("nS,D", ("tt",)),
+                        ("nD,S", ("tt",)), ("nD,D", ("tt",)), ("nS,q", ("tt",)), ("nkq,q", ("tt",))):
+        bt_, ct_ = forms.split(",")
+        for pg_ in pgs_:
+            for rdr_ in ((None, "mov") if bt_ == "nS" else (None,)):
+                for slow_ in (None, "bare", "cover", "none"):
+                    base_ = dict({"id": "xx", "kind": "ord", "forms": forms, "barrier": "all", "yield": "set", "pguard": pg_, "distances": "1,4,35,64", "occupancy": ["w1", "w12"]},
+                                 **({"reader": rdr_} if rdr_ else {}), **({"slow": slow_} if slow_ else {}))
+                    rq = normalise(dict(base_))
+                    assert is_set(rq) and is_cov(rq) and not is_sf(rq) and rq["controls"] is False and rq["wait"] == "reader" and rq["nload"] == 2, (forms, pg_)
+                    tens_ = cov_reader(rq) == "qmma"
+                    assert tens_ == (bt_ == "nS" and rdr_ is None) and modes_of(rq) == ["good", "stale"], (forms, pg_, rdr_)
+                    g, st = model(rq, "good", gids=gids), model(rq, "stale", gids=gids)
+                    assert [int(x) for x in g] == model(rq, "good", gids=gids, scalar=True) and [int(x) for x in st] == model(rq, "stale", gids=gids, scalar=True), (forms, pg_, rdr_, slow_)
+                    assert (g != 0).all() and (g != st).all(), (forms, pg_, rdr_, slow_)
+                    n += 2
+                    (bg_, bl_, rb_, _u), (cg_, cl_, rc_, _v) = set_plan(rq)
+                    lay_ = sf_layout(set_plan(rq))
+                    assert rb_ == 32 and rc_ % set_nreg(cl_) == 0 and rc_ >= 32 + set_nreg(bl_) and rc_ + set_nreg(cl_) <= lay_["a"] and lay_["tmp"] + 4 < COV_RS, (forms, rb_, rc_)
+                    for wt_, car_, rd_, rg_ in (("reader", None, None, None), ("end", None, None, None), ("reader", "mov", 31, 10), ("end", "mov", 31, 10), ("reader", "mov", 71, 98),
+                                                ("reader", None, 20, None), ("end", None, 20, None)):
+                        rv = normalise(dict(base_, wait=wt_, **({"carrier": car_} if car_ else {}), **({"rdist": rd_} if rd_ else {}), **({"rgap": rg_} if rg_ else {})))
+                        for d_ in (1, 4, 35, 64):
+                            body = body_ord(dict(rv, _threads=384), d_, "none", "bare")
+                            st_ = [int(a.ctl[-3:-1]) for a in body]
+                            pb_, pk_ = [a for a in body if a.tag == "P"], [a for a in body if a.tag == "K"]
+                            rr_, kk_ = [a for a in body if a.tag in ("C2", "C3")], [a for a in body if a.tag == "CK"]
+                            assert len(pb_) == 1 and len(pk_) == 1 and len(kk_) == 1 and len(rr_) == (1 if tens_ else set_nreg(bl_)), (forms, pg_, wt_, car_)
+                            ib_, ik_, ir_, ic_ = body.index(pb_[0]), body.index(pk_[0]), body.index(rr_[0]), body.index(kk_[0])
+                            # the bare load: NO write barrier, no wait, no read barrier; the cover: write barrier 1; both with the yield flag
+                            assert pb_[0].ctl[1:14] == "B------:R-:W-" and pk_[0].ctl[1:14] == "B------:R-:W1" and ":Y:S" in pb_[0].ctl and ":Y:S" in pk_[0].ctl, (pb_[0].line(), pk_[0].line())
+                            assert pb_[0].text.startswith(("@P2 " if bg_ == "k" else "") + COV_MN[bl_] + f" R{rb_}, [") and pk_[0].text.startswith(("@P0 " if cg_ == "g" else "") + COV_MN[cl_] + f" R{rc_}, ["), (pb_[0].text, pk_[0].text)
+                            assert (pb_[0].sem[0] == "g") == (bg_ == "k") and (pk_[0].sem[0] == "g") == (cg_ == "g"), (forms,)
+                            want_adr = {None: ("[R9", f"[R{lay_['base2']}+"), "bare": (f"[R{COV_RS}]", f"[R{COV_RF}]"), "cover": (f"[R{COV_RF}]", f"[R{COV_RS}]"), "none": (f"[R{COV_RF}]", f"[R{COV_RF}]")}[slow_]
+                            assert want_adr[0] in pb_[0].text and want_adr[1] in pk_[0].text, (slow_, pb_[0].text, pk_[0].text)
+                            # the distances: bare -> cover = d; cover -> the first word of the group = rdist (the control of carrier mov: + rgap); only fillers between
+                            assert sum(st_[ib_:ik_]) == d_ and all(a.sem == ("nop",) and a.ctl[1:8] == "B------" for a in body[ib_ + 1:ik_]), (forms, d_, st_[ib_:ik_])
+                            ig_ = min(ir_, ic_)
+                            assert sum(st_[ik_:ig_]) == (rd_ or 2) + ((rg_ or 1) if (car_ == "mov" and wt_ == "end") else 0) and all(a.sem == ("nop",) for a in body[ik_ + 1:ig_]), (forms, wt_, car_, st_[ik_:ig_])
+                            # the ONE wait on barrier 1 in the loop body, and where it stands
+                            wb_ = [a for a in body if a.ctl[1:8] != "B------"]
+                            assert len(wb_) == 1 and wb_[0].ctl[1:8] == "B-1----", (forms, wt_, car_, [a.line() for a in wb_])
+                            if wt_ == "end":
+                                assert wb_[0] is kk_[0] and ic_ == body.index(rr_[-1]) + 1 and ir_ < ic_ and st_[ir_:ic_] == [1] * len(rr_), (forms, car_)
+                            elif car_ == "mov":
+                                assert wb_[0] is kk_[0] and ic_ < ir_ and sum(st_[ic_:ir_]) == rg_ and all(a.sem == ("nop",) for a in body[ic_ + 1:ir_]), (forms, rg_)
+                            else:
+                                assert wb_[0] is rr_[0] and ic_ == body.index(rr_[-1]) + 1, (forms,)
+                            if tens_:
+                                assert rr_[0].text == f"@P2 QMMA.SF.16832.F32.E4M3.E2M1.E8 R{lay_['c1']}, R{lay_['a']}, R{lay_['b1']}, R{lay_['c1']}, R{lay_['one']}, R{rb_}, URZ ;" and rr_[0].sem[:3] == ("g", "P2", 1), rr_[0].text
+                            else:
+                                assert [a.text for a in rr_] == [f"MOV R{lay_['tmp'] + j_}, R{rb_ + j_} ;" for j_ in range(set_nreg(bl_))], [a.text for a in rr_]
+                            assert kk_[0].text == f"MOV R{lay_['tmp'] + 4}, R{rc_} ;", kk_[0].text
+                            assert not misaligned("\n".join("    " + a.line() for a in prologue(dict(rv, _threads=384), 188) + body)), (forms, slow_)
+    for bad_ in ({"forms": "nS,gq", "pguard": "lt"}, {"forms": "nS,gq", "pguard": "tf"}, {"forms": "nkq,gq", "pguard": "tf"}, {"forms": "nD,gq", "pguard": "ft", "reader": "qmma"},
+                 {"forms": "nS,gq", "pguard": "ft", "rgap": 4}, {"forms": "nS,gq", "pguard": "ft", "rdist": 1}, {"forms": "nS,nD", "pguard": "tt"}, {"forms": "nq,gq", "pguard": "tt"},
+                 {"forms": "nS,gq", "pguard": "ft", "slow": "yes"}, {"forms": "nS,gq", "pguard": "ft", "distances": "1,301"}, {"forms": "nS,gq", "pguard": "ft", "lead": "mov"},
+                 {"forms": "nS,S", "pguard": "tt", "noload": True}):
+        try:
+            normalise(dict({"id": "xx", "kind": "ord", "barrier": "all", "yield": "set", "distances": "1,4", "occupancy": ["w1"]}, **bad_))
+        except SystemExit:
+            continue
+        raise AssertionError(("a cover-set request that must be refused was taken", bad_))
+    # (the audit has teeth on a cover body: a reader word of the bare register with no reader tag, a guard one cycle behind its ISETP)
+    rq = normalise({"id": "xx", "kind": "ord", "forms": "nS,gq", "barrier": "all", "yield": "set", "pguard": "ft", "distances": "4", "occupancy": ["w1"]})
+    body = body_ord(rq, 4, "none", "bare")
+    sf_audit(rq, body)
+    for mut_ in ("tag", "guard"):
+        b2_ = list(body)
+        if mut_ == "tag":
+            k_ = next(k for k, a in enumerate(b2_) if a.tag == "C2")
+            b2_[k_] = Ins(b2_[k_].text, b2_[k_].sem, ctl=b2_[k_].ctl, tag=None)
+        else:
+            k_ = next(k for k, a in enumerate(b2_) if a.tag == "P")
+            b2_.insert(k_ + 1, Ins("ISETP.GE.AND P2, PT, R14, RZ, PT ;", ("sge0", "P2", "R14"), ctl=C(1)))
+        try:
+            sf_audit(rq, b2_)
+        except SystemExit:
+            continue
+        raise AssertionError(("sf_audit passed a mutated cover body", mut_))
+    # version 30 - noload: a scale set of S alone with no load at all (the proof of a layout: one hypothesis)
+    for forms in ("S,S", "S,S,S"):
+        for pg_ in ("ll", "tt", "tf", "cc", "lt"):
+            rq = normalise({"id": "xx", "kind": "ord", "forms": forms, "barrier": "all", "yield": "set", "pguard": pg_, "noload": True, "distances": "1,4", "occupancy": ["w8", "c2w9s"]})
+            assert is_sf(rq) and not is_cov(rq) and modes_of(rq) == ["good"], (forms, pg_)
+            g = model(rq, "good", gids=gids)
+            assert [int(x) for x in g] == model(rq, "good", gids=gids, scalar=True) and (g != 0).all(), (forms, pg_)
+            n += 1
+            r0_ = normalise({"id": "xx", "kind": "ord", "forms": forms, "barrier": "all", "yield": "set", "pguard": pg_, "distances": "1,4", "occupancy": ["w8", "c2w9s"]})
+            assert np.array_equal(g, model(r0_, "good", gids=gids)), (forms, pg_, "the checksum of the text with no load is the checksum of `good` of the text with the loads")
+            for d_ in (1, 4):
+                b0_, b1_ = body_ord(r0_, d_, "none", "bare"), body_ord(rq, d_, "none", "bare")
+                assert len(b0_) == len(b1_) and not any(a.tag == "P" or a.text.startswith("LDS") for a in b1_), (forms, pg_)
+                for a0_, a1_ in zip(b0_, b1_):
+                    if a0_.tag == "P":
+                        assert a1_.sem == ("nop",) and a1_.text.startswith("IADD3 R15,") and a1_.ctl[-4:] == a0_.ctl[-4:] and a1_.ctl[1:14] == "B------:R-:W-", (a0_.line(), a1_.line())
+                    elif a0_.text.startswith("MOV R") and a0_.text.endswith(f", 0x{SF_MARK:x} ;"):
+                        assert a1_.text == a0_.text.replace(f"0x{SF_MARK:x}", f"0x{SF_UNIT:x}") and a1_.sem == (a0_.sem[0], a0_.sem[1], SF_UNIT), (a0_.line(), a1_.line())
+                    else:
+                        assert a1_.line() == a0_.line() and a1_.sem == a0_.sem and a1_.tag == a0_.tag, (a0_.line(), a1_.line())
     print(f"selftest: {n} (pair, hypothesis) models equal the scalar interpreter on {len(gids)} threads; `good` differs from every failure hypothesis")
     return 0
 

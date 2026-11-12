@@ -719,6 +719,16 @@ decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `
   every floor the same, 6 558 of 6 564 cells with the Server card's verdict — a wait carried by an instruction whose guard is
   false or that another predicate nullifies, and one wait on a write barrier armed under two predicates, are right on two card
   models; a reader of a `CS2UR` result closer than 6 cycles is wrong on both.
+- **`probe.py` 30: the cover set — a bare shared-memory load under the write barrier of a younger load of the same pipe (kind
+  `ord`, `"forms": "<bare>,<cover>"`), and `"noload"`** (`_b60` and its two `_ws_` files; selftest 4 416; reader
+  `read_set2p.py`). The reader of the bare load's register stands behind ONE wait on the younger load's barrier: a bare `LDS`,
+  `LDS.64` and guarded `LDS.128` under a younger `@P LDS.128` whose guard is false, true or a counter bit; the bare load 3 … 66
+  cycles in front of the reader; the bare load slow (the 32 lanes of a warp on one bank) under a fast or a nullified cover and
+  the reverse — 0 of 808 550 400 thread-launches not right over 25 requests on a card of the Server Edition, on a card of the
+  Workstation Edition alone and at its 400-W limit; the same texts with the reader in front of the wait not right. A
+  bank-conflict load lands later than 66 cycles where a conflict-free one has landed by 32 at one warp per SM. A scale set with
+  no load at all shows that a tensor instruction under a guard that differs between the lanes of one warp departs from the
+  lane-by-lane host model — the four void requests of `_b57`.
 
 ## Unreleased — 2026-11-11 (session SCH-4: the stall-floor probes on grids that hold two CTAs per SM and on production's card model in two clock states — tools and result files only, no source line changes)
 
