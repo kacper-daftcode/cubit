@@ -4,6 +4,30 @@ User-visible changes, newest first. Table syncs name the blackwell-isa revision 
 (`tables/SOURCE.json` pins it byte for byte). Numbered `BUG-NNN` entries are the encoder /
 decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `docs/TESTS.md`).
 
+## Unreleased — 2026-11-12 (`CUBIT_WAIT_POLICY=1`, opt-in: where the waits of an nvcc-shaped kernel stand — no word waits behind a young result that it does not read)
+
+- **One switch for the wait placement that a search with silicon in the loop kept on the consumer loops of the served
+  MoE kernels** (KNOWN_ISSUES A49; honoured only with `CUBIT_SYNC_CLASSES=1`; default off — without it nothing changes).
+  cubit's schedule of the vendor's own text of those kernels was slower than ptxas's of the same text, and what
+  carried the difference was neither the stall sum nor the yield flags but the waits that BLOCK: a word waiting a
+  scoreboard on which a young result is armed that the word does not read. The switch contains the three older ones —
+  `CUBIT_SB_SHARE=1`, `CUBIT_GUARDED_READER_SETTLES=1`, `CUBIT_MMA_SRC_RB=0` — and adds three clauses behind the
+  colouring (the scoreboard numbers of that allocation stay):
+  - no read barrier on the base of a plain shared load that a younger plain shared load rewrites (`LDS R151,
+    [R153+0x3300] ; LDS R153, [R153+0x3320]`: the last load off a base no longer waits the loads in front of it); the
+    younger load keeps 4 issue cycles, an operand hold (`sync_class::SHARED_LOAD_BASE_HOLD`);
+  - the read barrier of a `SYNCS.ARRIVE` whose address register a scoreboarded producer rewrites is waited by the
+    branch in front of the overwriters, ptxas's place;
+  - a scale load — a plain shared load whose first readers are tensor instructions — does not stay on a scoreboard
+    on which another kind of use has a waiter inside the run of scale loads: it joins the scoreboard of the nearest
+    scale load, one set in front of one wait.
+- **Measured** (one card model, the state free of the power limit, 4 096 rows, bits identical; the clauses made by
+  hand on the frozen listing): the served FC1's consumer kernel +15.9 % against ptxas with the stalls lowered, +2.0 %
+  with the three older switches, **−0.03 % with the clauses — at ptxas, the difference inside what the instrument
+  resolves**; its r33 form −0.07 %. The schedule cubit builds by itself under the switch differs from the measured
+  text in 13 control words of 3 048 (14 of 3 040 on the r33 form) and has not been on a card.
+- `tests/wait_policy.rs` (three tests; all three fail without the clauses). No production build sets the switch.
+
 ## Unreleased — 2026-11-12 (pull-request pair cubit #9 + blackwell-isa #6 of the B300 lane: the sm_103a `stallfix` section v3 — measured floors — with its test and the five rule keys it needs)
 
 - **Tables vendored from blackwell-isa `8ce9074`: the `stallfix` section of `sm103a.json` is v3** — floors measured on

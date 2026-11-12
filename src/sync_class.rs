@@ -491,6 +491,20 @@ pub fn hold_need(reader: &Instruction, writer: &Instruction, key: RegKey) -> Opt
         let slow = crate::scheduling_pass::is_long_latency(w) || writer.ctrl.write_bar != 7 || classify(writer).is_some();
         return if slow { None } else { Some(STORE_UNIFORM_OPERAND_HOLD) };
     }
+    // `CUBIT_WAIT_POLICY`: a plain shared load carries no read barrier for a base that a younger
+    // plain shared load rewrites (`LDS R151, [R153+0x3300] ; LDS R153, [R153+0x3320]`); the
+    // younger load stands 4 issue cycles behind it or later, the vendor's smallest distance in
+    // every pair of the kind.
+    if !uniform
+        && k < 255
+        && crate::scheduling_pass::wait_policy()
+        && reader.opcode_full == "LDS"
+        && writer.opcode_full == "LDS"
+        && reader.ctrl.read_bar == 7
+        && reader.guard.as_ref().is_none_or(|g| g.pred >= 7)
+    {
+        return Some(SHARED_LOAD_BASE_HOLD);
+    }
     if uniform && k < 64 && w == "UMOV" {
         let r = reader.opcode.as_str();
         // (`ISETP` on a uniform operand keeps 3 as well: 44 + 6 sites, none below; `IADD3`,
@@ -531,6 +545,10 @@ pub const UNIFORM_OPERAND_HOLD: u8 = 3;
 /// A store against a fixed-latency rewrite of the uniform register of its address (the vendor's
 /// smallest distance; no measurement below it).
 pub const STORE_UNIFORM_OPERAND_HOLD: u8 = 7;
+/// A plain shared load without a read barrier against a younger plain shared load that rewrites
+/// its base register (`CUBIT_WAIT_POLICY`): the vendor's smallest distance. Measured right from
+/// 1 cycle on two card models; the rule keeps the vendor's 4.
+pub const SHARED_LOAD_BASE_HOLD: u8 = 4;
 
 /// Raises stalls until every overwriter stands `hold_need` cycles behind the readers in front of
 /// it on the straight-line text (a transfer that cannot fall through ends the walk; the stall of

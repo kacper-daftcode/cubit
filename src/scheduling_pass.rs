@@ -315,9 +315,49 @@ pub(crate) fn mma_src_gprs(insn: &Instruction) -> Vec<u8> {
     out
 }
 
-/// NEEDS 38 switch: the MMA-source read-barrier rule is on unless `CUBIT_MMA_SRC_RB=0`.
+/// NEEDS 38 switch: the MMA-source read-barrier rule is on unless `CUBIT_MMA_SRC_RB=0`
+/// (or [`wait_policy`], which contains that switch).
 pub fn mma_src_rb_enabled() -> bool {
-    std::env::var("CUBIT_MMA_SRC_RB").ok().as_deref() != Some("0")
+    std::env::var("CUBIT_MMA_SRC_RB").ok().as_deref() != Some("0") && !wait_policy()
+}
+
+/// `CUBIT_WAIT_POLICY=1` (opt-in, default off; honoured only together with `CUBIT_SYNC_CLASSES=1`,
+/// whose flow graph it works on): where the waits of an nvcc-shaped kernel stand. One switch for
+/// the clauses that a search with silicon in the loop kept on the consumer loops of the served MoE
+/// kernels, cubit's schedule against ptxas's of the same text (KNOWN_ISSUES A49). It contains the
+/// three older switches -- `CUBIT_SB_SHARE=1` (scoreboards are counters: a use that finds none
+/// free shares one), `CUBIT_GUARDED_READER_SETTLES=1` (the first reader settles a barrier, guarded
+/// or not), `CUBIT_MMA_SRC_RB=0` (no read barrier on a tensor instruction) -- and adds, behind the
+/// colouring of [`reallocate_barriers`] (the scoreboard numbers of that allocation stay):
+///
+/// * **no read barrier on the base of a plain shared load that a younger plain shared load
+///   rewrites.** `LDS R151, [R153+0x3300] ; LDS R153, [R153+0x3320]`: the last load off a base
+///   register rewrites the base, and the allocator made it wait the read barriers of the loads in
+///   front -- on a scoreboard that results in flight share. ptxas sets no read barrier there and
+///   never issues the younger load closer than 4 cycles; the distance is kept as an operand hold
+///   (`sync_class::SHARED_LOAD_BASE_HOLD`). Both loads unguarded, 32-bit, no modifier.
+/// * **the read barrier of a `SYNCS.ARRIVE` is waited by the branch in front of its overwriters**
+///   (ptxas's place) where one of the overwriters is itself a scoreboarded producer -- in the
+///   consumer loop a load, which waited behind every result armed on that scoreboard -- and a
+///   branch stands between the word and all of them.
+/// * **a scale load shares a scoreboard with scale loads only.** A scale load is a plain
+///   unguarded shared load whose first readers are tensor instructions: they stand tens of cycles
+///   behind it. Where the colouring put one on a scoreboard on which another kind of use has a
+///   waiter INSIDE the run of scale loads (the unpack of a fragment load, a few words on, a
+///   later scale load still to issue), it moves to the scoreboard of the nearest scale load and
+///   the two become ONE set in front of ONE wait, the first reader of the set (sets of plain
+///   shared loads on one barrier in front of one wait: [`MEASURED_SHARED_SETS`]). A set of more
+///   than eight loads is not formed.
+///
+/// What the clauses have in common: no word waits behind a young result that it does not read.
+/// A wait bit costs nothing; a wait that blocks while its producer is in flight does.
+pub fn wait_policy() -> bool {
+    std::env::var("CUBIT_WAIT_POLICY").ok().as_deref() == Some("1") && crate::sync_class::enabled()
+}
+
+/// `CUBIT_SB_SHARE=1`, or [`wait_policy`], which contains it.
+fn sb_share_enabled() -> bool {
+    std::env::var("CUBIT_SB_SHARE").ok().as_deref() == Some("1") || wait_policy()
 }
 
 /// NEEDS 37 switch (T-11, 2026-11-06): with `CUBIT_GUARDED_READER_SETTLES=1` the FIRST reader of a
@@ -329,7 +369,7 @@ pub fn mma_src_rb_enabled() -> bool {
 /// reader makes the next reader wait too (V's `sparse_mla_prefill_v41`: 2 extra waits since BUG-485;
 /// the production MoE set: see `T/REPORT.md` part 11). An A/B switch for the owner's decision.
 pub fn guarded_reader_settles() -> bool {
-    std::env::var("CUBIT_GUARDED_READER_SETTLES").ok().as_deref() == Some("1")
+    std::env::var("CUBIT_GUARDED_READER_SETTLES").ok().as_deref() == Some("1") || wait_policy()
 }
 
 /// The GPR(s) holding a store's ADDRESS (a store latches its address late, exactly like
@@ -3566,6 +3606,13 @@ pub fn reallocate_barriers(insns: &mut [Instruction], table: Option<&IsaTable>) 
     // Fixed barrier colour for uses pushed by the PINNED pass below (None for
     // normal allocator-coloured uses).
     let mut pin_of: Vec<Option<u8>> = Vec::new();
+    // CUBIT_WAIT_POLICY: the uses that are coloured (the numbers of the allocation stay) and not
+    // written -- the read barrier of a plain shared load whose base a younger plain shared load
+    // rewrites, a set of scale loads that became part of another -- and the read-barrier uses of
+    // the `SYNCS.ARRIVE` words (use, word).
+    let policy = wait_policy() && cfg.is_some();
+    let mut not_written: Vec<usize> = Vec::new();
+    let mut arrive_uses: Vec<(usize, usize)> = Vec::new();
     // BUG-478: per load, its UNGUARDED RAW waiters — past them the load's address latch
     // is certainly released (see `war_overwriter::stop_at`).
     let mut raw_stop: Vec<Vec<usize>> = vec![Vec::new(); n];
@@ -3727,7 +3774,7 @@ pub fn reallocate_barriers(insns: &mut [Instruction], table: Option<&IsaTable>) 
 
     // ---- WAR: read-barriers on memory ops whose late operands are overwritten ----
     // CUBIT_SB_SHARE policy: early release of far WAR uses (see war_overwriter::early).
-    let sb_share_policy = std::env::var("CUBIT_SB_SHARE").ok().as_deref() == Some("1");
+    let sb_share_policy = sb_share_enabled();
     let rb_early_dist: usize = std::env::var("CUBIT_RB_EARLY").ok().and_then(|s| s.parse().ok()).unwrap_or(64);
     let rb_early: Option<(usize, &[bool])> = if sb_share_policy { Some((rb_early_dist, &can_wait)) } else { None };
     // Late-latched operand set of memory op `idx` (address regs of loads, data+address
@@ -3826,6 +3873,13 @@ pub fn reallocate_barriers(insns: &mut [Instruction], table: Option<&IsaTable>) 
         };
         if waiters.is_empty() { continue; }
         let segs = if cfg.is_some() { segs } else { build_segs(idx, &waiters, ltop[idx], lback[idx], &edges) };
+        // CUBIT_WAIT_POLICY: the base of a plain shared load, rewritten on every path first by a
+        // younger plain shared load (the last load off the base) -- no read barrier, the younger
+        // load does not wait; the distance is `sync_class::SHARED_LOAD_BASE_HOLD`
+        let plain_lds = |k: usize| insns[k].opcode_full == "LDS" && !guarded[k];
+        if policy && plain_lds(idx) && waiters.iter().all(|&w| w > idx && plain_lds(w)) {
+            not_written.push(uses.len());
+        }
         uses.push(BarUse {
             setters: vec![idx],
             waiters,
@@ -3850,6 +3904,9 @@ pub fn reallocate_barriers(insns: &mut [Instruction], table: Option<&IsaTable>) 
             let c = cfg.as_ref().expect("the control-flow graph exists under the switch");
             let (waiters, on) = c.first_overwriters(&writes, idx, &opk, &raw_stop[idx], rb_early);
             if waiters.is_empty() { continue; }
+            if policy && insns[idx].opcode_full.starts_with("SYNCS.ARRIVE") {
+                arrive_uses.push((uses.len(), idx));
+            }
             uses.push(BarUse { setters: vec![idx], waiters, is_rb: true, segs: crate::cfg_flow::runs(&on) });
             pin_of.push(None);
         }
@@ -4023,7 +4080,7 @@ pub fn reallocate_barriers(insns: &mut [Instruction], table: Option<&IsaTable>) 
     // share the top scoreboard, long READ-barrier uses (store latches) the one below it; a
     // short use neither takes nor shares a scoreboard on which a long use is live anywhere
     // over its segment. Waits only move between scoreboards - protection is never dropped.
-    let sb_long_keep = std::env::var("CUBIT_SB_SHARE").ok().as_deref() == Some("1")
+    let sb_long_keep = sb_share_enabled()
         && std::env::var("CUBIT_SB_LONG_KEEP").ok().as_deref() == Some("1");
     let sb_long_thr: usize = std::env::var("CUBIT_SB_LONG").ok().and_then(|s| s.parse().ok()).unwrap_or(256);
     let use_span = |u: usize| -> usize { uses[u].segs.iter().map(|&(a, b)| b.saturating_sub(a)).sum() };
@@ -4061,7 +4118,7 @@ pub fn reallocate_barriers(insns: &mut [Instruction], table: Option<&IsaTable>) 
     //    uses of the compute between (fragment loads of an HMMA chain) keep four colours of
     //    their own instead of overflowing onto the prefetch barrier and waiting for DRAM.
     // Default (unset) keeps the drain-on-overflow behaviour.
-    let sb_share = std::env::var("CUBIT_SB_SHARE").ok().as_deref() == Some("1");
+    let sb_share = sb_share_enabled();
     let sb_long: usize = std::env::var("CUBIT_SB_LONG").ok().and_then(|s| s.parse().ok()).unwrap_or(256);
     for &u in &order {
         let sidx = idxset(&uses[u].segs);
@@ -4126,17 +4183,122 @@ pub fn reallocate_barriers(insns: &mut [Instruction], table: Option<&IsaTable>) 
         if is_long { for &i in &sidx { occ_long[i] |= 1 << b; } }
     }
 
+    // ---- CUBIT_WAIT_POLICY: where the waits stand, on the coloured uses (see `wait_policy`) ----
+    if let (true, Some(c)) = (policy, &cfg) {
+        // the read barrier of a `SYNCS.ARRIVE`: waited by the branch in front of its overwriters
+        // -- the first word behind it that does not simply fall through, when no overwriter
+        // stands in front of that word and it can carry a wait
+        for &(u, idx) in &arrive_uses {
+            // (only where an overwriter is itself a scoreboarded producer: its wait would stand
+            // behind every result armed on the scoreboard)
+            if !uses[u].waiters.iter().any(|&w| insns[w].ctrl.write_bar != 7 || insn_needs_write_bar(&insns[w], table, true)) {
+                continue;
+            }
+            let mut k = idx + 1;
+            while k < n && !uses[u].waiters.contains(&k) && c.succ[k].len() == 1 && c.succ[k][0] == k + 1 {
+                k += 1;
+            }
+            if k < n && !uses[u].waiters.contains(&k) && insns[k].opcode == "BRA" && can_wait[k] && !insns[k].hand_sched {
+                uses[u].waiters = vec![k];
+                uses[u].segs = vec![(idx, k)];
+            }
+        }
+        // a scale load shares a scoreboard with scale loads only
+        let overlap = |a: &[(usize, usize)], b: &[(usize, usize)]| a.iter().any(|&(a0, a1)| b.iter().any(|&(b0, b1)| a0 <= b1 && b0 <= a1));
+        let is_scale = |x: &BarUse, pinned: bool| -> bool {
+            !x.is_rb
+                && !pinned
+                && !x.waiters.is_empty()
+                && x.setters.iter().all(|&s| insns[s].opcode_full == "LDS" && !guarded[s])
+                && x.waiters.iter().all(|&w| is_warp_mma(insns[w].opcode.as_str()))
+        };
+        let mut scale: Vec<usize> = (0..uses.len()).filter(|&u| is_scale(&uses[u], pin_of[u].is_some())).collect();
+        scale.sort_by_key(|&u| uses[u].setters[0]);
+        let scale_setters: Vec<usize> = scale.iter().flat_map(|&u| uses[u].setters.clone()).collect();
+        for &u in &scale {
+            if not_written.contains(&u) || assigned[u] >= NUM_BARRIERS as u8 {
+                continue;
+            }
+            let beside = |v: usize, colour: u8| -> bool {
+                v != u && assigned[v] == colour && !not_written.contains(&v) && overlap(&uses[u].segs, &uses[v].segs)
+            };
+            // another kind of use on its scoreboard whose waiter stands INSIDE the run of scale
+            // loads -- where this load is pending, a later scale load still to issue -- and does
+            // not read it: that word would wait behind the young result and hold the run back
+            let own = assigned[u];
+            let first = uses[u].setters[0];
+            let pending_at = |w: usize| w > first && uses[u].segs.iter().any(|&(a, b)| a <= w && w <= b);
+            let inside_run = |w: usize| pending_at(w) && scale_setters.iter().any(|&s| s > w && pending_at(s));
+            let foreign = (0..uses.len()).any(|v| {
+                beside(v, own)
+                    && !is_scale(&uses[v], pin_of[v].is_some())
+                    && uses[v].waiters.iter().any(|&w| inside_run(w) && !uses[u].waiters.contains(&w) && !uses[u].setters.contains(&w))
+            });
+            if !foreign {
+                continue;
+            }
+            // the scoreboards on which only scale loads are live beside this one: the nearest
+            // setter in the text decides, the one behind it at the same distance
+            let mut best: Option<(usize, usize, u8)> = None; // (distance, setter, colour)
+            for colour in 0..NUM_BARRIERS as u8 {
+                if colour == own {
+                    continue;
+                }
+                let mates: Vec<usize> = (0..uses.len()).filter(|&v| beside(v, colour)).collect();
+                if mates.is_empty() || !mates.iter().all(|&v| is_scale(&uses[v], pin_of[v].is_some())) {
+                    continue;
+                }
+                for &v in &mates {
+                    for &sv in &uses[v].setters {
+                        for &su in &uses[u].setters {
+                            let key = (sv.abs_diff(su), usize::MAX - sv, colour);
+                            if best.is_none_or(|b| key < (b.0, usize::MAX - b.1, b.2)) {
+                                best = Some((sv.abs_diff(su), sv, colour));
+                            }
+                        }
+                    }
+                }
+            }
+            let Some((_, _, colour)) = best else { continue };
+            let mates: Vec<usize> = (0..uses.len()).filter(|&v| beside(v, colour)).collect();
+            let mut set: Vec<usize> = uses[u].setters.clone();
+            for &v in &mates {
+                set.extend(uses[v].setters.iter().copied());
+            }
+            set.sort_unstable();
+            set.dedup();
+            // ONE set in front of ONE wait: every waiter of its parts stands behind its last load
+            let last = *set.last().unwrap();
+            let behind = |x: &BarUse| x.waiters.iter().all(|&w| w > last);
+            if set.len() > 8 || !behind(&uses[u]) || !mates.iter().all(|&v| behind(&uses[v])) {
+                continue;
+            }
+            let mut gd: Vec<u16> = set.iter().flat_map(|&g| writes[g].clone()).collect();
+            gd.sort_unstable();
+            gd.dedup();
+            let guarded_here: Vec<bool> = (0..n).map(|j| guarded[j] && !guard_key[j].is_some_and(|k| gd.contains(&k))).collect();
+            let (waiters, on) = c.first_consumers(&reads, &writes, &guarded_here, &set, &gd, true);
+            if waiters.is_empty() {
+                continue;
+            }
+            uses[u] = BarUse { setters: set, waiters, is_rb: false, segs: crate::cfg_flow::runs(&on) };
+            assigned[u] = colour;
+            not_written.extend(mates);
+        }
+    }
+
     if std::env::var("CUBIT_DUMP_USES").is_ok() {
         for (u, use_) in uses.iter().enumerate() {
-            eprintln!("USE b={} {} setters={:?} waiters={:?} segs={:?}",
-                assigned[u], if use_.is_rb {"rb"} else {"wb"}, use_.setters, use_.waiters, use_.segs);
+            eprintln!("USE b={} {} setters={:?} waiters={:?} segs={:?}{}",
+                assigned[u], if use_.is_rb {"rb"} else {"wb"}, use_.setters, use_.waiters, use_.segs,
+                if not_written.contains(&u) { " (not written)" } else { "" });
         }
     }
 
     // ---- emit barrier fields ----
     for (u, use_) in uses.iter().enumerate() {
         let b = assigned[u];
-        if b >= NUM_BARRIERS as u8 { continue; }
+        if b >= NUM_BARRIERS as u8 || not_written.contains(&u) { continue; }
         for &s in &use_.setters {
             if insns[s].hand_sched { continue; }
             if use_.is_rb { insns[s].ctrl.read_bar = b; }
