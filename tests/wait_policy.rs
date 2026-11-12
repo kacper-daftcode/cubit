@@ -14,6 +14,10 @@
 //!    a fragment load whose unpack waits a few words on, inside the run of scale loads — it joins the nearest
 //!    scale load's scoreboard, one set in front of one wait.
 //!
+//! A fourth clause is the other way round — a wait the first reader's settling took away where a card's
+//! schedule needs a word of its own: a reader of a register that two producers under two guards may have
+//! written waits both barriers (the store epilogue of the served FZ kernel).
+//!
 //! Each pin fails on the allocator without the switch (the variable is then unknown and changes nothing).
 
 use std::process::Command;
@@ -160,6 +164,55 @@ fn the_read_barrier_of_an_arrive_is_waited_by_the_branch_in_front_of_a_load_that
     let rb = arrive.rb.expect("the read barrier stays");
     assert!(branch.wait.contains(&rb), "{k:#?}");
     assert!(load.wait.is_empty(), "{k:#?}");
+}
+
+/// Two producers of one register pair under two guards, as in the store epilogue of the served FZ kernel: the
+/// first is read under its own guard, `SEL` rewrites the LOWER register only, the second producer and its
+/// reader stand under another guard. The upper register may still be the first producer's. (`LDC R30`, read at
+/// the end, keeps the first producer's scoreboard busy, so that the second producer stands on another.)
+const TWO_GUARDS: &str = "    S2R R2, SR_TID.X ;
+    ISETP.GT.U32.AND P4, PT, R2, 0x1, PT ;
+    @!P4 LDC.64 R20, c[0x0][0x3d0] ;
+    @!P4 IADD.64 R18, R18, R20 ;
+    ISETP.NE.AND P1, PT, R2, RZ, PT ;
+    SEL R20, R2, RZ, !P1 ;
+    LDC R30, c[0x0][0x370] ;
+    ISETP.GT.U32.AND P0, PT, R2, 0x3, PT ;
+    @!P0 LDC.64 R20, c[0x0][0x3d8] ;
+    @!P0 IADD.64 R18, R18, R20 ;
+    IADD3 R6, PT, PT, R18, R19, RZ ;
+    IADD3 R6, PT, PT, R6, R30, RZ ;
+    EXIT ;
+";
+
+#[test]
+fn a_reader_waits_both_guarded_producers_that_may_have_written_its_register() {
+    let readers = |k: &[Word]| -> (Word, Word, Word, Word) {
+        let at = |s: &str, nth: usize| k.iter().filter(|w| w.text.starts_with(s)).nth(nth).unwrap_or_else(|| panic!("no `{s}` #{nth} in {k:#?}")).clone();
+        (at("@!P4 LDC.64 R20,", 0), at("@!P4 IADD.64 R18,", 0), at("@!P0 LDC.64 R20,", 0), at("@!P0 IADD.64 R18,", 0))
+    };
+    // the older switches (the first reader settles a barrier, guarded or not): the second reader waits its own
+    // producer and nothing of the first
+    let mut env = vec![SYNC];
+    env.extend(OLD);
+    let (k, old_cubin) = build(TWO_GUARDS, &env);
+    let (first, r1, second, r2) = readers(&k);
+    let (b1, b2) = (first.wb.expect("a constant load has a write barrier"), second.wb.expect("a constant load has a write barrier"));
+    assert_ne!(b1, b2, "{k:#?}");
+    assert!(r1.wait.contains(&b1), "{k:#?}");
+    assert_eq!(r2.wait, vec![b2], "{k:#?}");
+    // the switch: it waits both; nothing else moves
+    let (k, cubin) = build(TWO_GUARDS, &[SYNC, POLICY]);
+    let (first, r1, second, r2) = readers(&k);
+    assert_eq!((first.wb, second.wb), (Some(b1), Some(b2)), "{k:#?}");
+    assert!(r1.wait.contains(&b1), "{k:#?}");
+    assert!(r2.wait.contains(&b1) && r2.wait.contains(&b2), "{k:#?}");
+    assert!(cubin != old_cubin);
+    // an UNGUARDED first producer kills the register for the walk: its reader settles the barrier as before
+    let plain = TWO_GUARDS.replacen("@!P4 LDC.64 R20,", "LDC.64 R20,", 1).replacen("@!P4 IADD.64 R18,", "IADD.64 R18,", 1);
+    let (k, _) = build(&plain, &[SYNC, POLICY]);
+    let second = word(&k, "@!P0 LDC.64 R20,");
+    assert_eq!(word(&k, "@!P0 IADD.64 R18,").wait, vec![second.wb.unwrap()], "{k:#?}");
 }
 
 #[test]

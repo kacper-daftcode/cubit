@@ -4,6 +4,22 @@ User-visible changes, newest first. Table syncs name the blackwell-isa revision 
 (`tables/SOURCE.json` pins it byte for byte). Numbered `BUG-NNN` entries are the encoder /
 decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `docs/TESTS.md`).
 
+## Unreleased — 2026-11-12 (`CUBIT_WAIT_POLICY=1`: a reader waits both guarded producers that may have written its register)
+
+- **A fourth clause of the opt-in switch** (KNOWN_ISSUES A50; without `CUBIT_WAIT_POLICY=1` nothing changes, and the
+  three older switches alone give the schedule they gave). `@!P4 LDC.64 R20 ; @!P4 IADD.64 R18, R18, R20 ; … ; SEL R20,
+  … ; … ; @!P0 LDC.64 R20 ; @!P0 IADD.64 R18, R18, R20` (the store epilogue of the served FC1's r33 form): a producer
+  under a guard may not write, so the upper register stays the first load's past the second one, and the second reader
+  waited the second load's scoreboard only — for the first load it rested on the wait of a word under another guard
+  (the switch lets the first reader settle a scoreboard, guarded or not). The reader now waits both scoreboards
+  (`cfg_flow::Cfg::stacked_guarded_readers`: a walk behind every guarded scoreboarded producer that keeps a register
+  past guarded writers and ends at an unguarded word that waits the scoreboard). Only waits are added, behind the
+  colouring: no scoreboard number moves.
+- **What it changes on the served kernels' text:** ONE control word of 3 040 on the r33 form (that reader: the place
+  where the hand-made text that was measured at −0.07 % has its wait too), one of 2 576 on FC2 (`@P0 LDG.E.CONSTANT
+  R30` in the front end), none of 3 048 on FC1. The schedule cubit builds by itself has not been on a card.
+- `tests/wait_policy.rs` (a fourth test; it fails without the clause).
+
 ## Unreleased — 2026-11-12 (`CUBIT_WAIT_POLICY=1`, opt-in: where the waits of an nvcc-shaped kernel stand — no word waits behind a young result that it does not read)
 
 - **One switch for the wait placement that a search with silicon in the loop kept on the consumer loops of the served

@@ -220,6 +220,79 @@ impl Cfg {
         (waiters, on)
     }
 
+    /// The readers of a register that TWO guarded scoreboarded producers may have written, which
+    /// do not wait the first one's barrier (`CUBIT_WAIT_POLICY`): `(reader, barrier)` pairs.
+    ///
+    /// A producer under a guard may not write, so the register it may have written stays
+    /// pending past a later producer of the same register under another guard; the reader
+    /// behind that one waits its own producer's barrier and would rest, for the first, on the
+    /// wait of a word under a guard that is not its own. The walk starts behind every guarded
+    /// producer with a write barrier (`write_bar`), keeps a register past guarded writers,
+    /// drops it at an unguarded one, and ends at an unguarded word that waits the barrier
+    /// (`wait_mask`: every result on it has landed), when no register is left, or back at the
+    /// producer.
+    pub fn stacked_guarded_readers(
+        &self,
+        reads: &[Vec<u16>],
+        writes: &[Vec<u16>],
+        guarded: &[bool],
+        write_bar: &[Option<u8>],
+        wait_mask: &[u8],
+    ) -> Vec<(usize, u8)> {
+        let n = self.succ.len();
+        let mut out: Vec<(usize, u8)> = Vec::new();
+        for p in 0..n {
+            let Some(b) = write_bar[p] else { continue };
+            if !guarded[p] || writes[p].is_empty() {
+                continue;
+            }
+            // per instruction: (pending registers, those a later guarded producer wrote again)
+            let mut seen: Vec<Vec<(Vec<u16>, Vec<u16>)>> = vec![Vec::new(); n];
+            let mut work: Vec<(usize, Vec<u16>, Vec<u16>)> =
+                self.succ[p].iter().map(|&s| (s, writes[p].clone(), Vec::new())).collect();
+            while let Some((j, mut live, mut again)) = work.pop() {
+                if j == p {
+                    continue; // the producer issues again: a new instance
+                }
+                if seen[j].iter().any(|(l, a)| live.iter().all(|d| l.contains(d)) && again.iter().all(|d| a.contains(d))) {
+                    continue;
+                }
+                seen[j].push((live.clone(), again.clone()));
+                let waits = wait_mask[j] & (1 << b) != 0;
+                if !waits && reads[j].iter().any(|r| again.contains(r)) {
+                    if !out.contains(&(j, b)) {
+                        out.push((j, b));
+                    }
+                    if !guarded[j] {
+                        continue; // it will wait the barrier: settled behind it
+                    }
+                } else if waits && !guarded[j] {
+                    continue;
+                }
+                if guarded[j] {
+                    if write_bar[j].is_some() {
+                        for w in &writes[j] {
+                            if live.contains(w) && !again.contains(w) {
+                                again.push(*w);
+                            }
+                        }
+                    }
+                } else {
+                    live.retain(|d| !writes[j].contains(d));
+                    again.retain(|d| live.contains(d));
+                }
+                if live.is_empty() {
+                    continue;
+                }
+                for &s in &self.succ[j] {
+                    work.push((s, live.clone(), again.clone()));
+                }
+            }
+        }
+        out.sort_unstable();
+        out
+    }
+
     /// The first overwriters, on every path behind instruction `i`, of its late-latched
     /// operands `opk`. A path ends at an overwriter, at an instruction of `stop_at` (behind it
     /// the operand is released), or back at `i`. `early = Some((dist, can_wait))`: a path that

@@ -349,8 +349,17 @@ pub fn mma_src_rb_enabled() -> bool {
 ///   shared loads on one barrier in front of one wait: [`MEASURED_SHARED_SETS`]). A set of more
 ///   than eight loads is not formed.
 ///
-/// What the clauses have in common: no word waits behind a young result that it does not read.
+/// What these clauses have in common: no word waits behind a young result that it does not read.
 /// A wait bit costs nothing; a wait that blocks while its producer is in flight does.
+///
+/// A fourth clause adds a wait instead of taking one away:
+///
+/// * **a reader waits both guarded producers that may have written its register.** With the first
+///   reader settling a barrier, the reader behind `@!P0 LDC.64 R20` waited that load only — and
+///   for the upper register, which an earlier `@!P4 LDC.64 R20` may have written (the word
+///   between them rewrites the lower one alone), it rested on the wait of a word under another
+///   guard. It waits both barriers ([`crate::cfg_flow::Cfg::stacked_guarded_readers`]); the wait
+///   is added behind the colouring.
 pub fn wait_policy() -> bool {
     std::env::var("CUBIT_WAIT_POLICY").ok().as_deref() == Some("1") && crate::sync_class::enabled()
 }
@@ -4383,6 +4392,31 @@ pub fn reallocate_barriers(insns: &mut [Instruction], table: Option<&IsaTable>) 
             }
             if can_wait[w] {
                 insns[w].ctrl.wait_mask |= 1 << f.write_bar;
+            }
+        }
+    }
+
+    // ---- CUBIT_WAIT_POLICY: a register two guarded producers may have written ----
+    // `@!P4 LDC.64 R20` .. `@!P4 IADD.64 R18, R18, R20` .. `@!P0 LDC.64 R20` ..
+    // `@!P0 IADD.64 R18, R18, R20` (the store epilogue of the served FZ kernel): with the first
+    // reader settling a barrier, the second reader waited its own producer only and rested,
+    // for the first producer's upper register, on the wait of a word under another guard. It
+    // waits both barriers. Only waits are added, behind the colouring: no number moves.
+    if policy {
+        if let Some(c) = &cfg {
+            let wbs: Vec<Option<u8>> = insns.iter()
+                .map(|x| (x.ctrl.write_bar < NUM_BARRIERS as u8).then_some(x.ctrl.write_bar)).collect();
+            let wms: Vec<u8> = insns.iter().map(|x| x.ctrl.wait_mask).collect();
+            for (r, b) in c.stacked_guarded_readers(&reads, &writes, &guarded, &wbs, &wms) {
+                if insns[r].hand_sched {
+                    continue;
+                }
+                if !can_wait[r] && try_make_waitable(&mut insns[r]) {
+                    can_wait[r] = true;
+                }
+                if can_wait[r] {
+                    insns[r].ctrl.wait_mask |= 1 << b;
+                }
             }
         }
     }
