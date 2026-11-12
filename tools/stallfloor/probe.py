@@ -172,6 +172,34 @@ Hypothesis stale = every reader word of the bare load's register took its marker
 Version 30 - "noload": true on a scale set of S alone: the same text with NO load at all (a filler in the place of every
 load, the scale registers set to the unit scale at the top of the iteration) - one hypothesis, good.
     {"id": "nl2_ll", "kind": "ord", "forms": "S,S", "barrier": "all", "yield": "set", "pguard": "ll", "noload": true, "distances": "1,4"}
+
+Version 31 - kind `raw` with a PREDICATE producer (producer ISETP: `ISETP.LT.U32.AND P2, PT, R4, R5, PT`; P2 holds the
+OTHER value, `ISETP.LT.U32.AND P2, PT, R5, R4, PT`, written 15 cycles or more in front of it). Consumers: ISETP.p (the
+predicate INPUT of the vendor's form `ISETP.GT.AND P3, PT, R21, RZ, P2` - R21 is a positive constant, so P3 = P2),
+ISETP.p.or (`ISETP.NE.U32.OR P3, PT, RZ, RZ, P2` - the compare is false, so P3 = P2), both with P3 into the checksum
+through `SEL R8, R4, R5, P3` 15 cycles behind; LDS128.g (the GUARD of `@P2 LDS.128 R28, [R9+0x20]`: where the load is
+nullified its registers keep markers). `stale` = the consumer took the predicate's previous content.
+    {"id": "pp_and", "kind": "raw", "producer": "ISETP", "consumer": "ISETP.p", "distances": "1-15"}
+    {"id": "pp_and_c", "kind": "raw", "producer": "ISETP", "consumer": "ISETP.p", "control": "stale", "distances": "2,5,13"}
+Version 31 - kind `ord`, the pair (LDC, S2UR) with "read": "younger": the reader takes the YOUNGER producer's result -
+`UMOV UR6, <marker>` at the top of the iteration; `LDC R6, c[0x0][0x388]`; d cycles; `S2UR UR6, SR_CTAID.X` on write
+barrier 1 (the host knows a thread's CTA: R1 = ctaid x 1024 + tid); "younger_stall" cycles behind it `MOV R13, UR6` with
+the ONE wait and, behind that, `MOV R14, R6` with none of its own ("older_barrier": "same" = the LDC on the same barrier;
+absent = the LDC bare: the reference; ctl = two barriers, the reader waits both). "wait": "end" = the positive control and
+THE PROOF OF THE WINDOW: no wait in front of the readers - `MOV R14, R6` one cycle in front of `MOV R13, UR6` (which keeps
+its place) - and the wait on the fold behind them. Hypotheses: stale1 = the reader of the S2UR's register took the marker
+and the reader of the LDC's register is right (in the control: the LDC HAS landed and the S2UR has not - the window),
+stale2 = the reverse, stale = both took their markers.
+    {"id": "s5_same", "kind": "ord", "older": "LDC", "younger": "S2UR", "older_barrier": "same", "read": "younger", "distances": "1,8,30,64"}
+    {"id": "s5_same_ew", "kind": "ord", "older": "LDC", "younger": "S2UR", "older_barrier": "same", "read": "younger", "wait": "end", "distances": "1,8,30,64"}
+Version 31 - kind `ord`, a SET UNDER THREE PREDICATES on one write barrier (the route-row loads of a vendor's MoE kernel: `@!P4` / `@!P5` / `@!P6
+LDG.E.128.STRONG.GPU`): the letter T = `LDG.E.128.STRONG.GPU` (the lines and the model of Q); the prefix j on a load = under
+the THIRD predicate (`@P4`; g = P0, k = P2); "pguard" then has three letters (P0, P2, P4), each of t | f | l | c (l: bits 0,
+1, 2 of the lane; c: bits 31, 20, 10 of iteration counter x 0x9e3779b1); "pneg": "set" = every guard is written negated
+(`@!Pn`): a load executes where its predicate is FALSE. Everything else as in version 28 ("wait": reader | end, "rdist",
+"cold").
+    {"id": "f3_lll", "kind": "ord", "forms": "gT,kT,jT", "barrier": "all", "yield": "set", "pguard": "lll", "pneg": "set", "distances": "1,4"}
+    {"id": "f3_lll_ew", "kind": "ord", "forms": "gT,kT,jT", "barrier": "all", "yield": "set", "pguard": "lll", "pneg": "set", "distances": "1,4", "wait": "end"}
 """
 from __future__ import annotations
 
@@ -188,7 +216,7 @@ import subprocess
 import sys
 import time
 
-TOOL = "probe.py 30 (2026-11-12)"
+TOOL = "probe.py 31 (2026-11-12)"
 HERE = pathlib.Path(__file__).resolve().parent
 SEED = 0x12345
 PTR_STANDIN = [0, 0]      # version 28: the scalar interpreter's stand-in for the output pointer R2:R3 (the selftest sets it nonzero: no fold may depend on it)
@@ -333,6 +361,18 @@ def uniform_producer(name):
 UNIFORM_PRODUCERS = ["UMOV", "UIADD3", "CS2UR.32", "CS2UR"]
 
 
+def pred_producer(name):
+    """version 31 -> (pre, text, sem, class): P2 = a predicate of the iteration's inputs (a < b); until it lands P2 holds the
+    OTHER value (b < a), written 15 cycles or more in front of it (a guard takes a predicate from 13)"""
+    if name == "ISETP":
+        return ([Ins("ISETP.LT.U32.AND P2, PT, R5, R4, PT ;", ("ltu", "P2", "R5", "R4"))],
+                "ISETP.LT.U32.AND P2, PT, R4, R5, PT ;", ("ltu", "P2", "R4", "R5"), "ISETP")
+    raise SystemExit(f"unknown predicate producer {name!r} (probe.py list)")
+
+
+PRED_PRODUCERS = ["ISETP"]
+
+
 def addr_producer(name):
     """-> (pre, text, sem, class): R6 = the address of word k = a & 3 of the thread's slot 2 (R9 + 0x20 + 4 k)"""
     k = [Ins("LOP3.LUT R7, R4, 0x3, RZ, 0xc0, !PT ;", ("and", "R7", "R4", 3))]
@@ -435,6 +475,10 @@ RAW_CONSUMERS = {
     "IADD.64rr.r2h": ("data", 7, "IADD", "r2h", "the HIGH word of the SECOND operand pair of IADD.64 R24, R4, R6 (the high word of the sum reaches the checksum; a pair producer sits on R6)"),
     "PRMT.r3": ("data", 6, "PRMT", "r3", "the SECOND source register of PRMT R8, R5, 0x7632, R (the upper two bytes of the result come from it)"),
     "STG.a0": ("gaddr", 6, "STG", "a0", "the LOW register of the 64-bit address pair of a global store (producer kind gaddr: the pair holds the address of the thread's word B until the address of word A lands)"),
+    # version 31 - a PREDICATE producer (ISETP): the consumer takes the predicate P2
+    "ISETP.p": ("pdata", 2, "ISETP", "p", "the predicate INPUT (the last operand) of ISETP.GT.AND P3, PT, R21, RZ, P2 - the vendor's form; R21 is a positive constant, so P3 = P2; P3 reaches the checksum through SEL R8, R4, R5, P3 15 cycles behind (version 31)"),
+    "ISETP.p.or": ("pdata", 2, "ISETP", "p", "the predicate INPUT of ISETP.NE.U32.OR P3, PT, RZ, RZ, P2 - the OR form with a compare that is FALSE, so P3 = P2; P3 reaches the checksum through SEL R8, R4, R5, P3 15 cycles behind (version 31)"),
+    "LDS128.g": ("pdata", 2, "LDS", "g", "the GUARD of @P2 LDS.128 R28, [R9+0x20] (the thread's own line; where the load is nullified its four registers keep markers; the load on write barrier 1, the fold waits it) (version 31)"),
 }
 RR_CONSUMERS = ("IADD.64rr.r1", "IADD.64rr.r1h", "IADD.64rr.r2", "IADD.64rr.r2h")      # version 25
 RR_HIGH = ("IADD.64rr.r1h", "IADD.64rr.r2h")
@@ -794,6 +838,10 @@ def body_raw(req, d, front):
             pre = pre + [Ins("MOV R26, R5 ;", ("mov", "R26", "R5")), Ins("MOV R27, R4 ;", ("mov", "R27", "R4"))]
     elif what == "gaddr":      # version 25
         pre, ptext, psem, _ = gaddr_producer(prod)
+    elif what == "pdata":      # version 31: a predicate producer - P2 holds the OTHER value until it lands
+        pre, ptext, psem, _ = pred_producer(prod)
+        if cons == "LDS128.g":      # where the guarded load is nullified its four registers keep these markers (the iteration's second input)
+            pre = [Ins(f"MOV R{k_}, R5 ;", ("mov", f"R{k_}", "R5")) for k_ in (28, 29, 30, 31)] + pre
     else:
         if cons in RR_HIGH and prod in PAIR_PRODUCERS:      # version 25: a pair producer sits on the even register, its SECOND result is the tested high word
             rd = 6
@@ -827,7 +875,7 @@ def body_raw(req, d, front):
             pre = pre + fin(6, 4) + fin(7, 5)
     b += pre
     b += front_ins(front, what == "gaddr")
-    dst = (["UR6", "UR7"] if prod == "CS2UR" else ["UR6"]) if what == "udata" else ["R6", "R7"] if what == "gaddr" else [f"R{rd}", f"R{rd + 1}"] if prod in PAIR_PRODUCERS else [f"R{rd}"]
+    dst = ["P2"] if what == "pdata" else (["UR6", "UR7"] if prod == "CS2UR" else ["UR6"]) if what == "udata" else ["R6", "R7"] if what == "gaddr" else [f"R{rd}", f"R{rd + 1}"] if prod in PAIR_PRODUCERS else [f"R{rd}"]
     # (version 25, the control: the model's producer in its place under a filler's text, the real word behind the consumer and its checksum)
     b.append(Ins("IADD3 R15, PT, PT, R15, 0x1, RZ ;" if control else ptext, psem, ctl=C(s, y=req.get("yield") == "set", wb="1" if req.get("pbar") and not control else "-"), tag="P", dst=dst))
     b += fill
@@ -920,6 +968,11 @@ def body_raw(req, d, front):
               Ins("LDG.E R8, desc[UR4][R16.64] ;", ("ldg", "R8", "R16"), ctl=C(wb="1")),
               Ins("LDG.E R13, desc[UR4][R18.64] ;", ("ldg", "R13", "R18"), ctl=C(wb="3")),
               Ins("IMAD R8, R13, 0x3, R8 ;", ("mad", "R8", "R13", 3, "R8"), ctl=C(wait="123")), ADD10()]
+    elif cons in ("ISETP.p", "ISETP.p.or"):      # version 31: P3 = (compare) AND / OR P2 = P2; P3 into the checksum through a SEL 15 cycles behind (the table's ISETP -> SEL p is 5)
+        b += [Ins("ISETP.GT.AND P3, PT, R21, RZ, P2 ;" if cons == "ISETP.p" else "ISETP.NE.U32.OR P3, PT, RZ, RZ, P2 ;", ("mov", "P3", "P2"), tag="C"),
+              Ins("SEL R8, R4, R5, P3 ;", ("sel", "R8", "R4", "R5", "P3")), ADD10()]
+    elif cons == "LDS128.g":      # version 31: the load executes where P2 is true; nullified, R28..R31 keep their markers; the address is the thread's own line whatever P2 is
+        b += [Ins("@P2 LDS.128 R28, [R9+0x20] ;", ("g", "P2", 1, ("R28", "R29", "R30", "R31"), ("lds", "R28", "R9", 0x20, 4)), ctl=C(wb="1"), tag="C")] + fold4("1")
     else:
         raise SystemExit(f"unknown raw consumer {cons!r} (probe.py list)")
     if req.get("salt") == "set":      # version 22: the iteration's input goes into the checksum too (behind the consumer: no distance moves) -
@@ -981,10 +1034,11 @@ ORDN_DEST = [24, 25, 26, 27, 28, 29, 30, 31, 16, 17, 18, 19, 14, 7]      # desti
 # registers). A request with one of these letters is a SET request: its kernels declare R0-R79 (.regcount 88).
 SET_FORM = {"G": ("LDG.E", 1), "Q": ("LDG.E.128", 4), "B": ("LDG.E.U8", 1), "c": ("LDC", 1), "C": ("LDC.64", 2),
             "m": ("MUFU.EX2", 1), "h": ("SHFL.BFLY", 1),
+            "T": ("LDG.E.128.STRONG.GPU", 4),      # version 31: the route-row load of a vendor's MoE kernel - a Q with the modifiers .STRONG.GPU (the same lines, the same model)
             "M": ("LDSM.16.M88.4", 4),      # (second build) only as the set M,s,s: the reader is an HMMA of the LDSM's quad and the two LDS
             "S": ("LDS", 1),                # version 29: only in a scale set: an unguarded LDS into a block-scale register of two guarded QMMA.SF readers
             "D": ("LDS.64", 2)}             # version 29, second build: only in a scale set beside S: an unguarded LDS.64 whose pair is read by MOV words
-SET_NAMES = {"s": "LDS", "u": "LDS.U16", "d": "LDS.64", "q": "LDS.128", "G": "LDG.E", "Q": "LDG.E.128", "B": "LDG.E.U8",
+SET_NAMES = {"s": "LDS", "u": "LDS.U16", "d": "LDS.64", "q": "LDS.128", "G": "LDG.E", "Q": "LDG.E.128", "B": "LDG.E.U8", "T": "LDG.E.128.STRONG.GPU",
              "c": "LDC", "C": "LDC.64", "m": "MUFU.EX2", "h": "SHFL.BFLY",
              "M": "LDSM.16.M88.4 [the A fragment of the reader HMMA.16816.F32.BF16; the two LDS behind it are its B fragment]",
              "S": "LDS [into a block-scale register of the reader QMMA.SF words]",
@@ -1018,11 +1072,11 @@ def set_plan(req):
         return cov_plan(req)
     toks = []
     for t in [x.strip() for x in str(req["forms"]).split(",")]:
-        g = t[:1] if (t[:1] in ("g", "k") and len(t) > 1) else ""      # version 28: k = under the SECOND predicate (@P2)
+        g = t[:1] if (t[:1] in ("g", "k", "j") and len(t) > 1) else ""      # version 28: k = under the SECOND predicate (@P2); version 31: j = under the THIRD (@P4)
         let = t[len(g):]
         if let not in SET_FORM and let not in ORDN_FORM:
             raise SystemExit(f"{req.get('id')}: forms token {t!r}: s | u | d | q | G | Q | B | c | C | m | h with an optional prefix g on a load")
-        if g == "k" and not req.get("pguard"):
+        if g in ("k", "j") and not req.get("pguard"):
             raise SystemExit(f"{req.get('id')}: forms token {t!r}: the prefix k (under the second predicate, @P2) needs the field pguard (version 28)")
         if g and let in ("c", "C", "m", "h", "M"):
             raise SystemExit(f"{req.get('id')}: forms token {t!r}: the guard is for a load (s u d q G Q B)")
@@ -1049,7 +1103,7 @@ def set_plan(req):
             if off + nbytes > 64:
                 raise SystemExit(f"{req.get('id')}: the shared loads do not fit the thread's 64 bytes")
             aux, off = off, off + nbytes
-        elif let == "Q":
+        elif let in ("Q", "T"):      # (version 31: T takes the quads as Q does)
             aux, nq = nq % 8, nq + 1
         elif let == "B":
             aux, nb = (17 * nb + 5) % 128, nb + 1
@@ -1066,7 +1120,7 @@ def set_plan(req):
 # every iteration, 60 / 45 cycles in front of the first producer; P0 is written again 13 cycles (the table's default for a
 # predicate -> a guard) in front of every further `gQ` - the kernel writes P0 between its pairs.
 SET_PG = ("t", "f", "l", "c")
-SET_PSRC = ("R7", "R14")      # the sources of P0 / P2: free registers of a set kernel
+SET_PSRC = ("R7", "R14", "R31")      # the sources of P0 / P2 / (version 31) P4: free registers of a set kernel (R31 is the last temporary of the relative readers, which a set under predicates never has)
 
 
 def set_psrc(letter, which):
@@ -1078,8 +1132,9 @@ def set_psrc(letter, which):
     if letter == "l":
         return [Ins(f"SHF.L.U32 {reg}, R0, 0x{31 - which:x}, RZ ;", ("shl", reg, "R0", 31 - which))]
     out = [Ins(f"IMAD {reg}, R11, 0x9e3779b1, RZ ;", ("mad", reg, "R11", 0x9e3779b1, "RZ"))]
-    if which:
-        out.append(Ins(f"SHF.L.U32 {reg}, {reg}, 0xb, RZ ;", ("shl", reg, reg, 11)))
+    if which:      # (version 31: the third predicate takes bit 10)
+        sh_ = 11 if which == 1 else 21
+        out.append(Ins(f"SHF.L.U32 {reg}, {reg}, 0x{sh_:x}, RZ ;", ("shl", reg, reg, sh_)))
     return out
 
 
@@ -1090,9 +1145,10 @@ def set_pshift(stall):
 
 def set_pguard_top(pg, shift_first=False):
     """(second build) shift_first: the bit of the first further pair is shifted in right behind the top's two ISETP - 45 cycles and more in front of the ISETP that reads it"""
-    return (set_psrc(pg[0], 0) + set_psrc(pg[1], 1)
+    return (set_psrc(pg[0], 0) + set_psrc(pg[1], 1) + (set_psrc(pg[2], 2) if len(pg) == 3 else [])      # (version 31: the third predicate, P4)
             + [Ins(f"ISETP.GE.AND P0, PT, {SET_PSRC[0]}, RZ, PT ;", ("sge0", "P0", SET_PSRC[0])),
                Ins(f"ISETP.GE.AND P2, PT, {SET_PSRC[1]}, RZ, PT ;", ("sge0", "P2", SET_PSRC[1]))]
+            + ([Ins(f"ISETP.GE.AND P4, PT, {SET_PSRC[2]}, RZ, PT ;", ("sge0", "P4", SET_PSRC[2]))] if len(pg) == 3 else [])
             + ([set_pshift(15)] if shift_first else []) + [PAD(), PAD()])
 
 
@@ -1131,27 +1187,32 @@ def set_exec(req, gids):
     lane = gids % 1024
     pg = req["pguard"]
 
+    neg = req.get("pneg") == "set"      # version 31: the guards are written negated - a load executes where its predicate is FALSE
+
     def ex(letter, bit):
-        if letter in ("t", "c"):
+        if letter == "c" or letter == ("f" if neg else "t"):
             return np.ones(len(gids), bool)
-        if letter == "f":
+        if letter in ("t", "f"):
             return np.zeros(len(gids), bool)
-        return ((lane >> bit) & 1) == 0
+        return ((lane >> bit) & 1) == (1 if neg else 0)
 
     out = np.zeros(len(gids), bool)
     for g, _let, _r, _a in set_plan(req):
-        out |= ex(pg[0], 0) if g == "g" else ex(pg[1], 1) if g == "k" else np.ones(len(gids), bool)
+        out |= ex(pg[0], 0) if g == "g" else ex(pg[1], 1) if g == "k" else ex(pg[2], 2) if g == "j" else np.ones(len(gids), bool)
     return out
 
 
 def set_pg_text(r):
-    w = {"t": "true in every lane and iteration", "f": "FALSE in every lane and iteration (its loads never execute)",
+    ng_ = r.get("pneg") == "set"      # version 31
+    w = {"t": "true in every lane and iteration" + (" (its loads never execute)" if ng_ else ""), "f": "FALSE in every lane and iteration" + ("" if ng_ else " (its loads never execute)"),
          "l": "a bit of the lane (true where the bit is 0)", "c": "a bit of (iteration counter x 0x9e3779b1) (true where the bit is 0)"}
     pg = r["pguard"]
-    return (f" [version 28 - TWO PREDICATES on one write barrier: P0 = {w[pg[0]]}"
+    return ((" [version 31 - THREE PREDICATES on one write barrier" if len(pg) == 3 else " [version 28 - TWO PREDICATES on one write barrier") + f": P0 = {w[pg[0]]}"
             + (" - bit 0" if pg[0] == "l" else " - bit 31 for the first pair, the next lower bit for every further pair" if pg[0] == "c" else "")
             + f"; P2 = {w[pg[1]]}" + (" - bit 1" if pg[1] == "l" else " - bit 20" if pg[1] == "c" else "")
-            + "; both are written at the top of every iteration by ISETP.GE.AND, P0 again 13 cycles in front of every further `@P0 LDG.E.128`"
+            + ((f"; P4 (version 31: the THIRD predicate, the loads with prefix j) = {w[pg[2]]}" + (" - bit 2" if pg[2] == "l" else " - bit 10" if pg[2] == "c" else "")) if len(pg) == 3 else "")
+            + ("; EVERY GUARD IS WRITTEN NEGATED (version 31, pneg: `@!Pn`): a load executes where its predicate is FALSE" if ng_ else "")
+            + ("; all three" if len(pg) == 3 else "; both") + " are written at the top of every iteration by ISETP.GE.AND, P0 again 13 cycles in front of every further `@P0 LDG.E.128`"
             + f"; the first reader word stands {r['rdist'] if r.get('rdist') else r.get('younger_stall', 2)} cycles behind the last arming"
             + ("; POSITIVE CONTROL (wait end): the same text with the reader's wait bit moved to the first word BEHIND the reader words - expect not good wherever a producer executes"
                if r.get("wait") == "end" else "; the first reader word carries the ONE wait")
@@ -1737,7 +1798,8 @@ def body_set(req, d, front, variant):
     b += front_ins(front, False)
     for k, (g, let, reg, aux) in enumerate(plan):
         last = k == n - 1
-        gp = "@P2 " if g == "k" else "@P0 " if g else ""
+        pn_ = "!" if (pg and req.get("pneg") == "set") else ""      # version 31: the guards written negated
+        gp = f"@{pn_}P4 " if g == "j" else f"@{pn_}P2 " if g == "k" else f"@{pn_}P0 " if g else ""
         if k in again:      # version 28: the kernel's form - P0 is written again between the pairs
             b += set_pguard_again(pg, more=(k != again[-1]), pshift=psh)
         nreg = set_nreg(let)
@@ -1747,15 +1809,15 @@ def body_set(req, d, front, variant):
             text, sem = f"{gp}{ORDN_FORM[let][0]} R{reg}, [R9{('+0x%x' % aux) if aux else ''}] ;", ("lds", f"R{reg}", "R9", aux, nreg)
         elif let == "G" and cold:
             text, sem = f"{gp}LDG.E R{reg}, desc[UR4][R{SET_CBASE}.64+0x600] ;", ("zeron", f"R{reg}", 1)
-        elif let == "Q" and cold:
-            text, sem = f"{gp}LDG.E.128 R{reg}, desc[UR4][R{SET_CBASE}.64{('+0x%x' % (128 * aux)) if aux else ''}] ;", ("zeron", f"R{reg}", 4)
+        elif let in ("Q", "T") and cold:      # (version 31: T)
+            text, sem = f"{gp}{SET_FORM[let][0]} R{reg}, desc[UR4][R{SET_CBASE}.64{('+0x%x' % (128 * aux)) if aux else ''}] ;", ("zeron", f"R{reg}", 4)
         elif let == "B" and cold:
             text, sem = f"{gp}LDG.E.U8 R{reg}, desc[UR4][R{SET_CBASE}.64+0x{0x400 + 64 * nbyte + aux % 64:x}] ;", ("zeron", f"R{reg}", 1)
             nbyte += 1
         elif let == "G":
             text, sem = f"{gp}LDG.E R{reg}, desc[UR4][R18.64] ;", ("ldg", f"R{reg}", "R18")
-        elif let == "Q":
-            text, sem = f"{gp}LDG.E.128 R{reg}, desc[UR4][R{SET_ABASE}.64{('+0x%x' % (16 * aux)) if aux else ''}] ;", ("ldgq", f"R{reg}", aux)
+        elif let in ("Q", "T"):
+            text, sem = f"{gp}{SET_FORM[let][0]} R{reg}, desc[UR4][R{SET_ABASE}.64{('+0x%x' % (16 * aux)) if aux else ''}] ;", ("ldgq", f"R{reg}", aux)
         elif let == "B":
             text, sem = f"{gp}LDG.E.U8 R{reg}, desc[UR4][R{SET_ABASE}.64+0x{aux:x}] ;", ("ldgb", f"R{reg}", aux)
         elif let == "c":
@@ -1768,7 +1830,7 @@ def body_set(req, d, front, variant):
             text, sem = f"SHFL.BFLY PT, R{reg}, R{SET_HSRC}, 0x1, 0x1f ;", ("shfl", f"R{reg}", f"R{SET_HSRC}", "bfly", 1)
         dst = [f"R{reg + j}" for j in range(nreg)]
         if pg and g:      # version 28: the model's word under its guard (where it is nullified its destinations keep their markers)
-            sem = ("g", "P2" if g == "k" else "P0", 1, tuple(dst), sem)
+            sem = ("g", {"g": "P0", "k": "P2", "j": "P4"}[g], 0 if req.get("pneg") == "set" else 1, tuple(dst), sem)      # (version 31: P4; a negated guard executes where the predicate is false)
         if ctl:
             b.append(Ins(text, sem, ctl=C(1, wb="0", y=y), tag="P", dst=dst))
             b.append(Ins("IADD3 R15, PT, PT, R15, 0x1, RZ ;", ("nop",), ctl=C(ys if last else d, wait="0")))
@@ -1878,6 +1940,23 @@ def body_ordn(req, d, front, variant):
     return b
 
 
+ORD_UMARK = 0x5a5a0155      # version 31: what UR6 holds until the S2UR lands (no CTA has this number)
+
+
+def ord_ry_text(r):
+    """version 31: the pair (LDC, S2UR) read at the YOUNGER producer's register"""
+    ys = int(r.get("younger_stall", 2))
+    return ("LDC R6, c[0x0][0x388] " + ("and a younger S2UR UR6, SR_CTAID.X on ONE write barrier" if r.get("older_barrier") == "same"
+                                        else "WITHOUT a write barrier and a younger S2UR UR6, SR_CTAID.X on write barrier 1 (the reference: the barrier is the S2UR's alone)")
+            + f"; THE READER TAKES THE YOUNGER RESULT (version 31): UR6 holds the marker 0x{ORD_UMARK:x} from the top of the iteration, R6 the iteration's second input; "
+            + (f"POSITIVE CONTROL and THE PROOF OF THE WINDOW: no wait in front of the readers - `MOV R14, R6` {ys - 1} cycle(s) behind the S2UR, `MOV R13, UR6` {ys} cycle(s) behind it - and the "
+               "wait on the fold behind them; stale1 = the LDC has landed and the S2UR has not (the window), stale = neither has, stale2 = the S2UR has and the LDC has not"
+               if r.get("wait") == "end" else
+               f"`MOV R13, UR6` {ys} cycle(s) behind the S2UR carries the ONE wait, `MOV R14, R6` stands one cycle behind it with no wait of its own; stale1 = the reader of the S2UR's register "
+               "took the marker (a barrier released by the first landing), stale2 = the reader of the LDC's register took its marker, stale = both; ctl = two barriers, the reader waits both")
+            + " (distance = LDC -> S2UR; the host model knows the CTA of a thread: R1 = ctaid x 1024 + tid)")
+
+
 def body_ord(req, d, front, variant):
     """an OLDER load without a write barrier, d issue cycles in front of a YOUNGER load that carries one; the reader of the
     older load's result waits only on the younger load's barrier. variant ctl: the older load carries barrier 0 and the
@@ -1890,6 +1969,8 @@ def body_ord(req, d, front, variant):
     s, fill = split_distance(d)
     ys = int(req.get("younger_stall", 2))
     ctl = variant == "ctl"
+    ry = req.get("read") == "younger"      # version 31: the reader takes the YOUNGER producer's register (the pair LDC, S2UR)
+    rend = ry and req.get("wait") == "end"      # ... the positive control and the proof of the window
     # "older_barrier": "same" = the older load carries the SAME write barrier as the younger one (two producers on one
     # scoreboard, one wait): right at every distance if the scoreboard COUNTS its producers, stale like the bare older
     # load if it only follows the last one
@@ -1945,6 +2026,8 @@ def body_ord(req, d, front, variant):
         b += front_ins(front, False)
         b.append(Ins(f"{og}LDS.128 R28, [R9+0x20] ;", ("lds", "R28", "R9", 0x20, 4), ctl=C(s, wb=wb0), tag="P", dst=["R28", "R29", "R30", "R31"]))
     elif older == "LDC":      # version 18: the constant-bank load of the seed; its destination holds the marker until it lands
+        if ry:      # version 31: the YOUNGER producer's uniform register holds a marker (no CTA has this number) until the S2UR lands
+            b.append(Ins(f"UMOV UR6, 0x{ORD_UMARK:x} ;", ("mov", "UR6", ORD_UMARK)))
         b.append(Ins("MOV R6, R5 ;", ("mov", "R6", "R5")))
         b += front_ins(front, False)
         b.append(Ins("LDC R6, c[0x0][0x388] ;", ("mov", "R6", SEED), ctl=C(s, wb=wb0), tag="P", dst=["R6"]))
@@ -1968,7 +2051,10 @@ def body_ord(req, d, front, variant):
     elif younger == "S2R":       # version 18: a younger producer of another class (what it brings is not used)
         b.append(Ins("S2R R8, SR_TID.X ;", ("mov", "R8", "R0"), ctl=C(ys, wait=yw, wb="1")))
     elif younger == "S2UR":      # ... into a uniform register (UR4 is the descriptor's)
-        b.append(Ins("S2UR UR6, SR_CTAID.X ;", ("nop",), ctl=C(ys, wait=yw, wb="1")))
+        if ry:      # version 31: the reader takes THIS result, and the model knows it (R1 = gid = ctaid x 1024 + tid); in the control the first reader word stands ys - 1 behind it
+            b.append(Ins("S2UR UR6, SR_CTAID.X ;", ("shr", "UR6", "R1", 10), ctl=C(ys - 1 if rend else ys, wait=yw, wb="1"), tag="P", dst=["UR6"]))
+        else:
+            b.append(Ins("S2UR UR6, SR_CTAID.X ;", ("nop",), ctl=C(ys, wait=yw, wb="1")))
     elif younger == "LDC64":     # ... the pair R30:R31 (the output pointer: not modelled)
         b.append(Ins("LDC.64 R30, c[0x0][0x380] ;", ("poison", "R30", 2), ctl=C(ys, wait=yw, wb="1")))
     else:
@@ -1977,6 +2063,13 @@ def body_ord(req, d, front, variant):
         b.append(Ins("IADD3 R13, PT, PT, R28, R29, RZ ;", ("add", "R13", "R28", "R29"), ctl=C(wait=cw), tag="C"))
     elif older == "LDS128":
         b.append(Ins("IADD3 R13, PT, PT, R28, R31, RZ ;", ("add", "R13", "R28", "R31"), ctl=C(wait=cw), tag="C"))
+    elif rend:      # version 31, the positive control and the proof of the window: no wait in front of the readers; the reader of the OLDER register one cycle in front of
+        # the reader of the YOUNGER one (which keeps its place, ys behind the S2UR); the wait behind both, on the fold
+        b += [Ins("MOV R14, R6 ;", ("mov", "R14", "R6"), ctl=C(1), tag="C2"), Ins("MOV R13, UR6 ;", ("mov", "R13", "UR6"), tag="C"),
+              Ins("IMAD R13, R14, 0x3, R13 ;", ("mad", "R13", "R14", 3, "R13"), ctl=C(wait=cw))]
+    elif ry:      # version 31: the reader of the YOUNGER result carries the ONE wait; the reader of the older register stands one cycle behind it with none of its own
+        b += [Ins("MOV R13, UR6 ;", ("mov", "R13", "UR6"), ctl=C(1, wait=cw), tag="C"), Ins("MOV R14, R6 ;", ("mov", "R14", "R6"), tag="C2"),
+              Ins("IMAD R13, R14, 0x3, R13 ;", ("mad", "R13", "R14", 3, "R13"))]
     else:
         b.append(Ins("MOV R13, R6 ;", ("mov", "R13", "R6"), ctl=C(wait=cw), tag="C"))
     b.append(Ins("IADD3 R10, PT, PT, R10, R13, RZ ;", ("add", "R10", "R10", "R13"), ctl=C(wait="13" if recycle else "3")))
@@ -3304,7 +3397,7 @@ def prologue(req, ctas):
                   Ins(f"IMAD.WIDE.U32 R{SET_ABASE}, R13, 0x1, R2 ;", ("nop",)),
                   Ins(f"MOV R{SET_CBASE}, R{SET_ABASE} ;", ("nop",)), Ins(f"MOV R{SET_CBASE + 1}, R{SET_ABASE + 1} ;", ("nop",)),
                   Ins("MOV R13, RZ ;", ("mov", "R13", 0)), PAD(), PAD()]
-        elif lets & {"Q", "B"}:
+        elif lets & {"Q", "B", "T"}:      # (version 31: T)
             # R76:R77 = the address of the first B word of the thread's WARP: A of lane 0 (out + 4 * (gid & ~31)) + half. The
             # 32 B words of the warp were stored above by ONE instruction of the warp (every lane its own word, R20).
             p += [Ins("LOP3.LUT R13, R1, 0xffffffe0, RZ, 0xc0, !PT ;", ("nop",)),
@@ -4028,6 +4121,8 @@ def modes_of(req):
     if req["kind"] == "ord" and req.get("pguard"):      # version 28: a set of which no producer ever executes can show nothing
         import numpy as np
         return (["good", "stale"] + (["p0old"] if req.get("pshift") == 1 else [])) if set_exec(req, np.arange(64)).any() else ["good"]
+    if req["kind"] == "ord" and req.get("read") == "younger":      # version 31: stale1 = only the reader of the YOUNGER (S2UR) result took its marker, stale2 = only the reader of the older (LDC) register, stale = both
+        return ["good", "stale", "stale1", "stale2"]
     return ["good", "stale"] if req["kind"] in ("raw", "ord") else ["good", "late", "overtake"]
 
 
@@ -4060,7 +4155,7 @@ def normalise(req):
         if r.get("consumer") not in RAW_CONSUMERS:
             raise SystemExit(f"{r['id']}: raw consumer {r.get('consumer')!r} not in the catalogue (probe.py list)")
         what = RAW_CONSUMERS[r["consumer"]][0]
-        if r.get("producer") not in (ADDR_PRODUCERS if what == "addr" else UNIFORM_PRODUCERS if what == "udata" else GADDR_PRODUCERS if what == "gaddr" else DATA_PRODUCERS):
+        if r.get("producer") not in (ADDR_PRODUCERS if what == "addr" else UNIFORM_PRODUCERS if what == "udata" else GADDR_PRODUCERS if what == "gaddr" else PRED_PRODUCERS if what == "pdata" else DATA_PRODUCERS):
             raise SystemExit(f"{r['id']}: producer {r.get('producer')!r} not in the catalogue for {r['consumer']} (probe.py list)")
         if what == "gaddr" and (r.get("result") is not None or r.get("salt") is not None or any(str(f).startswith("stg") for f in r.get("front", []))):
             raise SystemExit(f"{r['id']}: {r['consumer']} has no result / salt field and no stg front (word B is the target of a store through a stale address)")
@@ -4149,8 +4244,9 @@ def normalise(req):
                         r["controls"] = False
                     elif r.get("pguard") is not None:      # version 28
                         pl_ = set_plan(r)
-                        if (not (isinstance(r["pguard"], str) and len(r["pguard"]) == 2 and all(c_ in SET_PG for c_ in r["pguard"]))
-                                or not {"g", "k"} <= {g_ for g_, _l, _r, _a in pl_} or any(l_ not in ("G", "Q", "B") or not g_ for g_, l_, _r, _a in pl_)
+                        if (not (isinstance(r["pguard"], str) and len(r["pguard"]) == (3 if any(g_ == "j" for g_, _l, _r, _a in pl_) else 2) and all(c_ in SET_PG for c_ in r["pguard"]))      # (version 31: three letters with the prefix j)
+                                or r.get("pneg") not in (None, "set")
+                                or not {"g", "k"} <= {g_ for g_, _l, _r, _a in pl_} or any(l_ not in ("G", "Q", "B", "T") or not g_ for g_, l_, _r, _a in pl_)
                                 or r["barrier"] != "all" or r.get("wait", "reader") not in ("reader", "end") or r.get("controls")
                                 or any(f_ not in ("none", "", None) for f_ in r.get("front", ["none"]))
                                 or not (r.get("rdist") is None or (isinstance(r["rdist"], int) and not isinstance(r["rdist"], bool) and 1 <= r["rdist"] <= 300))):
@@ -4169,7 +4265,7 @@ def normalise(req):
                         raise SystemExit(f"{r['id']}: cold is \"set\" (third build: every global load of the set reads another never-written line of the output buffer) or absent")
                     if r.get("cold"):
                         cl = [let for _g, let, _r, _a in set_plan(r)]
-                        if any(x not in "GQB" for x in cl) or cl.count("Q") > 8 or cl.count("B") > 8 or cl.count("G") > 1 or any(o not in SET_COLD_OCC for o in r["occupancy"]):
+                        if any(x not in "GQBT" for x in cl) or cl.count("Q") + cl.count("T") > 8 or cl.count("B") > 8 or cl.count("G") > 1 or any(o not in SET_COLD_OCC for o in r["occupancy"]):      # (version 31: T)
                             raise SystemExit(f"{r['id']}: a cold set has global loads only (at most 8 Q, 8 B, 1 G) and runs on {', '.join(SET_COLD_OCC)}")
                     if r["place"] != "near" or any(o not in SET_OCC for o in r["occupancy"]) or any(str(f).startswith("stg") for f in r.get("front", [])):
                         raise SystemExit(f"{r['id']}: a set request has place near, no stg front, and a grid of at most 744 threads per SM ({', '.join(SET_OCC)}): its kernels declare {SET_REGS + 8} registers")
@@ -4197,6 +4293,19 @@ def normalise(req):
             raise SystemExit(f"{r['id']}: an older shuffle has no `far` shape (R14 is its source)")
         if (r.get("older"), r.get("younger")) not in ORD_PAIRS:
             raise SystemExit(f"{r['id']}: older {r.get('older')!r} / younger {r.get('younger')!r} not in the catalogue (probe.py list)")
+        if r.get("read") not in (None, "younger"):      # version 31
+            raise SystemExit(f"{r['id']}: read is \"younger\" (version 31: the pair LDC, S2UR with the reader of the YOUNGER producer's register) or absent")
+        if r.get("read") == "younger":
+            ys_ = r.get("younger_stall", 2)
+            if r.get("nload") or (r.get("older"), r.get("younger")) != ("LDC", "S2UR") or r.get("older_barrier") not in (None, "same") or r.get("far") or r.get("younger_guard") \
+                    or r.get("older_guard") or r.get("wait", "reader") not in ("reader", "end") or not isinstance(ys_, int) or not 1 <= ys_ <= 15 \
+                    or (r.get("wait") == "end" and (ys_ < 2 or r.get("controls"))) or any(str(f) != "none" for f in r.get("front", ["none"])):
+                raise SystemExit(f"{r['id']}: read younger (version 31) is the pair older LDC / younger S2UR, older_barrier same or absent, no far / guard / front, younger_stall 1 .. 15, "
+                                 "wait reader | end (the positive control and the proof of the window: younger_stall 2 .. 15, no ctl variant)")
+            if r.get("wait") == "end":
+                r["controls"] = False
+        elif not r.get("nload") and r.get("wait") is not None:
+            raise SystemExit(f"{r['id']}: wait belongs to a set request or to a two-load request with read = younger (version 31)")
         r.setdefault("distances", "1-15,20,30")
         r.setdefault("controls", True)
         r.setdefault("control_distances", "1,4,15")
@@ -4330,6 +4439,8 @@ def normalise(req):
         raise SystemExit(f"{r['id']}: yield is \"set\" (the swept instruction of a raw / mma request, via stall, or the loads of an N-load request carry the yield flag) or absent")
     if r.get("cold") and not is_set(r):
         raise SystemExit(f"{r['id']}: cold is for a SET request of global loads (version 23, third build)")
+    if r.get("pneg") is not None and not (r["pneg"] == "set" and r["kind"] == "ord" and r.get("pguard") and is_set(r) and not is_sf(r) and not is_cov(r)):      # version 31
+        raise SystemExit(f"{r['id']}: pneg is \"set\" (version 31: the guards of a set under predicates are written negated, `@!Pn` - a load executes where its predicate is false) or absent")
     r.setdefault("occupancy", ["w8", "w32"])
     r.setdefault("front", ["none"])
     r.setdefault("reps", 20)
@@ -4385,7 +4496,9 @@ def pair_text(r):
         names = SET_NAMES
         toks = [x.strip() for x in str(r["forms"]).split(",")]
         pgd = r.get("pguard")      # version 28
-        what = " ".join((("@P0 " if pgd else "@true ") if (t[:1] == "g" and len(t) > 1) else "@P2 " if (t[:1] == "k" and len(t) > 1) else "@false " if t[:1] == "f" else "") + names[t[-1]] for t in toks)
+        pn_ = "!" if (pgd and r.get("pneg") == "set") else ""      # version 31
+        what = " ".join(((f"@{pn_}P0 " if pgd else "@true ") if (t[:1] == "g" and len(t) > 1) else f"@{pn_}P2 " if (t[:1] == "k" and len(t) > 1) else f"@{pn_}P4 " if (t[:1] == "j" and len(t) > 1)
+                         else "@false " if t[:1] == "f" else "") + names[t[-1]] for t in toks)
         return ((f"a SET of {len(toks)} producers of one thread in flight (version 23: R0-R79), oldest first: {what}; ONE wait of the reader ("
                  if is_set(r) else f"{len(toks)} shared loads of MIXED forms of one thread in flight, oldest first: {what}; ONE wait of the reader (")
                 + ("the thread's own line, one base register" if r["place"] == "near" else "the thread's own line, every second load through another base register") + "; "
@@ -4402,6 +4515,8 @@ def pair_text(r):
         return (f"{r['older']} on write barrier 1, a younger {r['younger']} whose own word WAITS barrier 1 and sets it again (the recycle of a barrier), "
                 f"the reader of the older load's register does NOT wait and stands {r.get('younger_stall', 2)} cycle(s) behind the younger load "
                 "(distance = older -> younger; ctl = two barriers, the reader waits both)")
+    if r["kind"] == "ord" and r.get("read") == "younger":      # version 31
+        return ord_ry_text(r)
     if r["kind"] == "ord" and r.get("older_barrier") == "same":
         return (f"{r['older']} and a younger {r['younger']} on ONE write barrier, one wait of the reader "
                 f"(the younger load at stall {r.get('younger_stall', 2)} in front of the reader)")
@@ -4627,6 +4742,12 @@ def cmd_gen(args):
             raise SystemExit(f"{r['id']}: a stale reader gives the checksum of `good` in some thread - the probe could not see it there")
         if r["kind"] == "thr" and (cand["good"] == 0).any():      # version 26
             raise SystemExit(f"{r['id']}: the checksum of `good` is 0 in some thread - a thread that never ran would pass there")
+        if r["kind"] == "ord" and r.get("read") == "younger":      # version 31: the four hypotheses differ pairwise in EVERY thread (a class is read thread by thread)
+            ks_ = sorted(cand)
+            for i_, a_ in enumerate(ks_):
+                for b_ in ks_[i_ + 1:]:
+                    if not (cand[a_] != cand[b_]).all():
+                        raise SystemExit(f"{r['id']}: the hypotheses {a_} and {b_} give the same checksum in some thread - the probe could not tell them apart there")
         if any(np.array_equal(cand["good"], v) for m, v in cand.items() if m != "good") and r["kind"] != "mma":
             raise SystemExit(f"{r['id']}: a failure hypothesis gives the checksums of `good` - the probe could not see it")
         if r["kind"] == "raw" and r.get("control") == "stale" and "stale" in cand and not (cand["good"] != cand["stale"]).all():      # version 25
@@ -5242,6 +5363,13 @@ def cmd_list(_args):
     print("kind ord (version 30) - the COVER SET: \"forms\" = \"<bare>,<cover>\" - bare nS (LDS) | nD (LDS.64) | nkq (@P2 LDS.128), no write barrier; cover S | D | q | gq (@P0 LDS.128) on "
           "the write barrier; \"reader\": qmma (@P2 QMMA.SF, a bare nS) | mov; \"carrier\": reader | mov (+ \"rgap\"); \"rdist\"; \"wait\": reader | end (the control); \"pguard\": two letters of "
           "t | f | c; \"slow\": bare | cover | none (the bank-conflict region against the conflict-free one); hypothesis stale. \"noload\": true on a scale set of S alone = no load at all")
+    print("kind raw (version 31) - PREDICATE producers: " + ", ".join(PRED_PRODUCERS) + " (P2 = a < b of the iteration's inputs; until it lands P2 holds b < a, written 15 cycles or more in front); "
+          "consumers ISETP.p (the predicate input of ISETP.GT.AND, the vendor's form), ISETP.p.or (of ISETP.NE.U32.OR with a false compare), LDS128.g (the guard of @P2 LDS.128); \"control\": \"stale\" as for every raw pair")
+    print("kind ord (version 31) - the pair (LDC, S2UR) with \"read\": \"younger\": the reader takes the S2UR's uniform register behind the ONE wait, a reader of the LDC's register behind it; "
+          "\"older_barrier\": \"same\" | absent (the reference); \"wait\": reader | end (the positive control and the proof of the window: the LDC's register read one cycle in front of the S2UR's, "
+          "no wait in front of either); hypotheses stale1 (only the S2UR's reader took its marker), stale2 (only the LDC's), stale (both)")
+    print("kind ord (version 31) - a SET UNDER THREE PREDICATES: the prefix j on a load = under the third predicate (@P4), \"pguard\" of three letters (P0, P2, P4); the letter T = LDG.E.128.STRONG.GPU "
+          "(as Q); \"pneg\": \"set\" = the guards written negated (@!Pn): a load executes where its predicate is false")
     print("occupancy:", "; ".join(f"{k} = {v}" for k, v in OCC.items()))
     print("front: none | sts128xK@S | stsxK@S | stgxK@S  (K stores of a constant at stall S in front of the tested instruction)")
     return 0
@@ -5256,7 +5384,7 @@ def cmd_selftest(_args):
         what = RAW_CONSUMERS[cons][0]
         if what in T24_WHAT:      # version 24: their own part below
             continue
-        for prod in (ADDR_PRODUCERS if what == "addr" else UNIFORM_PRODUCERS if what == "udata" else GADDR_PRODUCERS if what == "gaddr" else DATA_PRODUCERS):
+        for prod in (ADDR_PRODUCERS if what == "addr" else UNIFORM_PRODUCERS if what == "udata" else GADDR_PRODUCERS if what == "gaddr" else PRED_PRODUCERS if what == "pdata" else DATA_PRODUCERS):
             if cons in ("IADD.64.r1h", "SHF.L.U64.HI.r1") and prod not in PAIR_PRODUCERS:
                 continue
             if prod == "CS2R" and RAW_CONSUMERS[cons][1] % 2:
@@ -6574,6 +6702,178 @@ def cmd_selftest(_args):
                         assert a1_.text == a0_.text.replace(f"0x{SF_MARK:x}", f"0x{SF_UNIT:x}") and a1_.sem == (a0_.sem[0], a0_.sem[1], SF_UNIT), (a0_.line(), a1_.line())
                     else:
                         assert a1_.line() == a0_.line() and a1_.sem == a0_.sem and a1_.tag == a0_.tag, (a0_.line(), a1_.line())
+    # version 31 - (1) kind raw with a PREDICATE producer: the cycles of the probe's own text, the refusals
+    def st31(a):
+        return int(a.ctl[-3:-1])
+    for cons_ in ("ISETP.p", "ISETP.p.or", "LDS128.g"):
+        assert RAW_CONSUMERS[cons_][0] == "pdata", cons_
+        r_ = normalise({"id": "selftest", "kind": "raw", "producer": "ISETP", "consumer": cons_})
+        assert modes_of(r_) == ["good", "stale"], cons_
+        big_ = np.arange(0, 752 * 1024, 61, dtype=np.int64)
+        assert (model(r_, "good", gids=big_) != model(r_, "stale", gids=big_)).all(), (cons_, "a stale consumer must change every thread's checksum")
+        for dd in list(range(1, 17)) + [20, 30]:
+            b_ = body_raw(r_, dd, "none")
+            kp_, kc_ = next(k for k, a in enumerate(b_) if a.tag == "P"), next(k for k, a in enumerate(b_) if a.tag == "C")
+            assert sum(st31(a) for a in b_[kp_:kc_]) == dd, (cons_, dd)      # producer -> consumer = the swept distance
+            pre_ = [k for k, a in enumerate(b_[:kp_]) if a.text == "ISETP.LT.U32.AND P2, PT, R5, R4, PT ;"]
+            assert len(pre_) == 1 and sum(st31(a) for a in b_[pre_[0]:kp_]) >= 13, (cons_, dd)      # the OTHER value has landed for every consumer (a guard: 13)
+            assert b_[kp_].text == "ISETP.LT.U32.AND P2, PT, R4, R5, PT ;" and b_[kp_].dst == ("P2",), (cons_, dd)
+            assert all(a.ctl[1:8] == "B------" for a in b_[:kc_ + 1]), (cons_, dd)      # no wait up to the consumer
+            assert sum(1 for a in b_ if re.search(r"(?<![A-Z])P2\b", a.text) and a.tag not in ("P", "C")) == 1, (cons_, dd)      # P2 is written by the two ISETP and read by the consumer only
+            if cons_ == "LDS128.g":
+                assert b_[kc_].text == "@P2 LDS.128 R28, [R9+0x20] ;" and b_[kc_].ctl[13] == "1" and b_[kc_ + 1].ctl[1:8] == "B-1----", (cons_, dd)
+                mk_ = [k for k, a in enumerate(b_[:kp_]) if re.fullmatch(r"MOV R(28|29|30|31), R5 ;", a.text)]
+                assert len(mk_) == 4 and max(mk_) < pre_[0], (cons_, dd)      # the markers stand in front of the two ISETP
+            else:
+                assert b_[kc_ + 1].text == "SEL R8, R4, R5, P3 ;" and st31(b_[kc_]) >= 5 and b_[kc_].text.endswith(", P2 ;") and b_[kc_].text.split()[1] == "P3,", (cons_, dd)
+        n += 1
+    for bad in ({"producer": "ISETP", "consumer": "MOV.r1"}, {"producer": "MOV", "consumer": "ISETP.p"}, {"producer": "UMOV", "consumer": "LDS128.g"},
+                {"producer": "ISETP", "consumer": "ISETP.p", "result": 1}):
+        try:
+            normalise(dict({"id": "selftest", "kind": "raw"}, **bad))
+        except SystemExit:
+            n += 1
+        else:
+            raise AssertionError(f"version 31: {bad} must be refused")
+    # version 31 - (2) kind ord, the pair (LDC, S2UR) read at the YOUNGER producer's register
+    for ob_ in (None, "same"):
+        for w_ in ("reader", "end"):
+            q_ = {"id": "selftest", "kind": "ord", "older": "LDC", "younger": "S2UR", "read": "younger", "distances": "1,8,45"}
+            q_.update({"older_barrier": ob_} if ob_ else {})
+            q_.update({"wait": "end"} if w_ == "end" else {})
+            r_ = normalise(q_)
+            assert modes_of(r_) == ["good", "stale", "stale1", "stale2"] and r_["controls"] == (w_ == "reader"), (ob_, w_)
+            for mode in modes_of(r_):
+                v = model(r_, mode, gids=gids)
+                assert [int(x) for x in v] == model(r_, mode, gids=gids, scalar=True), (ob_, w_, mode)
+                n += 1
+            big_ = np.arange(0, 752 * 1024, 61, dtype=np.int64)
+            vb_ = {m_: model(r_, m_, gids=big_) for m_ in modes_of(r_)}
+            ks_ = sorted(vb_)
+            assert all((vb_[a_] != vb_[b_]).all() for i_, a_ in enumerate(ks_) for b_ in ks_[i_ + 1:]), (ob_, w_, "the four hypotheses differ pairwise in every thread")
+            # the checksum by hand: per iteration the fold adds (UR6 reader) + 3 x (R6 reader)
+            cta_ = (big_ // 1024).astype(np.uint32)
+            b0_ = ((big_ ^ 0x5bd1e995) & 0xFFFFFFFF).astype(np.uint64)
+            sb_ = (sum((b0_ + k_ * 0x7f4a7c15) for k_ in range(REPEAT)) & np.uint64(0xFFFFFFFF)).astype(np.uint32)      # the sum of the markers of R6 over the iterations
+            g_ = (np.uint32(REPEAT) * cta_ + np.uint32((3 * REPEAT * SEED) & 0xFFFFFFFF)).astype(np.uint32)
+            assert np.array_equal(vb_["good"], g_), (ob_, w_, "good = 256 x the CTA's number + 3 x 256 x the seed")
+            assert np.array_equal(vb_["stale1"], (g_ - np.uint32(REPEAT) * cta_ + np.uint32((REPEAT * ORD_UMARK) & 0xFFFFFFFF)).astype(np.uint32)), (ob_, w_)
+            assert np.array_equal(vb_["stale2"], (np.uint32(REPEAT) * cta_ + np.uint32(3) * sb_).astype(np.uint32)), (ob_, w_)
+            for var_ in (("bare", "ctl") if w_ == "reader" else ("bare",)):
+                for dd in (1, 8, 45):
+                    for ys_ in (2, 5):
+                        b_ = body_ord(dict(r_, younger_stall=ys_), dd, "none", var_)
+                        kl_ = next(k for k, a in enumerate(b_) if a.text.startswith("LDC R6,"))
+                        ku_ = next(k for k, a in enumerate(b_) if a.text.startswith("S2UR UR6,"))
+                        kc_, k2_ = next(k for k, a in enumerate(b_) if a.tag == "C"), next(k for k, a in enumerate(b_) if a.tag == "C2")
+                        assert b_[0].text == f"UMOV UR6, 0x{ORD_UMARK:x} ;" and sum(st31(a) for a in b_[:ku_]) >= 15 + dd, (ob_, w_, var_, dd)
+                        assert b_[kl_].tag == "P" and b_[ku_].tag == "P" and b_[kl_].dst == ("R6",) and b_[ku_].dst == ("UR6",), (ob_, w_, var_, dd)
+                        assert sum(st31(a) for a in b_[kl_:ku_]) == dd and sum(st31(a) for a in b_[ku_:kc_]) == ys_, (ob_, w_, var_, dd, ys_)
+                        assert b_[kl_].ctl[13] == ("0" if var_ == "ctl" else "1" if ob_ == "same" else "-") and b_[ku_].ctl[13] == "1", (ob_, w_, var_, dd)
+                        assert b_[kc_].text == "MOV R13, UR6 ;" and b_[k2_].text == "MOV R14, R6 ;", (ob_, w_, var_, dd)
+                        wt_ = [k for k, a in enumerate(b_) if "1" in a.ctl[2:8]]      # the words that wait barrier 1
+                        if w_ == "reader":
+                            assert k2_ == kc_ + 1 and st31(b_[kc_]) == 1 and wt_ == [kc_] and b_[kc_].ctl[1:8] == ("B01----" if var_ == "ctl" else "B-1----"), (ob_, w_, var_, dd, ys_)
+                        else:
+                            assert k2_ == kc_ - 1 and st31(b_[k2_]) == 1 and sum(st31(a) for a in b_[ku_:k2_]) == ys_ - 1, (ob_, w_, var_, dd, ys_)
+                            assert wt_ == [kc_ + 1] and b_[kc_ + 1].text == "IMAD R13, R14, 0x3, R13 ;" and b_[kc_].ctl[1:8] == "B------" and b_[k2_].ctl[1:8] == "B------", (ob_, w_, var_, dd, ys_)
+                        assert b_[kc_ + (1 if w_ == "end" else 2)].text == "IMAD R13, R14, 0x3, R13 ;" and st31(b_[max(kc_, k2_)]) >= 6, (ob_, w_, var_, dd)      # MOV -> IMAD at the table's distance or more
+    r0_ = normalise({"id": "selftest", "kind": "ord", "older": "LDC", "younger": "S2UR", "older_barrier": "same"})
+    assert modes_of(r0_) == ["good", "stale"] and [a.line() for a in body_ord(r0_, 5, "none", "bare") if "UR6" in a.text] == ["[B------:R-:W1:-:S02] S2UR UR6, SR_CTAID.X ;"], "the old request of the pair is as it was"
+    for bad in ({"older": "LDS", "younger": "S2R", "read": "younger"}, {"older": "LDC", "younger": "S2UR", "read": "older"},
+                {"older": "LDC", "younger": "S2UR", "read": "younger", "older_barrier": "recycle"}, {"older": "LDC", "younger": "S2UR", "read": "younger", "wait": "end", "younger_stall": 1},
+                {"older": "LDC", "younger": "S2UR", "read": "younger", "wait": "end", "controls": True}, {"older": "LDC", "younger": "S2UR", "wait": "end"},
+                {"older": "LDC", "younger": "S2UR", "read": "younger", "wait": "none"}, {"older": "LDC", "younger": "S2UR", "read": "younger", "front": ["sts128x15@4"]}):
+        try:
+            normalise(dict({"id": "selftest", "kind": "ord"}, **bad))
+        except SystemExit:
+            n += 1
+        else:
+            raise AssertionError(f"version 31: {bad} must be refused")
+    # version 31 - (3) a set under THREE predicates (the prefix j = @P4), the letter T, negated guards
+    for forms in ("gT,kT,jT", "gQ,kQ,jQ", "gT,kB,jG", "gT,kT,jT,gT"):
+        toks_ = forms.split(",")
+        for pg_ in ("ttt", "fff", "lll", "ccc", "ftt", "tft", "ttf", "tfc", "lcf"):
+            for neg_ in (None, "set"):
+                for cold_ in (None, "set"):
+                    base_ = dict({"id": "xx", "kind": "ord", "forms": forms, "barrier": "all", "yield": "set", "pguard": pg_, "occupancy": ["w8", "c2w9s"]},
+                                 **({"pneg": neg_} if neg_ else {}), **({"cold": cold_} if cold_ else {}))
+                    rq = normalise(base_)
+                    assert is_set(rq) and rq["controls"] is False and rq["wait"] == "reader", (forms, pg_)
+                    ex_ = set_exec(rq, gids)
+                    none_ = pg_ == ("ttt" if neg_ else "fff")
+                    assert modes_of(rq) == (["good"] if none_ else ["good", "stale"]), (forms, pg_, neg_)
+                    g = model(rq, "good", gids=gids)
+                    assert [int(x) for x in g] == model(rq, "good", gids=gids, scalar=True) and (g != 0).all(), (forms, pg_, neg_, cold_)
+                    PTR_STANDIN[:] = [0x1234567, 0x89abcde]
+                    try:
+                        assert [int(x) for x in g] == model(rq, "good", gids=gids, scalar=True), (forms, pg_, neg_, cold_)
+                    finally:
+                        PTR_STANDIN[:] = [0, 0]
+                    n += 1
+                    if not none_:
+                        st_ = model(rq, "stale", gids=gids)
+                        assert [int(x) for x in st_] == model(rq, "stale", gids=gids, scalar=True) and np.array_equal(g != st_, ex_), (forms, pg_, neg_, cold_)
+                        n += 1
+                    else:
+                        assert not ex_.any()
+                    if pg_ == ("fff" if neg_ else "ttt"):      # the anchor: every load executes = the same set under ONE true guard (version 23)
+                        old_ = normalise(dict({"id": "xx", "kind": "ord", "forms": forms.replace("k", "g").replace("j", "g"), "barrier": "all", "yield": "set", "occupancy": ["w8", "c2w9s"]},
+                                              **({"cold": cold_} if cold_ else {})))
+                        assert np.array_equal(g, model(old_, "good", gids=gids)), (forms, neg_, cold_)
+                    for wt_, rd_ in (("reader", None), ("end", None), ("reader", 129), ("end", 129)):
+                        rv = normalise(dict(base_, wait=wt_, **({"rdist": rd_} if rd_ else {})))
+                        for d_ in (1, 4):
+                            body = body_ord(rv, d_, "none", "bare")
+                            prods, snaps = [a for a in body if a.tag == "P"], [a for a in body if a.tag == "C"]
+                            assert len(prods) == len(toks_) and all(a.ctl[12:14] == "W1" and ":Y:S" in a.ctl and a.ctl[1:8] == "B------" for a in prods), (forms, pg_)
+                            pn_ = "!" if neg_ else ""
+                            for a, t_ in zip(prods, toks_):
+                                pr_ = {"g": "P0", "k": "P2", "j": "P4"}[t_[0]]
+                                assert a.text.startswith(f"@{pn_}{pr_} ") and a.sem[0] == "g" and a.sem[1] == pr_ and a.sem[2] == (0 if neg_ else 1) and list(a.sem[3]) == list(a.dst), (forms, pg_, a.text)
+                                assert a.text.split()[1] == {"T": "LDG.E.128.STRONG.GPU", "Q": "LDG.E.128", "B": "LDG.E.U8", "G": "LDG.E"}[t_[1]], (forms, a.text)
+                            assert all(a.ctl[-4:] == f"S{d_:02d}]" for a in prods[:-1]), (forms, pg_)
+                            i0, i1 = body.index(prods[-1]), body.index(snaps[0])
+                            assert all(a.sem == ("nop",) and a.ctl[1:8] == "B------" for a in body[i0 + 1:i1]), (forms, pg_)
+                            assert sum(int(a.ctl[-3:-1]) for a in body[i0:i1]) == (rd_ or 2) and int(prods[-1].ctl[-3:-1]) <= 11, (forms, pg_, rd_)
+                            waits = [k_ for k_, a in enumerate(body) if a.ctl[1:8] != "B------"]      # ONE wait in the whole body
+                            ilast = body.index(snaps[-1])
+                            assert waits == [i1 if wt_ == "reader" else ilast + 1] and body[waits[0]].ctl[1:8] == "B-1----", (forms, pg_, wt_, waits)
+                            assert wt_ == "reader" or (body[ilast + 1].sem == ("nop",) and body[ilast + 1].text.startswith("IADD3 R15,")), (forms, pg_)
+                            # the three predicates: each written ONCE, in front of the first producer; every ISETP >= 6 cycles behind the last writer of its source;
+                            # every guarded load >= 13 cycles behind the ISETP of its predicate; nothing else touches the three sources
+                            ipn = {p_: [k_ for k_, a in enumerate(body) if a.text.startswith(f"ISETP.GE.AND {p_},")] for p_ in ("P0", "P2", "P4")}
+                            assert all(len(v_) == 1 for v_ in ipn.values()) and ipn["P0"][0] < ipn["P2"][0] < ipn["P4"][0] < body.index(prods[0]), (forms, pg_)
+                            lastw, now_ = {}, 0
+                            for a in body:
+                                ms_ = re.match(r"ISETP\.GE\.AND P[024], PT, (R\d+), RZ, PT ;", a.text)
+                                if ms_:
+                                    assert ms_.group(1) in lastw and now_ - lastw[ms_.group(1)] >= 6, (forms, pg_, a.text)
+                                mw_ = re.match(r"(?:MOV|SHF\.L\.U32|IMAD) (R7|R14|R31),", a.text)
+                                if mw_:
+                                    lastw[mw_.group(1)] = now_
+                                now_ += int(a.ctl[-3:-1])
+                            assert set(lastw) == {"R7", "R14", "R31"}, (forms, pg_)
+                            for a, t_ in zip(prods, toks_):
+                                assert sum(int(x.ctl[-3:-1]) for x in body[ipn[{"g": "P0", "k": "P2", "j": "P4"}[t_[0]]][0]:body.index(a)]) >= 13, (forms, pg_, t_)
+                            for a in body:
+                                if re.search(r"(?<![UA-Za-z0-9])R(7|14|31)(?![0-9])", a.text):
+                                    assert a.text.startswith(("MOV R7, ", "MOV R14, ", "MOV R31, ", "SHF.L.U32 R7, ", "SHF.L.U32 R14, ", "SHF.L.U32 R31, ", "IMAD R7, R11, ", "IMAD R14, R11, ",
+                                                              "IMAD R31, R11, ", "ISETP.GE.AND P")), a.text
+    for bad in ({"forms": "gT,kT,jT", "pguard": "tt"}, {"forms": "gT,kT", "pguard": "ttt"}, {"forms": "gT,jT", "pguard": "ttt"}, {"forms": "gT,kT,jT", "pguard": "ttt", "pneg": "yes"},
+                {"forms": "gT,kT", "pneg": "set"}, {"forms": "gT,kT,jC", "pguard": "ttt"}, {"forms": "jT,gT"}):
+        try:
+            normalise(dict({"id": "xx", "kind": "ord", "barrier": "all", "yield": "set", "occupancy": ["w8"]}, **bad))
+        except SystemExit:
+            n += 1
+        else:
+            raise AssertionError(f"version 31: {bad} must be refused")
+    try:
+        normalise({"id": "xx", "kind": "raw", "producer": "MOV", "consumer": "MOV.r1", "pneg": "set"})
+    except SystemExit:
+        n += 1
+    else:
+        raise AssertionError("version 31: pneg on a raw request must be refused")
     print(f"selftest: {n} (pair, hypothesis) models equal the scalar interpreter on {len(gids)} threads; `good` differs from every failure hypothesis")
     return 0
 

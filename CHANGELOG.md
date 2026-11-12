@@ -787,6 +787,18 @@ decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `
   bank-conflict load lands later than 66 cycles where a conflict-free one has landed by 32 at one warp per SM. A scale set with
   no load at all shows that a tensor instruction under a guard that differs between the lanes of one warp departs from the
   lane-by-lane host model — the four void requests of `_b57`.
+- **`probe.py` 31: a predicate producer (kind `raw`: `ISETP` → the predicate input of `ISETP`, → a guard), two producers on one
+  write barrier read at the YOUNGER result (kind `ord`, `"read": "younger"`), a set under THREE predicates with negated guards
+  (`"pneg"`, the prefix `j`, the set letter `T` = `LDG.E.128.STRONG.GPU`)** (`_b61` and its two `_ws_` files; selftest 4 733;
+  old requests give the same texts). On a card of the Server Edition, on a card of the Workstation Edition alone and at its
+  400-W limit — the same verdict in 1 284 of 1 284 cells: three guarded `LDG.E.128.STRONG.GPU` on one write barrier behind ONE
+  wait, 0 of 338 821 120 thread-launches not right (without the wait every thread-launch in which a load executes is wrong, also
+  180 cycles behind the loads); `LDC` + `S2UR` on one write barrier, the reader of the `S2UR`'s result behind the one wait, 0 of
+  202 357 760 — also where the `LDC` lands while the `S2UR` is still in flight: the barrier holds the reader until both have
+  landed; a predicate written by `ISETP` is read by the predicate input of another `ISETP` from 5 cycles (at 1 … 4 the previous
+  predicate) and by the guard of a load from 13 — both equal to the table's cells, no cycle to spare. The pair `isetp_isetp` of
+  `stall_floors_sm120_20261110_pairs.json` (floor 1) measured nothing: its consumer was true whatever the predicate held (the
+  README's row says so).
 
 ## Unreleased — 2026-11-11 (session SCH-4: the stall-floor probes on grids that hold two CTAs per SM and on production's card model in two clock states — tools and result files only, no source line changes)
 
