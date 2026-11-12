@@ -205,6 +205,14 @@ const LATENCY_CTRL: u8 = 5;     // EXIT, BRA, RET
 /// access issued within 5 cycles of the barrier slips past it (silicon sm120; ptxas floor 6).
 const LATENCY_BAR_SYNC: u8 = 6;
 const LATENCY_S2R: u8 = 4;      // S2R, CS2R
+/// Issue cycles from a `CS2UR` (a special register copied into a uniform register) to the first reader
+/// of its result. The word is fixed-latency: ptxas gives it no write barrier and issues the reader 6
+/// behind it or later, never closer (the vendor's sm_120 kernels: every `CS2UR` word without a write
+/// barrier, the nearest reader at 6). cubit took the word for a special-register load, gave it a write
+/// barrier and let the reader wait on it, two to five cycles behind; every schedule of that form that
+/// reached silicon stopped in the kernel's own timeout check, whose only input is that register. No
+/// silicon floor yet: 6 is ptxas's distance (KNOWN_ISSUES A48).
+pub const CS2UR_RESULT_LATENCY: u8 = 6;
 /// BUG-480: key of vector predicate P<n> in the `(uniform, reg)` register-key space of
 /// `src_regs` / `dest_regs`. GPRs occupy 0..=254 (R255 = RZ is never keyed), so predicates sit
 /// above the GPR file; before 2026-11-05 they were keyed as `128 + n` in a `u8`, which made every
@@ -429,6 +437,13 @@ fn is_barrier_insn(op: &str) -> bool {
 /// instead — matching nvcc behavior where IMAD.WIDE gets stall=6, wbar=7.
 pub(crate) fn insn_needs_write_bar(insn: &Instruction, table: Option<&IsaTable>, sched2: bool) -> bool {
     let op = insn.opcode.as_str();
+    // `CS2UR` is `CS2R` into the uniform register file: a fixed-latency read of a special register. It has
+    // no scoreboard result -- a wait on a barrier it "sets" releases at once and the reader takes the old
+    // register (KNOWN_ISSUES A48; see `CS2UR_RESULT_LATENCY`). Before anything else: the class tables call it
+    // a special-register load.
+    if op == "CS2UR" {
+        return false;
+    }
     // CUBIT_SYNC_CLASSES: a synchronisation word's class decides. The predicate of a phase check
     // (`SYNCS.PHASECHK.TRANS64[.TRYWAIT]`) and of `USETMAXREG.TRY_ALLOC` is a scoreboard result;
     // the fence, the mbarrier init and `SYNCS.CCTL.IVALL` set a barrier the next word of their
@@ -783,6 +798,7 @@ fn base_latency(op: &str) -> u8 {
     if is_control_flow(op) { return LATENCY_CTRL; }
     match op {
         "S2R" | "CS2R" => LATENCY_S2R,
+        "CS2UR" => CS2UR_RESULT_LATENCY,
         // Cross-datapath transfers (vector<->uniform). The result lands in the uniform
         // register file several cycles after issue; a consumer (e.g. UIADD3 UR reading
         // an R2UR'd counter at a loop top) must wait or it reads a stale uniform value.
@@ -4486,6 +4502,39 @@ fn verify_scoreboard(insns: &[Instruction], table: Option<&IsaTable>) {
     run_verify(insns, table, true, probe);
 }
 
+/// One finding of [`fixed_latency_write_barriers`]: (the word, its write barrier, the first reader of its result
+/// and that reader's issue distance).
+pub type FixedLatencyBarrier = (usize, u8, Option<(usize, u32)>);
+
+/// The fixed-latency reads of a special register (`CS2R`, `CS2UR`) that carry a WRITE barrier, each with
+/// the barrier and the first word behind it in the text that reads its result, with the issue distance
+/// (within 64 words; a rewrite of the result by an unguarded word ends the search). ptxas gives neither
+/// word a write barrier; a schedule that does and rests the reader on a wait on it is judged clean by
+/// the scoreboard simulation, which takes every write barrier for a pending result (KNOWN_ISSUES A48).
+pub fn fixed_latency_write_barriers(insns: &[Instruction]) -> Vec<FixedLatencyBarrier> {
+    let mut out = Vec::new();
+    for (i, ins) in insns.iter().enumerate() {
+        if !matches!(ins.opcode.as_str(), "CS2R" | "CS2UR") || ins.ctrl.write_bar as usize >= NUM_BARRIERS {
+            continue;
+        }
+        let defs = dest_regs(ins);
+        let mut reader = None;
+        let mut d = 0u32;
+        for j in i + 1..insns.len().min(i + 65) {
+            d += insns[j - 1].ctrl.stall as u32;
+            if src_regs(&insns[j]).iter().any(|r| defs.contains(r)) {
+                reader = Some((j, d));
+                break;
+            }
+            if insns[j].guard.is_none() && !defs.is_empty() && defs.iter().all(|r| dest_regs(&insns[j]).contains(r)) {
+                break;
+            }
+        }
+        out.push((i, ins.ctrl.write_bar, reader));
+    }
+    out
+}
+
 /// Barrier id of the rb-coverage probe (`verify_scoreboard_rb_probe`): outside the six
 /// real scoreboards, so no wait mask ever releases it.
 const VIRTUAL_RB: u8 = NUM_BARRIERS as u8;
@@ -4983,6 +5032,26 @@ fn run_verify_keys(
             eprintln!(
                 "CUBIT_VERIFY_WAW: {} pending result(s) written again on a path with no wait on the producer's write barrier; not in the counts above",
                 rep.waw
+            );
+        }
+        // A fixed-latency read of a special register (`CS2R`, `CS2UR`) with a write barrier: the simulation
+        // above takes a wait on that barrier for the reader's cover, and it is none (KNOWN_ISSUES A48).
+        let fixed = fixed_latency_write_barriers(insns);
+        if !fixed.is_empty() {
+            for (i, bar, reader) in &fixed {
+                let behind = match reader {
+                    Some((j, d)) => format!("its first reader insn[{}] {} {} issue cycle(s) behind it", j, insns[*j].opcode_full, d),
+                    None => "no reader within 64 words".to_string(),
+                };
+                eprintln!(
+                    "  FIXED-LATENCY BARRIER: insn[{}] {} carries write barrier {} -- a fixed-latency word has no scoreboard result; {}",
+                    i, insns[*i].opcode_full, bar, behind
+                );
+            }
+            eprintln!(
+                "CUBIT_VERIFY_FIXED: {} fixed-latency special-register read(s) carry a write barrier (a wait on it covers nothing; ptxas: none, the reader of a `CS2UR` {} issue cycles behind it); not in the counts above",
+                fixed.len(),
+                CS2UR_RESULT_LATENCY
             );
         }
         if rep.shfl_sources > 0 {

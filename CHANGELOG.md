@@ -4,6 +4,33 @@ User-visible changes, newest first. Table syncs name the blackwell-isa revision 
 (`tables/SOURCE.json` pins it byte for byte). Numbered `BUG-NNN` entries are the encoder /
 decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `docs/TESTS.md`).
 
+## Unreleased — 2026-11-12 (`CS2UR` is a fixed-latency word: no write barrier, every reader six issue cycles behind it; the checks name a write barrier on a `CS2R` / `CS2UR` and price the pair through it)
+
+- **A schedule bug in every recipe, the default one included, for a kernel that copies a special register into a uniform
+  register.** `CS2UR UR4, SR_GLOBALTIMERLO` is `CS2R` for the uniform register file: a fixed-latency word. ptxas gives
+  neither a write barrier — in the vendor's sm_120 kernels the 190 `CS2UR` words stand without one and their first reader
+  6 issue cycles behind them or later, never closer. cubit had taken `CS2R` out of the scoreboarded producers and not its
+  twin: the class tables call `CS2UR` a special-register load, so the allocator gave it a write barrier and put the wait
+  on its reader — 5 issue cycles behind the word, 2 under `CUBIT_SCHED2_MEMSTALL=table`. The word has no scoreboard
+  result: the wait holds nothing, and the reader takes the register's old content. On silicon (one card model): the schedules that carried the barrier with the reader on a wait on it alone — five runs of four schedules, the reader 2 or 5 issue cycles behind the word — all ended in the kernel's own timeout trap, at their first launches or after some calls; the same text with the place in ptxas's form (no barrier, the reader 6 behind) computes bit-identical results, and so did the schedules in which the reader's wait also covered a load issued between the two. The probe of the pair (one card
+  model; a prohibition counts from one): a reader of the result is not right in every thread-launch at 1 … 4 issue
+  cycles, in almost every one at 5, and right from 6 — with a write barrier on the word and a wait on the reader exactly
+  as without them.
+- **Now:** `scheduling_pass::insn_needs_write_bar` answers no for `CS2UR`; the scheduler's latency of the word is
+  `CS2UR_RESULT_LATENCY` = 6; the dependency table names the form (`producer_forms`: the result of a `CS2UR` is read
+  no closer than 6 in any role) and has the cell `CS2UR` → `IADD` (the uniform operand) = 6 — ptxas's distance and the
+  measured floor, the same number: no cycle of margin.
+- **The checks.** `CUBIT_VERIFY` prints, beside its three counts and only when there is such a word,
+  `CUBIT_VERIFY_FIXED: n fixed-latency special-register read(s) carry a write barrier …` with one `FIXED-LATENCY BARRIER`
+  line per word (`scheduling_pass::fixed_latency_write_barriers`); the three counts do not move — the simulation takes
+  every write barrier for a pending result. `CUBIT_DEP_VERIFY` (and the legaliser) price the readers of a `CS2R` /
+  `CS2UR` by the table whatever write barrier a text gives the word: the schedule cubit built before — the reader 2
+  cycles behind on a wait on the word's barrier — is `1 below a table cell`, `distance 2 < 6`.
+- **What moves:** the schedule of a kernel with a `CS2UR` word, at that word and its reader — cubit's schedules of the
+  vendor's MoE kernel with the spin-wait's timeout check among them; the table has 534 cells and two producer forms.
+  None of the production SASS sources of vLLM-Moet has a `CS2UR` word: their cubins are byte for byte. Test:
+  `tests/cs2ur_fixed_latency.rs` (three tests; all three fail on the parent). KNOWN_ISSUES A48.
+
 ## Unreleased — 2026-11-11 (pull-request pair cubit #4 + blackwell-isa #2 of the B300 lane: the measured register-result forms of `HSET2` — 384 modifier groups — and `FHADD` — 16 — on sm103a / sm100a)
 
 - **Tables vendored from blackwell-isa `033b50d`: 400 measured rows per table** — the lane's three table commits re-applied

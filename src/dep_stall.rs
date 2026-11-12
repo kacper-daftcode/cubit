@@ -1003,7 +1003,7 @@ pub(crate) fn needs_of(
         // a scoreboarded producer is synchronised by its barrier, a variable-latency class
         // without one is the allocator's (and the scoreboard verifier's) business
         let mma = sp::is_warp_mma(prod.opcode.as_str());
-        if !mma && (prod.ctrl.write_bar != 7 || t.is_variable(prod)) {
+        if !mma && (left_to_its_barrier(prod) || t.is_variable(prod)) {
             continue;
         }
         if sem[c].uses.contains(&key) {
@@ -1035,7 +1035,7 @@ pub(crate) fn needs_of(
             }
             let prod = &insns[d];
             let mma = sp::is_warp_mma(prod.opcode.as_str());
-            if !mma && (prod.ctrl.write_bar != 7 || t.is_variable(prod)) {
+            if !mma && (left_to_its_barrier(prod) || t.is_variable(prod)) {
                 continue;
             }
             let what = if mma {
@@ -1086,6 +1086,13 @@ pub fn check(insns: &[Instruction], t: &DepLatTable) -> Vec<Violation> {
         }
     }
     out
+}
+
+/// A producer with a write barrier is synchronised by that barrier and priced by nobody here -- unless it is a
+/// fixed-latency read of a special register (`CS2R`, `CS2UR`): such a word has no scoreboard result, a barrier a text
+/// gives it holds nothing, and its readers are priced by the table as if the barrier were not there (KNOWN_ISSUES A48).
+fn left_to_its_barrier(prod: &Instruction) -> bool {
+    prod.ctrl.write_bar != 7 && !matches!(prod.opcode.as_str(), "CS2R" | "CS2UR")
 }
 
 /// One dependency edge of a kernel as the table prices it (`CUBIT_DEP_CELLS`): which cell,
@@ -1895,7 +1902,8 @@ mod tests {
         let mov = ins("MOV.64 R6, R4");
         assert!(t.latency(&mov, &ins("IADD3 R8, PT, PT, R6, R5, RZ"), 6).0 < 7);
         // the entry itself
-        assert_eq!(t.producer_forms.len(), 1);
+        assert_eq!(t.producer_forms.len(), 2);
+        assert_eq!((t.producer_forms[1].producer.as_str(), t.producer_forms[1].l), ("CS2UR", 6));
         let f = &t.producer_forms[0];
         assert_eq!((f.producer.as_str(), f.without.as_slice(), f.l), ("CS2R", &[".32".to_string()][..], 7));
         assert_eq!(f.except.iter().map(|e| (e.consumer.as_str(), e.role.as_str())).collect::<Vec<_>>(), [("STS", "r1")]);
@@ -1903,17 +1911,18 @@ mod tests {
 
     /// A table without `producer_forms` (every table written before it, a deployment's own copy)
     /// loads and prices the pair form with the pair's cell or the default, as before; the section
-    /// touches no cell (a binary that does not know it reads the same 533 cells).
+    /// touches no cell (a binary that does not know it reads the same 534 cells).
     #[test]
     fn a_table_without_the_producer_forms_prices_the_pair_form_by_its_cell() {
         let mut j: serde_json::Value = serde_json::from_str(SM120_TABLE).unwrap();
         let section = j.as_object_mut().unwrap().remove("producer_forms").expect("the bundled table has the section");
-        assert_eq!(section.as_array().unwrap().len(), 1);
+        assert_eq!(section.as_array().unwrap().len(), 2);
+        assert_eq!(section[1]["producer"], "CS2UR");
         assert_eq!(section[0]["producer"], "CS2R");
         assert_eq!(section[0]["without"], serde_json::json!([".32"]));
         assert_eq!(section[0]["L"], 7);
         assert_eq!(section[0]["except"], serde_json::json!([{"consumer": "STS", "role": "r1"}]));
-        assert_eq!(j["cells"].as_array().unwrap().len(), 533);
+        assert_eq!(j["cells"].as_array().unwrap().len(), 534);
         let old = DepLatTable::from_json(&j.to_string()).unwrap();
         let pair = ins("CS2R R6, SRZ");
         assert_eq!(old.latency(&pair, &ins("IMAD R8, R6, R5, R4"), 6), (6, false));
@@ -1923,7 +1932,7 @@ mod tests {
 
     /// A table without the section (every table written before it, a deployment's own copy) loads
     /// and prices both registers with the pair's cell, as before; the section does not touch the
-    /// pair cells (a binary that does not know it reads the same 533 cells).
+    /// pair cells (a binary that does not know it reads the same 534 cells).
     #[test]
     fn a_table_without_the_result_split_prices_the_pair() {
         let mut j: serde_json::Value = serde_json::from_str(SM120_TABLE).unwrap();
@@ -1931,7 +1940,7 @@ mod tests {
         assert_eq!(section["producers"], serde_json::json!(["IMAD.WIDE"]));
         assert_eq!(section["floor"], 5);
         assert_eq!(section["cells"].as_array().unwrap().len(), 7);
-        assert_eq!(j["cells"].as_array().unwrap().len(), 533);
+        assert_eq!(j["cells"].as_array().unwrap().len(), 534);
         let old = DepLatTable::from_json(&j.to_string()).unwrap();
         let wide = ins("IMAD.WIDE.U32 R6, R4, R5, RZ");
         let lop3 = ins("LOP3.LUT R8, R7, R5, RZ, 0x3c, !PT");

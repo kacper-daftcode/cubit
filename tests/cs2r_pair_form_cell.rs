@@ -142,7 +142,9 @@ fn a_table_file_without_the_section_prices_the_pair_form_as_before() {
     let dir = scratch("old");
     let mut j: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(DEP_TABLE).unwrap()).unwrap();
     let section = j.as_object_mut().unwrap().remove("producer_forms").expect("the bundled table has the section");
-    assert_eq!(section.as_array().map(|a| a.len()), Some(1));
+    // two forms: the 64-bit `CS2R` (this file) and `CS2UR` (tests/cs2ur_fixed_latency.rs)
+    assert_eq!(section.as_array().map(|a| a.len()), Some(2));
+    assert_eq!(section[0]["producer"], "CS2R");
     let old = dir.join("dep_latency_old.json");
     std::fs::write(&old, j.to_string()).unwrap();
     let env: Vec<(&str, &str)> = vec![("CUBIT_SCHED2", "1"), ("CUBIT_SCHED2_LAT", old.to_str().unwrap()), ("CUBIT_MMA_PTXAS", "1")];
