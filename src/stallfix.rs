@@ -73,6 +73,27 @@
 //! (reg_liveness::reg_xfer / pred_liveness::pred_xfer Strict) restricted
 //! to the measured class allowlist; unknown families simply carry no
 //! tracked state (same doctrine as the v0 P-domain classes).
+//!
+//! sm_103a v3 (B300 stall floors 2026-11-07 / -09 / -10 / -11, the SM120
+//! harness of tools/stallfloor ported to sm_103a; docs/POSTFIX103_STALLFIX.md
+//! lists the 42 measured paths). The section replaces the v2 values the
+//! measurement contradicts and adds, as DATA again:
+//!   * guard d0: the measured floor (13) is above the cap, so the site is a
+//!     violation (`guard_d0_forbid`) -- unless the producer already stands at
+//!     `measured_guard_d0` or above without the yield flag, which is the
+//!     measured control (and what ptxas writes); the pass never writes it;
+//!   * guard d1 stays class-resolved; `guard_d1_data_floor` gives the data
+//!     consumer class its measured floor (11) instead of the ban, the ISETP
+//!     and atomic classes keep their rules;
+//!   * `pred_producers_op0`: FSETP and ELECT stand next to ISETP in the
+//!     allowlist of predicate producers (they measure ISETP's floors);
+//!   * R17 `floor_alu_imad_d0` / `_d1`: a vector ALU result read by an IMAD
+//!     (5 / 4; S04 at d0 is wrong in every thread-run);
+//!   * R12 by consumer class, `floor_imad_imad_d0`: IMAD -> IMAD (4).
+//!
+//! The cap is a policy for what the pass WRITES. On sm_103a S12..S15 without
+//! the yield flag execute and are clean wherever the floor is below them;
+//! with the yield flag they are not measured, and ptxas never writes them.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -194,10 +215,46 @@ pub struct StallRules {
     /// MUFU is a violation (S15 leaves 63 % of threads wrong): scoreboard only.
     #[serde(default)]
     pub mufu_scoreboard_only: bool,
-    /// Informational: the measured guard-d0 floor when guard_d0_forbid is
-    /// set because it exceeds cap_stall (sm_103a: 13 > 11).
+    /// The measured guard-d0 floor when guard_d0_forbid is set because it
+    /// exceeds cap_stall (sm_103a: 13 > 11). A producer that already stands
+    /// at this stall or above WITHOUT the yield flag is the measured control:
+    /// that site is not a violation (the pass still cannot raise to it; the
+    /// measured kernels carry no yield). 0 = every guard-d0 site is a
+    /// violation while guard_d0_forbid is set.
     #[serde(default)]
     pub measured_guard_d0: u8,
+    // Consumer-class keys (B300 stall floors 2026-11-10 / -11: the harness of
+    // 2026-11-07 with an IMAD consumer behind the producer, the same binaries
+    // on two nights). Every one defaults to 0 = no rule, so a rule file
+    // without them keeps its behaviour byte for byte.
+    /// R17: the R result of a vector ALU-class producer with no measured data
+    /// class of its own (measured: IADD3, LOP3.LUT, MOV) read by an IMAD
+    /// directly next (d0; measured 5 -- at S04 every thread-run is wrong).
+    #[serde(default)]
+    pub floor_alu_imad_d0: u8,
+    /// R17 with one instruction between (d1; measured 4).
+    #[serde(default)]
+    pub floor_alu_imad_d1: u8,
+    /// R12 by consumer class: the result of `IMAD R, R, R, R` or of the
+    /// register move `IMAD.MOV.U32 R, RZ, RZ, R` read by `IMAD R, R, R, R`
+    /// directly next (d0; measured 4). 0 = floor_imad_d0 for every consumer.
+    /// The one key that puts a pair BELOW its class floor: it names the
+    /// measured forms only, every other IMAD form keeps the class floor.
+    #[serde(default)]
+    pub floor_imad_imad_d0: u8,
+    /// Class-resolved guard-D1 (`guard_d1_forbid`): the producer floor when
+    /// the guard consumer is of the data class (sm_103a: measured 11 --
+    /// S01..S10 not clean, S11..S15 clean). 0 = the site is a violation, as
+    /// before. The ISETP and atomic consumer classes keep their own rules.
+    #[serde(default)]
+    pub guard_d1_data_floor: u8,
+    /// More predicate producers of the measured allowlist, by base opcode,
+    /// whose destination predicate is operand 0 like ISETP's (sm_103a v3:
+    /// FSETP and ELECT -- in front of an @P guard they measure the floors of
+    /// ISETP, 13 / 11 / 9; FSETP read as data by SEL 4 / 0 / 0). Empty = the
+    /// v0 allowlist alone (ISETP and the carry-outs).
+    #[serde(default)]
+    pub pred_producers_op0: Vec<String>,
     #[serde(default)]
     pub rules_version: String,
     #[serde(default)]
@@ -288,6 +345,10 @@ impl StallRules {
             ("floor_r2ur_in_d0", self.floor_r2ur_in_d0),
             ("floor_r2ur_out_d1", self.floor_r2ur_out_d1),
             ("floor_r2ur_out_d2", self.floor_r2ur_out_d2),
+            ("floor_alu_imad_d0", self.floor_alu_imad_d0),
+            ("floor_alu_imad_d1", self.floor_alu_imad_d1),
+            ("floor_imad_imad_d0", self.floor_imad_imad_d0),
+            ("guard_d1_data_floor", self.guard_d1_data_floor),
         ] {
             if f > self.cap_stall {
                 bail!(
@@ -300,6 +361,9 @@ impl StallRules {
         }
         if self.legacy_stall_risk_from > 15 {
             bail!("stallfix: rules.legacy_stall_risk_from exceeds the 4-bit field");
+        }
+        if self.measured_guard_d0 > 15 {
+            bail!("stallfix: rules.measured_guard_d0 exceeds the 4-bit field");
         }
         Ok(())
     }
@@ -417,14 +481,16 @@ fn pred_num(o: &Operand) -> Option<u8> {
 }
 
 /// Predicate cout set of the measured producer classes (P0..P6; PT never
-/// counts as a produced value here).
-fn p_writes(ins: &Instruction) -> Vec<u8> {
+/// counts as a produced value here). `op0_producers` is the rule set's
+/// `pred_producers_op0`: base opcodes measured as predicate producers with
+/// the destination at operand 0, next to the v0 allowlist.
+fn p_writes(ins: &Instruction, op0_producers: &[String]) -> Vec<u8> {
     let op = ins.opcode_full.as_str();
     let ops = &ins.operands;
     let pick = |i: usize| -> Option<u8> { ops.get(i).and_then(pred_num).filter(|&n| n <= 6) };
     if op == "IADD3.X" {
         [pick(1), pick(2)].into_iter().flatten().collect()
-    } else if op.starts_with("ISETP") {
+    } else if op.starts_with("ISETP") || op0_producers.contains(&ins.opcode) {
         pick(0).into_iter().collect()
     } else if op.contains(".X") || op.starts_with("IMAD.WIDE") {
         pick(1).into_iter().collect()
@@ -543,6 +609,20 @@ fn data_producer_class(ins: &Instruction) -> Option<&'static str> {
         "MUFU" => Some("mufu"),
         _ => None,
     }
+}
+
+/// The pair `floor_imad_imad_d0` names -- what the B300 harness measured at 4
+/// (2026-11-10 / -11): the producer is `IMAD R, R, R, R` or the register move
+/// `IMAD.MOV.U32 R, RZ, RZ, R`, the consumer `IMAD R, R, R, R` (it read the
+/// value as its multiplicand and as its addend). Every operand is a vector
+/// register: an immediate, a uniform register or any other IMAD form on
+/// either side is not this pair and keeps the class floor.
+fn imad_pair_measured(prod: &Instruction, cons: &Instruction) -> bool {
+    let vector_regs = |i: &Instruction| i.operands.iter().all(|o| matches!(o, Operand::Reg { .. }));
+    matches!(prod.opcode_full.as_str(), "IMAD" | "IMAD.MOV.U32")
+        && cons.opcode_full == "IMAD"
+        && vector_regs(prod)
+        && vector_regs(cons)
 }
 
 fn uprod(ins: &Instruction) -> UProd {
@@ -674,7 +754,7 @@ pub fn run_file(text: &str, plan: &StallFixPlan, rules: &StallRules) -> Result<S
         for (wpos, &(ws, we)) in kp.windows.iter().enumerate() {
             for i in ws..we {
                 let prod_ins = &k.instructions[i as usize];
-                let ws_set = p_writes(prod_ins);
+                let ws_set = p_writes(prod_ins, &rules.pred_producers_op0);
                 let up = uprod(prod_ins);
                 let up_any = !up.ur_alu.is_empty()
                     || !up.ur_r2ur.is_empty()
@@ -766,10 +846,27 @@ pub fn run_file(text: &str, plan: &StallFixPlan, rules: &StallRules) -> Result<S
                             let f = floors.get_mut(&(kidx, i)).unwrap();
                             meets(f, rules.floor_r2ur_d0, "R9-r2ur");
                         }
+                        // R17 (consumer class): the R result of a vector ALU-class
+                        // producer read at d0 by an IMAD. The producer has no data
+                        // class of its own (those have R12..R16).
+                        if rules.floor_alu_imad_d0 > 0
+                            && data_class.is_none()
+                            && cons.opcode == "IMAD"
+                            && crx.known
+                            && !crx.ruses.is_disjoint(&live_r_vec)
+                        {
+                            let f = floors.get_mut(&(kidx, i)).unwrap();
+                            meets(f, rules.floor_alu_imad_d0, "R17-alu-imad-d0");
+                        }
                         // v3-data R12..R14: measured data-producer classes at d0.
                         if let Some(dc) = data_class {
                             if crx.known && !crx.ruses.is_disjoint(&live_r_data) {
                                 let floor = match dc {
+                                    // R12 by consumer class: the measured floor of the
+                                    // IMAD -> IMAD pair, when the rule file carries it.
+                                    "imad" if rules.floor_imad_imad_d0 > 0 && imad_pair_measured(prod_ins, cons) => {
+                                        Some((rules.floor_imad_imad_d0, "R12-imad-imad-d0"))
+                                    }
                                     "imad" => Some((rules.floor_imad_d0, "R12-imad-d0")),
                                     "fma" => Some((rules.floor_fma_d0, "R13-fma-d0")),
                                     "f2fp" => Some((rules.floor_f2fp_d0, "R14-f2fp-d0")),
@@ -814,6 +911,16 @@ pub fn run_file(text: &str, plan: &StallFixPlan, rules: &StallRules) -> Result<S
                             } else if rules.floor_xread_d1 > 0 {
                                 meets(f, rules.floor_xread_d1, "R8-xread-d1");
                             }
+                        }
+                        // R17 one instruction later (measured 4 on sm_103a).
+                        if rules.floor_alu_imad_d1 > 0
+                            && data_class.is_none()
+                            && cons.opcode == "IMAD"
+                            && crx.known
+                            && !crx.ruses.is_disjoint(&live_r_vec)
+                        {
+                            let f = floors.get_mut(&(kidx, i)).unwrap();
+                            meets(f, rules.floor_alu_imad_d1, "R17-alu-imad-d1");
                         }
                         // v3-data R12/R13 at d1 (IMAD 3, FMA-pipe 3; F2FP free).
                         if let Some(dc) = data_class {
@@ -909,12 +1016,30 @@ pub fn run_file(text: &str, plan: &StallFixPlan, rules: &StallRules) -> Result<S
                             let prod_stall = prod.ctrl.stall;
                             let class = guard_consumer_class(cons);
                             match d {
-                                1 if rules.guard_d0_forbid => {
-                                    // v3 (SM120 2026-11-03): no stall up to the cap closes
-                                    // a P producer -> @P guard at d0 (ISETP -> @P0 IADD3:
-                                    // 641 888 / 655 360 threads wrong at S11, S00 = the
-                                    // hardware interlock, not a schedule). Raise-only cannot
-                                    // fix it: violation, eliminate the d0 distance.
+                                1 if rules.guard_d0_forbid
+                                    && !(rules.measured_guard_d0 > 0
+                                        && prod_stall >= rules.measured_guard_d0
+                                        && !prod.ctrl.yield_flag) =>
+                                {
+                                    // v3: no stall up to the cap closes a P producer -> @P
+                                    // guard at d0 (SM120 2026-11-03, before its S12..S15
+                                    // sweep: S01..S11 all wrong; sm_103a 2026-11-07: S01..S12
+                                    // not clean on ISETP / FSETP / ELECT, S13..S15 clean --
+                                    // the floor 13 is above the cap 11). S00 is the hardware
+                                    // interlock, not a schedule. Raise-only cannot fix it:
+                                    // violation. A producer already at measured_guard_d0 or
+                                    // above without yield is the measured control and falls
+                                    // through to the arm below (no raise: it is above the cap).
+                                    let measured = if rules.measured_guard_d0 > 0 {
+                                        format!(
+                                            " The measured floor is S{:02}: a producer that already \
+                                             stands there or above without the yield flag passes, \
+                                             the pass itself writes no stall above the cap.",
+                                            rules.measured_guard_d0
+                                        )
+                                    } else {
+                                        String::new()
+                                    };
                                     d1_violations.push(serde_json::json!({
                                         "kernel": k.name, "prod_idx": i,
                                         "prod_op": prod.opcode_full,
@@ -922,12 +1047,13 @@ pub fn run_file(text: &str, plan: &StallFixPlan, rules: &StallRules) -> Result<S
                                         "guard_idx": j,
                                         "guard_op": cons.opcode_full,
                                         "class": class,
-                                        "reason": "guard at d0 (consumer directly after the \
-                                            predicate producer): no stall count up to the cap \
-                                            legalizes it on sm_120 (measured 2026-11-03, RTX PRO \
-                                            6000 Server Edition: S01..S11 all wrong). Move the \
-                                            consumer at least two slots away (d1 floor 11, d2 \
-                                            floor 9) or test the predicate through SEL/PLOP3."
+                                        "reason": format!(
+                                            "guard at d0 (consumer directly after the predicate \
+                                             producer): no stall count up to cap_stall ({}) legalizes \
+                                             it on {}.{} Move the consumer away (the d2 floor is \
+                                             S{:02}) or test the predicate through SEL/PLOP3.",
+                                            rules.cap_stall, rules.arch, measured, rules.floor_guard_d2
+                                        )
                                     }));
                                 }
                                 1 => {
@@ -1022,6 +1148,21 @@ pub fn run_file(text: &str, plan: &StallFixPlan, rules: &StallRules) -> Result<S
                                                         port (O1-road), not postfix."
                                                 }));
                                             }
+                                            // the data class with a measured floor
+                                            // (sm_103a v3: 11 -- S01..S10 not clean,
+                                            // S11..S15 clean on three producers).
+                                            _ if rules.guard_d1_data_floor > 0 => {
+                                                meets(f, rules.guard_d1_data_floor,
+                                                      "R3-guard-d1-data");
+                                                site.action =
+                                                    if prod_stall < rules.guard_d1_data_floor {
+                                                        format!("floor-raise:S{:02}->S{:02}",
+                                                                prod_stall,
+                                                                rules.guard_d1_data_floor)
+                                                    } else {
+                                                        "noop".to_string()
+                                                    };
+                                            }
                                             _ => {
                                                 site.action = "violation".to_string();
                                                 d1_violations.push(serde_json::json!({
@@ -1065,7 +1206,7 @@ pub fn run_file(text: &str, plan: &StallFixPlan, rules: &StallRules) -> Result<S
                     }
                     // kills: a consumer that (re)writes a tracked predicate ends
                     // that chain (its reads above already fired).
-                    for p in p_writes(cons) {
+                    for p in p_writes(cons, &rules.pred_producers_op0) {
                         live.remove(&p);
                     }
                     // v2 domain kills: a (re)write of a tracked UR/UP/R by

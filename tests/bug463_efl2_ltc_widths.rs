@@ -200,7 +200,7 @@ fn t463_6_census_attribution() {
             src["base_revision"]
                 .as_str()
                 .unwrap()
-                .starts_with("ff1c320524269718e93dab28532400927583091f") /* 2026-11-06 T-11 (was c258f8a, T-10) */,
+                .starts_with("8f230b49e9cf41155ba9626d49e79b6dda16b965") /* 2026-11-06 T-11 (was c258f8a, T-10) */,
             "SOURCE pin drift"
         );
     }

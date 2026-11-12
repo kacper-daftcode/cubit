@@ -13,8 +13,9 @@
 //!   value measured), not the sm_103a class split;
 //! * R2UR boundaries raise to the cap (11): the measurement's CPU model was wrong for that path,
 //!   so the pass takes the most conservative legal stall instead of a guess;
-//! * the arch lock refuses an sm_103a plan against SM120 rules; the sm_103a v2 section is
-//!   unaffected by the new keys (their defaults mean "no rule").
+//! * the arch lock refuses an sm_103a plan against SM120 rules; the sm_103a v2 rule set
+//!   (tests/fixtures/stallfix_sm103a/rules_v2.json: the section until it became v3, 2026-11)
+//!   is unaffected by the new keys (their defaults mean "no rule").
 use cubit::stallfix::{run_file, StallFixPlan, StallRules};
 
 fn rules() -> StallRules {
@@ -68,8 +69,8 @@ fn section_is_the_measured_sm120_set() {
 }
 
 #[test]
-fn sm103a_section_keeps_its_v2_behaviour() {
-    let r = StallRules::load(std::path::Path::new("tables/sm103a.json")).unwrap();
+fn sm103a_v2_rules_keep_their_behaviour() {
+    let r = StallRules::load(std::path::Path::new("tests/fixtures/stallfix_sm103a/rules_v2.json")).unwrap();
     assert_eq!(r.rules_version, "v2");
     assert_eq!((r.floor_pcarry_d0, r.floor_pcarry_d1, r.floor_guard_d1), (0, 0, 0));
     assert!(!r.guard_d0_forbid && r.guard_d1_forbid);
