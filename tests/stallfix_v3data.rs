@@ -2,7 +2,10 @@
 //! tables/stallfix_sm103a_v3_20261107.json): the producer classes the
 //! v0..v3 allowlist never carried -- IMAD / FMA-pipe / F2FP data results,
 //! UMOV, MUFU without a scoreboard, and the split R2UR hops. Every new key
-//! defaults to "no rule", so the sm_103a v2 section keeps its behaviour.
+//! defaults to "no rule", so the sm_103a v2 rule set keeps its behaviour
+//! (`v2()`: the section as it was vendored until 2026-11, frozen in
+//! tests/fixtures/stallfix_sm103a/rules_v2.json; the vendored section is v3
+//! now and has its own file, tests/stallfix_sm103a_v3.rs).
 
 use cubit::stallfix::{run_file, StallFixPlan, StallRules};
 
@@ -25,7 +28,7 @@ fn v3() -> StallRules {
 }
 
 fn v2() -> StallRules {
-    StallRules::load(std::path::Path::new("tables/sm103a.json")).unwrap()
+    StallRules::load(std::path::Path::new("tests/fixtures/stallfix_sm103a/rules_v2.json")).unwrap()
 }
 
 fn pl(windows: &str) -> StallFixPlan {

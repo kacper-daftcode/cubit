@@ -329,8 +329,10 @@ docs/           see above
 - Encoding evidence is not semantic evidence: a row that round-trips says how `nvdisasm` names a
   word, not what the hardware does with it. Rows measured in 2026-10/11 without execution are
   listed in KNOWN_ISSUES T6.
-- `stallfix` rules are measured for sm_103a (v2) and SM120 (v4, 2026-11-03/05: the v3 floors + the S12..S15
-  guard band); the SM120 R2UR boundary floor was measured 2026-11-04 (silicon v3) at 4.
+- `stallfix` rules are measured for sm_103a (v3, 2026-11-07 .. -11 on B300: 42 paths,
+  [docs/POSTFIX103_STALLFIX.md](docs/POSTFIX103_STALLFIX.md); the pass writes no S12..S15 there) and SM120 (v4,
+  2026-11-03/05: the v3 floors + the S12..S15 guard band); the SM120 R2UR boundary floor was measured 2026-11-04
+  (silicon v3) at 4.
 - A template rebuild (`asm -T`) copies the template's metadata; a kernel whose registers, shared
   memory or parameters differ from the template needs a standalone build or a matching template.
 - The test suite: `python3 tools/test_suite.py --release` runs the ~470 test binaries in parallel and finishes in about

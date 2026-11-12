@@ -4,6 +4,40 @@ User-visible changes, newest first. Table syncs name the blackwell-isa revision 
 (`tables/SOURCE.json` pins it byte for byte). Numbered `BUG-NNN` entries are the encoder /
 decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `docs/TESTS.md`).
 
+## Unreleased — 2026-11-12 (pull-request pair cubit #9 + blackwell-isa #6 of the B300 lane: the sm_103a `stallfix` section v3 — measured floors — with its test and the five rule keys it needs)
+
+- **Tables vendored from blackwell-isa `8ce9074`: the `stallfix` section of `sm103a.json` is v3** — floors measured on
+  B300 with the stall-floor harness of `tools/stallfloor` ported to sm_103a: 42 paths, each at d0 / d1 / d2 for S00..S15,
+  655 360 thread-runs per kernel, four nights (2026-11-07, -09, -10, -11). It replaces v2, the census of 2026-08, whose
+  guard floors the measurement contradicts: a predicate producer directly in front of its `@P` guard needs 13 (v2
+  raised to 7) — above `cap_stall` 11, so the site is a violation unless the producer already stands at S13..S15
+  without the yield flag —, with one instruction between 11 for a data consumer (v2: a violation), with two between 9
+  (v2: 5). New in the section: `FSETP` and `ELECT` as predicate producers, the split `R2UR` hops (in 4, out 8 / 6 / 4),
+  the data classes (IMAD 5 / 3, the FMA pipe 4 / 3, `F2FP` 4, `UMOV` free, `MUFU` scoreboard only) and two
+  consumer-class rules (a vector ALU result read by an IMAD 5 / 4; an IMAD result read by an IMAD 4). No encoding row
+  moves; `sm100a.json` has no section; sm120 / sm121a are untouched.
+- **`src/stallfix.rs` — five rule keys and one meaning, each "no rule" unless a rule set carries it:**
+  `measured_guard_d0` (it was informational: under `guard_d0_forbid` a producer already at that stall or above without
+  the yield flag now passes untouched; the reason text of the violation is built from the rule set),
+  `guard_d1_data_floor`, `pred_producers_op0`, `floor_alu_imad_d0` / `floor_alu_imad_d1`, `floor_imad_imad_d0` (the
+  measured forms only). The sm_120 section (v4) sets neither `guard_d0_forbid` nor any of them: `cubit stallfix` on
+  sm_120 text is unchanged. The pass is the `cubit stallfix` subcommand and its Python binding; the assembler, the
+  scheduler and the verifier do not call it.
+- **A rule set that carries `guard_d0_forbid` together with `measured_guard_d0` changes behaviour by the engine alone:**
+  a predicate producer directly in front of its `@P` guard that already stands at `measured_guard_d0` or above without
+  the yield flag was a violation and now passes untouched; with the yield flag, or below that stall, it stays a
+  violation. One such rule set exists in the tree: the inline `v3-data` set of `tests/stallfix_v3data.rs` (sm_103a; its
+  eight tests have no such site). The vendored sm_120 section sets neither key: `cubit stallfix` on sm_120 text is
+  unchanged.
+- Tests: `tests/stallfix_sm103a_v3.rs` (16) with the four raw result files of the measurement as fixtures
+  (`tests/fixtures/stallfix_sm103a/stall_floors_*.json`; the section names their SHA-256): every floor is recomputed
+  from the per-stall counts and each numeric key is held against every path it stands for. The v0..v2 tests
+  (`stallfix_ss.rs`, `stallfix_v3data.rs`, one test of `stallfix_sm120.rs`) now load the v2 rule set frozen as
+  `tests/fixtures/stallfix_sm103a/rules_v2.json`. `docs/POSTFIX103_STALLFIX.md` has the section "v3".
+- Not in it: `cap_stall` stays 11 (the pass writes no S12..S15 on sm_103a); the scheduler's dependency rows have no
+  consumer class; `PLOP3` is no predicate producer of the pass; no operand roles for `FMUL2` / `FADD2` / `FFMA2`.
+  One card model (B300), one occupancy (32 CTAs × 1 024 threads); the yield flag at S12..S15 is not measured.
+
 ## Unreleased — 2026-11-12 (KNOWN_ISSUES A48 and the dependency table name the measurement of a `CS2UR` result's readers; the prohibition stands on two card models)
 
 - **Documents only: no cell and no number of `tables/dep_latency_sm120.json` moves.** The floor 6 of a reader of a `CS2UR`
