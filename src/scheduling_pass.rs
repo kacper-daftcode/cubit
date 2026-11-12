@@ -210,8 +210,11 @@ const LATENCY_S2R: u8 = 4;      // S2R, CS2R
 /// behind it or later, never closer (the vendor's sm_120 kernels: every `CS2UR` word without a write
 /// barrier, the nearest reader at 6). cubit took the word for a special-register load, gave it a write
 /// barrier and let the reader wait on it, two to five cycles behind; every schedule of that form that
-/// reached silicon stopped in the kernel's own timeout check, whose only input is that register. No
-/// silicon floor yet: 6 is ptxas's distance (KNOWN_ISSUES A48).
+/// reached silicon stopped in the kernel's own timeout check, whose only input is that register. The
+/// 6 is ptxas's distance and the measured floor, without a margin: on silicon a reader closer than 6
+/// takes the register's old content (not right in every thread-launch at 1 … 4, in almost every one
+/// at 5, right from 6), and a write barrier on the word with a wait on its reader changes no count
+/// (KNOWN_ISSUES A48 has the measurement). No barrier covers this word and no pass goes below 6.
 pub const CS2UR_RESULT_LATENCY: u8 = 6;
 /// BUG-480: key of vector predicate P<n> in the `(uniform, reg)` register-key space of
 /// `src_regs` / `dest_regs`. GPRs occupy 0..=254 (R255 = RZ is never keyed), so predicates sit
