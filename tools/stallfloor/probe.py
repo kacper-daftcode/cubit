@@ -131,6 +131,26 @@ Version 28, second build - letter c on a set with more than one `gQ`: the shift 
 ISETP (13 cycles or more in front of the ISETP that reads it). The FIRST build put it one cycle in front of that ISETP: not
 right by construction (ten requests of the result file `_b55` are void); "pshift": 1 builds that text again, with the hypothesis
 `p0old` (every such ISETP read the source's old content) as a third host model.
+
+Version 29 - kind `ord`, the SCALE SET (the letter S): 2 or 3 unguarded `LDS` on ONE write barrier, issued one after another
+without a wait (every second one through another base register), each into a block-scale register of two GUARDED tensor
+readers: `@P0 QMMA.SF ... Ryoungest, Rnext, URZ` on the ONE wait and, 16 cycles behind it, `@P2 QMMA.SF ... Roldest, Ryoungest,
+URZ` with no wait of its own. The loads bring the UE8M0 code of the unit scale in every byte; until its load lands a register
+holds the code of x 2 (a stale reader adds another, still exact, amount). "pguard": two letters, P0 (the first reader) then P2
+(the second), of t | f | l | c as in version 28 (written at the top of every iteration); "rdist": the first reader's distance
+behind the last arming (absent: 2); "wait": reader | end (the positive control: that one wait bit on the first word behind the
+reader words). Hypotheses: stale (every reader word that executes took the markers), stale1 / stale2 (only the first / only
+the second). The generator COUNTS THE CYCLES of every such body (`sf_audit`): a consumer of a fixed-latency word of the probe's
+own text closer than the table's distance, a guard closer than 13 behind its ISETP, a tensor result read closer than 28, a
+rewrite closer than 8 behind a tensor word that read the register - refused.
+    {"id": "sf2_ft", "kind": "ord", "forms": "S,S", "barrier": "all", "yield": "set", "pguard": "ft", "distances": "1,4"}
+    {"id": "sf2_ft_ew", "kind": "ord", "forms": "S,S", "barrier": "all", "yield": "set", "pguard": "ft", "distances": "4", "wait": "end"}
+Version 29, second build - the MIXED scale set: the letter D = an unguarded `LDS.64` on the same barrier, its pair read by two
+`MOV` words (data); 2 .. 7 loads, 1 .. 4 S and 0 .. 3 D in any order (with one S the readers' other scale operand is a register
+of the prologue). "lead": qmma (absent: the tensor readers first, the MOV readers behind them) | mov (the MOV readers first:
+the first MOV carries the ONE wait); hypothesis stale3 = only the MOV readers took the markers.
+    {"id": "mx7_ft", "kind": "ord", "forms": "S,S,D,D,S,S,D", "barrier": "all", "yield": "set", "pguard": "ft", "distances": "1,4"}
+    {"id": "mx5m_cc", "kind": "ord", "forms": "D,D,S,S,D", "barrier": "all", "yield": "set", "pguard": "cc", "lead": "mov", "distances": "1,4"}
 """
 from __future__ import annotations
 
@@ -147,7 +167,7 @@ import subprocess
 import sys
 import time
 
-TOOL = "probe.py 28 (2026-11-12)"
+TOOL = "probe.py 29 (2026-11-12)"
 HERE = pathlib.Path(__file__).resolve().parent
 SEED = 0x12345
 PTR_STANDIN = [0, 0]      # version 28: the scalar interpreter's stand-in for the output pointer R2:R3 (the selftest sets it nonzero: no fold may depend on it)
@@ -936,10 +956,14 @@ ORDN_DEST = [24, 25, 26, 27, 28, 29, 30, 31, 16, 17, 18, 19, 14, 7]      # desti
 # registers). A request with one of these letters is a SET request: its kernels declare R0-R79 (.regcount 88).
 SET_FORM = {"G": ("LDG.E", 1), "Q": ("LDG.E.128", 4), "B": ("LDG.E.U8", 1), "c": ("LDC", 1), "C": ("LDC.64", 2),
             "m": ("MUFU.EX2", 1), "h": ("SHFL.BFLY", 1),
-            "M": ("LDSM.16.M88.4", 4)}      # (second build) only as the set M,s,s: the reader is an HMMA of the LDSM's quad and the two LDS
+            "M": ("LDSM.16.M88.4", 4),      # (second build) only as the set M,s,s: the reader is an HMMA of the LDSM's quad and the two LDS
+            "S": ("LDS", 1),                # version 29: only in a scale set: an unguarded LDS into a block-scale register of two guarded QMMA.SF readers
+            "D": ("LDS.64", 2)}             # version 29, second build: only in a scale set beside S: an unguarded LDS.64 whose pair is read by MOV words
 SET_NAMES = {"s": "LDS", "u": "LDS.U16", "d": "LDS.64", "q": "LDS.128", "G": "LDG.E", "Q": "LDG.E.128", "B": "LDG.E.U8",
              "c": "LDC", "C": "LDC.64", "m": "MUFU.EX2", "h": "SHFL.BFLY",
-             "M": "LDSM.16.M88.4 [the A fragment of the reader HMMA.16816.F32.BF16; the two LDS behind it are its B fragment]"}
+             "M": "LDSM.16.M88.4 [the A fragment of the reader HMMA.16816.F32.BF16; the two LDS behind it are its B fragment]",
+             "S": "LDS [into a block-scale register of the reader QMMA.SF words]",
+             "D": "LDS.64 [its pair read by MOV words]"}
 SET_REGS = 80            # R0-R79; .regcount SET_REGS + 8
 SET_HSRC = 73            # the shuffle's source (written every iteration)
 SET_MSRC, SET_MREF = 74, 75      # the MUFU's source and the reference of its result (prologue)
@@ -978,6 +1002,9 @@ def set_plan(req):
         toks.append((g, let))
     if any(let == "M" for _g, let in toks) and toks != [("", "M"), ("", "s"), ("", "s")]:
         raise SystemExit(f"{req.get('id')}: LDSM stands only in the tensor set M,s,s (LDSM + LDS + LDS, the reader an HMMA)")
+    sd_ = [let for _g, let in toks if let in ("S", "D")]      # version 29 (second build: D)
+    if sd_ and (len(sd_) != len(toks) or any(g for g, _l in toks) or not (2 <= len(toks) <= 7) or not (1 <= sd_.count("S") <= 4) or sd_.count("D") > 3):
+        raise SystemExit(f"{req.get('id')}: the letters S (an LDS into a block-scale register of the QMMA.SF readers) and D (an LDS.64 read by MOV words) stand only in a scale set: 2 .. 7 loads of S and D alone, 1 .. 4 S, at most 3 D, no guard")
     regof, reg = {}, 32
     for width in (4, 2, 1):
         for k, (_g, let) in enumerate(toks):
@@ -1255,6 +1282,219 @@ def body_set_mma(req, d, front, variant):
     return b
 
 
+# version 29 - the SCALE SET (the shape of the vendor-text MoE kernel's tensor loop once the loop's loads no longer wait): 2 or 3
+# unguarded `LDS` on ONE write barrier, issued one after another without a wait, every second one through another base register;
+# each brings a block-scale register of the readers. The readers are two GUARDED tensor words: `@P0 QMMA.SF` on the youngest and
+# the next register - it carries the ONE wait, also where its guard is false - and, 16 cycles behind it (the table's resource
+# row), `@P2 QMMA.SF` on the oldest and the youngest register (with four S: the two oldest) with no wait of its own. What a load brings is the UE8M0 code of
+# the unit scale in every byte (prologue: slot 2 of the thread's line); until its load lands a register holds the code of x 2 -
+# a reader that took it adds 2 x (4 x with both) its exact amount: still an integer add on the accumulator's bit pattern.
+# Second build - the MIXED set: the letter D = an unguarded `LDS.64` on the same barrier (a pair of the thread's constants, slots
+# 0 / 1 of its line; until it lands the pair holds the iteration's second input), read by two `MOV` words into temporaries that
+# go into the fold. "lead": mov puts the MOV readers first (the first MOV carries the one wait).
+SF_FORM = "QMMA.SF.E4M3.E2M1"
+SF_UNIT, SF_MARK = 0x7f7f7f7f, 0x80808080      # UE8M0 in every byte: x 1 (what the loads bring) | x 2 (the marker)
+SF_A, SF_B1, SF_B2, SF_ACC1, SF_ACC2, SF_BASE2 = 40, 44, 46, 48, 52, 56      # (first build: the layout of a set whose destinations end below R40)
+SF_LET = ("S", "D")
+
+
+def is_sf(req):
+    """version 29: a SET request whose producers are the letters S / D (the scale set)"""
+    return bool(is_set(req) and any(t.strip() in SF_LET for t in str(req["forms"]).split(",")))
+
+
+def sf_layout(plan):
+    """(second build) the registers of the readers behind the set's destinations (R32 ..): the A quad on the first multiple of
+    four that is free and at least R40 (= the first build's layout for S,S and S,S,S), then the two B pairs, the two
+    accumulator quads, the second base register, the prologue's unit-scale register, six temporaries of the MOV readers"""
+    nd = sum(set_nreg(let) for _g, let, _r, _a in plan)
+    a = max(SF_A, (32 + nd + 3) // 4 * 4)
+    return {"a": a, "b1": a + 4, "b2": a + 6, "c1": a + 8, "c2": a + 12, "base2": a + 16, "one": a + 17, "tmp": a + 18}
+
+
+def sf_exec(req, gids):
+    """version 29 -> (numpy bool per thread: the first reader word executes in at least one iteration; the second likewise)"""
+    import numpy as np
+    lane = np.asarray(gids) % 1024
+    pg = req["pguard"]
+
+    def ex(letter, bit):
+        if letter in ("t", "c"):
+            return np.ones(len(lane), bool)
+        if letter == "f":
+            return np.zeros(len(lane), bool)
+        return ((lane >> bit) & 1) == 0
+
+    return ex(pg[0], 0), ex(pg[1], 1)
+
+
+def sf_text(r):
+    w = {"t": "true in every lane and iteration", "f": "FALSE in every lane and iteration (the word never executes)",
+         "l": "a bit of the lane (true where the bit is 0)", "c": "a bit of (iteration counter x 0x9e3779b1) (true where the bit is 0)"}
+    pg = r["pguard"]
+    nd_ = sum(1 for t_ in str(r["forms"]).split(",") if t_.strip() == "D")
+    mixed = ("" if not nd_ else
+             f"; MIXED (second build): the {nd_} LDS.64 of the set bring pairs that {2 * nd_} unguarded MOV words read - "
+             + ("the MOV readers stand FIRST and the first MOV carries the one wait (lead mov)" if r.get("lead") == "mov" else "the MOV readers stand behind the tensor readers"))
+    return (" [version 29 - THE SCALE SET: every load is an unguarded LDS into a block-scale register of the readers, every second one through the second base register; "
+            "the readers are two GUARDED tensor words - `@P0 QMMA.SF` on the youngest and the next register and, 16 cycles behind it, `@P2 QMMA.SF` on the oldest and the youngest"
+            + f"; P0 = {w[pg[0]]}" + (" - bit 0" if pg[0] == "l" else " - bit 31" if pg[0] == "c" else "")
+            + f"; P2 = {w[pg[1]]}" + (" - bit 1" if pg[1] == "l" else " - bit 20" if pg[1] == "c" else "")
+            + "; both are written at the top of every iteration by ISETP.GE.AND"
+            + f"; the first reader stands {r['rdist'] if r.get('rdist') else 2} cycles behind the last arming"
+            + ("; POSITIVE CONTROL (wait end): the same text with the readers' ONE wait bit moved to the first word BEHIND the reader words - expect not good wherever a reader executes"
+               if r.get("wait") == "end" else "; the first reader word carries the ONE wait (also where its guard is false)") + mixed + "]")
+
+
+def sf_rw(ins):
+    """version 29 -> (guard predicate | None, mnemonic, registers read, registers written, predicate written | None) of a word of the scale set's body"""
+    t = ins.text.rstrip(" ;")
+    g = None
+    m = re.match(r"@!?(P\d) (.*)", t)
+    if m:
+        g, t = m.group(1), m.group(2)
+    op, _, rest = t.partition(" ")
+    ops = [o.strip() for o in re.split(r",(?![^\[]*\])", rest)] if rest else []
+    regs = lambda o: [int(x) for x in re.findall(r"(?<![UA-Za-z0-9])R(\d+)(?![0-9])", o)]
+    if op == "NOP":
+        return g, op, set(), [], None
+    if op.startswith("ISETP"):
+        return g, op, {x for o in ops[1:] for x in regs(o)}, [], ops[0]
+    if op.startswith("QMMA"):
+        d0, a0, b0, c0 = (regs(o)[0] for o in ops[:4])
+        rd = set(range(a0, a0 + 4)) | {b0, b0 + 1} | set(range(c0, c0 + 4)) | {regs(ops[4])[0], regs(ops[5])[0]}
+        return g, op, rd, list(range(d0, d0 + 4)), None
+    if op in ("MOV", "LOP3.LUT", "IADD3", "IMAD", "SHF.L.U32", "LDS", "LDS.64"):
+        wr = regs(ops[0])
+        return g, op, {x for o in ops[1:] for x in regs(o)}, wr + ([wr[0] + 1] if op == "LDS.64" else []), None
+    raise SystemExit(f"sf_audit: a word the audit does not know: {ins.text}")
+
+
+def sf_audit(req, body):
+    """version 29: COUNT THE CYCLES of the probe's own words (a consumer one cycle behind its fixed-latency producer in a
+    predicate word made ten requests of an earlier batch void - the model and the selftest's models cannot see timing). Two
+    passes of the iteration (the body, the tail, the loop's compare and branch) in issue order; refused:
+      a read of a register closer than 6 cycles behind its last fixed-latency writer (15 when the reader is a tensor word);
+      a marker closer than 15 in front of a tensor word (6: a MOV reader) that reads the register behind a load;
+      a tensor result read closer than 28; a guard closer than 13 behind the ISETP that wrote its predicate;
+      a load's result read by anything but a reader word of the set (they stand behind the wait under test);
+      any rewrite of a register closer than 8 behind a tensor word that read it (the operand hold).
+    R15 is the fillers' register: nothing reads it into the checksum."""
+    seq = list(body) + list(TAIL) + [Ins(f"ISETP.LT.U32.AND P1, PT, R11, 0x{REPEAT:x}, PT ;", ("nop",)), Ins("NOP ;", ("nop",))]
+    lastw, lastfixed, lastp, treads, t, bad = {}, {}, {}, [], 0, []
+    for _pass in (0, 1):
+        for ins in seq:
+            g, op, rd, wr, pw = sf_rw(ins)
+            tensor, load = op.startswith("QMMA"), op.startswith("LDS")
+            if g is not None and g in lastp and t - lastp[g] < 13:
+                bad.append(f"`{ins.text}`: its guard {g} {t - lastp[g]} cycles behind the ISETP (13)")
+            for r in sorted(rd):
+                if r == 15 or r not in lastw:
+                    continue
+                tw, kind = lastw[r]
+                if kind == "lds":
+                    if ins.tag not in ("C", "C2", "C3"):
+                        bad.append(f"`{ins.text}`: reads R{r} behind a load and is no reader word of the set")
+                    elif r in lastfixed and t - lastfixed[r] < (15 if tensor else 6):
+                        bad.append(f"`{ins.text}`: the marker of R{r} only {t - lastfixed[r]} cycles in front ({15 if tensor else 6})")
+                    continue
+                need = 28 if kind == "tensor" else 15 if tensor else 6
+                if t - tw < need:
+                    bad.append(f"`{ins.text}`: reads R{r} {t - tw} cycles behind its last writer ({need})")
+            if pw is not None:
+                lastp[pw] = t
+            for r in wr:
+                if r == 15:
+                    continue
+                for tt, rr in treads:
+                    if r in rr and t - tt < 8:
+                        bad.append(f"`{ins.text}`: rewrites R{r} {t - tt} cycles behind a tensor word that read it (8)")
+                lastw[r] = (t, "lds" if load else "tensor" if tensor else "fixed")
+                if not load and not tensor:
+                    lastfixed[r] = t
+            if tensor:
+                treads.append((t, set(rd)))
+            t += int(ins.ctl[-3:-1])
+    if bad:
+        raise SystemExit(f"{req.get('id')}: sf_audit refuses this body - " + "; ".join(sorted(set(bad))[:6]))
+
+
+def body_set_sf(req, d, front, variant):
+    """version 29 - the scale set: the loads d issue cycles apart on write barrier 1, the first reader `rdist` cycles behind
+    the last arming. Every iteration: the markers into the destinations; the A quad (1.0 on even, 2.0 on odd iterations);
+    the two accumulator quads (integer-valued floats 2^23 + k from the iteration's two inputs); P0 and P2; the loads; the
+    readers; 45 cycles or more behind the second tensor reader the fold of the eight accumulator registers (second build:
+    and of the MOV readers' temporaries)."""
+    plan = set_plan(req)
+    n = len(plan)
+    if variant != "bare" or req["barrier"] != "all" or front not in ("none", "", None):
+        raise SystemExit(f"{req.get('id')}: the scale set has barrier all, no front, no ctl variant")
+    y = req.get("yield") == "set"
+    pg = req["pguard"]
+    sp, form = MMA_SPEC[SF_FORM], MMA_FORMS[SF_FORM]
+    L = sf_layout(plan)
+    a, c1, c2 = L["a"], L["c1"], L["c2"]
+    sreg = [reg for _g, let, reg, _a in plan if let == "S"]
+    dreg = [reg for _g, let, reg, _a in plan if let == "D"]
+    b = []
+    for _g, let, reg, _a in plan:
+        if let == "S":
+            b.append(Ins(f"MOV R{reg}, 0x{SF_MARK:x} ;", ("mov", f"R{reg}", SF_MARK)))
+        else:
+            b += [Ins(f"MOV R{reg + j}, R5 ;", ("mov", f"R{reg + j}", "R5")) for j in (0, 1)]
+    b += [Ins("LOP3.LUT R13, R11, 0x1, RZ, 0xc0, !PT ;", ("and", "R13", "R11", 1)),
+          Ins(f"IMAD R{a}, R13, 0x{sp['da']:x}, RZ ;", ("mad", f"R{a}", "R13", sp["da"], "RZ")),
+          Ins(f"IADD3 R{a}, PT, PT, R{a}, 0x{sp['a0']:x}, RZ ;", ("add", f"R{a}", f"R{a}", sp["a0"]))]
+    b += [Ins(f"MOV R{a + k}, R{a} ;", ("mov", f"R{a + k}", f"R{a}")) for k in (1, 2, 3)]
+    for c, src in ((c1, "R4"), (c2, "R5")):
+        b += [Ins(f"LOP3.LUT R{c}, {src}, 0x3fffff, RZ, 0xc0, !PT ;", ("and", f"R{c}", src, 0x3fffff)),
+              Ins(f"LOP3.LUT R{c}, R{c}, 0x4b000000, RZ, 0xfc, !PT ;", ("or", f"R{c}", f"R{c}", 0x4b000000))]
+        b += [Ins(f"IADD3 R{c + k}, PT, PT, R{c}, 0x{k:x}, RZ ;", ("add", f"R{c + k}", f"R{c}", k)) for k in (1, 2, 3)]
+    b += set_pguard_top(pg)
+    slast, rfill = set_rdist(req, y, 2)
+    ks = kd = 0
+    for k, (_g, let, reg, _a) in enumerate(plan):
+        base = f"R{L['base2']}" if k % 2 else "R9"
+        if let == "S":
+            off, ks = 0x20 + 4 * ks, ks + 1
+            text, sem, dst = f"LDS R{reg}, [{base}+0x{off:x}] ;", ("lds", f"R{reg}", "R9", off, 1), [f"R{reg}"]
+        else:
+            off, kd = 8 * kd, kd + 1
+            text, sem, dst = f"LDS.64 R{reg}, [{base}{('+0x%x' % off) if off else ''}] ;", ("lds", f"R{reg}", "R9", off, 2), [f"R{reg}", f"R{reg + 1}"]
+        b.append(Ins(text, sem, ctl=C(slast if k == n - 1 else d, wb="1", y=y), tag="P", dst=dst))
+    b += [Ins("IADD3 R15, PT, PT, R15, 0x1, RZ ;", ("nop",), ctl=C(st)) for st in rfill]
+    endw = req.get("wait") == "end"      # the positive control: the readers' ONE wait bit stands on the first word BEHIND the reader words
+    lead_mov = req.get("lead") == "mov"
+    one = L["one"]
+    young, nxt, old_ = sreg[-1], (sreg[-2] if len(sreg) > 1 else one), (sreg[0] if len(sreg) > 1 else one)
+    r2a, r2b = (sreg[0], sreg[1]) if len(sreg) > 3 else (old_, young)      # (second build) with four S the second reader takes the two oldest: every scale register is read
+    acc = lambda c: tuple(f"R{c + k}" for k in range(4))
+    q = lambda c, bb, s1, s2: f"{form} R{c}, R{a}, R{bb}, R{c}, R{s1}, R{s2}, URZ ;"
+    w1 = "" if (endw or lead_mov) else "1"
+    tens = [Ins("@P0 " + q(c1, L["b1"], young, nxt),
+                ("g", "P0", 1, acc(c1), ("qmmasf", f"R{c1}", f"R{a}", f"R{L['b1']}", f"R{young}", f"R{nxt}", SF_FORM)),
+                ctl=C(1, wait=w1, y=y), tag="C"),
+            Ins("NOP ;", ("nop",)),
+            Ins("@P2 " + q(c2, L["b2"], r2a, r2b),
+                ("g", "P2", 1, acc(c2), ("qmmasf", f"R{c2}", f"R{a}", f"R{L['b2']}", f"R{r2a}", f"R{r2b}", SF_FORM)), tag="C2")]
+    movs, tmps = [], []
+    for j, reg in enumerate(reversed(dreg)):      # (second build) the MOV readers: the youngest pair first, one issue cycle apart
+        for h in (0, 1):
+            t_ = L["tmp"] + 2 * j + h
+            tmps.append(t_)
+            movs.append(Ins(f"MOV R{t_}, R{reg + h} ;", ("mov", f"R{t_}", f"R{reg + h}"),
+                            ctl=C(1, wait="1" if (lead_mov and not endw and not movs) else ""), tag="C3"))
+    b += (movs + tens) if lead_mov else (tens + movs)
+    b.append(Ins("IADD3 R15, PT, PT, R15, 0x1, RZ ;", ("nop",), ctl=C(wait="1")) if endw else PAD())
+    b.append(PAD())
+    b.append(Ins(f"IMAD R8, R{c1 + 1}, 0x3, R{c1} ;", ("mad", "R8", f"R{c1 + 1}", 3, f"R{c1}")))
+    for reg, wgt in [(c1 + 2, 5), (c1 + 3, 7), (c2, 11), (c2 + 1, 13), (c2 + 2, 17), (c2 + 3, 19)] + list(zip(tmps, (23, 29, 31, 37, 41, 43))):
+        b.append(Ins(f"IMAD R8, R{reg}, 0x{wgt:x}, R8 ;", ("mad", "R8", f"R{reg}", wgt, "R8")))
+    b.append(Ins("IADD3 R10, PT, PT, R10, R8, RZ ;", ("add", "R10", "R10", "R8")))
+    sf_audit(req, b)
+    return b
+
+
 def body_set(req, d, front, variant):
     """version 23 - a SET of producers of one thread in flight, d issue cycles apart, ONE wait of the reader (`barrier`
     all = every producer sets the SAME write barrier, none = the positive control: no barrier and no wait, last = only
@@ -1266,6 +1506,8 @@ def body_set(req, d, front, variant):
     plan = set_plan(req)
     if any(let == "M" for _g, let, _r, _a in plan):
         return body_set_mma(req, d, front, variant)
+    if any(let in ("S", "D") for _g, let, _r, _a in plan):      # version 29
+        return body_set_sf(req, d, front, variant)
     n, bar = len(plan), req["barrier"]
     ys = int(req.get("younger_stall", 2))
     ctl = variant == "ctl"
@@ -2882,6 +3124,21 @@ def prologue(req, ctas):
                   Ins("IADD3 R15, PT, PT, R15, 0x1, RZ ;", ("nop",), ctl=C(wait="5")),
                   Ins("STS.128 [R9+0x20], R28 ;", ("sts", "R9", 0x20, "R28", 4), ctl=C(rb="5")),
                   Ins("IADD3 R15, PT, PT, R15, 0x1, RZ ;", ("nop",), ctl=C(wait="5")), PAD(), PAD()]
+        if lets & set(SF_LET):
+            # version 29 - the scale set: slot 2 of every thread's line (the words the LDS take) := the UE8M0 code of the unit
+            # scale in every byte - a store with a read barrier, waited, behind the prologue's bare stores of the same slot; the
+            # B fragments of the two readers (every element 1.0 | 2.0); the second base register; (second build) with ONE S
+            # the readers' other scale operand, the unit scale
+            sf_, sl_ = MMA_SPEC[SF_FORM], sf_layout(set_plan(req))
+            p += [Ins(f"MOV R{r}, 0x{SF_UNIT:x} ;", ("mov", f"R{r}", SF_UNIT)) for r in (28, 29, 30, 31)]
+            p += [Ins("STS.128 [R9+0x20], R28 ;", ("sts", "R9", 0x20, "R28", 4), ctl=C(rb="5")),
+                  Ins("IADD3 R15, PT, PT, R15, 0x1, RZ ;", ("nop",), ctl=C(wait="5")),
+                  Ins(f"MOV R{sl_['b1']}, 0x{sf_['b1']:x} ;", ("mov", f"R{sl_['b1']}", sf_["b1"])), Ins(f"MOV R{sl_['b1'] + 1}, 0x{sf_['b1']:x} ;", ("mov", f"R{sl_['b1'] + 1}", sf_["b1"])),
+                  Ins(f"MOV R{sl_['b2']}, 0x{sf_['b2']:x} ;", ("mov", f"R{sl_['b2']}", sf_["b2"])), Ins(f"MOV R{sl_['b2'] + 1}, 0x{sf_['b2']:x} ;", ("mov", f"R{sl_['b2'] + 1}", sf_["b2"])),
+                  Ins(f"MOV R{sl_['base2']}, R9 ;", ("mov", f"R{sl_['base2']}", "R9"))]
+            if sum(1 for _g, l_, _r, _a in set_plan(req) if l_ == "S") == 1:
+                p.append(Ins(f"MOV R{sl_['one']}, 0x{SF_UNIT:x} ;", ("mov", f"R{sl_['one']}", SF_UNIT)))
+            p += [PAD(), PAD()]
     return p
 
 
@@ -3121,6 +3378,20 @@ def model(req, mode, gids=None, scalar=False):
                 raise RuntimeError(f"model: an MMA fragment the model does not know ({sem})")
             for k in range(4):
                 R[reg(sem[1], k)] = get(reg(sem[1], k)) + U(sp["k"] * sp["aval"][av] * sp["bval"][bv])
+        elif op == "qmmasf":        # version 29: a QMMA.SF with uniform fragments whose two block-scale registers hold, in every byte, the UE8M0 code of x 1 or of x 2 (per thread): result = accumulator + 32 a b x the two scales
+            sp = MMA_SPEC[sem[6]]
+            av, bv = int(get(sem[2])[0]) & sp["amask"], int(get(sem[3])[0]) & sp["bmask"]
+            if (get(sem[2]) != get(sem[2])[0]).any() or (get(sem[3]) != get(sem[3])[0]).any() or av not in sp["aval"] or bv not in sp["bval"]:
+                raise RuntimeError(f"model: an MMA fragment the model does not know ({sem})")
+            sh = np.zeros(n, U)
+            for s_ in (sem[4], sem[5]):
+                v_ = get(s_)
+                if ((v_ != U(SF_UNIT)) & (v_ != U(SF_MARK))).any():
+                    raise RuntimeError(f"model: a block scale the model does not know ({sem})")
+                sh = sh + (v_ == U(SF_MARK)).astype(U)
+            add = (np.full(n, sp["k"] * sp["aval"][av] * sp["bval"][bv], U) << sh).astype(U)
+            for k in range(4):
+                R[reg(sem[1], k)] = get(reg(sem[1], k)) + add
         elif op == "tmma":          # version 24: a tensor word with uniform fragments - result k = accumulator k + K a b (a ZERO accumulator: float(K a b))
             sp = MMA_SPEC[sem[4]]
             fa, fb = [get(reg(sem[2], k)) for k in range(4)], [get(reg(sem[3], k)) for k in range(2)]
@@ -3217,10 +3488,10 @@ def model(req, mode, gids=None, scalar=False):
     for _ in range(REPEAT):
         old, deferred = {}, None
         for k, i in enumerate(body):
-            if mode == "stale" and i.tag == "P":
+            if mode in ("stale", "stale1", "stale2", "stale3") and i.tag == "P":      # (version 29: stale1 / stale2 / stale3)
                 old.update({r: R[r] for r in i.dst if r in R})      # (several producers in front of one reader: all stale)
                 ex(i.sem)
-            elif mode == "stale" and i.tag == "C":
+            elif (mode == "stale" and i.tag in ("C", "C2", "C3")) or (mode == "stale1" and i.tag == "C") or (mode == "stale2" and i.tag == "C2") or (mode == "stale3" and i.tag == "C3"):      # (version 29: the scale set's second tensor reader has the tag C2, its MOV readers C3)
                 cur = {r: R[r] for r in old}
                 R.update(old)
                 ex(i.sem)
@@ -3347,6 +3618,16 @@ def _machine(gid):
             av, bv = get(sem[2]) & sp["amask"], get(sem[3]) & sp["bmask"]
             for k in range(4):
                 R[reg(sem[1], k)] = (get(reg(sem[1], k)) + sp["k"] * sp["aval"][av] * sp["bval"][bv]) & M
+        elif op == "qmmasf":        # version 29
+            sp = MMA_SPEC[sem[6]]
+            av, bv = get(sem[2]) & sp["amask"], get(sem[3]) & sp["bmask"]
+            sh = 0
+            for s_ in (sem[4], sem[5]):
+                if get(s_) not in (SF_UNIT, SF_MARK):
+                    raise RuntimeError(f"model: a block scale the model does not know ({sem})")
+                sh += int(get(s_) == SF_MARK)
+            for k in range(4):
+                R[reg(sem[1], k)] = (get(reg(sem[1], k)) + ((sp["k"] * sp["aval"][av] * sp["bval"][bv]) << sh)) & M
         elif op == "tmma":          # version 24
             sp = MMA_SPEC[sem[4]]
             fa, fb = [get(reg(sem[2], k)) for k in range(4)], [get(reg(sem[3], k)) for k in range(2)]
@@ -3455,10 +3736,10 @@ def _scalar(gid, pro, body, mode, tail=None, post=()):
     for _ in range(REPEAT):
         old, deferred = {}, None
         for k, i in enumerate(body):
-            if mode == "stale" and i.tag == "P":
+            if mode in ("stale", "stale1", "stale2", "stale3") and i.tag == "P":      # (version 29: stale1 / stale2 / stale3)
                 old.update({r: R[r] for r in i.dst if r in R})
                 ex(i.sem)
-            elif mode == "stale" and i.tag == "C":
+            elif (mode == "stale" and i.tag in ("C", "C2", "C3")) or (mode == "stale1" and i.tag == "C") or (mode == "stale2" and i.tag == "C2") or (mode == "stale3" and i.tag == "C3"):      # (version 29: the scale set's second tensor reader has the tag C2, its MOV readers C3)
                 cur = {r: R[r] for r in old}
                 R.update(old)
                 ex(i.sem)
@@ -3503,6 +3784,10 @@ def modes_of(req):
         return ["good", "stale"] if req.get("writer") != "none" else ["good"]
     if req["kind"] == "raw" and RAW_CONSUMERS.get(req.get("consumer"), ("",))[0] in ("trel", "rel"):
         return ["good"]      # (version 24: X against a late Y of the same word - a stale X is `other`)
+    if req["kind"] == "ord" and is_sf(req):      # version 29: stale = every reader word that executes took the markers; stale1 / stale2 / stale3 = only the first tensor reader / only the second / only the MOV readers (listed where more than one group executes somewhere)
+        grp_ = [("stale1", req["pguard"][0] != "f"), ("stale2", req["pguard"][1] != "f"), ("stale3", any(t_.strip() == "D" for t_ in str(req["forms"]).split(",")))]
+        live_ = [m_ for m_, on_ in grp_ if on_]
+        return ["good"] + (["stale"] if live_ else []) + (live_ if len(live_) > 1 else [])
     if req["kind"] == "ord" and req.get("pguard"):      # version 28: a set of which no producer ever executes can show nothing
         import numpy as np
         return (["good", "stale"] + (["p0old"] if req.get("pshift") == 1 else [])) if set_exec(req, np.arange(64)).any() else ["good"]
@@ -3592,7 +3877,18 @@ def normalise(req):
                 if is_set(r):      # version 23
                     set_plan(r)
                     r.setdefault("occupancy", ["w8", "w16"])
-                    if r.get("pguard") is not None:      # version 28
+                    if is_sf(r):      # version 29: the scale set
+                        if (not (isinstance(r.get("pguard"), str) and len(r["pguard"]) == 2 and all(c_ in SET_PG for c_ in r["pguard"]))
+                                or r["barrier"] != "all" or r.get("wait", "reader") not in ("reader", "end") or r.get("controls") or r.get("cold") or r.get("pshift") is not None
+                                or any(f_ not in ("none", "", None) for f_ in r.get("front", ["none"]))
+                                or r.get("lead") not in (None, "mov") or (r.get("lead") == "mov" and not any(t_.strip() == "D" for t_ in str(r["forms"]).split(",")))
+                                or not (r.get("rdist") is None or (isinstance(r["rdist"], int) and not isinstance(r["rdist"], bool) and 1 <= r["rdist"] <= 300))):
+                            raise SystemExit(f"{r['id']}: the scale set (version 29: forms of S and D) needs pguard = two letters of t | f | l | c (P0 for the first tensor reader, P2 for the "
+                                             "second), barrier all, no front, no ctl variant, no cold, no pshift, wait reader | end (the positive control), rdist 1 .. 300 or absent, "
+                                             "lead mov (only with a D) or absent")
+                        r.setdefault("wait", "reader")
+                        r["controls"] = False
+                    elif r.get("pguard") is not None:      # version 28
                         pl_ = set_plan(r)
                         if (not (isinstance(r["pguard"], str) and len(r["pguard"]) == 2 and all(c_ in SET_PG for c_ in r["pguard"]))
                                 or not {"g", "k"} <= {g_ for g_, _l, _r, _a in pl_} or any(l_ not in ("G", "Q", "B") or not g_ for g_, l_, _r, _a in pl_)
@@ -3834,7 +4130,7 @@ def pair_text(r):
                 + ("the thread's own line, one base register" if r["place"] == "near" else "the thread's own line, every second load through another base register") + "; "
                 + {"last": "only the youngest load carries the write barrier", "all": "every load on the SAME write barrier",
                    "none": "POSITIVE CONTROL: no barrier and no wait - expect 0 % good"}[r["barrier"]] + ")"
-                + (set_pg_text(r) if pgd else ""))
+                + (sf_text(r) if is_sf(r) else set_pg_text(r) if pgd else ""))
     if r["kind"] == "ord" and r.get("nload"):
         where = {"near": "words of the thread's own line, one base register", "base2": "words of the thread's own line, every second load through another base register",
                  "far": "words >= 1 KB apart in the CTA's shared memory"}[r["place"]]
@@ -4053,7 +4349,13 @@ def cmd_gen(args):
                 raise SystemExit(f"{r['id']}: the checksum of `good` is 0 in too many threads - a kernel that never ran would pass")
         if r["kind"] == "ord" and r.get("pshift") == 1 and not (cand["good"] != cand["p0old"]).all():      # version 28, second build
             raise SystemExit(f"{r['id']}: the hypothesis p0old gives the checksum of `good` in some thread - the request could not prove the reading there")
-        if r["kind"] == "ord" and r.get("pguard") and "stale" in cand:      # version 28
+        if r["kind"] == "ord" and is_sf(r):      # version 29
+            e1_, e2_ = sf_exec(r, np.arange(len(cand["good"])))
+            e3_ = np.full(len(cand["good"]), any(t_.strip() == "D" for t_ in str(r["forms"]).split(",")), bool)
+            for m_, ex_ in (("stale", e1_ | e2_ | e3_), ("stale1", e1_), ("stale2", e2_), ("stale3", e3_)):
+                if m_ in cand and not np.array_equal(cand["good"] != cand[m_], ex_):
+                    raise SystemExit(f"{r['id']}: the hypothesis {m_} does not differ from `good` in exactly the threads in which its reader word executes - the probe could not see it there")
+        if r["kind"] == "ord" and r.get("pguard") and not is_sf(r) and "stale" in cand:      # version 28
             if not np.array_equal(cand["good"] != cand["stale"], set_exec(r, np.arange(len(cand["good"])))):
                 raise SystemExit(f"{r['id']}: the hypothesis stale does not differ from `good` in exactly the threads in which a producer of the set executes - the probe could not see it there")
         if r["kind"] == "lb" and not (cand["good"] != cand["late"]).all():       # version 26, third build
@@ -4671,6 +4973,9 @@ def cmd_list(_args):
     for st_, sl_ in THR_STAGES.items():
         for k_, (nm_, tx_) in enumerate(sl_, 1):
             print(f"  stage {st_} slot {k_:2d} {nm_:9s} {tx_}")
+    print("kind ord (version 29) - the SCALE SET: \"forms\" of S (an unguarded LDS into a block-scale register of two guarded QMMA.SF readers) and D (second build: an unguarded LDS.64 read by MOV words), "
+          "2 .. 7 loads on one write barrier; \"pguard\": two letters of t | f | l | c (P0 the first tensor reader, P2 the second); \"rdist\"; \"lead\": mov; \"wait\": reader | end (the control); "
+          "hypotheses stale, stale1, stale2, stale3; sf_audit counts the cycles")
     print("occupancy:", "; ".join(f"{k} = {v}" for k, v in OCC.items()))
     print("front: none | sts128xK@S | stsxK@S | stgxK@S  (K stores of a constant at stall S in front of the tested instruction)")
     return 0
@@ -5760,6 +6065,148 @@ def cmd_selftest(_args):
             pass
     assert set_rdist({"rdist": 129}, True, 2) == (11, [15] * 7 + [13]) and set_rdist({"rdist": 129}, False, 2) == (15, [15] * 7 + [9]) and set_rdist({}, True, 2) == (2, [])
     assert set_rdist({"rdist": 12}, True, 2) == (11, [1]) and set_rdist({"rdist": 11}, True, 2) == (11, []) and set_rdist({"rdist": 26}, True, 2) == (11, [15])
+    # version 29 - the scale set: unguarded LDS (second build: and LDS.64) on one write barrier, two guarded QMMA.SF readers (and MOV readers)
+    for forms, lead_ in (("S,S", None), ("S,S,S", None), ("S,S,D,D,S,S,D", None), ("S,D,D,S,S,D", None), ("D,D,S,S,D", "mov"), ("S,D,D,S,D", None), ("D,D,S,D", "mov"), ("D,D,S,D", None), ("S,D", "mov")):
+        toks_ = forms.split(",")
+        ns_, nd_ = toks_.count("S"), toks_.count("D")
+        for pg_ in (("tt", "tf", "ft", "ff", "ll", "cc", "lt", "cf") if not nd_ else ("tf", "ft", "ff", "cc")):
+            base_ = dict({"id": "xx", "kind": "ord", "forms": forms, "barrier": "all", "yield": "set", "pguard": pg_, "distances": "1,4", "occupancy": ["w8", "c2w9s"]}, **({"lead": lead_} if lead_ else {}))
+            rq = normalise(dict(base_))
+            assert is_set(rq) and is_sf(rq) and rq["controls"] is False and rq["wait"] == "reader" and rq["nload"] == ns_ + nd_, (forms, pg_)
+            e1_, e2_ = sf_exec(rq, gids)
+            e3_ = np.full(len(gids), bool(nd_), bool)
+            live_ = [m_ for m_, on_ in (("stale1", pg_[0] != "f"), ("stale2", pg_[1] != "f"), ("stale3", bool(nd_))) if on_]
+            want_ = ["good"] + (["stale"] if live_ else []) + (live_ if len(live_) > 1 else [])
+            assert modes_of(rq) == want_, (forms, pg_, modes_of(rq))
+            g = model(rq, "good", gids=gids)
+            assert [int(x) for x in g] == model(rq, "good", gids=gids, scalar=True) and (g != 0).all(), (forms, pg_)
+            PTR_STANDIN[:] = [0x1234567, 0x89abcde]      # (no term of a fold may be the pointer the host model does not know)
+            try:
+                assert [int(x) for x in g] == model(rq, "good", gids=gids, scalar=True), (forms, pg_)
+            finally:
+                PTR_STANDIN[:] = [0, 0]
+            n += 1
+            got_ = {}
+            for m_, ex_ in (("stale", e1_ | e2_ | e3_), ("stale1", e1_), ("stale2", e2_), ("stale3", e3_)):
+                if m_ in want_:
+                    got_[m_] = model(rq, m_, gids=gids)
+                    assert [int(x) for x in got_[m_]] == model(rq, m_, gids=gids, scalar=True) and np.array_equal(g != got_[m_], ex_), (forms, pg_, m_)
+                    n += 1
+            if {"stale1", "stale2"} <= set(got_):      # where both tensor readers execute the hypotheses are different checksums
+                both_ = e1_ & e2_
+                assert both_.any() and (got_["stale"][both_] != got_["stale1"][both_]).all() and (got_["stale"][both_] != got_["stale2"][both_]).all() \
+                    and (got_["stale1"][both_] != got_["stale2"][both_]).all(), (forms, pg_)
+            if "stale3" in got_:
+                assert (got_["stale3"] != got_["stale"]).any() and all((got_["stale3"] != got_[m_]).any() for m_ in ("stale1", "stale2") if m_ in got_), (forms, pg_)
+            ref_ = None
+            for wt_, rd_ in (("reader", None), ("end", None), ("reader", 34), ("end", 34), ("reader", 12)):
+                rv = normalise(dict(base_, wait=wt_, **({"rdist": rd_} if rd_ else {})))
+                for d_ in (1, 4):
+                    body = body_ord(rv, d_, "none", "bare")
+                    lay_ = sf_layout(set_plan(rv))
+                    prods, r1_, r2_, r3_ = [a for a in body if a.tag == "P"], [a for a in body if a.tag == "C"], [a for a in body if a.tag == "C2"], [a for a in body if a.tag == "C3"]
+                    assert len(prods) == ns_ + nd_ and len(r1_) == 1 and len(r2_) == 1 and len(r3_) == 2 * nd_, (forms, pg_)
+                    assert all(a.ctl[12:14] == "W1" and ":Y:S" in a.ctl and a.ctl[1:8] == "B------" and a.sem[0] == "lds" for a in prods), (forms, pg_)
+                    # the loads: every second one through the second base register; S = a word of slot 2, D = a pair of slots 0 / 1; pairs on even registers
+                    ks_ = kd_ = 0
+                    sregs_, dregs_ = [], []
+                    for k_, (a, t_) in enumerate(zip(prods, toks_)):
+                        bs_ = f"R{lay_['base2']}" if k_ % 2 else "R9"
+                        if t_ == "S":
+                            m_ = re.match(r"LDS R(\d+), ", a.text)
+                            assert m_ and a.text == f"LDS R{m_.group(1)}, [{bs_}+0x{0x20 + 4 * ks_:x}] ;" and list(a.dst) == [f"R{m_.group(1)}"], a.text
+                            sregs_.append(int(m_.group(1)))
+                            ks_ += 1
+                        else:
+                            m_ = re.match(r"LDS\.64 R(\d+), ", a.text)
+                            assert m_ and a.text == f"LDS.64 R{m_.group(1)}, [{bs_}{('+0x%x' % (8 * kd_)) if kd_ else ''}] ;" and list(a.dst) == [f"R{m_.group(1)}", f"R{int(m_.group(1)) + 1}"], a.text
+                            dregs_.append(int(m_.group(1)))
+                            kd_ += 1
+                    assert all(x % 2 == 0 for x in dregs_) and len(set(sregs_ + dregs_ + [x + 1 for x in dregs_])) == ns_ + 2 * nd_ and max(sregs_ + [x + 1 for x in dregs_]) < lay_["a"], (forms, sregs_, dregs_)
+                    if not nd_:
+                        assert lay_["a"] == 40 and [a.text for a in prods] == [f"LDS R{32 + k_}, [{'R56' if k_ % 2 else 'R9'}+0x{0x20 + 4 * k_:x}] ;" for k_ in range(ns_)], (forms, [a.text for a in prods])
+                    assert all(a.ctl[-4:] == f"S{d_:02d}]" for a in prods[:-1]), (forms, pg_)
+                    readers = sorted(body.index(x) for x in r1_ + r2_ + r3_)
+                    i0, i1, i2 = body.index(prods[-1]), body.index(r1_[0]), body.index(r2_[0])
+                    ifirst, ilast = readers[0], readers[-1]
+                    assert all(a.sem == ("nop",) and a.ctl[1:8] == "B------" for a in body[i0 + 1:ifirst]), (forms, pg_)
+                    assert sum(int(a.ctl[-3:-1]) for a in body[i0:ifirst]) == (rd_ or 2) and int(prods[-1].ctl[-3:-1]) <= 11, (forms, pg_, rd_)
+                    # the tensor readers: the kernel's word under P0 / P2, 16 cycles apart, the scale operands youngest + next | oldest + youngest (with one S: the prologue's unit scale)
+                    y_ = sregs_[-1]
+                    x_, o_ = (sregs_[-2], sregs_[0]) if ns_ > 1 else (lay_["one"], lay_["one"])
+                    p_, q_ = (sregs_[0], sregs_[1]) if ns_ > 3 else (o_, y_)      # with four S the second reader takes the two oldest
+                    assert r1_[0].text == f"@P0 QMMA.SF.16832.F32.E4M3.E2M1.E8 R{lay_['c1']}, R{lay_['a']}, R{lay_['b1']}, R{lay_['c1']}, R{y_}, R{x_}, URZ ;" and r1_[0].ctl[-6:] == "Y:S01]", r1_[0].line()
+                    assert r2_[0].text == f"@P2 QMMA.SF.16832.F32.E4M3.E2M1.E8 R{lay_['c2']}, R{lay_['a']}, R{lay_['b2']}, R{lay_['c2']}, R{p_}, R{q_}, URZ ;" and r2_[0].ctl == C(), r2_[0].line()
+                    assert i2 == i1 + 2 and body[i1 + 1].text == "NOP ;" and body[i1 + 1].ctl == C(), (forms, pg_)
+                    assert r1_[0].sem[:3] == ("g", "P0", 1) and r2_[0].sem[:3] == ("g", "P2", 1) and r1_[0].sem[4][0] == "qmmasf" and r2_[0].sem[4][0] == "qmmasf", (forms, pg_)
+                    # the MOV readers: both registers of every pair, the youngest pair first, one cycle apart, in front of the tensor readers (lead mov) or behind them
+                    assert [a.text for a in r3_] == [f"MOV R{lay_['tmp'] + 2 * j_ + h_}, R{rg_ + h_} ;" for j_, rg_ in enumerate(reversed(dregs_)) for h_ in (0, 1)], (forms, [a.text for a in r3_])
+                    assert all(a.ctl[-4:] == "S01]" and ":-:S" in a.ctl for a in r3_) and (not r3_ or (body.index(r3_[0]) < i1) == (lead_ == "mov")), (forms, pg_)
+                    assert not r3_ or [body.index(x) for x in r3_] == list(range(body.index(r3_[0]), body.index(r3_[0]) + len(r3_))), (forms, pg_)
+                    # ONE wait in the whole body: on the first reader word, or (the control) on the first word behind the reader words
+                    waits = [k_ for k_, a in enumerate(body) if a.ctl[1:8] != "B------"]
+                    assert waits == [ifirst if wt_ == "reader" else ilast + 1] and body[waits[0]].ctl[1:8] == "B-1----", (forms, pg_, wt_, waits)
+                    assert wt_ == "reader" or (body[ilast + 1].sem == ("nop",) and body[ilast + 1].text.startswith("IADD3 R15,")), (forms, pg_)
+                    # the fold stands 45 cycles or more behind the second tensor reader; the predicates are written once each, in front of the loads
+                    ifold = next(k_ for k_, a in enumerate(body) if a.text.startswith(f"IMAD R8, R{lay_['c1'] + 1},"))
+                    assert sum(int(a.ctl[-3:-1]) for a in body[i2:ifold]) == 45 + (len(r3_) if lead_ != "mov" else 0), (forms, pg_)
+                    ip0 = [k_ for k_, a in enumerate(body) if a.text.startswith("ISETP.GE.AND P0,")]
+                    ip2 = [k_ for k_, a in enumerate(body) if a.text.startswith("ISETP.GE.AND P2,")]
+                    assert len(ip0) == 1 and len(ip2) == 1 and ip0[0] < ip2[0] < body.index(prods[0]), (forms, pg_)
+                    # nothing writes an address register, the loop's registers, the B fragments, the second base or the unit scale
+                    wr = set()
+                    for a in body:
+                        wr.update(sf_rw(a)[3])
+                    assert not (wr & {0, 1, 2, 3, 4, 5, 9, 11, 16, 17, 18, 19, 20, 21, 22, 23, lay_["b1"], lay_["b1"] + 1, lay_["b2"], lay_["b2"] + 1, lay_["base2"], lay_["one"]}), (forms, sorted(wr))
+                    sf_audit(rv, body)
+                    text = kernel_text("selftest_x", dict(rv, _threads=256), 188, body, 49152)
+                    assert misaligned(text) == [] and "    .reg R0-R79\n    .regcount 88\n" in text, forms
+                    assert max(int(x) for x in re.findall(r"(?<![UA-Za-z])R(\d+)", text.split(".shared")[1])) <= SET_REGS - 1, forms
+                    assert (f"MOV R{lay_['one']}, 0x7f7f7f7f ;" in text) == (ns_ == 1), forms
+                    if (wt_, rd_) == ("reader", None):
+                        ref_ = ref_ or {}
+                        ref_[d_] = body
+                    elif (wt_, rd_) == ("end", None):      # the control = the test but for two control codes: the first reader's wait bit and the word behind the reader words
+                        rb_ = ref_[d_]
+                        assert len(rb_) == len(body) and all(a.text == c.text and a.sem == c.sem for a, c in zip(rb_, body)), (forms, pg_)
+                        assert [k_ for k_, (a, c) in enumerate(zip(rb_, body)) if a.ctl != c.ctl] == [ifirst, ilast + 1], (forms, pg_)
+    # the audit has teeth: six bodies it must refuse
+    rq = normalise({"id": "xx", "kind": "ord", "forms": "S,S", "barrier": "all", "yield": "set", "pguard": "cc", "distances": "1,4", "occupancy": ["w8"]})
+    b0_ = body_ord(rq, 4, "none", "bare")
+    re_ = lambda a, st: Ins(a.text, a.sem, ctl=a.ctl[:-3] + f"{st:02d}]", tag=a.tag, dst=a.dst)
+    ix_ = lambda pre: next(k_ for k_, a in enumerate(b0_) if a.text.startswith(pre))
+    k14, kp0, kp2, kr2 = ix_("IMAD R14, R11,"), ix_("ISETP.GE.AND P0,"), ix_("ISETP.GE.AND P2,"), ix_("@P2 QMMA")
+    assert b0_[k14 + 1].text.startswith("SHF.L.U32 R14, R14,") and kp2 == kp0 + 1 and all(a.sem == ("nop",) for a in b0_[kp2 + 1:kp2 + 3]) and all(a.sem == ("nop",) for a in b0_[kr2 + 1:kr2 + 3])
+    muts_ = {"a consumer one cycle behind its fixed-latency producer": b0_[:k14] + [re_(b0_[k14], 1)] + b0_[k14 + 1:],
+             "a guard 8 cycles behind its ISETP": b0_[:kp0] + [re_(b0_[kp0], 1), re_(b0_[kp2], 1)] + b0_[kp2 + 3:],
+             "a rewrite one cycle behind a tensor word": b0_[:kr2] + [re_(b0_[kr2], 1), Ins(f"MOV R32, 0x{SF_MARK:x} ;", ("mov", "R32", SF_MARK))] + b0_[kr2 + 1:],
+             "a tensor result read 17 cycles behind its word": b0_[:kr2] + [re_(b0_[kr2], 1)] + b0_[kr2 + 3:],
+             "a load's result read by a word that is no reader": b0_[:kr2 + 1] + [Ins("IADD3 R13, PT, PT, R32, 0x1, RZ ;", ("nop",))] + b0_[kr2 + 1:]}
+    rm_ = normalise({"id": "xx", "kind": "ord", "forms": "D,D,S,D", "barrier": "all", "yield": "set", "pguard": "cc", "lead": "mov", "distances": "1,4", "occupancy": ["w8"]})
+    bm0_ = body_ord(rm_, 4, "none", "bare")
+    km_ = max(k_ for k_, a in enumerate(bm0_) if a.tag == "C3")
+    tm_ = sf_layout(set_plan(rm_))["tmp"]
+    kf_ = next(k_ for k_, a in enumerate(bm0_) if a.text.startswith(f"IMAD R8, R{tm_},"))
+    assert bm0_[km_ + 1].tag == "C" and kf_ > km_
+    sf_audit(rm_, bm0_)
+    for why_, (rr_, bm_) in dict({k_: (rq, v_) for k_, v_ in muts_.items()},
+                                 **{"a MOV temporary rewritten one cycle in front of the fold's read": (rm_, bm0_[:kf_] + [Ins(f"MOV R{tm_}, R5 ;", ("nop",), ctl=C(1))] + bm0_[kf_:])}).items():
+        try:
+            sf_audit(rr_, bm_)
+            raise AssertionError(f"sf_audit took a body it must refuse: {why_}")
+        except SystemExit:
+            pass
+    for bad in ({"forms": "S,S"}, {"forms": "S,s", "pguard": "tt"}, {"forms": "gS,S", "pguard": "tt"}, {"forms": "S,S,S,S,S", "pguard": "tt"}, {"forms": "S", "pguard": "tt"},
+                {"forms": "S,S", "pguard": "tx"}, {"forms": "S,S", "pguard": "tt", "barrier": "last"}, {"forms": "S,S", "pguard": "tt", "wait": "none"},
+                {"forms": "S,S", "pguard": "tt", "cold": "set"}, {"forms": "S,S", "pguard": "tt", "rdist": 0}, {"forms": "S,S", "pguard": "tt", "rdist": 301},
+                {"forms": "S,S", "pguard": "tt", "front": ["sts128x15@4"]}, {"forms": "S,S", "pguard": "tt", "controls": True}, {"forms": "S,S", "pguard": "cc", "pshift": 1},
+                {"forms": "S,G", "pguard": "tt"}, {"forms": "S,S", "pguard": "tt", "occupancy": ["w32"]}, {"forms": "D,D", "pguard": "tt"}, {"forms": "S,D,D,D,D", "pguard": "tt"},
+                {"forms": "S,S", "pguard": "tt", "lead": "mov"}, {"forms": "S,D", "pguard": "tt", "lead": "qmma"}, {"forms": "S,d", "pguard": "tt"}, {"forms": "S,S,S,S,D,D,D,S", "pguard": "tt"}):
+        try:
+            normalise(dict({"id": "xx", "kind": "ord", "barrier": "all", "yield": "set"}, **bad))
+            raise AssertionError(f"a request that must be refused was taken: {bad}")
+        except SystemExit:
+            pass
     print(f"selftest: {n} (pair, hypothesis) models equal the scalar interpreter on {len(gids)} threads; `good` differs from every failure hypothesis")
     return 0
 

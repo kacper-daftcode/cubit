@@ -663,6 +663,18 @@ decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `
   bit, P0 the same or another value from pair to pair, warm and cold lines: 0 of 1 601 699 840 over 56 requests; the same texts
   with that wait bit moved behind the reader not right wherever a producer executes. Twenty requests are void and left out of
   two files (`void_requests`); `_b56` shows on outputs why the ten of `_b55` are.
+- **`probe.py` 29: the scale set — unguarded shared-memory loads armed on one write barrier without a wait, read behind ONE wait
+  by guarded tensor instructions and by `MOV` (kind `ord`, the letters `S` and `D`)** (`_b57` … `_b59` and their `_ws_` files;
+  selftest 4 198; reader `read_set2p.py`). Two and three plain `LDS`, and two mixed flights of `LDS` + `LDS.64` (seven and five
+  loads) of a schedule of a vendor's MoE kernel whose loop loads do not wait on the barrier they arm, with their views by single
+  readers: 0 of 877 854 720 thread-launches not right over 31 requests on a card of the Server Edition, on a card of the
+  Workstation Edition alone and at its 400-W limit (522 cells, the same verdict in the three states); the same texts with that
+  one wait bit behind the reader instructions not right. The generator counts the cycles of every such body. Four requests under
+  lane-dependent guards of a tensor instruction are void and left out. **The Workstation column of `_b49` … `_b56`** (twenty
+  `_ws_` files with those of `_b57` … `_b59`): every request with its wait right in every thread-launch in the three states,
+  every floor the same, 6 558 of 6 564 cells with the Server card's verdict — a wait carried by an instruction whose guard is
+  false or that another predicate nullifies, and one wait on a write barrier armed under two predicates, are right on two card
+  models; a reader of a `CS2UR` result closer than 6 cycles is wrong on both.
 
 ## Unreleased — 2026-11-11 (session SCH-4: the stall-floor probes on grids that hold two CTAs per SM and on production's card model in two clock states — tools and result files only, no source line changes)
 
