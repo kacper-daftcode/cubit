@@ -76,6 +76,13 @@ the vendor's overwriters -, "dest": "a" = the word's result goes to its own A qu
     {"id": "pc_mov_iadd_r2h", "kind": "raw", "producer": "MOV", "consumer": "IADD.64rr.r2h"}
     {"id": "pc_mov_iadd_r2h_c", "kind": "raw", "producer": "MOV", "consumer": "IADD.64rr.r2h", "control": "stale"}
     {"id": "hv_cs2r_q", "kind": "mma", "variant": "hold_c_cs2r", "reg": 2, "dest": "a", "distances": "1-10,12"}
+
+Version 25, fifth build - the consumer LEA.r2 (the UNSHIFTED operand of `LEA Rd, Ra, Rb, 2` = (Ra << 2) + Rb); kind `mma`:
+hold_u_umov / sens_u_umov - the hold of the UNIFORM operand (the selector) of a QMMA.SF behind the word, RELATIVE: the word
+against the same word 60 cycles in front of it, `UMOV UR6, 0x0` d cycles behind it (the control: the UMOV 60 cycles in
+front of it); the scale register holds four different bytes that differ from lane to lane.
+    {"id": "hu_q", "kind": "mma", "variant": "hold_u_umov", "distances": "1-10,12,15,30,45"}
+    {"id": "hu_q_s", "kind": "mma", "variant": "sens_u_umov"}
 """
 from __future__ import annotations
 
@@ -295,6 +302,7 @@ RAW_CONSUMERS = {
     "IADD.64.r1": ("data", 6, "IADD.64", "r1", "the LOW word of the first operand pair of IADD.64"),
     "IADD.64.r1h": ("data", 6, "IADD.64", "r1h", "the HIGH word of the first operand pair of IADD.64 (the producer writes a pair)"),
     "LEA.r1": ("data", 6, "LEA", "r1", "both operands of LEA Rd, Ra, Ra, 2"),
+    "LEA.r2": ("data", 6, "LEA", "r2", "the UNSHIFTED operand of LEA Rd, Ra, Rb, 2 = (Ra << 2) + Rb (version 25, fifth build)"),
     "SHF.L.U64.HI.r1": ("data", 6, "SHF", "r1", "the operand PAIR of SHF.L.U64.HI (the producer writes a pair)"),
     "IMAD.WIDE.r3": ("data", 6, "IMAD.WIDE", "r3", "the LOW word of the 64-bit addend of IMAD.WIDE"),
     "IMAD.WIDE.r3h": ("data", 7, "IMAD.WIDE", "r3h", "the HIGH word of the 64-bit addend of IMAD.WIDE"),
@@ -770,6 +778,8 @@ def body_raw(req, d, front):
         b += [Ins("MOV R8, UR6 ;", ("mov", "R8", "UR6"), tag="C"), ADD10()]
     elif cons == "LEA.r1":
         b += [Ins("LEA R8, R6, R6, 0x2 ;", ("mad", "R8", "R6", 5, "RZ"), tag="C"), ADD10()]
+    elif cons == "LEA.r2":      # (version 25, fifth build) R8 = (R5 << 2) + R6: the tested register is the unshifted operand
+        b += [Ins("LEA R8, R5, R6, 0x2 ;", ("mad", "R8", "R5", 4, "R6"), tag="C"), ADD10()]
     elif cons == "FMUL.r2":
         b += [Ins("FMUL.FTZ R8, R27, R6 ;", ("fmul", "R8", "R27", "R6"), tag="C"), ADD10()]
     elif cons == "FADD.r1":
@@ -1612,6 +1622,9 @@ MMA_VARIANTS = {"acc2": "another accumulator, the same A fragment, another B fra
                 "sens_c_cs2r": "CONTROL: the 64-bit CS2R zeroes the two accumulator registers IN FRONT of the MMA whose result goes to another quad (expect 0 % good)",
                 "hold_c_prmt": "one MMA whose result goes to another quad; PRMT rewrites a register of its ACCUMULATOR d cycles behind it",
                 "sens_c_prmt": "CONTROL: PRMT rewrites the accumulator register IN FRONT of the MMA whose result goes to another quad (expect 0 % good)",
+                # version 25, fifth build: the UNIFORM operand (the selector) of a QMMA.SF behind the word - RELATIVE
+                "hold_u_umov": "one QMMA.SF with a uniform selector (UR6 = 9) against the SAME word 60 cycles in front of it; UMOV UR6, 0x0 rewrites the selector d cycles behind it",
+                "sens_u_umov": "CONTROL: UMOV UR6, 0x0 rewrites the selector 60 cycles IN FRONT of the QMMA.SF, 60 cycles behind the word it is compared with (expect 0 % good)",
                 "sens_b_mov": "CONTROL: MOV rewrites the upper B-fragment register IN FRONT of the MMA (expect 0 % good)",
                 "sens_b_shf": "CONTROL: SHF.R.U32.HI rewrites the upper B-fragment register IN FRONT of the MMA (expect 0 % good)",
                 "sens_bl_mov": "CONTROL: MOV rewrites the LOWER B-fragment register IN FRONT of the MMA (expect 0 % good)",
@@ -1623,6 +1636,7 @@ MMA_VARIANTS = {"acc2": "another accumulator, the same A fragment, another B fra
 
 
 C_HOLD_VARIANTS = ("hold_c_mov", "sens_c_mov", "hold_c_cs2r", "sens_c_cs2r", "hold_c_prmt", "sens_c_prmt")      # version 25
+U_HOLD_VARIANTS = ("hold_u_umov", "sens_u_umov")      # version 25, fifth build
 
 
 def mma_load_over(var, tgt, sem=None):
@@ -1682,6 +1696,34 @@ def body_mma(req, d, front="none"):
          Ins("IADD3 R25, PT, PT, R24, 0x1, RZ ;", ("add", "R25", "R24", 1)), Ins("IADD3 R26, PT, PT, R24, 0x2, RZ ;", ("add", "R26", "R24", 2)),
          Ins("IADD3 R27, PT, PT, R24, 0x3, RZ ;", ("add", "R27", "R24", 3)),
          PAD(), PAD()]
+    if var in U_HOLD_VARIANTS:      # (version 25, fifth build) the uniform operand - the selector - of a QMMA.SF behind the word, RELATIVE
+        # Y = the word on R24..R27, 45 cycles behind `UMOV UR6, 0x9`; X = the SAME word (the same accumulator values, fragments and
+        # scale register) on R28..R31, 60 cycles behind Y; `UMOV UR6, 0x0` - another valid selector - d cycles behind X. The checksum
+        # takes fold(X ^ Y) + the iteration's input: the host need not know what a selector does, an X that took the rewritten
+        # selector differs from Y. The scale register: bytes 0x7f + m, 0x80 + m, 0x7e + m, 0x7d + m with m = lane & 3 (the u6 body of
+        # version 24) - without different scales no selector is seen. CONTROL: the UMOV 60 cycles in front of X and 60 behind Y.
+        qu = lambda rd: f"{form} {rd}, R16, R12, {rd}, R14, R14, UR6 ;"
+        acc4 = ["R28", "R29", "R30", "R31"]
+        b = b[:-2] + [Ins(f"MOV R{24 + k}, R{28 + k} ;", ("mov", f"R{24 + k}", f"R{28 + k}")) for k in range(4)]
+        b += [Ins("LOP3.LUT R14, R1, 0x3, RZ, 0xc0, !PT ;", ("nop",)), Ins("IMAD R14, R14, 0x1010101, RZ ;", ("nop",)),
+              Ins("IADD3 R14, PT, PT, R14, 0x7d7e807f, RZ ;", ("nop",)),
+              Ins("UMOV UR6, 0x9 ;", ("mov", "UR6", 9)), PAD(), PAD(),
+              Ins(qu("R24"), ("qmma", "R24", "R16", "R12", None, fn)), PAD(), PAD(), PAD()]
+        if var.startswith("sens_"):      # (the model ignores the rewrite: `good` would mean "the selector is not read")
+            b += [Ins("UMOV UR6, 0x0 ;", ("nop",)), PAD(), PAD(), PAD(),
+                  Ins(qu("R28"), ("qmma", "R28", "R16", "R12", None, fn), tag="P", dst=acc4)]
+        else:
+            s, fill = split_distance(d)
+            b.append(Ins(qu("R28"), ("qmma", "R28", "R16", "R12", None, fn), ctl=C(s, y=req.get("yield") == "set"), tag="P", dst=acc4))
+            b += fill
+            b.append(Ins("UMOV UR6, 0x0 ;", ("mov", "UR6", 0), tag="O"))
+        b += [PAD(), PAD(), PAD()]
+        b += [Ins("LOP3.LUT R0, R28, R24, RZ, 0x3c, !PT ;", ("xor", "R0", "R28", "R24")), Ins("LOP3.LUT R7, R29, R25, RZ, 0x3c, !PT ;", ("xor", "R7", "R29", "R25")),
+              Ins("IMAD R8, R7, 0x3, R0 ;", ("mad", "R8", "R7", 3, "R0")),
+              Ins("LOP3.LUT R0, R30, R26, RZ, 0x3c, !PT ;", ("xor", "R0", "R30", "R26")), Ins("IMAD R8, R0, 0x5, R8 ;", ("mad", "R8", "R0", 5, "R8")),
+              Ins("LOP3.LUT R7, R31, R27, RZ, 0x3c, !PT ;", ("xor", "R7", "R31", "R27")), Ins("IMAD R8, R7, 0x7, R8 ;", ("mad", "R8", "R7", 7, "R8")),
+              Ins("IADD3 R10, PT, PT, R10, R8, RZ ;", ("add", "R10", "R10", "R8")), Ins("IADD3 R10, PT, PT, R10, R4, RZ ;", ("add", "R10", "R10", "R4"))]
+        return b
     if var in C_HOLD_VARIANTS:      # (version 24, fifth build; version 25: the vendor's overwriters, "dest") the accumulator R28..R31 behind a word whose result goes to another quad
         creg = f"R{28 + int(req.get('reg') or 0)}"
         d0 = 16 if req.get("dest") == "a" else 24      # (version 25) "dest": "a" - the result goes to the word's own A quad (a form of the vendor's kernels)
@@ -2675,6 +2717,8 @@ def normalise(req):
             raise SystemExit(f"{r['id']}: the 64-bit CS2R writes a register PAIR on an even register: reg is 0 (R28, R29) or 2 (R30, R31)")
         if r.get("dest") not in (None, "a") or (r.get("dest") and r["variant"] not in C_HOLD_VARIANTS):
             raise SystemExit(f"{r['id']}: dest is \"a\" (version 25: the result of a hold_c_* / sens_c_* word goes to its own A quad R16..R19) or absent")
+        if r["variant"] in U_HOLD_VARIANTS and (not r["form"].startswith("QMMA") or any(f not in ("none", "", None) for f in r.get("front", ["none"]))):
+            raise SystemExit(f"{r['id']}: {r['variant']} (version 25, fifth build) is the uniform selector of a QMMA.SF: no other form, no tensor traffic in front")
         if r["variant"] in C_HOLD_VARIANTS and r["variant"].startswith("hold_") and any(f not in ("none", "", None) for f in r.get("front", ["none"])):
             raise SystemExit(f"{r['id']}: {r['variant']} has no tensor traffic in front (the word's result goes to R24..R27, the traffic's accumulator)")
         if r["variant"].startswith("sens_"):
@@ -3460,7 +3504,7 @@ ADAPT_CONS = {("STS", "r1"): "STS.data", ("STS", "a0"): "STS.addr", ("STS.128", 
               ("IADD3", "r1"): "IADD3.r1", ("IADD3", "r2"): "IADD3.r2", ("IMAD", "r1"): "IMAD.r1", ("IMAD", "r3"): "IMAD.r3",
               ("LOP3.LUT", "r1"): "LOP3.r1", ("MOV", "r1"): "MOV.r1", ("SHF.L.U32", "r1"): "SHF.r1", ("SEL", "r1"): "SEL.r1",
               ("PRMT", "r1"): "PRMT.r1", ("I2FP.F32.S32", "r1"): "I2FP.r1", ("IMAD.SHL.U32", "r1"): "IMAD.SHL.r1",
-              ("IADD.64", "r1"): "IADD.64.r1", ("IADD.64", "r1h"): "IADD.64.r1h", ("LEA", "r1"): "LEA.r1"}
+              ("IADD.64", "r1"): "IADD.64.r1", ("IADD.64", "r1h"): "IADD.64.r1h", ("LEA", "r1"): "LEA.r1", ("LEA", "r2"): "LEA.r2"}
 ADAPT_STORE = {("STS", "r1"): "STS.data", ("STS", "a0"): "STS.addr", ("STS.128", "r1"): "STS128.data", ("STS.128", "r1h"): "STS128.data",
                ("STG.E", "r1"): "STG.data", ("STG.E", "a0"): "STG.addr", ("STG.E", "a1"): "STG.addr"}
 ADAPT_OVER = {"LOP3.LUT": "LOP3", "IADD3": "IADD3", "MOV": "MOV", "LDS": "LDS", "LDS.128": "LDS128", "LDSM.16.M88.4": "LDSM", "LDG.E": "LDG"}
@@ -3554,6 +3598,7 @@ def cmd_list(_args):
     print("  version 25: \"control\": \"stale\" on EVERY raw request (an ordinary pair: the producer's word behind the consumer and its checksum - expect 0 % good, class stale); consumers "
           + ", ".join(RR_CONSUMERS) + " (the register-register IADD.64), PRMT.r3, STG.a0 (global-address producers: " + ", ".join(GADDR_PRODUCERS) + "); kind mma: hold_c_cs2r / sens_c_cs2r "
           "(\"reg\": 0 | 2), hold_c_prmt / sens_c_prmt, \"dest\": \"a\" = the result of a hold_c_* / sens_c_* word goes to its own A quad; table_cell reads the table's producer_forms")
+    print("  version 25, fifth build: the consumer LEA.r2 (the unshifted operand); kind mma: hold_u_umov / sens_u_umov (the uniform selector of a QMMA.SF behind the word, RELATIVE)")
     print("kind war - a register of a BARE store rewritten behind it:")
     for k, v in WAR_STORES.items():
         print(f"  store {k:12s} overwriters {', '.join(v[0])}: {v[2]}")
@@ -3699,7 +3744,7 @@ def cmd_selftest(_args):
                 n += 1
             # (behind a load overwriter `overtake` is `late`: a store served after the read-back was served after the overwriter too)
             assert all(not np.array_equal(got["good"], v) for m, v in got.items() if m != "good"), (st, ov)
-    for var, form in [(v, f) for f in MMA_FORMS for v in MMA_VARIANTS]:
+    for var, form in [(v, f) for f in MMA_FORMS for v in MMA_VARIANTS if not (v in U_HOLD_VARIANTS and not f.startswith("QMMA"))]:
         r = normalise({"id": "selftest", "kind": "mma", "variant": var, "form": form})
         got = {m: model(r, m, gids=gids) for m in modes_of(r)}
         for m, v in got.items():
@@ -4323,6 +4368,48 @@ def cmd_selftest(_args):
         assert um[0] > next(k for k, a in enumerate(bc) if a.text.startswith("R2UR")), "the control's rewrite stands behind the R2UR of the iteration"
         bc[um[0]].sem = ("mov", "UR6", 0x10)      # the control's kernel as the card runs it: the store takes the rewritten base - another checksum in every thread
         assert all(_scalar(int(x), prologue(rwc, 188), bc, "good") != int(y) for x, y in zip(gids, gw)), dd
+    # fifth build: the hold of the UNIFORM selector of a QMMA.SF behind the word (kind mma, hold_u_umov / sens_u_umov); the consumer LEA.r2
+    st_ = lambda bb, i, j: sum(int(a.ctl[-3:-1]) for a in bb[i:j])
+    ru, rs = (normalise({"id": "xx", "kind": "mma", "variant": v_}) for v_ in ("hold_u_umov", "sens_u_umov"))
+    assert modes_of(ru) == ["good", "drop1"] and modes_of(rs) == ["good", "drop1"] and rs["distances"] == "45" and ru["form"].startswith("QMMA")
+    for dd in (1, 2, 8, 17, 45):
+        b = body_mma(ru, dd)
+        qs = [k for k, a in enumerate(b) if a.text.startswith("QMMA.SF")]
+        um = [k for k, a in enumerate(b) if a.text.startswith("UMOV UR6")]
+        assert len(qs) == 2 and all(b[k].text.endswith("R14, R14, UR6 ;") for k in qs) and b[qs[0]].text.split()[1] == "R24," and b[qs[1]].text.split()[1] == "R28,", dd
+        assert b[qs[1]].tag == "P" and b[qs[0]].tag is None and b[qs[0]].text.replace("R24", "R28") == b[qs[1]].text, dd
+        assert [b[k].text for k in um] == ["UMOV UR6, 0x9 ;", "UMOV UR6, 0x0 ;"] and b[um[1]].tag == "O" and b[um[1]].sem == ("mov", "UR6", 0) and um[0] < qs[0] < qs[1] < um[1], dd
+        assert st_(b, qs[1], um[1]) == dd and st_(b, um[0], qs[0]) == 45 and st_(b, qs[0], qs[1]) == 60, dd
+        fx = next(k for k, a in enumerate(b) if a.text.startswith("LOP3.LUT R0, R28, R24"))
+        assert st_(b, um[1], fx) == 60 and b[-1].text == "IADD3 R10, PT, PT, R10, R4, RZ ;" and not misaligned(kernel_text("x", ru, 188, b)), dd
+        assert sum(a.text.startswith("IADD3 R14, PT, PT, R14, 0x7d7e807f") for a in b[:qs[0]]) == 1 and [a.text for a in b if a.text.startswith("MOV R2")] == [f"MOV R{24 + k}, R{28 + k} ;" for k in range(4)], dd
+    bs = body_mma(rs, 45)
+    qs, um = [k for k, a in enumerate(bs) if a.text.startswith("QMMA.SF")], [k for k, a in enumerate(bs) if a.text.startswith("UMOV UR6")]
+    assert len(qs) == 2 and [bs[k].text for k in um] == ["UMOV UR6, 0x9 ;", "UMOV UR6, 0x0 ;"] and um[0] < qs[0] < um[1] < qs[1] and bs[um[1]].sem == ("nop",) and bs[qs[1]].tag == "P"
+    assert st_(bs, qs[0], um[1]) == 60 and st_(bs, um[1], qs[1]) == 60 and not any(a.tag == "O" for a in bs) and st_(bs, qs[1], next(k for k, a in enumerate(bs) if a.text.startswith("LOP3.LUT R0, R28, R24"))) == 60
+    assert not misaligned(kernel_text("x", rs, 188, bs))
+    for r_ in (ru, rs):
+        g, dr = model(r_, "good", gids=gids), model(r_, "drop1", gids=gids)
+        assert [int(x) for x in g] == model(r_, "good", gids=gids, scalar=True) and [int(x) for x in dr] == model(r_, "drop1", gids=gids, scalar=True) and (g != dr).all(), r_["variant"]
+        n += 2
+    # (the model of X ^ Y is 0 in every iteration: the checksum of the hold body and of its control are the same sum of the iteration inputs)
+    assert np.array_equal(model(ru, "good", gids=gids), model(rs, "good", gids=gids))
+    for bad in ({"variant": "hold_u_umov", "form": "HMMA.BF16"}, {"variant": "sens_u_umov", "form": "HMMA.F16"}, {"variant": "hold_u_umov", "front": ["mmax1@7"]},
+                {"variant": "hold_u_umov", "reg": 0}, {"variant": "hold_u_umov", "dest": "a"}):
+        try:
+            normalise(dict({"id": "xx", "kind": "mma"}, **bad))
+            raise AssertionError(bad)
+        except SystemExit:
+            pass
+    assert "the operand hold (one QMMA.SF with a uniform selector" in pair_text(ru) and pair_text(rs).split(": ", 1)[1].startswith("CONTROL: UMOV UR6, 0x0")
+    rl, rlc = (normalise(dict({"id": "xx", "kind": "raw", "producer": "IADD3", "consumer": "LEA.r2"}, **x_)) for x_ in ({}, {"control": "stale"}))
+    bl = body_raw(rl, 3, "none")
+    cl = [a for a in bl if a.tag == "C"]
+    assert len(cl) == 1 and cl[0].text == "LEA R8, R5, R6, 0x2 ;" and cl[0].sem == ("mad", "R8", "R5", 4, "R6") and RAW_CONSUMERS["LEA.r2"][2:4] == ("LEA", "r2")
+    for r_ in (rl, rlc):
+        g, sl = model(r_, "good", gids=gids), model(r_, "stale", gids=gids)
+        assert [int(x) for x in g] == model(r_, "good", gids=gids, scalar=True) and [int(x) for x in sl] == model(r_, "stale", gids=gids, scalar=True) and (g != sl).all()
+        n += 2
     assert producer_word(normalise({"id": "xx", "kind": "raw", "producer": "CS2R", "consumer": "IMAD.r1", "salt": "set"})) == "CS2R"
     assert producer_word(normalise({"id": "xx", "kind": "raw", "producer": "CS2R.32.CgaSize", "consumer": "IMADi.rel"})) == "CS2R.32"
     assert producer_word(normalise({"id": "xx", "kind": "raw", "producer": "MOV", "consumer": "IADD.r1", "control": "stale"})) == "MOV"

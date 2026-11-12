@@ -556,6 +556,13 @@ decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `
   on the third or fourth accumulator register 8 cycles behind a tensor instruction are right (0 of 18 396 160), 7 cycles behind
   not right in 15 652 160 … 18 143 936; `UMOV` rewriting the uniform base of a shared store 1 cycle behind it
   never reaches the store; 28 pair requests of default-priced classes give floors 1 … 5, none above the default.
+- **`probe.py` 25, second part: five cells of the dependency table stand exactly on their measured floor; the uniform selector
+  of a `QMMA.SF` is held 1 cycle** (`_b47` and its two `_ws_` files; selftest 3 656). New: the consumer `LEA.r2` (the unshifted
+  operand of `LEA`), kind `mma` `hold_u_umov` / `sens_u_umov` (the selector's hold, relative to the same instruction issued 60
+  cycles earlier). Measured on a card of each edition, the Workstation card alone and at its 400-W limit: `PRMT → LOP3` r1 4,
+  `LEA → IMAD` r3 5, `SHF → PRMT` r3 4, `IMAD → PRMT` r1 5, `IADD3 → LEA` r2 4 — each equal to its cell in every state, one
+  cycle closer not right in 94.0 … 99.99 % of the thread-launches; `UMOV` rewriting the selector 1 … 45 cycles behind a
+  `QMMA.SF` never reaches it; every positive control not right in every thread-launch.
 
 ## Unreleased — 2026-11-11 (session SCH-4: the stall-floor probes on grids that hold two CTAs per SM and on production's card model in two clock states — tools and result files only, no source line changes)
 
