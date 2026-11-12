@@ -4,6 +4,18 @@ User-visible changes, newest first. Table syncs name the blackwell-isa revision 
 (`tables/SOURCE.json` pins it byte for byte). Numbered `BUG-NNN` entries are the encoder /
 decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `docs/TESTS.md`).
 
+## Unreleased — 2026-11-12 (`CUBIT_WAIT_POLICY=1`, measured: the policy does not carry from FC1 to its r33 form)
+
+- **No code change — a limit of the opt-in switch, measured** (KNOWN_ISSUES A51; one card model, the state free of the
+  power limit, 4 096 rows, bits identical). With ptxas's control words kept on every word outside the consumer loop and
+  the loop scheduled under the switch, the served FC1 reads −0.10 … −0.12 % against ptxas (two blocks), and its r33
+  form **+0.17 %** (one block) — 0.19 points above the hand-made text of that kernel, which stands equal with ptxas in
+  the same block (the −0.07 % in the section below was one earlier block, at the edge of its interval). cubit's own
+  schedule of the whole FC1 text under the switch reads −0.05 % (two blocks).
+- The two loops of the r33 form differ in nine control words, all at the scale loads, where the third clause regroups
+  them. The switch is a policy for FC1's consumer loop: a schedule it builds for another kernel has to be measured
+  before anything is said about its speed.
+
 ## Unreleased — 2026-11-12 (`CUBIT_WAIT_POLICY=1`: a reader waits both guarded producers that may have written its register)
 
 - **A fourth clause of the opt-in switch** (KNOWN_ISSUES A50; without `CUBIT_WAIT_POLICY=1` nothing changes, and the
@@ -40,8 +52,9 @@ decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `
 - **Measured** (one card model, the state free of the power limit, 4 096 rows, bits identical; the clauses made by
   hand on the frozen listing): the served FC1's consumer kernel +15.9 % against ptxas with the stalls lowered, +2.0 %
   with the three older switches, **−0.03 % with the clauses — at ptxas, the difference inside what the instrument
-  resolves**; its r33 form −0.07 %. The schedule cubit builds by itself under the switch differs from the measured
-  text in 13 control words of 3 048 (14 of 3 040 on the r33 form) and has not been on a card.
+  resolves**; its r33 form −0.07 % in that block (a later block: equal with ptxas — the section on A51 above). The
+  schedule cubit builds by itself under the switch differs from the measured text in 13 control words of 3 048 (14
+  of 3 040 on the r33 form) and had not been on a card when this was written.
 - `tests/wait_policy.rs` (three tests; all three fail without the clauses). No production build sets the switch.
 
 ## Unreleased — 2026-11-12 (pull-request pair cubit #9 + blackwell-isa #6 of the B300 lane: the sm_103a `stallfix` section v3 — measured floors — with its test and the five rule keys it needs)
