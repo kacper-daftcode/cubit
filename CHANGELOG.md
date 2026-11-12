@@ -651,6 +651,18 @@ decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `
   8 and +1.6 % at 32. Kind `gw`: a wait on an instruction whose guard is false holds the reader behind it (0 of 1 913 200 640;
   the same text without the wait bit is not right). Kind `lb`: right at every distance 1 … 45 (0 of 239 150 080; with the yield
   flag 0 of 220 753 920).
+- **`probe.py` 27 and 28: a wait under another predicate (kind `gp`), the readers of a `CS2UR` result, a set of global loads
+  under two predicates on one write barrier (kind `ord` with `pguard`)** (`_b51` … `_b56`, a card of the Server Edition;
+  selftest 4 047; readers `read_lt.py`, `read_gp.py`, `read_raw27.py`, `read_set2p.py`). `_b51`: the landing time behind a
+  scoreboarded producer grows with the warps an SM runs (32 / 63 cycles at one warp per SM, not up to 255 at 2 × 9) — a
+  measurement, never a permission. `_b52`: a wait carried by an instruction that another predicate nullifies holds (0 of 4 341
+  493 760; the same text without the wait bit not right up to 17 cycles). `_b53`: a reader of a `CS2UR` result closer than 6
+  cycles reads the old content and a write barrier named by the `CS2UR` holds nothing (the same counts with the barrier and the
+  wait as without). `_b54` … `_b56`: one wait of the reader holds a write barrier armed by global loads under two different
+  predicates — the 2-set and the 17-producer chain of an attention kernel, each predicate true, false, a lane bit or a counter
+  bit, P0 the same or another value from pair to pair, warm and cold lines: 0 of 1 601 699 840 over 56 requests; the same texts
+  with that wait bit moved behind the reader not right wherever a producer executes. Twenty requests are void and left out of
+  two files (`void_requests`); `_b56` shows on outputs why the ten of `_b55` are.
 
 ## Unreleased — 2026-11-11 (session SCH-4: the stall-floor probes on grids that hold two CTAs per SM and on production's card model in two clock states — tools and result files only, no source line changes)
 

@@ -106,6 +106,31 @@ address of the thread's own line (a late read of the base shows as another word,
 the positive control (the younger load in front of the older one: expect 0 % good, class late); "yield": "set".
     {"id": "lb_lds", "kind": "lb"}
     {"id": "lb_lds_c", "kind": "lb", "control": "front"}
+
+Version 27 - kind `gp`, a GUARDED WAIT UNDER ANOTHER PREDICATE: two `LDC.64` under two different predicates arm ONE write
+barrier; the only wait on it stands on a word under the FIRST predicate; the reader reads the second load's pair under the
+SECOND predicate d cycles behind its load, no wait of its own. "form": imad | lea (the two pointer groups of the vendor's
+MoE kernel's prologue, with their stalls and yield flags; the reader's result is DATA here, folded relative to the prologue's copy of
+the constant); "guards": tt | ft | tf | ff | lane | cnt (which side executes: carrier's, reader's); "pset": pro | near
+(where the predicates are set); "wait": guarded | end (the positive control: the carrier without its wait bit); form imad:
+"share": ldg (the kernel's shape: the barrier is armed again by a guarded global load one cycle in front of the reader) | ldc
+| own (the second load on a barrier of its own).
+    {"id": "gp_imad_ft", "kind": "gp", "form": "imad", "guards": "ft", "pset": "near"}
+    {"id": "gp_imad_ft_ew", "kind": "gp", "form": "imad", "guards": "ft", "pset": "near", "wait": "end"}
+
+Version 28 - kind `ord`, a SET UNDER TWO PREDICATES on one write barrier (the attention kernel's `@P0 LDG.E.128` + `@P0
+LDG.E.U8` + `@P1 LDG.E`): the prefix k on a load = under the second predicate (`@P2`; P1 is the loop's); "pguard": two
+letters, P0 then P2, of t (true) | f (false) | l (a bit of the lane: all four combinations inside every warp) | c (a bit of
+iteration counter x 0x9e3779b1; P0 takes the next bit for every further pair) - both written at the top of every iteration
+by ISETP.GE.AND, P0 again 13 cycles in front of every further `@P0 LDG.E.128`; a nullified producer leaves its
+destinations' markers. "wait": reader | end (the positive control: the reader's wait bit moved to the first word behind
+the reader words - the producers keep their barrier); "rdist": the reader's distance behind the last arming (absent: 2).
+    {"id": "e2_tf", "kind": "ord", "forms": "gQ,kG", "barrier": "all", "yield": "set", "pguard": "tf"}
+    {"id": "e2_tf_ew", "kind": "ord", "forms": "gQ,kG", "barrier": "all", "yield": "set", "pguard": "tf", "wait": "end"}
+Version 28, second build - letter c on a set with more than one `gQ`: the shift of P0's source stands right behind the previous
+ISETP (13 cycles or more in front of the ISETP that reads it). The FIRST build put it one cycle in front of that ISETP: not
+right by construction (ten requests of the result file `_b55` are void); "pshift": 1 builds that text again, with the hypothesis
+`p0old` (every such ISETP read the source's old content) as a third host model.
 """
 from __future__ import annotations
 
@@ -122,9 +147,10 @@ import subprocess
 import sys
 import time
 
-TOOL = "probe.py 26 (2026-11-12)"
+TOOL = "probe.py 28 (2026-11-12)"
 HERE = pathlib.Path(__file__).resolve().parent
 SEED = 0x12345
+PTR_STANDIN = [0, 0]      # version 28: the scalar interpreter's stand-in for the output pointer R2:R3 (the selftest sets it nonzero: no fold may depend on it)
 REPEAT = 256
 SMEM = 65536
 # occupancy: name -> (CTAs, threads per CTA); the output buffer keeps 1 024 words per CTA (gid = ctaid * 1024 + tid)
@@ -255,10 +281,15 @@ def uniform_producer(name):
     if name == "UIADD3":       # UR8 counts the iterations
         return ([Ins("UIADD3 UR8, UPT, UPT, UR8, 0x1, URZ ;", ("add", "UR8", "UR8", 1))],
                 "UIADD3 UR6, UPT, UPT, UR8, 0x650, URZ ;", ("add", "UR6", "UR8", 0x650), "UIADD3")
+    if name == "CS2UR.32":     # version 27, third build: a special register of KNOWN content (zero) into a uniform register; UR6 holds an immediate until it lands
+        return [Ins("UMOV UR6, 0x155 ;", ("mov", "UR6", 0x155))], "CS2UR.32 UR6, SRZ ;", ("mov", "UR6", 0), "CS2UR"
+    if name == "CS2UR":        # the 64-bit form (the kernel's `CS2UR UR4, SR_GLOBALTIMERLO`): it writes UR6 AND UR7
+        return ([Ins("UMOV UR6, 0x155 ;", ("mov", "UR6", 0x155)), Ins("UMOV UR7, 0x2aa ;", ("mov", "UR7", 0x2aa))],
+                "CS2UR UR6, SRZ ;", ("zero2u", "UR6", "UR7"), "CS2UR")
     raise SystemExit(f"unknown uniform producer {name!r} (probe.py list)")
 
 
-UNIFORM_PRODUCERS = ["UMOV", "UIADD3"]
+UNIFORM_PRODUCERS = ["UMOV", "UIADD3", "CS2UR.32", "CS2UR"]
 
 
 def addr_producer(name):
@@ -331,6 +362,8 @@ RAW_CONSUMERS = {
     "IMAD.WIDE.r3h": ("data", 7, "IMAD.WIDE", "r3h", "the HIGH word of the 64-bit addend of IMAD.WIDE"),
     "UIADD3.u1": ("udata", 6, "UIADD3", "u1", "the uniform addend of UIADD3"),
     "MOV.u1": ("udata", 6, "MOV", "u1", "the uniform source of MOV R, UR"),
+    "IADD.64.u2": ("udata", 6, "IADD.64", "u2", "the uniform pair of IADD.64 R, -R, UR - the low word of the result (version 27, third build)"),
+    "IADD.64.u2h": ("udata", 6, "IADD.64", "u2h", "the uniform pair of IADD.64 R, -R, UR - the high word of the result (version 27, third build)"),
     # version 22 - pair classes the catalogue could not express (CS's seven, EM's table of the default-priced classes)
     "FMUL.r2": ("data", 6, "FMUL", "r2", "the second factor of FMUL.FTZ (the producer brings a finite float or zero)"),
     "FADD.r1": ("data", 6, "FADD", "r1", "the first addend of FADD.FTZ (the producer brings a finite float or zero)"),
@@ -374,6 +407,9 @@ R6_TOKEN = r"(?<![A-Za-z0-9])R6(?![0-9])"
 
 
 def raw_pair_ok(prod, cons):
+    if cons in ("IADD.64.u2", "IADD.64.u2h") or prod in ("CS2UR", "CS2UR.32"):      # version 27, third build
+        # the reader of a uniform PAIR takes the producer that writes both registers; the 64-bit producer does not stand in front of UIADD3.u1 (that consumer writes UR7 itself)
+        return (prod == "CS2UR" and cons in ("IADD.64.u2", "IADD.64.u2h", "MOV.u1")) or (prod == "CS2UR.32" and cons in ("MOV.u1", "UIADD3.u1"))
     """version 22: a float consumer takes a producer whose result is a finite float or zero; MUFU.RCP a power of two"""
     if cons in FLOAT_CONSUMERS:
         return prod in FLOAT_PRODUCERS
@@ -712,6 +748,9 @@ def body_raw(req, d, front):
         pre, ptext, psem, _ = addr_producer(prod)
     elif what == "udata":
         pre, ptext, psem, _ = uniform_producer(prod)
+        if cons in ("IADD.64.u2", "IADD.64.u2h"):      # version 27, third build: the subtrahend pair = the iteration's inputs, set long before
+            # (the LOW word of the subtrahend is the iteration's SECOND input: with the first one the low result -a and the salt +a would cancel)
+            pre = pre + [Ins("MOV R26, R5 ;", ("mov", "R26", "R5")), Ins("MOV R27, R4 ;", ("mov", "R27", "R4"))]
     elif what == "gaddr":      # version 25
         pre, ptext, psem, _ = gaddr_producer(prod)
     else:
@@ -747,9 +786,9 @@ def body_raw(req, d, front):
             pre = pre + fin(6, 4) + fin(7, 5)
     b += pre
     b += front_ins(front, what == "gaddr")
-    dst = ["UR6"] if what == "udata" else ["R6", "R7"] if what == "gaddr" else [f"R{rd}", f"R{rd + 1}"] if prod in PAIR_PRODUCERS else [f"R{rd}"]
+    dst = (["UR6", "UR7"] if prod == "CS2UR" else ["UR6"]) if what == "udata" else ["R6", "R7"] if what == "gaddr" else [f"R{rd}", f"R{rd + 1}"] if prod in PAIR_PRODUCERS else [f"R{rd}"]
     # (version 25, the control: the model's producer in its place under a filler's text, the real word behind the consumer and its checksum)
-    b.append(Ins("IADD3 R15, PT, PT, R15, 0x1, RZ ;" if control else ptext, psem, ctl=C(s, y=req.get("yield") == "set"), tag="P", dst=dst))
+    b.append(Ins("IADD3 R15, PT, PT, R15, 0x1, RZ ;" if control else ptext, psem, ctl=C(s, y=req.get("yield") == "set", wb="1" if req.get("pbar") and not control else "-"), tag="P", dst=dst))
     b += fill
     if cons == "STS.data":
         b += [Ins("STS [R9+0x20], R6 ;", ("sts", "R9", 0x20, "R6", 1), ctl=C(rb="2"), tag="C"),
@@ -800,7 +839,10 @@ def body_raw(req, d, front):
         b += [Ins("UIADD3 UR7, UPT, UPT, UR6, 0x630, URZ ;", ("add", "UR7", "UR6", 0x630), tag="C"),
               Ins("MOV R8, UR7 ;", ("mov", "R8", "UR7")), ADD10()]
     elif cons == "MOV.u1":
-        b += [Ins("MOV R8, UR6 ;", ("mov", "R8", "UR6"), tag="C"), ADD10()]
+        b += [Ins("MOV R8, UR6 ;", ("mov", "R8", "UR6"), ctl=C(wait="1" if req.get("pbar") else ""), tag="C"), ADD10()]
+    elif cons in ("IADD.64.u2", "IADD.64.u2h"):      # version 27, third build: R25:R24 = UR7:UR6 - R27:R26, the kernel's reader of its clock
+        b += [Ins("IADD.64 R24, -R26, UR6 ;", ("sub64u", "R24", "UR6", "UR7", "R26"), ctl=C(wait="1" if req.get("pbar") else ""), tag="C"),
+              Ins("MOV R8, R24 ;" if cons == "IADD.64.u2" else "MOV R8, R25 ;", ("mov", "R8", "R24" if cons == "IADD.64.u2" else "R25")), ADD10()]
     elif cons == "LEA.r1":
         b += [Ins("LEA R8, R6, R6, 0x2 ;", ("mad", "R8", "R6", 5, "RZ"), tag="C"), ADD10()]
     elif cons == "LEA.r2":      # (version 25, fifth build) R8 = (R5 << 2) + R6: the tested register is the unshifted operand
@@ -925,10 +967,12 @@ def set_plan(req):
     producers."""
     toks = []
     for t in [x.strip() for x in str(req["forms"]).split(",")]:
-        g = "g" if (t[:1] == "g" and len(t) > 1) else ""
+        g = t[:1] if (t[:1] in ("g", "k") and len(t) > 1) else ""      # version 28: k = under the SECOND predicate (@P2)
         let = t[len(g):]
         if let not in SET_FORM and let not in ORDN_FORM:
             raise SystemExit(f"{req.get('id')}: forms token {t!r}: s | u | d | q | G | Q | B | c | C | m | h with an optional prefix g on a load")
+        if g == "k" and not req.get("pguard"):
+            raise SystemExit(f"{req.get('id')}: forms token {t!r}: the prefix k (under the second predicate, @P2) needs the field pguard (version 28)")
         if g and let in ("c", "C", "m", "h", "M"):
             raise SystemExit(f"{req.get('id')}: forms token {t!r}: the guard is for a load (s u d q G Q B)")
         toks.append((g, let))
@@ -957,6 +1001,110 @@ def set_plan(req):
             aux, nb = (17 * nb + 5) % 128, nb + 1
         plan.append((g, let, regof[k], aux))
     return plan
+
+
+# version 28 - a SET under TWO predicates (the shared write barrier of an attention kernel: `@P0 LDG.E.128` + `@P0
+# LDG.E.U8` + `@P1 LDG.E` on one barrier; the tool's P1 is the loop's, the second predicate here is P2). "pguard" = two
+# letters, the first for P0 (the producers with prefix g), the second for P2 (prefix k): t = true, f = false, l = a bit of
+# the lane (P0: bit 0, P2: bit 1 - true where the bit is 0: all four combinations inside every warp), c = a bit of
+# (iteration counter x 0x9e3779b1) (P0: bit 31 for the first pair, the next lower bit for every further pair; P2: bit 20).
+# The predicate is (source >= 0): `ISETP.GE.AND Pn, PT, Rsrc, RZ, PT`, the kernel's own word for P0, written at the top of
+# every iteration, 60 / 45 cycles in front of the first producer; P0 is written again 13 cycles (the table's default for a
+# predicate -> a guard) in front of every further `gQ` - the kernel writes P0 between its pairs.
+SET_PG = ("t", "f", "l", "c")
+SET_PSRC = ("R7", "R14")      # the sources of P0 / P2: free registers of a set kernel
+
+
+def set_psrc(letter, which):
+    reg = SET_PSRC[which]
+    if letter == "t":
+        return [Ins(f"MOV {reg}, RZ ;", ("mov", reg, 0))]
+    if letter == "f":
+        return [Ins(f"MOV {reg}, 0x80000000 ;", ("mov", reg, 0x80000000))]
+    if letter == "l":
+        return [Ins(f"SHF.L.U32 {reg}, R0, 0x{31 - which:x}, RZ ;", ("shl", reg, "R0", 31 - which))]
+    out = [Ins(f"IMAD {reg}, R11, 0x9e3779b1, RZ ;", ("mad", reg, "R11", 0x9e3779b1, "RZ"))]
+    if which:
+        out.append(Ins(f"SHF.L.U32 {reg}, {reg}, 0xb, RZ ;", ("shl", reg, reg, 11)))
+    return out
+
+
+def set_pshift(stall):
+    """the next bit of the counter's hash into the sign of P0's source (tag PS)"""
+    return Ins(f"SHF.L.U32 {SET_PSRC[0]}, {SET_PSRC[0]}, 0x1, RZ ;", ("shl", SET_PSRC[0], SET_PSRC[0], 1), ctl=C(stall), tag="PS")
+
+
+def set_pguard_top(pg, shift_first=False):
+    """(second build) shift_first: the bit of the first further pair is shifted in right behind the top's two ISETP - 45 cycles and more in front of the ISETP that reads it"""
+    return (set_psrc(pg[0], 0) + set_psrc(pg[1], 1)
+            + [Ins(f"ISETP.GE.AND P0, PT, {SET_PSRC[0]}, RZ, PT ;", ("sge0", "P0", SET_PSRC[0])),
+               Ins(f"ISETP.GE.AND P2, PT, {SET_PSRC[1]}, RZ, PT ;", ("sge0", "P2", SET_PSRC[1]))]
+            + ([set_pshift(15)] if shift_first else []) + [PAD(), PAD()])
+
+
+def set_pguard_again(pg, more=False, pshift=None):
+    """P0 written again in front of a further pair, 13 cycles in front of the pair's first load and right behind the last load in
+    front of it. Letter c (second build): the ISETP reads the source as the shift behind the PREVIOUS ISETP left it (13 cycles or
+    more before); when a further pair follows (`more`) the next shift stands right behind this ISETP. `pshift` 1 = the FIRST
+    build's text: the shift at stall 1 directly in front of the ISETP that reads it - NOT RIGHT BY CONSTRUCTION."""
+    isetp = lambda st: Ins(f"ISETP.GE.AND P0, PT, {SET_PSRC[0]}, RZ, PT ;", ("sge0", "P0", SET_PSRC[0]), ctl=C(st))
+    if pg[0] != "c":
+        return [isetp(13)]
+    if pshift == 1:
+        return [set_pshift(1), isetp(13)]
+    return [isetp(1), set_pshift(12)] if more else [isetp(13)]
+
+
+def set_rdist(req, y, ys):
+    """version 28 -> (the youngest producer's stall, the stalls of the fillers behind it): together the reader's distance behind
+    the last arming ("rdist"; absent: younger_stall and no filler). With the yield flag a stall is at most 11."""
+    rd = req.get("rdist")
+    if rd is None:
+        return ys, []
+    smax = 11 if y else 15
+    if rd <= smax:
+        return rd, []
+    k, rest = divmod(rd - smax, 15)
+    fill = [15] * k + ([rest] if rest else [])
+    assert smax + sum(fill) == rd and all(1 <= s <= 15 for s in fill)
+    return smax, fill
+
+
+def set_exec(req, gids):
+    """version 28: numpy bool per thread - does at least one producer of the set execute in at least one iteration"""
+    import numpy as np
+    gids = np.asarray(gids)
+    lane = gids % 1024
+    pg = req["pguard"]
+
+    def ex(letter, bit):
+        if letter in ("t", "c"):
+            return np.ones(len(gids), bool)
+        if letter == "f":
+            return np.zeros(len(gids), bool)
+        return ((lane >> bit) & 1) == 0
+
+    out = np.zeros(len(gids), bool)
+    for g, _let, _r, _a in set_plan(req):
+        out |= ex(pg[0], 0) if g == "g" else ex(pg[1], 1) if g == "k" else np.ones(len(gids), bool)
+    return out
+
+
+def set_pg_text(r):
+    w = {"t": "true in every lane and iteration", "f": "FALSE in every lane and iteration (its loads never execute)",
+         "l": "a bit of the lane (true where the bit is 0)", "c": "a bit of (iteration counter x 0x9e3779b1) (true where the bit is 0)"}
+    pg = r["pguard"]
+    return (f" [version 28 - TWO PREDICATES on one write barrier: P0 = {w[pg[0]]}"
+            + (" - bit 0" if pg[0] == "l" else " - bit 31 for the first pair, the next lower bit for every further pair" if pg[0] == "c" else "")
+            + f"; P2 = {w[pg[1]]}" + (" - bit 1" if pg[1] == "l" else " - bit 20" if pg[1] == "c" else "")
+            + "; both are written at the top of every iteration by ISETP.GE.AND, P0 again 13 cycles in front of every further `@P0 LDG.E.128`"
+            + f"; the first reader word stands {r['rdist'] if r.get('rdist') else r.get('younger_stall', 2)} cycles behind the last arming"
+            + ("; POSITIVE CONTROL (wait end): the same text with the reader's wait bit moved to the first word BEHIND the reader words - expect not good wherever a producer executes"
+               if r.get("wait") == "end" else "; the first reader word carries the ONE wait")
+            + ("; THE FIRST BUILD'S TEXT (pshift 1): the shift of P0's source stands ONE cycle in front of the ISETP that reads it - NOT RIGHT BY CONSTRUCTION; the hypothesis "
+               "p0old = every such ISETP read the source's old content (the previous pair's bit)" if r.get("pshift") == 1
+               else "; the next pair's bit is shifted into P0's source right behind the previous ISETP, 13 cycles or more in front of the ISETP that reads it, and that ISETP "
+                    "stands right behind the pair's last load" if (pg[0] == "c" and sum(1 for t_ in str(r["forms"]).split(",") if t_.strip() == "gQ") > 1) else "") + "]")
 
 
 def ordn_plan(req):
@@ -1135,10 +1283,18 @@ def body_set(req, d, front, variant):
     nbyte = 0
     if any(let == "h" for _g, let, _r, _a in plan):
         b.append(Ins(f"IMAD R{SET_HSRC}, R5, 0x3, R4 ;", ("mad", f"R{SET_HSRC}", "R5", 3, "R4")))
+    pg = req.get("pguard")      # version 28
+    psh = req.get("pshift")     # (second build) 1 = the first build's text for letter c
+    again = [k_ for k_, (g_, l_, _r, _a) in enumerate(plan) if g_ == "g" and l_ == "Q" and any(x_[0] == "g" for x_ in plan[:k_])] if pg else []
+    if pg:
+        b += set_pguard_top(pg, shift_first=(pg[0] == "c" and bool(again) and not psh))
+    slast, rfill = set_rdist(req, y, ys)
     b += front_ins(front, False)
     for k, (g, let, reg, aux) in enumerate(plan):
         last = k == n - 1
-        gp = "@P0 " if g else ""
+        gp = "@P2 " if g == "k" else "@P0 " if g else ""
+        if k in again:      # version 28: the kernel's form - P0 is written again between the pairs
+            b += set_pguard_again(pg, more=(k != again[-1]), pshift=psh)
         nreg = set_nreg(let)
         if let == "u":
             text, sem = f"{gp}LDS.U16 R{reg}, [R9{('+0x%x' % aux) if aux else ''}] ;", ("ldsu16", f"R{reg}", "R9", aux)
@@ -1166,13 +1322,17 @@ def body_set(req, d, front, variant):
         else:
             text, sem = f"SHFL.BFLY PT, R{reg}, R{SET_HSRC}, 0x1, 0x1f ;", ("shfl", f"R{reg}", f"R{SET_HSRC}", "bfly", 1)
         dst = [f"R{reg + j}" for j in range(nreg)]
+        if pg and g:      # version 28: the model's word under its guard (where it is nullified its destinations keep their markers)
+            sem = ("g", "P2" if g == "k" else "P0", 1, tuple(dst), sem)
         if ctl:
             b.append(Ins(text, sem, ctl=C(1, wb="0", y=y), tag="P", dst=dst))
             b.append(Ins("IADD3 R15, PT, PT, R15, 0x1, RZ ;", ("nop",), ctl=C(ys if last else d, wait="0")))
         else:
             wb = "1" if (bar != "none" and (last or bar == "all")) else "-"
-            b.append(Ins(text, sem, ctl=C(ys if last else d, wb=wb, y=y), tag="P", dst=dst))
-    cw = "0" if ctl else "" if bar == "none" else "1"
+            b.append(Ins(text, sem, ctl=C(slast if last else d, wb=wb, y=y), tag="P", dst=dst))
+    b += [Ins("IADD3 R15, PT, PT, R15, 0x1, RZ ;", ("nop",), ctl=C(st)) for st in rfill]      # version 28: rdist
+    endw = req.get("wait") == "end"      # version 28: the positive control - the reader's wait bit stands on the first word BEHIND the reader words
+    cw = "0" if ctl else "" if (bar == "none" or endw) else "1"
 
     def ref(let, j):
         return (2 + j) if let == "C" else SET_MREF if let == "m" else None
@@ -1209,7 +1369,7 @@ def body_set(req, d, front, variant):
             b.append(Ins(f"IADD3 {t}, PT, PT, {srcs[0]}, {srcs[1]}, RZ ;", ("add", t, srcs[0], srcs[1]), ctl=ct, tag="C"))
         else:
             b.append(Ins(f"MOV {t}, {srcs[0]} ;", ("mov", t, srcs[0]), ctl=ct, tag="C"))
-    b.append(PAD())
+    b.append(Ins("IADD3 R15, PT, PT, R15, 0x1, RZ ;", ("nop",), ctl=C(wait="1")) if endw else PAD())
     ut = [t for t in tmp if any(w[0] == t for w in words)] + [f"R{SET_REL[j]}" for j in range(rw)]
     b.append(Ins("IMAD R6, R6, 0x3, RZ ;", ("mad", "R6", "R6", 3, "RZ")))
     for j, t in enumerate(ut[1:], 1):
@@ -2320,6 +2480,171 @@ def lb_text(r):
             + "; the new base is the address of word 2 of the thread's own line: a late read of the base shows as word 3 of the line instead of word 1 (late), never as a trap; the reader waits both barriers")
 
 
+# ------------------------------------------------------------------------------------------------ kind gp (version 27)
+# A GUARDED WAIT UNDER ANOTHER PREDICATE - the two pointer groups of the prologue of a vendor's MoE kernel as cubit's wait policy
+# left them. Two `LDC.64` under two DIFFERENT predicates arm ONE write barrier; the ONLY wait on that barrier stands on a
+# word under the FIRST predicate (the carrier, which reads the first load's pair); the READER reads the second load's
+# pair under the SECOND predicate, d issue cycles behind its load, with no wait of its own.
+#   form imad:  @P0 LDC.64 R24 | @P2 LDC.64 R26 | [wait] @P0 IMAD.WIDE.U32 R24, R13, 0x4, R24 | one word |
+#               @P2 IMAD.WIDE.U32 R26, R21, 0x4, R26               (the reader: 8 behind its load in the kernel)
+#   form lea:   @!P0 LDC.64 R24 | 8 cycles | @!P2 LDC.64 R26 | 10 cycles | [wait] @!P0 LEA R6, P3, R13, R24, 0x2 |
+#               @!P0 LEA.HI.X R7, .. | @!P2 LEA R28, P4, R21, R26, 0x2 (the reader: 17) | one word |
+#               @!P2 LEA.HI.X R29, R21, R27, R22, 0x2, P4          (the second reader: 6 behind the first)
+# with the kernel's own stalls and yield flags on these words. In the kernel the reader's result is the ADDRESS of a
+# global load; here it is DATA: the pair is folded into the checksum relative to the prologue's copy of the same
+# constant (R2:R3, the output pointer, which the host does not know) - no address depends on what is tested.
+# The loaded constant is c[0x0][0x380]; before the loads the reader's pair holds (R2 + a, R3 + b) - a, b the iteration's
+# inputs - so a reader that took the old pair shows as (a, b + ..) instead of (0, ..). The multiplicand / index only
+# touches the HIGH word (R21 = (b & 3) << 30, product (b & 3) << 32; index low word 0): no carry depends on the unknown
+# low word. Hypotheses: good | stale (the reader took the old pair) | drop2 (form imad: the reader's result was lost -
+# the load landed behind the reader's own write).
+# "guards": which side EXECUTES - first letter the carrier's side, second the reader's: tt | ft | tf | ff (the same in
+# every lane and iteration), lane (bit 0 / bit 1 of the lane: all four combinations inside every warp), cnt (two bits of
+# counter x 0x9e3779b1: all four over the iterations, the same in every lane). "pset": pro (both predicates set once, in
+# the prologue) | near (set in every iteration by two ISETP.GE.AND 13 and 12 cycles in front of the first load, as in
+# the kernel). "wait": guarded (the carrier has the wait bit) | end (the positive control: the SAME text without that
+# bit; the fold's own wait drains the barrier behind the reader). The carrier's result is NEVER folded: where the
+# carrier executes without its wait it reads without a wait itself, and that must not reach the checksum.
+# "share" (form imad; second build): ldg = the kernel's own shape - the reader's barrier is shared with the first LDC.64
+# AND armed again, one cycle in front of the reader, by a global load under the FIRST predicate (`@P0 LDG.E.CONSTANT R7,
+# desc[UR4][R18.64]` with a read barrier: the kernel's word in that place; here it reads the thread's own word B through an
+# address the prologue set) | ldc = shared with the first LDC.64 only (a filler in the load's place) | own = the second
+# LDC.64 on a barrier of its own (3), the carrier waits both; the global load stays on barrier 0.
+GP_FORMS = {"imad": ("`@P0 LDC.64` + `@P2 LDC.64` on write barrier 0, the wait on `@P0 IMAD.WIDE.U32 R24, R13, 0x4, R24` two cycles behind the second load, "
+                     "the reader `@P2 IMAD.WIDE.U32 R26, R21, 0x4, R26`", 0, 1),
+            "lea": ("`@!P0 LDC.64` + `@!P2 LDC.64` (8 cycles apart) on write barrier 4, the wait on `@!P0 LEA R6, P3, R13, R24, 0x2` ten cycles behind the second load, "
+                    "the readers `@!P2 LEA R28, P4, R21, R26, 0x2` and, 6 cycles behind it, `@!P2 LEA.HI.X R29, R21, R27, R22, 0x2, P4`", 4, 0)}
+GP_GUARDS = ("tt", "ft", "tf", "ff", "lane", "cnt")
+GP_SHARE = {"ldg": "the reader's barrier is shared with the first LDC.64 and armed again one cycle in front of the reader by `@P0 LDG.E.CONSTANT R7, desc[UR4][R18.64]` (read barrier 1; the thread's own word B) - the kernel's own shape",
+            "ldc": "the reader's barrier is shared with the first LDC.64 only (a filler stands in the place of the kernel's global load)",
+            "own": "the second LDC.64 has a barrier of its OWN (3) and the carrier waits barriers 0 and 3; `@P0 LDG.E.CONSTANT R7, desc[UR4][R18.64]` (read barrier 1) arms barrier 0 one cycle in front of the reader"}
+
+
+def gp_layout(req, d):
+    """-> (the carrier's stall, the filler behind the carrier?, PADs in front of the reader) for the distance second load -> reader; None when it cannot be built"""
+    if req["form"] == "imad":
+        if d == 3:      # (no word between the carrier and the reader: only without the kernel's global load)
+            return (1, False, 0) if req.get("share") == "ldc" else None
+        if d < 4:
+            return None
+        k = (d - 4) // 15
+        return d - 3 - 15 * k, True, k
+    if d < 12:
+        return None
+    k = (d - 12) // 15
+    return d - 11 - 15 * k, True, k
+
+
+def gp_srcs(req):
+    """the two predicate sources (R8, R20) as prologue words for the constant layouts and the lane layout; a word executes
+    where its predicate is TRUE (form imad) / FALSE (form lea); the predicate is (source >= 0)"""
+    g, want = req["guards"], GP_FORMS[req["form"]][2]
+    if g == "lane":      # the sign of the source = bit 0 / bit 1 of the lane
+        return [Ins("SHF.L.U32 R8, R0, 0x1f, RZ ;", ("shl", "R8", "R0", 31)), Ins("SHF.L.U32 R20, R0, 0x1e, RZ ;", ("shl", "R20", "R0", 30))]
+    if g == "cnt":       # (set in every iteration)
+        return [Ins("MOV R8, RZ ;", ("mov", "R8", 0)), Ins("MOV R20, RZ ;", ("mov", "R20", 0))]
+    out = []
+    for reg, ch in (("R8", g[0]), ("R20", g[1])):
+        neg = (ch == "t") != bool(want)      # the source is negative where the predicate has to be false
+        out.append(Ins(f"MOV {reg}, 0x80000000 ;", ("mov", reg, 0x80000000)) if neg else Ins(f"MOV {reg}, RZ ;", ("mov", reg, 0)))
+    return out
+
+
+def gp_isetp(near):
+    return [Ins("ISETP.GE.AND P0, PT, R8, RZ, PT ;", ("sge0", "P0", "R8"), ctl=C(1, y=True) if near else C()),
+            Ins("ISETP.GE.AND P2, PT, R20, RZ, PT ;", ("sge0", "P2", "R20"), ctl=C(12) if near else C())]
+
+
+def gp_pro(req):
+    p = [Ins("MOV R6, RZ ;", ("mov", "R6", 0))] + [Ins(f"MOV R{k}, RZ ;", ("mov", f"R{k}", 0)) for k in (21, 22, 23, 28, 29, 30, 31)]
+    p += [Ins("ISETP.NE.U32.AND P3, PT, RZ, RZ, PT ;", ("mov", "P3", 0)), Ins("ISETP.NE.U32.AND P4, PT, RZ, RZ, PT ;", ("mov", "P4", 0))]
+    p += gp_srcs(req) + [PAD()]
+    p += gp_isetp(False) + [PAD()]      # (pset near sets them again in every iteration)
+    return p
+
+
+def body_gp(req, d, front="none"):
+    lay = gp_layout(req, d)
+    if lay is None:
+        raise SystemExit(f"{req.get('id')}: distance {d} cannot be built (form imad: from 3; form lea: from 12)")
+    s, filler, pads = lay
+    form, near, guarded = req["form"], req["pset"] == "near", req["wait"] == "guarded"
+    wbar, want = str(GP_FORMS[form][1]), GP_FORMS[form][2]
+    g0 = lambda dst, inner: ("g", "P0", want, tuple(dst), inner)
+    g2 = lambda dst, inner: ("g", "P2", want, tuple(dst), inner)
+    fl = lambda st, y=True: Ins("IADD3 R15, PT, PT, R15, 0x1, RZ ;", ("nop",), ctl=C(st, y=y))      # a filler in the place of a word of the kernel, with that word's stall and yield flag
+    b = [Ins("IADD3 R24, PT, PT, R2, R5, RZ ;", ("add", "R24", "R2", "R5")), Ins("IADD3 R25, PT, PT, R3, R4, RZ ;", ("add", "R25", "R3", "R4")),
+         Ins("IADD3 R26, PT, PT, R2, R4, RZ ;", ("add", "R26", "R2", "R4")), Ins("IADD3 R27, PT, PT, R3, R5, RZ ;", ("add", "R27", "R3", "R5"))]
+    share = req.get("share")
+    if form == "imad":
+        b += [Ins("SHF.L.U32 R13, R4, 0x1e, RZ ;", ("shl", "R13", "R4", 30)), Ins("SHF.L.U32 R21, R5, 0x1e, RZ ;", ("shl", "R21", "R5", 30)),
+              Ins("MOV R7, R5 ;", ("mov", "R7", "R5"))]
+    else:
+        b += [Ins("MOV R13, RZ ;", ("mov", "R13", 0)), Ins("LOP3.LUT R14, R4, 0xff, RZ, 0xc0, !PT ;", ("and", "R14", "R4", 0xff)),
+              Ins("MOV R21, RZ ;", ("mov", "R21", 0)), Ins("LOP3.LUT R22, R5, 0xff, RZ, 0xc0, !PT ;", ("and", "R22", "R5", 0xff)),
+              Ins("MOV R28, R4 ;", ("mov", "R28", "R4")), Ins("MOV R29, R5 ;", ("mov", "R29", "R5"))]
+    if req["guards"] == "cnt":
+        b += [Ins("IMAD R23, R11, 0x9e3779b1, RZ ;", ("mad", "R23", "R11", 0x9e3779b1, "RZ")), Ins("MOV R8, R23 ;", ("mov", "R8", "R23")),
+              Ins("SHF.L.U32 R20, R23, 0x1, RZ ;", ("shl", "R20", "R23", 1))]
+    b += [PAD(), PAD()]
+    if near:
+        b += gp_isetp(True)
+    if form == "imad":
+        l1 = Ins("@P0 LDC.64 R24, c[0x0][0x380] ;", g0(("R24", "R25"), ("mov2", "R24", "R2")), ctl=C(8, wb=wbar, y=True))
+        wb2 = "3" if share == "own" else wbar
+        l2 = Ins("@P2 LDC.64 R26, c[0x0][0x380] ;", g2(("R26", "R27"), ("mov2", "R26", "R2")), ctl=C(2, wb=wb2, y=True), tag="P", dst=["R26", "R27"])
+        cw = Ins("@P0 IMAD.WIDE.U32 R24, R13, 0x4, R24 ;", g0(("R24", "R25"), ("madw", "R24", "R13", 4, "R24")),
+                 ctl=C(s, wait=(wbar + ("3" if share == "own" else "")) if guarded else ""), tag="W")
+        rd = Ins("@P2 IMAD.WIDE.U32 R26, R21, 0x4, R26 ;", g2(("R26", "R27"), ("madw", "R26", "R21", 4, "R26")), ctl=C(5), tag="C", dst=["R26", "R27"])
+        ldg = Ins("@P0 LDG.E.CONSTANT R7, desc[UR4][R18.64] ;", g0(("R7",), ("ldg", "R7", "R18")), ctl=C(1, rb="1", wb=wbar, y=True), tag="G")
+        b += [l1, l2, cw] + [PAD() for _ in range(pads)] + ([fl(1) if share == "ldc" else ldg] if filler else []) + [rd]
+        lo, hi = "R26", "R27"
+    else:
+        l1 = Ins("@!P0 LDC.64 R24, c[0x0][0x380] ;", g0(("R24", "R25"), ("mov2", "R24", "R2")), ctl=C(1, wb=wbar, y=True))
+        l2 = Ins("@!P2 LDC.64 R26, c[0x0][0x380] ;", g2(("R26", "R27"), ("mov2", "R26", "R2")), ctl=C(1, wb=wbar, y=True), tag="P", dst=["R26", "R27"])
+        cw = Ins("@!P0 LEA R6, P3, R13, R24, 0x2 ;", g0(("R6", "P3"), ("lea", "R6", "R13", "R24", 2, "P3")), ctl=C(s, wait=wbar if guarded else ""), tag="W")
+        ch = Ins("@!P0 LEA.HI.X R7, R13, R25, R14, 0x2, P3 ;", g0(("R7",), ("leahi", "R7", "R13", "R25", "R14", 2, "P3")), ctl=C(1, y=True))
+        rd = Ins("@!P2 LEA R28, P4, R21, R26, 0x2 ;", g2(("R28", "P4"), ("lea", "R28", "R21", "R26", 2, "P4")), ctl=C(5), tag="C", dst=["R28", "P4"])
+        rh = Ins("@!P2 LEA.HI.X R29, R21, R27, R22, 0x2, P4 ;", g2(("R29",), ("leahi", "R29", "R21", "R27", "R22", 2, "P4")), ctl=C(1, y=True), tag="C", dst=["R29"])
+        b += [l1, fl(1), fl(1), fl(1), fl(1), fl(3, False), l2, fl(1), fl(1), fl(5, False), fl(2), cw, ch] + [PAD() for _ in range(pads)] + [rd, fl(1), rh]
+        lo, hi = "R28", "R29"
+    # the fold, behind a real wait on the barrier (unguarded: it drains the barrier in every iteration), relative to R2:R3
+    b += [PAD(), PAD(), PAD(),
+          Ins(f"IADD3 R30, PT, PT, {lo}, -R2, RZ ;", ("rsub", "R30", "R2", lo), ctl=C(wait=wbar + ("1" if share in ("ldg", "own") else "") + ("3" if share == "own" else ""))),
+          Ins(f"IADD3 R31, PT, PT, {hi}, -R3, RZ ;", ("rsub", "R31", "R3", hi)),
+          Ins("IMAD R10, R30, R5, R10 ;", ("mad", "R10", "R30", "R5", "R10")), Ins("IMAD R10, R31, R4, R10 ;", ("mad", "R10", "R31", "R4", "R10")),
+          Ins("IADD3 R10, PT, PT, R10, R4, RZ ;", ("add", "R10", "R10", "R4"))]
+    if form == "imad":      # (second build) the global load's register: word B where the load executed, the iteration's input elsewhere - read behind the fold's wait
+        b.append(Ins("IMAD R10, R7, 0x9e3779b1, R10 ;", ("mad", "R10", "R7", 0x9e3779b1, "R10")))
+    return b
+
+
+def gp_exec(req, gids):
+    """numpy bool per thread: does the READER execute in at least one iteration"""
+    import numpy as np
+    g, want = req["guards"], GP_FORMS[req["form"]][2]
+    gids = np.asarray(gids)
+    if g == "cnt":
+        return np.ones(len(gids), bool)
+    if g == "lane":      # the predicate is true where bit 1 of the lane is 0
+        return (((gids % 1024) >> 1) & 1 == 0) == bool(want)
+    return np.full(len(gids), g[1] == "t")
+
+
+def gp_text(r):
+    g = r["guards"]
+    return (f"a guarded wait under ANOTHER predicate (version 27), form {r['form']}: {GP_FORMS[r['form']][0]} - no wait of its own, distance = its load -> the reader; "
+            + (f"{GP_SHARE[r['share']]}; " if r["form"] == "imad" else "")
+            + ("the wait bit stands on the carrier" if r["wait"] == "guarded"
+               else "the POSITIVE CONTROL: the same text WITHOUT the carrier's wait bit (only the fold's own wait, 45 cycles and more behind the reader, drains the barrier)")
+            + "; which side executes: "
+            + ({"tt": "both, in every lane and iteration", "ft": "the READER's side only - the word that carries the wait never executes", "tf": "the carrier's side only - the reader never executes",
+                "ff": "neither"}.get(g) or ("bit 0 of the lane decides the carrier's side and bit 1 the reader's: all four combinations inside every warp" if g == "lane"
+                                            else "two bits of (iteration counter x 0x9e3779b1) decide: all four combinations over the iterations, the same in every lane"))
+            + ("; both predicates are set ONCE in the prologue" if r["pset"] == "pro" else "; both predicates are set in every iteration by two ISETP.GE.AND 13 and 12 cycles in front of the first load")
+            + "; the reader's result is DATA here (folded relative to the prologue's copy of the constant), never an address; stale = the reader took the pair's content from before its load")
+
+
 # ------------------------------------------------------------------------------------------------ kind reuse (version 20)
 # The operand-reuse flag. A 128-bit word has three flag bits - 122 (slot A) / 123 (slot B) / 124 (slot C); a slot IS its
 # flag bit (the vendor's census decides it 780 to 0 on the IMAD pair of forms). In the seven forms below - and in most
@@ -2493,6 +2818,8 @@ def prologue(req, ctas):
     addr = req["kind"] == "raw" and RAW_CONSUMERS[req["consumer"]][0] == "addr"
     if req["kind"] == "raw" and RAW_CONSUMERS[req["consumer"]][0] == "udata":
         p += [Ins("UMOV UR6, 0x0 ;", ("mov", "UR6", 0)), Ins("UMOV UR7, 0x0 ;", ("mov", "UR7", 0)), Ins("UMOV UR8, 0x0 ;", ("mov", "UR8", 0))]
+        if req["consumer"] in ("IADD.64.u2", "IADD.64.u2h"):      # version 27, third build
+            p += [Ins("MOV R24, RZ ;", ("mov", "R24", 0)), Ins("MOV R25, RZ ;", ("mov", "R25", 0)), Ins("MOV R26, RZ ;", ("mov", "R26", 0)), Ins("MOV R27, RZ ;", ("mov", "R27", 0))]
     if req["kind"] == "raw" and (req["producer"] == "SEL" or req["consumer"] == "SEL.r1"):
         p.append(Ins("ISETP.LT.U32.AND P2, PT, RZ, RZ, PT ;", ("mov", "P2", 0)))
     if req["kind"] == "war" and req["store"] == "STS.addr" and req["overwriter"] == "LDS":
@@ -2502,6 +2829,8 @@ def prologue(req, ctas):
               Ins("IADD3 R15, PT, PT, R15, 0x1, RZ ;", ("nop",), ctl=C(wait="5")), PAD()]
     if req["kind"] == "lb":      # version 26, third build
         p += lb_pro(req)
+    if req["kind"] == "gp":      # version 27
+        p += gp_pro(req)
     if addr:      # a stale ADDRESS must still be an address of the thread's own slot
         p += [Ins("IADD3 R6, PT, PT, R9, 0x20, RZ ;", ("add", "R6", "R9", 0x20)),
               Ins("IADD3 R13, PT, PT, R9, 0x20, RZ ;", ("add", "R13", "R9", 0x20))]
@@ -2653,11 +2982,23 @@ def model(req, mode, gids=None, scalar=False):
         body = body_gw(req, max(req["distance_list"]), "none")
     elif req["kind"] == "lb":       # version 26, third build
         body = body_lb(req, 15, "none")
+    elif req["kind"] == "gp":       # version 27
+        body = body_gp(req, max(req["distance_list"]), "none")
     else:
         body = body_raw(dict(req, via="stall"), 15, "none")
     if mode in ("drop1", "drop2"):      # mma: the first / the second MMA changed nothing in any iteration
         body = [i for i in body if i.tag != ("P" if mode == "drop1" else "C")]
         mode = "good"
+    if mode == "p0old":      # version 28, second build: every ISETP directly behind the shift of its source read the source's OLD content, in every iteration
+        b2, k_ = [], 0
+        while k_ < len(body):
+            if body[k_].tag == "PS" and k_ + 1 < len(body) and body[k_ + 1].sem[0] == "sge0":
+                b2 += [body[k_ + 1], body[k_]]
+                k_ += 2
+            else:
+                b2.append(body[k_])
+                k_ += 1
+        body, mode = b2, "good"
     pro = prologue(req, 188)
     if scalar and req["kind"] == "thr":      # version 26: one pass (the stage carries its own tail), the fold, x repeat
         return [(_scalar(int(g), pro, body, mode, tail=[], post=thr_post(req)) * int(req["repeat"])) & 0xFFFFFFFF for g in gids]
@@ -2734,6 +3075,28 @@ def model(req, mode, gids=None, scalar=False):
                 nib = (sem[3] >> (4 * k)) & 7
                 out |= ((pool >> np.uint64(8 * nib)) & np.uint64(0xFF)) << np.uint64(8 * k)
             R[sem[1]] = np.where((get(sem[5]) != 0) == bool(sem[6]), out.astype(U), get(sem[1])).astype(U)
+        elif op == "zero2u":        # version 27, third build: two uniform registers := 0 (a 64-bit CS2UR of SRZ)
+            R[sem[1]], R[sem[2]] = np.zeros(n, U), np.zeros(n, U)
+        elif op == "sub64u":        # version 27, third build: the pair R(d+1):Rd = (UR hi : UR lo) - R(c+1):Rc (mod 2^64)
+            v = ((get(sem[2]).astype(np.uint64) | (get(sem[3]).astype(np.uint64) << np.uint64(32)))
+                 - (get(sem[4]).astype(np.uint64) | (get(reg(sem[4], 1)).astype(np.uint64) << np.uint64(32))))
+            R[sem[1]] = (v & np.uint64(0xFFFFFFFF)).astype(U)
+            R[reg(sem[1], 1)] = (v >> np.uint64(32)).astype(U)
+        elif op == "g":             # version 27: a word under a guard - done where (predicate != 0) == sem[2]; elsewhere its destinations keep their content
+            m = (get(sem[1]) != 0) == bool(sem[2])
+            keep = {r_: get(r_) for r_ in sem[3]}
+            ex(sem[4])
+            for r_, v_ in keep.items():
+                R[r_] = np.where(m, get(r_), v_).astype(U)
+        elif op == "sge0":          # version 27: ISETP.GE against zero - the register as a signed 32-bit integer >= 0
+            R[sem[1]] = (get(sem[2]) < U(0x80000000)).astype(U)
+        elif op == "lea":           # version 27: Rd = Rb + (Ra << k); the predicate = the carry out of bit 31
+            v = get(sem[3]).astype(np.uint64) + ((get(sem[2]).astype(np.uint64) << np.uint64(sem[4])) & np.uint64(0xFFFFFFFF))
+            R[sem[1]] = (v & np.uint64(0xFFFFFFFF)).astype(U)
+            R[sem[5]] = (v >> np.uint64(32)).astype(U)
+        elif op == "leahi":         # version 27: Rd = Rb + the high word of ((Rc:Ra) << k) + the carry predicate
+            hi = ((get(sem[4]).astype(np.uint64) << np.uint64(sem[5])) | (get(sem[2]).astype(np.uint64) >> np.uint64(32 - sem[5]))) & np.uint64(0xFFFFFFFF)
+            R[sem[1]] = ((get(sem[3]).astype(np.uint64) + hi + (get(sem[6]) != 0).astype(np.uint64)) & np.uint64(0xFFFFFFFF)).astype(U)
         elif op == "bf16pack2":     # round to nearest even at bit 16, the same bf16 in both halves
             x = get(sem[2])
             h = ((x.astype(np.uint64) + np.uint64(0x7FFF) + ((x >> U(16)) & U(1)).astype(np.uint64)) >> np.uint64(16)) & np.uint64(0xFFFF)
@@ -2888,7 +3251,7 @@ def model(req, mode, gids=None, scalar=False):
 def _machine(gid):
     """one thread on Python integers -> (its registers, get, ex)"""
     M = 0xFFFFFFFF
-    R = {"R0": gid % 1024, "R1": gid // 1024, "R4": SEED, "R17": 0, "R19": 0, "RZ": 0, "R2": 0, "R3": 0}
+    R = {"R0": gid % 1024, "R1": gid // 1024, "R4": SEED, "R17": 0, "R19": 0, "RZ": 0, "R2": PTR_STANDIN[0], "R3": PTR_STANDIN[1]}
     mem, farmem, G = [0] * 16, [0] * 16, [0, 0]
 
     def get(x):
@@ -2944,6 +3307,26 @@ def _machine(gid):
             if bool(get(sem[5])) == bool(sem[6]):
                 pool = (get(sem[2]) | (get(sem[4]) << 32)).to_bytes(8, "little")
                 R[sem[1]] = int.from_bytes(bytes(pool[(sem[3] >> (4 * k)) & 7] for k in range(4)), "little")
+        elif op == "zero2u":        # version 27, third build
+            R[sem[1]], R[sem[2]] = 0, 0
+        elif op == "sub64u":        # version 27, third build
+            v = ((get(sem[2]) | (get(sem[3]) << 32)) - (get(sem[4]) | (get(reg(sem[4], 1)) << 32))) & 0xFFFFFFFFFFFFFFFF
+            R[sem[1]], R[reg(sem[1], 1)] = v & M, v >> 32
+        elif op == "g":             # version 27
+            m = bool(get(sem[1])) == bool(sem[2])
+            keep = {r_: get(r_) for r_ in sem[3]}
+            ex(sem[4])
+            if not m:
+                R.update(keep)
+        elif op == "sge0":          # version 27
+            R[sem[1]] = 1 if get(sem[2]) < 0x80000000 else 0
+        elif op == "lea":           # version 27
+            v = get(sem[3]) + ((get(sem[2]) << sem[4]) & M)
+            R[sem[1]] = v & M
+            R[sem[5]] = v >> 32
+        elif op == "leahi":         # version 27
+            hi = ((get(sem[4]) << sem[5]) | (get(sem[2]) >> (32 - sem[5]))) & M
+            R[sem[1]] = (get(sem[3]) + hi + (1 if get(sem[6]) else 0)) & M
         elif op == "bf16pack2":
             x = get(sem[2])
             h = ((x + 0x7FFF + ((x >> 16) & 1)) >> 16) & 0xFFFF
@@ -3106,6 +3489,8 @@ def modes_of(req):
         return ["good", "stale"]
     if req["kind"] == "lb":       # version 26, third build
         return ["good", "late"]
+    if req["kind"] == "gp":       # version 27 (a reader that never executes can show nothing; drop2 = the reader's result lost: the load landed behind its write)
+        return ["good"] if req["guards"] in ("tf", "ff") else ["good", "stale", "drop2"] if req["form"] == "imad" else ["good", "stale"]
     if req["kind"] == "mma":
         if str(req.get("variant", "")).startswith(("hold_", "sens_")):
             return ["good", "drop1"]
@@ -3118,6 +3503,9 @@ def modes_of(req):
         return ["good", "stale"] if req.get("writer") != "none" else ["good"]
     if req["kind"] == "raw" and RAW_CONSUMERS.get(req.get("consumer"), ("",))[0] in ("trel", "rel"):
         return ["good"]      # (version 24: X against a late Y of the same word - a stale X is `other`)
+    if req["kind"] == "ord" and req.get("pguard"):      # version 28: a set of which no producer ever executes can show nothing
+        import numpy as np
+        return (["good", "stale"] + (["p0old"] if req.get("pshift") == 1 else [])) if set_exec(req, np.arange(64)).any() else ["good"]
     return ["good", "stale"] if req["kind"] in ("raw", "ord") else ["good", "late", "overtake"]
 
 
@@ -3156,6 +3544,8 @@ def normalise(req):
             raise SystemExit(f"{r['id']}: {r['consumer']} has no result / salt field and no stg front (word B is the target of a store through a stale address)")
         if not raw_pair_ok(r["producer"], r["consumer"]):
             raise SystemExit(f"{r['id']}: {r['consumer']} takes a producer that brings a finite float ({', '.join(FLOAT_PRODUCERS)}; MUFU.RCP.r1: MOV.pow2)")
+        if r.get("pbar") not in (None, "set") or (r.get("pbar") and (r["producer"] not in ("CS2UR", "CS2UR.32") or r["consumer"] == "UIADD3.u1")):      # version 27, third build
+            raise SystemExit(f"{r['id']}: pbar is \"set\" (the producer CS2UR / CS2UR.32 carries write barrier 1 and the consumer MOV.u1 / IADD.64.u2 a wait on it - the shape of a text that trapped) or absent")
         if r.get("salt") not in (None, "set"):
             raise SystemExit(f"{r['id']}: salt is \"set\" (version 22: the iteration's input is added to the checksum behind the consumer) or absent")
         if r.get("result") not in (None, 0, 1) or (r.get("result") == 1 and (r["producer"] not in PAIR_PRODUCERS or r["consumer"] not in RESULT1_CONSUMERS)):
@@ -3202,6 +3592,24 @@ def normalise(req):
                 if is_set(r):      # version 23
                     set_plan(r)
                     r.setdefault("occupancy", ["w8", "w16"])
+                    if r.get("pguard") is not None:      # version 28
+                        pl_ = set_plan(r)
+                        if (not (isinstance(r["pguard"], str) and len(r["pguard"]) == 2 and all(c_ in SET_PG for c_ in r["pguard"]))
+                                or not {"g", "k"} <= {g_ for g_, _l, _r, _a in pl_} or any(l_ not in ("G", "Q", "B") or not g_ for g_, l_, _r, _a in pl_)
+                                or r["barrier"] != "all" or r.get("wait", "reader") not in ("reader", "end") or r.get("controls")
+                                or any(f_ not in ("none", "", None) for f_ in r.get("front", ["none"]))
+                                or not (r.get("rdist") is None or (isinstance(r["rdist"], int) and not isinstance(r["rdist"], bool) and 1 <= r["rdist"] <= 300))):
+                            raise SystemExit(f"{r['id']}: pguard (version 28) is two letters of t | f | l | c (P0 for the producers with prefix g, P2 for those with prefix k; both "
+                                             "prefixes occur, every producer is a guarded global load G | Q | B), with barrier all, no front, no ctl variant, wait reader | end (the "
+                                             "positive control), rdist 1 .. 300 or absent")
+                        if r.get("pshift") is not None and (r["pshift"] != 1 or r["pguard"][0] != "c" or isinstance(r["pshift"], bool)
+                                                            or sum(1 for g_, l_, _r, _a in pl_ if g_ == "g" and l_ == "Q") < 2):
+                            raise SystemExit(f"{r['id']}: pshift is 1 (second build: the FIRST build's text for P0 letter c on a set with more than one `gQ` - the shift one cycle in "
+                                             "front of the ISETP that reads it, not right by construction; it carries the hypothesis p0old) or absent")
+                        r.setdefault("wait", "reader")
+                        r["controls"] = False
+                    elif any(k_ in r for k_ in ("wait", "rdist")):
+                        raise SystemExit(f"{r['id']}: wait / rdist belong to a set request with pguard (version 28)")
                     if r.get("cold") not in (None, "set"):
                         raise SystemExit(f"{r['id']}: cold is \"set\" (third build: every global load of the set reads another never-written line of the output buffer) or absent")
                     if r.get("cold"):
@@ -3298,6 +3706,24 @@ def normalise(req):
             raise SystemExit(f"{r['id']}: reuse: distances {lo}..{hi} (the swept word's stall is 1..{hi - lo + 1}; with the yield flag at most 11)")
         r["controls"] = True
         r["control_distances"] = r["distances"]
+    elif r.get("kind") == "gp":       # version 27
+        r.setdefault("wait", "guarded")
+        r.setdefault("pset", "near")
+        if (r.get("form") not in GP_FORMS or r.get("guards") not in GP_GUARDS or r["pset"] not in ("pro", "near") or r["wait"] not in ("guarded", "end")
+                or (r["guards"] == "cnt" and r["pset"] != "near")):
+            raise SystemExit(f"{r['id']}: gp: form {' | '.join(GP_FORMS)}, guards {' | '.join(GP_GUARDS)}, pset pro | near (guards cnt: near), wait guarded | end")
+        if any(k in r for k in ("via", "control", "cell", "wanted", "front", "controls", "yield", "producer", "consumer")):
+            raise SystemExit(f"{r['id']}: gp: no via / control / cell / wanted / front / controls / yield / producer / consumer field (the request with wait end is the control)")
+        if r.get("form") == "imad":
+            r.setdefault("share", "ldg")
+        if (r["form"] == "imad" and r["share"] not in GP_SHARE) or (r["form"] != "imad" and "share" in r):
+            raise SystemExit(f"{r['id']}: gp: share {' | '.join(GP_SHARE)} (form imad only)")
+        r.setdefault("distances", ("3-10,12,17,33" if r["share"] == "ldc" else "4-10,12,17,33") if r["form"] == "imad" else "12-18,22,26,33")
+        for d_ in parse_distances(r["distances"]):
+            if gp_layout(r, d_) is None:
+                raise SystemExit(f"{r['id']}: gp: distance {d_} cannot be built (form imad: from 4, with share ldc from 3; form lea: from 12)")
+        r.setdefault("occupancy", ["w1", "w8", "w32"])
+        r["front"] = ["none"]
     elif r.get("kind") == "lb":       # version 26, third build
         if r.get("control") not in (None, "front") or r.get("yield") not in (None, "set") or (r.get("control") and r.get("yield")):
             raise SystemExit(f"{r['id']}: lb: control is \"front\" or absent, yield is \"set\" or absent (not on the control)")
@@ -3344,7 +3770,7 @@ def normalise(req):
             raise SystemExit(f"{r['id']}: thr: its kernels declare {THR_REGS + 8} registers; grids {', '.join(THR_OCC)}")
         r["front"] = ["none"]
     else:
-        raise SystemExit(f"{r.get('id')}: kind must be raw, war, ord, mma, reuse, thr, gw or lb")
+        raise SystemExit(f"{r.get('id')}: kind must be raw, war, ord, mma, reuse, thr, gw, lb or gp")
     if r.get("yield") not in (None, "set") or (r.get("yield") and not ((r["kind"] in ("raw", "mma") and r.get("via") == "stall") or (r["kind"] == "ord" and r.get("nload")) or r["kind"] in ("gw", "lb"))):
         raise SystemExit(f"{r['id']}: yield is \"set\" (the swept instruction of a raw / mma request, via stall, or the loads of an N-load request carry the yield flag) or absent")
     if r.get("cold") and not is_set(r):
@@ -3374,6 +3800,8 @@ def pair_text(r):
         return gw_text(r)
     if r["kind"] == "lb":       # version 26, third build
         return lb_text(r)
+    if r["kind"] == "gp":       # version 27
+        return gp_text(r)
     if r["kind"] == "reuse":
         return (f"operand-reuse flag, slot {r['slot']}: {r['flagged']} reads R6 with `.reuse`; {REUSE_WRITERS[r['writer']]}; the reader {r['reader']} of R6 "
                 f"{r['words']} word(s) behind the " + ("flagged word" if r["writer"] == "none" else "write")
@@ -3399,12 +3827,14 @@ def pair_text(r):
     if r["kind"] == "ord" and r.get("forms"):
         names = SET_NAMES
         toks = [x.strip() for x in str(r["forms"]).split(",")]
-        what = " ".join(("@true " if (t[:1] == "g" and len(t) > 1) else "@false " if t[:1] == "f" else "") + names[t[-1]] for t in toks)
+        pgd = r.get("pguard")      # version 28
+        what = " ".join((("@P0 " if pgd else "@true ") if (t[:1] == "g" and len(t) > 1) else "@P2 " if (t[:1] == "k" and len(t) > 1) else "@false " if t[:1] == "f" else "") + names[t[-1]] for t in toks)
         return ((f"a SET of {len(toks)} producers of one thread in flight (version 23: R0-R79), oldest first: {what}; ONE wait of the reader ("
                  if is_set(r) else f"{len(toks)} shared loads of MIXED forms of one thread in flight, oldest first: {what}; ONE wait of the reader (")
                 + ("the thread's own line, one base register" if r["place"] == "near" else "the thread's own line, every second load through another base register") + "; "
                 + {"last": "only the youngest load carries the write barrier", "all": "every load on the SAME write barrier",
-                   "none": "POSITIVE CONTROL: no barrier and no wait - expect 0 % good"}[r["barrier"]] + ")")
+                   "none": "POSITIVE CONTROL: no barrier and no wait - expect 0 % good"}[r["barrier"]] + ")"
+                + (set_pg_text(r) if pgd else ""))
     if r["kind"] == "ord" and r.get("nload"):
         where = {"near": "words of the thread's own line, one base register", "base2": "words of the thread's own line, every second load through another base register",
                  "far": "words >= 1 KB apart in the CTA's shared memory"}[r["place"]]
@@ -3561,7 +3991,7 @@ def cmd_gen(args):
                     dl = r["distance_list"] if v in ("bare", "raw") else parse_distances(r["control_distances"])
                     for dist in dl:
                         name = f"{r['id']}_{v}_{occ}_{front_id(front)}_d{dist:04d}"
-                        body = (body_thr(r, dist, front) if r["kind"] == "thr" else body_gw(r, dist, front) if r["kind"] == "gw" else body_lb(r, dist, front) if r["kind"] == "lb" else body_reuse(r, dist, front, v) if r["kind"] == "reuse"
+                        body = (body_thr(r, dist, front) if r["kind"] == "thr" else body_gw(r, dist, front) if r["kind"] == "gw" else body_lb(r, dist, front) if r["kind"] == "lb" else body_gp(r, dist, front) if r["kind"] == "gp" else body_reuse(r, dist, front, v) if r["kind"] == "reuse"
                                 else body_raw(r, dist, front) if r["kind"] == "raw" else body_ord(rk, dist, front, v) if r["kind"] == "ord"
                                 else body_mma(r, dist, front) if r["kind"] == "mma"
                                 else body_war(r, dist, front, v))
@@ -3614,6 +4044,18 @@ def cmd_gen(args):
                 raise SystemExit(f"{r['id']}: the vectorised model and the scalar interpreter disagree in mode {mode}")
         if (r["kind"] == "raw" or is_set(r)) and float((cand["good"] == 0).mean()) > 0.01:      # version 22 (version 23: a set too)
             raise SystemExit(f"{r['id']}: the checksum of `good` is 0 in {100 * float((cand['good'] == 0).mean()):.0f} % of the threads - a kernel that never ran would pass; give the request the field salt = set")
+        if r["kind"] == "gp":       # version 27
+            ex_ = gp_exec(r, np.arange(len(cand["good"])))
+            for m_ in cand:
+                if m_ != "good" and not np.array_equal(cand["good"] != cand[m_], ex_):
+                    raise SystemExit(f"{r['id']}: hypothesis {m_} does not differ from `good` in exactly the threads whose reader executes - the probe could not see it there")
+            if float((cand["good"] == 0).mean()) > 0.01:
+                raise SystemExit(f"{r['id']}: the checksum of `good` is 0 in too many threads - a kernel that never ran would pass")
+        if r["kind"] == "ord" and r.get("pshift") == 1 and not (cand["good"] != cand["p0old"]).all():      # version 28, second build
+            raise SystemExit(f"{r['id']}: the hypothesis p0old gives the checksum of `good` in some thread - the request could not prove the reading there")
+        if r["kind"] == "ord" and r.get("pguard") and "stale" in cand:      # version 28
+            if not np.array_equal(cand["good"] != cand["stale"], set_exec(r, np.arange(len(cand["good"])))):
+                raise SystemExit(f"{r['id']}: the hypothesis stale does not differ from `good` in exactly the threads in which a producer of the set executes - the probe could not see it there")
         if r["kind"] == "lb" and not (cand["good"] != cand["late"]).all():       # version 26, third build
             raise SystemExit(f"{r['id']}: a late read of the base gives the checksum of `good` in some thread - the probe could not see it there")
         if r["kind"] == "gw" and not (cand["good"] != cand["stale"]).all():      # version 26, second build
@@ -4221,6 +4663,8 @@ def cmd_list(_args):
         print(f"  writer {k:6s} {v}")
     print("  \"words\": 1..5 = the reader k words behind the write (fillers \"fill\": clean | other); \"fstall\": 1 | 2; \"chain\": true = the reader flagged too; \"window_yield\": set | none; "
           "\"between\": " + " | ".join(f"{k} ({v})" for k, v in REUSE_BETWEEN.items() if k) + "; variants bare (the flag) and ctl (no flag)")
+    print("kind gp (version 27) - a guarded wait under ANOTHER predicate (two LDC.64 under two predicates on one barrier; the wait on a word under the first, the reader under the second): "
+          "\"form\": " + " | ".join(GP_FORMS) + "; \"guards\": " + " | ".join(GP_GUARDS) + "; \"pset\": pro | near; \"wait\": guarded | end (the control); form imad \"share\": " + " | ".join(GP_SHARE))
     print("kind lb (version 26, third build) - the BASE register of a load rewritten by a younger load of the same pipe (LDS R6, [R13+0x4] <- LDS R13, [R13+0x3c]); \"control\": \"front\"; \"yield\": \"set\"")
     print("kind gw (version 26, second build) - a WAIT carried by a word under a guard: producer " + " | ".join(GW_PRODUCERS) + "; \"wait\": guarded | none | end (fourth build: one wait at the end of the iteration - the floor by distance alone); \"guard\": bit | false; \"yield\": \"set\"")
     print("kind thr (version 26) - a THROUGHPUT probe: the time of a synthetic stage loop with tensor words; \"stage\", \"repeat\" (odd); the slot in the distance slot:")
@@ -5015,6 +5459,79 @@ def cmd_selftest(_args):
     assert smem_of({"id": "x", "kind": "ord", "nload": 8, "place": "far"}, "c2w9s") == 49152 and smem_of({"id": "x", "kind": "ord", "nload": 8, "place": "far"}, "w32") == 98304
     assert smem_of({"id": "x", "kind": "ord", "nload": 8, "place": "far"}, "c4w8") == 24576
     assert far_layout(288) == (18432, 1280) and far_layout(1024) == (65536, 4096) and far_layout(32) == (2048, 1024)
+    # version 27 - kind gp: the shape of the body at every distance (the kernel's stalls at its own distance), every hypothesis against the scalar interpreter, refusals
+    for form_ in GP_FORMS:
+        wb_, want_ = str(GP_FORMS[form_][1]), GP_FORMS[form_][2]
+        for gd_ in GP_GUARDS:
+            for ps_ in ("pro", "near"):
+                if gd_ == "cnt" and ps_ == "pro":
+                    continue
+                for wt_, sh_ in [(w_, x_) for w_ in ("guarded", "end") for x_ in ((None,) if form_ == "lea" else tuple(GP_SHARE))]:
+                    rp_ = normalise(dict({"id": "xx", "kind": "gp", "form": form_, "guards": gd_, "pset": ps_, "wait": wt_}, **({"share": sh_} if sh_ else {})))
+                    wb2_ = "3" if sh_ == "own" else wb_
+                    for dd in rp_["distance_list"]:
+                        bp_ = body_gp(rp_, dd)
+                        ip, iw = next(k for k, a in enumerate(bp_) if a.tag == "P"), next(k for k, a in enumerate(bp_) if a.tag == "W")
+                        ics = [k for k, a in enumerate(bp_) if a.tag == "C"]
+                        assert st_(bp_, ip, ics[0]) == dd and ip < iw < ics[0] and len(ics) == (1 if form_ == "imad" else 2), (form_, gd_, ps_, wt_, dd)
+                        assert st_(bp_, ip, iw) == (2 if form_ == "imad" else 10) and (form_ == "imad" or st_(bp_, ics[0], ics[1]) == 6)
+                        assert (("B" + "-" * int(wb_) + wb_) in bp_[iw].ctl) == (wt_ == "guarded") and f"W{wb2_}" in bp_[ip].ctl and f"W{wb_}" in bp_[ip - (1 if form_ == "imad" else 6)].ctl
+                        assert sh_ != "own" or bp_[iw].ctl.startswith("[B0--3--" if wt_ == "guarded" else "[B------")
+                        igs = [k for k, a in enumerate(bp_) if a.tag == "G"]
+                        assert all("B------" in bp_[k].ctl for k in ics) and all(":W-:" in a.ctl for k, a in enumerate(bp_) if k > ip and k not in igs)
+                        if sh_ in ("ldg", "own"):      # the kernel's global load: under the FIRST predicate, read barrier 1, write barrier 0, ONE cycle in front of the reader, a safe address
+                            assert igs == [ics[0] - 1] and bp_[igs[0]].text == "@P0 LDG.E.CONSTANT R7, desc[UR4][R18.64] ;" and bp_[igs[0]].ctl == "[B------:R1:W0:Y:S01]"
+                        else:
+                            assert not igs and not any("LDG" in a.text for a in bp_)
+                        guard_ = "@P" if want_ else "@!P"
+                        assert bp_[iw].text.startswith(guard_ + "0 ") and all(bp_[k].text.startswith(guard_ + "2 ") for k in ics + [ip]) and bp_[ip].text.split()[1] == "LDC.64"
+                        drains = [k for k, a in enumerate(bp_) if ("B" + "-" * int(wb_) + wb_) in a.ctl and a.tag is None]
+                        assert len(drains) == 1 and drains[0] > ics[-1] and st_(bp_, ics[-1], drains[0]) >= 46 and bp_[drains[0]].text.startswith("IADD3 R30") and not bp_[drains[0]].text.startswith("@")
+                        assert bp_[drains[0]].ctl[:9] == {None: "[B----4-:", "ldc": "[B0-----:", "ldg": "[B01----:", "own": "[B01-3--:"}[sh_]
+                        assert all(("Y" in a.ctl.split(":")[3]) <= (int(a.ctl[-3:-1]) <= 11) for a in bp_) and not misaligned(kernel_text("x", rp_, 188, bp_))
+                        assert not any(("R24" in a.text or "R25" in a.text or (form_ == "lea" and ("R6," in a.text or "R7," in a.text))) and k > ics[-1]
+                                       for k, a in enumerate(bp_) if a.tag is None), "the carrier's result is never folded"
+                        if dd == (8 if form_ == "imad" else 17):      # the kernel's own control fields at the kernel's distance
+                            ctl_ = [a.ctl for a in bp_[ip - (1 if form_ == "imad" else 6):ics[-1] + 1]]
+                            kern_ = (["[B------:R-:W0:Y:S08]", f"[B------:R-:W{wb2_}:Y:S02]", "[B0--3--:R-:W-:-:S05]" if sh_ == "own" else "[B0-----:R-:W-:-:S05]",
+                                      "[B------:R-:W-:Y:S01]" if sh_ == "ldc" else "[B------:R1:W0:Y:S01]", "[B------:R-:W-:-:S05]"] if form_ == "imad" else
+                                     ["[B------:R-:W4:Y:S01]", "[B------:R-:W-:Y:S01]", "[B------:R-:W-:Y:S01]", "[B------:R-:W-:Y:S01]", "[B------:R-:W-:Y:S01]", "[B------:R-:W-:-:S03]",
+                                      "[B------:R-:W4:Y:S01]", "[B------:R-:W-:Y:S01]", "[B------:R-:W-:Y:S01]", "[B------:R-:W-:-:S05]", "[B------:R-:W-:Y:S02]", "[B----4-:R-:W-:-:S06]",
+                                      "[B------:R-:W-:Y:S01]", "[B------:R-:W-:-:S05]", "[B------:R-:W-:Y:S01]", "[B------:R-:W-:Y:S01]"])
+                            if wt_ == "end":
+                                kern_ = [c_.replace("[B0-----", "[B------").replace("[B0--3--", "[B------").replace("[B----4-", "[B------") for c_ in kern_]
+                            assert ctl_ == kern_, (form_, wt_, ctl_)
+                        if ps_ == "near":
+                            assert bp_[ip - (3 if form_ == "imad" else 8)].text.startswith("ISETP.GE.AND P0") and bp_[ip - (2 if form_ == "imad" else 7)].text.startswith("ISETP.GE.AND P2")
+                            assert bp_[ip - (3 if form_ == "imad" else 8)].ctl.endswith("Y:S01]") and bp_[ip - (2 if form_ == "imad" else 7)].ctl.endswith("-:S12]")
+                        else:
+                            assert not any(a.text.startswith("ISETP") for a in bp_)
+                    assert modes_of(rp_) == (["good"] if gd_ in ("tf", "ff") else ["good", "stale", "drop2"] if form_ == "imad" else ["good", "stale"])
+                    ex_ = gp_exec(rp_, gids)
+                    mg_ = model(rp_, "good", gids=gids)
+                    assert [int(x) for x in mg_] == model(rp_, "good", gids=gids, scalar=True) and (mg_ != 0).all(), (form_, gd_, ps_, wt_)
+                    n += 1
+                    for m_ in modes_of(rp_)[1:]:
+                        mv_ = model(rp_, m_, gids=gids)
+                        assert [int(x) for x in mv_] == model(rp_, m_, gids=gids, scalar=True) and np.array_equal(mg_ != mv_, ex_), (form_, gd_, ps_, wt_, m_)
+                        n += 1
+                    # the control computes what the guarded text computes (the wait bit is not part of the model); own == ldg (the barrier is not part of it either)
+                    assert np.array_equal(mg_, model(normalise(dict({"id": "xx", "kind": "gp", "form": form_, "guards": gd_, "pset": ps_}, **({"share": "ldg" if sh_ == "own" else sh_} if sh_ else {}))), "good", gids=gids))
+            # where the predicates are set does not change what is computed
+            if gd_ != "cnt":
+                assert np.array_equal(model(normalise({"id": "xx", "kind": "gp", "form": form_, "guards": gd_, "pset": "pro"}), "good", gids=gids),
+                                      model(normalise({"id": "xx", "kind": "gp", "form": form_, "guards": gd_, "pset": "near"}), "good", gids=gids))
+        # neither side executes: every pair keeps what the front wrote; both sides execute in every thread with tt
+        assert gp_exec(normalise({"id": "xx", "kind": "gp", "form": form_, "guards": "tt"}), gids).all() and not gp_exec(normalise({"id": "xx", "kind": "gp", "form": form_, "guards": "tf"}), gids).any()
+        assert 0 < int(gp_exec(normalise({"id": "xx", "kind": "gp", "form": form_, "guards": "lane"}), np.arange(64)).sum()) == 32
+    for bad in ({"form": "x", "guards": "tt"}, {"form": "imad", "guards": "t"}, {"form": "imad", "guards": "cnt", "pset": "pro"}, {"form": "imad", "guards": "tt", "wait": "none"},
+                {"form": "imad", "guards": "tt", "distances": "2"}, {"form": "lea", "guards": "tt", "distances": "8"}, {"form": "lea", "guards": "tt", "yield": "set"},
+                {"form": "imad", "guards": "tt", "distances": "3"}, {"form": "imad", "guards": "tt", "share": "x"}, {"form": "lea", "guards": "tt", "share": "ldc"}):
+        try:
+            normalise(dict({"id": "xx", "kind": "gp"}, **bad))
+            raise AssertionError(bad)
+        except SystemExit:
+            pass
     # version 26, third build - kind lb: the distance older -> younger, the control's shape, both hypotheses against the scalar interpreter
     for extra in ({}, {"yield": "set"}, {"control": "front"}):
         rl_ = normalise(dict({"id": "xx", "kind": "lb"}, **extra))
@@ -5120,6 +5637,129 @@ def cmd_selftest(_args):
             raise AssertionError(mut)
         except SystemExit:
             pass
+    # version 28 - a set under two predicates
+    s17_ = "gQ,gB,gQ,gB,gQ,gB,gQ,gB,gQ,gB,gQ,gB,gQ,gB,gQ,gB,kG"
+    for forms in ("gQ,kG", s17_, "gQ,gB,gQ,gB,gQ,gB,gQ,gB,kG", "gB,kG", "gQ,kG,gQ,gB,kG"):
+        toks_ = forms.split(",")
+        nagain = sum(1 for k_, t_ in enumerate(toks_) if t_ == "gQ" and any(x_[:1] == "g" for x_ in toks_[:k_]))
+        for pg_ in ("tt", "tf", "ft", "ff", "ll", "cc", "lt", "fl", "tc"):
+            for cold_ in ((None, "set") if forms.count("G") == 1 else (None,)):
+                base_ = dict({"id": "xx", "kind": "ord", "forms": forms, "barrier": "all", "yield": "set", "pguard": pg_, "occupancy": ["w8", "c2w9s"]}, **({"cold": cold_} if cold_ else {}))
+                rq = normalise(base_)
+                assert is_set(rq) and rq["controls"] is False and rq["wait"] == "reader", (forms, pg_)
+                ex_ = set_exec(rq, gids)
+                assert modes_of(rq) == (["good"] if pg_ == "ff" else ["good", "stale"]), (forms, pg_)
+                g = model(rq, "good", gids=gids)
+                assert [int(x) for x in g] == model(rq, "good", gids=gids, scalar=True) and (g != 0).all(), (forms, pg_, cold_)
+                PTR_STANDIN[:] = [0x1234567, 0x89abcde]      # (no term of a fold may be the pointer the host model does not know)
+                try:
+                    assert [int(x) for x in g] == model(rq, "good", gids=gids, scalar=True), (forms, pg_, cold_)
+                finally:
+                    PTR_STANDIN[:] = [0, 0]
+                n += 1
+                if pg_ != "ff":
+                    st_ = model(rq, "stale", gids=gids)
+                    assert [int(x) for x in st_] == model(rq, "stale", gids=gids, scalar=True) and np.array_equal(g != st_, ex_), (forms, pg_, cold_)
+                    n += 1
+                else:
+                    assert not ex_.any()
+                if pg_ == "tt":      # the anchor: both predicates true = the same set under ONE true guard (version 23)
+                    old_ = normalise(dict({"id": "xx", "kind": "ord", "forms": forms.replace("k", "g"), "barrier": "all", "yield": "set", "occupancy": ["w8", "c2w9s"]},
+                                          **({"cold": cold_} if cold_ else {})))
+                    assert np.array_equal(g, model(old_, "good", gids=gids)), (forms, cold_)
+                ref_ = None
+                for wt_, rd_ in (("reader", None), ("end", None), ("reader", 4), ("reader", 12), ("reader", 129), ("end", 129)):
+                    rv = normalise(dict(base_, wait=wt_, **({"rdist": rd_} if rd_ else {})))
+                    for d_ in (1, 4):
+                        body = body_ord(rv, d_, "none", "bare")
+                        prods, snaps = [a for a in body if a.tag == "P"], [a for a in body if a.tag == "C"]
+                        assert len(prods) == len(toks_) and all(a.ctl[12:14] == "W1" and ":Y:S" in a.ctl and a.ctl[1:8] == "B------" for a in prods), (forms, pg_)
+                        assert all(a.text.startswith("@P0 " if t_[0] == "g" else "@P2 ") and a.sem[0] == "g" and a.sem[1] == ("P0" if t_[0] == "g" else "P2") and a.sem[2] == 1
+                                   and list(a.sem[3]) == list(a.dst) for a, t_ in zip(prods, toks_)), (forms, pg_)
+                        assert all(a.ctl[-4:] == f"S{d_:02d}]" for a in prods[:-1]), (forms, pg_)
+                        # the reader's distance behind the last arming = the last producer's stall + the fillers up to the first reader word
+                        i0, i1 = body.index(prods[-1]), body.index(snaps[0])
+                        assert all(a.sem == ("nop",) and a.ctl[1:8] == "B------" for a in body[i0 + 1:i1]), (forms, pg_)
+                        assert sum(int(a.ctl[-3:-1]) for a in body[i0:i1]) == (rd_ or 2) and int(prods[-1].ctl[-3:-1]) <= 11, (forms, pg_, rd_)
+                        # ONE wait in the whole body: on the first reader word, or (the control) on the first word behind the reader words
+                        waits = [k_ for k_, a in enumerate(body) if a.ctl[1:8] != "B------"]
+                        ilast = body.index(snaps[-1])
+                        assert waits == [i1 if wt_ == "reader" else ilast + 1] and body[waits[0]].ctl[1:8] == "B-1----", (forms, pg_, wt_, waits)
+                        assert wt_ == "reader" or (body[ilast + 1].sem == ("nop",) and body[ilast + 1].text.startswith("IADD3 R15,")), (forms, pg_)
+                        assert all(a.ctl[-4:] == "S01]" for a in snaps), (forms, pg_)
+                        # the predicates: P2 once, P0 once and again in front of every further gQ; each guarded load >= 13 cycles behind the ISETP of its predicate
+                        ip0 = [k_ for k_, a in enumerate(body) if a.text.startswith("ISETP.GE.AND P0,")]
+                        ip2 = [k_ for k_, a in enumerate(body) if a.text.startswith("ISETP.GE.AND P2,")]
+                        assert len(ip0) == 1 + nagain and len(ip2) == 1 and ip0[0] < ip2[0] < body.index(prods[0]), (forms, pg_)
+                        # (second build) every ISETP stands >= 6 issue cycles behind the last writer of its source register - the check the first build lacked
+                        lastw, now_ = {}, 0
+                        for a in body:
+                            ms_ = re.match(r"ISETP\.GE\.AND P[02], PT, (R\d+), RZ, PT ;", a.text)
+                            if ms_:
+                                assert ms_.group(1) in lastw and now_ - lastw[ms_.group(1)] >= 6, (forms, pg_, a.text, now_ - lastw.get(ms_.group(1), -999))
+                            mw_ = re.match(r"(?:MOV|SHF\.L\.U32|IMAD) (R7|R14),", a.text)
+                            if mw_:
+                                lastw[mw_.group(1)] = now_
+                            now_ += int(a.ctl[-3:-1])
+                        # (second build) between the pairs P0 is written right behind the last load in front of it (the kernel's place) and 13 cycles in front of the next load
+                        for k_ in ip0[1:]:
+                            assert body[k_ - 1].tag == "P" and sum(int(x.ctl[-3:-1]) for x in body[k_:next(q_ for q_ in range(k_, len(body)) if body[q_].tag == "P")]) == 13, (forms, pg_)
+                        for a, t_ in zip(prods, toks_):
+                            ia = body.index(a)
+                            isrc = max(k_ for k_ in (ip0 if t_[0] == "g" else ip2) if k_ < ia)
+                            assert sum(int(x.ctl[-3:-1]) for x in body[isrc:ia]) >= 13, (forms, pg_, t_)
+                        # nothing but the predicate words touches R7 / R14; nothing writes an address register, a reference or the loop's registers
+                        for a in body:
+                            if re.search(r"(?<![UA-Za-z0-9])R(7|14)(?![0-9])", a.text):
+                                assert a.text.startswith(("MOV R7, ", "MOV R14, ", "SHF.L.U32 R7, ", "SHF.L.U32 R14, ", "IMAD R7, R11, ", "IMAD R14, R11, ", "ISETP.GE.AND P")), a.text
+                        wr = set()
+                        for a in body:
+                            m_ = re.match(r"(?:@P[02] )?\S+ (?:PT, )?R(\d+)", a.text)
+                            if m_ and not a.text.startswith(("STS", "STG", "ISETP")):
+                                wr.add(int(m_.group(1)))
+                        assert not (wr & {0, 1, 2, 3, 4, 5, 9, 11, 16, 17, 18, 19, 20, 21, 22, 23, SET_MSRC, SET_MREF, SET_ABASE, SET_ABASE + 1, SET_CBASE + 1}), (forms, sorted(wr))
+                        text = kernel_text("selftest_x", dict(rv, _threads=256), 188, body, 49152)
+                        assert misaligned(text) == [] and "    .reg R0-R79\n    .regcount 88\n" in text, forms
+                        assert max(int(x) for x in re.findall(r"(?<![UA-Za-z])R(\d+)", text.split(".shared")[1])) <= SET_REGS - 1, forms
+                        if (wt_, rd_) == ("reader", None):
+                            ref_ = ref_ or {}
+                            ref_[d_] = body
+                        elif (wt_, rd_) == ("end", None):      # the control = the test but for two control codes: the reader's wait bit and the word behind the reader words
+                            rb_ = ref_[d_]
+                            assert len(rb_) == len(body) and all(a.text == c.text and a.sem == c.sem for a, c in zip(rb_, body)), (forms, pg_)
+                            assert [k_ for k_, (a, c) in enumerate(zip(rb_, body)) if a.ctl != c.ctl] == [i1, ilast + 1], (forms, pg_)
+    for bad in ({"forms": "gQ,kG"}, {"forms": "gQ,gG", "pguard": "tt"}, {"forms": "gQ,kG", "pguard": "tx"}, {"forms": "gQ,kG", "pguard": "t"}, {"forms": "gQ,kG", "pguard": "tt", "barrier": "none"},
+                {"forms": "gQ,kG", "pguard": "tt", "wait": "none"}, {"forms": "gQ,kG", "pguard": "tt", "controls": True}, {"forms": "gQ,kG", "pguard": "tt", "rdist": 0},
+                {"forms": "gQ,kG", "pguard": "tt", "rdist": 301}, {"forms": "gQ,gG", "wait": "end"}, {"forms": "gQ,gG", "rdist": 4}, {"forms": "gQ,kc", "pguard": "tt"},
+                {"forms": "gQ,kG,Q", "pguard": "tt"}, {"forms": "gQ,kG", "pguard": "tt", "front": ["sts128x15@4"]}, {"forms": "gQ,kG,kG", "pguard": "tt", "cold": "set"}):
+        try:
+            normalise(dict({"id": "xx", "kind": "ord", "barrier": "all", "yield": "set"}, **bad))
+            raise AssertionError(f"a request that must be refused was taken: {bad}")
+        except SystemExit:
+            pass
+    # (second build) "pshift": 1 = the first build's text and the hypothesis p0old
+    for forms in (s17_, "gQ,kG,gQ,gB,kG"):
+        rx = normalise({"id": "xx", "kind": "ord", "forms": forms, "barrier": "all", "yield": "set", "pguard": "cc", "pshift": 1, "occupancy": ["w8", "c2w9s"]})
+        rf = normalise({"id": "xx", "kind": "ord", "forms": forms, "barrier": "all", "yield": "set", "pguard": "cc", "occupancy": ["w8", "c2w9s"]})
+        assert modes_of(rx) == ["good", "stale", "p0old"] and modes_of(rf) == ["good", "stale"], forms
+        bx, bf = body_ord(rx, 4, "none", "bare"), body_ord(rf, 4, "none", "bare")
+        ps_ = [k_ for k_, a in enumerate(bx) if a.tag == "PS"]
+        assert ps_ and all(bx[k_].ctl[-4:] == "S01]" and bx[k_ + 1].text.startswith("ISETP.GE.AND P0,") and bx[k_ + 1].ctl[-4:] == "S13]" for k_ in ps_), forms
+        pf_ = [k_ for k_, a in enumerate(bf) if a.tag == "PS"]
+        assert len(pf_) == len(ps_) and bf[pf_[0]].ctl[-4:] == "S15]" and all(bf[k_].ctl[-4:] == "S12]" and bf[k_ - 1].text.startswith("ISETP.GE.AND P0,") and bf[k_ - 1].ctl[-4:] == "S01]" for k_ in pf_[1:]), forms
+        # the model does not see timing: both texts have the same `good`; p0old differs from it in every thread
+        g, o_ = model(rx, "good", gids=gids), model(rx, "p0old", gids=gids)
+        assert np.array_equal(g, model(rf, "good", gids=gids)) and [int(x) for x in o_] == model(rx, "p0old", gids=gids, scalar=True) and (g != o_).all(), forms
+        assert np.array_equal(model(rx, "stale", gids=gids), model(rf, "stale", gids=gids)), forms
+        n += 1
+    for bad in ({"forms": "gQ,kG", "pguard": "cc", "pshift": 1}, {"forms": s17_, "pguard": "tc", "pshift": 1}, {"forms": s17_, "pguard": "cc", "pshift": 2}, {"forms": s17_, "pshift": 1}):
+        try:
+            normalise(dict({"id": "xx", "kind": "ord", "barrier": "all", "yield": "set"}, **bad))
+            raise AssertionError(f"a request that must be refused was taken: {bad}")
+        except SystemExit:
+            pass
+    assert set_rdist({"rdist": 129}, True, 2) == (11, [15] * 7 + [13]) and set_rdist({"rdist": 129}, False, 2) == (15, [15] * 7 + [9]) and set_rdist({}, True, 2) == (2, [])
+    assert set_rdist({"rdist": 12}, True, 2) == (11, [1]) and set_rdist({"rdist": 11}, True, 2) == (11, []) and set_rdist({"rdist": 26}, True, 2) == (11, [15])
     print(f"selftest: {n} (pair, hypothesis) models equal the scalar interpreter on {len(gids)} threads; `good` differs from every failure hypothesis")
     return 0
 
