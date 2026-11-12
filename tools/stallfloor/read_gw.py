@@ -4,9 +4,11 @@
     read_gw.py <batch dir> [<batch dir of another run> ...] [--json out.json]
 
 Per request: the thread-launches NOT right / all per distance, summed over the grids, the classes seen, the floor of every
-series (grid) and the binding floor; a request with `wait: none` is the positive control of its guarded twin and the floor
-of producer -> reader by distance alone.  A guarded request "holds" at a distance only where its twin WITHOUT any wait is
-not right at that distance (else the distance alone would have done it)."""
+series (grid) and the binding floor; a request with `wait: none` is the positive control of its guarded twin (it never
+waits the producer's barrier: NOT a floor by distance - `wait: end` with the guard false in every iteration gives what
+distance alone gives; with the guard a bit of the counter a request without the guarded wait is not right by construction:
+its `@P4 PRMT` executes without a wait where the guard is true).  A guarded request "holds" at a distance only where its
+twin WITHOUT any wait is not right at that distance."""
 import json
 import pathlib
 import sys
@@ -80,7 +82,7 @@ def main():
             held = all(r["by_distance"][d]["not_right"] == 0 for d in r["by_distance"])
             print(f"   {rid}: " + "; ".join(row))
             print(f"      -> the guarded wait is right at EVERY distance: {'YES' if held else 'NO'}; the control is not right at the distances {shown} "
-                  f"(there the wait is what made the reader right); control floor by distance alone: {tw['binding']}")
+                  f"(there the wait is what made the reader right); the control's own floor: {tw['binding']} (it never waits the barrier: not a floor by distance)")
     if "--json" in a:
         pathlib.Path(a[a.index("--json") + 1]).write_text(json.dumps(J, indent=1) + "\n")
     return 0
