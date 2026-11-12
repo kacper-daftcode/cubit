@@ -48,9 +48,9 @@
 //!   `wide_operand_uses`) — a guarded instruction one cycle behind its `LOP3` gives wrong bits
 //!   (ptxas: 13), a load one cycle behind the `LEA.HI.X` of its address faults (ptxas: 5);
 //! * **law — a reader holds its operands against a fast overwriter** (`hold_need`, a
-//!   write-after-read distance no barrier covers): an MMA its source registers for 8 cycles
-//!   (wrong bits at 2 and at 4, identical at 6), a uniform-datapath instruction its uniform
-//!   operands for 3 against a `UMOV` (a fault at 1 and at 2);
+//!   write-after-read distance no barrier covers): an MMA its source registers for 8 cycles (a
+//!   register of its A or B fragment: wrong bits at 2 and at 4, identical at 6; of its accumulator:
+//!   wrong at 7), a uniform-datapath instruction its uniform operands for 3 against a `UMOV` (a fault at 1 and at 2);
 //! * **law — `F2F` is a scoreboard result** (`unlisted_scoreboard_result`): no variable-latency
 //!   list named it; its reader 2 … 15 cycles behind and without a wait gives wrong bits (`BREV`
 //!   the same by census);
@@ -465,9 +465,11 @@ pub fn unlisted_scoreboard_result(op: &str) -> bool {
 ///   One cycle there computed the shared-memory address of an mbarrier from 0xffffffff: the
 ///   ILLEGAL_ADDRESS of the producer loop of the served fc1.
 /// * **a store reads the uniform register of its address late** — `STG.E.128 desc[UR4][R22.64],
-///   R16 [S02] ; BSYNC [S05] ; UMOV UR4, 0xffffffff`: the vendor never rewrites it closer than 7
-///   where no word waits the store's read barrier (174 sites, 84 at exactly 7). A fixed-latency
-///   writer of the register keeps that distance; a scoreboarded one lands late.
+///   R16 [S02] ; BSYNC [S05] ; UMOV UR4, 0xffffffff`: where no word waits the store's read
+///   barrier the vendor rewrites it from 7 issue cycles on (the flow view over the ptxas census:
+///   656 such rewrites at 7 or more, 82 at exactly 7; 14 stand closer -- one `ULOP3` at 3 behind
+///   an `STS.128`, the same place in 14 builds). A fixed-latency writer of the register keeps 7,
+///   whatever its opcode; a scoreboarded one lands late (KNOWN_ISSUES A45).
 pub fn hold_need(reader: &Instruction, writer: &Instruction, key: RegKey) -> Option<u8> {
     let (uniform, k) = key;
     let w = writer.opcode.as_str();
@@ -482,8 +484,9 @@ pub fn hold_need(reader: &Instruction, writer: &Instruction, key: RegKey) -> Opt
     // uniform base of a shared one — when the memory pipe serves it, like its general registers;
     // the read barrier it carries is waited by the overwriters of those, and a uniform register
     // is not among them. The vendor's schedules keep a rewrite of it 7 issue cycles behind the
-    // store where nothing waits the barrier (the census of the production cubins: 174 such
-    // sites, 84 at exactly 7, none below); nothing was measured below that.
+    // store where nothing waits the barrier (the flow view over the ptxas census: 656 such
+    // rewrites at 7 or more, 82 at exactly 7; 14 closer, one `ULOP3` at 3 in 14 builds). The rule
+    // is the safe side of that practice: 7 for every fixed-latency writer (KNOWN_ISSUES A45).
     if uniform && k < 63 && crate::scheduling_pass::is_store(reader.opcode.as_str()) {
         let slow = crate::scheduling_pass::is_long_latency(w) || writer.ctrl.write_bar != 7 || classify(writer).is_some();
         return if slow { None } else { Some(STORE_UNIFORM_OPERAND_HOLD) };

@@ -4,6 +4,18 @@ User-visible changes, newest first. Table syncs name the blackwell-isa revision 
 (`tables/SOURCE.json` pins it byte for byte). Numbered `BUG-NNN` entries are the encoder /
 decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `docs/TESTS.md`).
 
+## Unreleased — 2026-11-11 (the note beside the operand hold of a tensor instruction names the registers it was measured on)
+
+- `src/sync_class.rs` and `docs/SM120_ASYNC_IDIOMS.md` said of the 8 issue cycles a tensor instruction holds its source
+  registers: "wrong bits at 2 and at 4, identical at 6". That is the A and the B fragment. A rewrite of the accumulator's
+  third or fourth register is still wrong 7 cycles behind the word and right from 8 (KNOWN_ISSUES A42): the rule's 8 has no
+  cycle to spare, and the note now says which register it speaks of. A comment and a table cell; no code.
+- The comments beside the hold of a store's uniform address register (`src/sync_class.rs`, the header of
+  `tests/store_uniform_operand_hold.rs`) quoted the census row of ONE overwriter ("174 sites, 84 at exactly 7, none
+  below" is `UMOV`). They now say what KNOWN_ISSUES A45 says: over every fixed-latency writer 656 rewrites stand at 7
+  or more, 82 at exactly 7, and 14 stand closer (one `ULOP3` at 3, the same place in 14 builds); the rule stays 7 for
+  every such writer. Comments only.
+
 ## Unreleased — 2026-11-11 (`CUBIT_SCHED2_LOWER=1` — behind the legaliser the stalls no requirement asks for are taken back; opt-in on top of `CUBIT_SCHED2_MEMSTALL=table`, the default path and that variable's own schedules byte for byte without it)
 
 - **The passes that make a schedule legal only raise a stall, one requirement after another, and none looks back**

@@ -8,12 +8,13 @@
 //! `UMOV UR4, …` away from the store was the first scheduling pass's blanket stall of 4 behind every store — the
 //! margin `CUBIT_SCHED2_MEMSTALL=table` takes away. cubit's schedule of a served kernel under that variable had
 //! `@P0 STG.E.128 desc[UR4][R22.64], R16 [S01] ; BSYNC [S05] ; UMOV UR4, 0xffffffff`: 6 issue cycles, where the
-//! vendor's own schedule of the same words has 7 and the vendor's census never less (174 rewrites of a barred
-//! store's uniform operand with no wait on its barrier, 84 at exactly 7).
+//! vendor's own schedule of the same words has 7 — the distance the vendor's schedules keep (the flow view over the
+//! ptxas census: 656 rewrites of a barred store's uniform operand with no wait on its barrier stand at 7 or more, 82
+//! at exactly 7; 14 stand closer, one `ULOP3` at 3 behind an `STS.128` in 14 builds).
 //!
 //! The operand hold has the third reader now: a fixed-latency writer of the uniform register of a store's address
-//! stands 7 issue cycles behind the store (`sync_class::STORE_UNIFORM_OPERAND_HOLD`) — the vendor's smallest distance; nothing
-//! below it has been measured. It acts where the operand hold runs: under `CUBIT_SYNC_CLASSES` and under
+//! stands 7 issue cycles behind the store (`sync_class::STORE_UNIFORM_OPERAND_HOLD`) — the distance the vendor keeps but for that
+//! one `ULOP3`; the rule is 7 for every fixed-latency writer (KNOWN_ISSUES A45). It acts where the operand hold runs: under `CUBIT_SYNC_CLASSES` and under
 //! `CUBIT_SCHED2_MEMSTALL=table`. The default path is not touched.
 
 use std::process::Command;
