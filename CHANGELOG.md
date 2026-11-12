@@ -4,6 +4,23 @@ User-visible changes, newest first. Table syncs name the blackwell-isa revision 
 (`tables/SOURCE.json` pins it byte for byte). Numbered `BUG-NNN` entries are the encoder /
 decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `docs/TESTS.md`).
 
+## Unreleased — 2026-11-11 (session T-32: KNOWN_ISSUES A47 — law (d) over what serves: the twelve places one cycle under it, the baseline of the push gate's hold step)
+
+- **Documents only, no code.** The push gate's hold step judges law (d) as it stands since the probes of the accumulator
+  (A42): a fixed-latency rewrite of ANY register a tensor instruction reads — the A quad, the B pair, the accumulator, the
+  further register operands of `QMMA.SF` — closer than 8 issue cycles, over everything that serves. It finds twelve
+  places, all of one kernel family whose schedule is written by hand in its frozen sources (`exl3-wave-m8`: the upper B
+  register 7 cycles behind `HMMA.16816.F32`, six cycles over the measured hold of that pair); they are the step's
+  recorded baseline and KNOWN_ISSUES A47. A uniform operand is reported apart, without a threshold.
+- KNOWN_ISSUES A42 and A45 gain a measurement each (`tools/stallfloor/probe_sm120_20261111_b45.json` and its two `_ws_`
+  files): law (d)'s 8 holds for the vendor's own overwriters of an accumulator register too — `CS2R R, SRZ` and `PRMT`
+  exactly 8 cycles behind a tensor instruction are right, 7 is not, on both card models —, and the uniform base of a
+  shared store holds 1 against a `UMOV`, beside the rule 7 for a store's uniform operands, which stays.
+- KNOWN_ISSUES A41 and A42 gain a measurement each (`tools/stallfloor/probe_sm120_20261111_b47.json` and its two `_ws_`
+  files): five cells of the dependency table that bind inside the tensor loop stand exactly on their silicon floor on
+  both card models — one cycle below the cell is prohibited, the cells stay —, and the uniform selector of a `QMMA.SF`
+  is held 1, a trial floor: the hold step keeps reporting that operand apart, without a threshold.
+
 ## Unreleased — 2026-11-11 (the note beside the operand hold of a tensor instruction names the registers it was measured on)
 
 - `src/sync_class.rs` and `docs/SM120_ASYNC_IDIOMS.md` said of the 8 issue cycles a tensor instruction holds its source
