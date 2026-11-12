@@ -4,6 +4,16 @@ User-visible changes, newest first. Table syncs name the blackwell-isa revision 
 (`tables/SOURCE.json` pins it byte for byte). Numbered `BUG-NNN` entries are the encoder /
 decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `docs/TESTS.md`).
 
+## Unreleased — 2026-11-12 (KNOWN_ISSUES A48 and the dependency table name the measurement of a `CS2UR` result's readers; the prohibition stands on two card models)
+
+- **Documents only: no cell and no number of `tables/dep_latency_sm120.json` moves.** The floor 6 of a reader of a `CS2UR`
+  result is `tools/stallfloor/probe_sm120_20261112_b53.json` (a card of the Server Edition: 16 requests on six grids, the
+  binding floor 6 in eight of them, the high word of `IADD.64` from 5, `UIADD3` from 4, the five controls never right),
+  and the same floors, request by request, on a card of the Workstation Edition alone and at its 400-W limit
+  (`probe_sm120_20261112_b53_ws_2eabe5dcdba4_alone.json`, `probe_sm120_20261112_b53_ws_2eabe5dcdba4_capped.json`): a prohibition on two card models.
+  KNOWN_ISSUES A48 and the `silicon` texts of the table's producer form `CS2UR` and of its cell
+  `CS2UR` → `IADD` say so; A48's open point "one card model in one clock state" is closed.
+
 ## Unreleased — 2026-11-12 (`CS2UR` is a fixed-latency word: no write barrier, every reader six issue cycles behind it; the checks name a write barrier on a `CS2R` / `CS2UR` and price the pair through it)
 
 - **A schedule bug in every recipe, the default one included, for a kernel that copies a special register into a uniform
