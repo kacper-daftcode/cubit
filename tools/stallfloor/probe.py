@@ -83,6 +83,29 @@ against the same word 60 cycles in front of it, `UMOV UR6, 0x0` d cycles behind 
 front of it); the scale register holds four different bytes that differ from lane to lane.
     {"id": "hu_q", "kind": "mma", "variant": "hold_u_umov", "distances": "1-10,12,15,30,45"}
     {"id": "hu_q_s", "kind": "mma", "variant": "sens_u_umov"}
+
+Version 26 - kind `thr`, a THROUGHPUT probe: the TIME of a synthetic stage loop with tensor words (four QMMA.SF 16 cycles
+apart, the vendor's PRMT / LOP3.LUT words in front of them, one LDS.128 on a write barrier, IMAD folds) in which ONE control
+field changes per slot; the slot number rides in the distance slot (slot 1 = the base stage, the last slot = the base stage
+again). "stage": a (words that wait on a free barrier / on a load in flight; tensor words that arm a read barrier; the
+re-arm wait; yield patterns) | e (the empty loop); "repeat": an ODD number of passes of 256 iterations (a thread ends with
+repeat x the checksum of one pass). Every slot computes the same checksum and keeps the table's cells and the holds (the
+generator's audit refuses a slot that does not). The runner writes the median launch time per slot.
+    {"id": "thr_a_full_n255", "kind": "thr", "stage": "a", "repeat": 255, "occupancy": ["w32", "c4w8", "c2w9s"], "reps": 20}
+
+Version 26, second build - kind `gw`, a WAIT CARRIED BY A WORD UNDER A GUARD: a scoreboarded producer (SHFL | LDS) on a write
+barrier; the only wait on it stands on `@P4 PRMT ...` two cycles behind the producer; the reader `@!P4 PRMT ...` has no wait
+and stands d cycles behind the producer; "guard": bit (P4 false in part of the iterations) | false (in every one); "wait":
+guarded | none (no wait at all: the positive control and the floor by distance alone); "yield": "set".
+    {"id": "gw_shfl", "kind": "gw", "producer": "SHFL", "wait": "guarded", "guard": "bit"}
+    {"id": "gw_shfl_nw", "kind": "gw", "producer": "SHFL", "wait": "none", "guard": "bit"}
+
+Version 26, third build - kind `lb`, the BASE register of a load rewritten by a YOUNGER load of the same pipe: `LDS R6,
+[R13+0x4]` (no read barrier), then `LDS R13, [R13+0x3c]` d cycles behind it with no wait between; the new base is another
+address of the thread's own line (a late read of the base shows as another word, never as a trap); "control": "front" =
+the positive control (the younger load in front of the older one: expect 0 % good, class late); "yield": "set".
+    {"id": "lb_lds", "kind": "lb"}
+    {"id": "lb_lds_c", "kind": "lb", "control": "front"}
 """
 from __future__ import annotations
 
@@ -99,7 +122,7 @@ import subprocess
 import sys
 import time
 
-TOOL = "probe.py 25 (2026-11-11)"
+TOOL = "probe.py 26 (2026-11-12)"
 HERE = pathlib.Path(__file__).resolve().parent
 SEED = 0x12345
 REPEAT = 256
@@ -398,6 +421,8 @@ def shfl_of(req):
         if req.get("store") in ("SHFL.BFLY.src", "SHFL.dst", "LDS128.dst"):
             return "bfly"
     if req.get("kind") == "ord" and req.get("older") == "SHFL":
+        return "bfly"
+    if req.get("kind") == "gw" and req.get("producer") == "SHFL":      # version 26, second build
         return "bfly"
     if req.get("kind") == "ord" and req.get("forms") and any(t.strip() == "h" for t in str(req["forms"]).split(",")):
         return "bfly"      # version 23: a SHFL.BFLY among the producers of a set
@@ -1822,6 +1847,479 @@ def body_mma(req, d, front="none"):
 
 
 
+# ------------------------------------------------------------------------------------------------ kind thr (version 26)
+# A THROUGHPUT probe. Not "is the result right at distance d" but the TIME of a synthetic stage loop with tensor words in
+# which ONE thing changes per slot. The slot number rides in the "distance" slot of the kernel index (the runner groups
+# kernels by that integer and writes the median launch time per kernel: `launch_us_median_by_distance`); slot 1 is the
+# base stage and the last slot of a stage is the base stage again (the null). Every slot of a stage computes the SAME
+# checksum (only control codes differ), and every slot keeps the table's cells and the holds - checked by `thr_audit`
+# for every kernel that is written: a slot that breaks one is not a throughput variant, it is a wrong kernel.
+#
+# The kernel: prologue; L_outer: INIT (the inputs R4 / R5, the counter R11, four accumulator quads); L_loop: the stage
+# iteration x 256; POST (the 16 accumulator registers folded into the checksum R10); the outer counter and branch. Every
+# pass adds the same amount D to R10 (INIT sets again every register the inner loop carries; R10 is never reset), so a
+# thread ends with repeat x D mod 2^32 - repeat is ODD, so nothing of D is lost and a wrong pass anywhere shows.
+#
+# The stage iteration (stage "a": 100 static issue cycles, 38 words): the A quad R16..R19 toggles between the codes of 1.0
+# and 2.0; the B pairs R12:R13 / R6:R7 are made by PRMT + LOP3.LUT (the vendor's words) from a source word that toggles;
+# four QMMA.SF words on four accumulator quads, 16 cycles apart (the table's resource row); ONE LDS.128 on write barrier 1
+# into a quad whose first register was dirtied in front (a reader that did not wait would take the dirt); five IMAD words
+# fold one result register of each quad (of the previous iteration) and the loaded word into R10, weighted by the
+# iteration's inputs; the counter tail, ISETP, BRA.
+THR_REGS = 48                                  # R0-R47, .regcount 56: 1 024 threads per SM x 56 registers <= 65 536
+THR_A0, THR_AX = 0x38383838, 0x78787878        # QMMA.SF E4M3: the code of 1.0 in every element, and what toggles it to 2.0
+THR_S0, THR_SX = 0x10100808, 0x18181818        # the source word of the B pairs (bytes 08 08 10 10) and its toggle
+THR_QUADS = (28, 24, 32, 36)                   # the accumulator quad of tensor word k
+THR_OCC = ("w1", "w2", "w4", "w8", "w9", "w12", "w16", "w32", "c2w9s", "c4w8")
+THR_FREE16 = ["G2a", "G2b", "G2c", "G2d", "G3a", "G3b", "G3c", "G3d", "T0", "T1", "T2", "I0", "D0", "A0", "A1", "A2"]
+THR_FLY8 = ["G0a", "F1", "G0b", "G1a", "G1b", "G0c", "F2", "G0d"]
+THR_RBW = ["G2a", "G2b", "G3a", "G3b", "A0", "A1", "A2", "A3", "G0a", "G0b", "G1a", "G1b"]
+THR_X = ["X0", "X1", "X2", "X3"]
+# stage -> the slots in order: (name, what changes against the base stage)
+THR_STAGES = {
+    "a": [("base", "the base stage: the load's reader waits write barrier 1, nothing else waits; the yield flag on every word with a stall <= 11 but the NOP"),
+          ("a1_1", "1 word waits on write barrier 1 BEHIND its reader's wait (a FREE barrier)"),
+          ("a1_2", "2 words wait on the free barrier 1"),
+          ("a1_4", "4 words wait on the free barrier 1"),
+          ("a1_8", "8 words wait on the free barrier 1"),
+          ("a1_16", "16 words wait on the free barrier 1"),
+          ("a1n_16", "the same 16 words wait on barrier 5, which no word of the loop arms"),
+          ("a2_1", "1 word between the load and its reader waits on the load's barrier IN FLIGHT"),
+          ("a2_2", "2 words between the load and its reader wait on the load in flight"),
+          ("a2_4", "4 words between the load and its reader wait on the load in flight"),
+          ("a2_8", "8 words between the load and its reader wait on the load in flight"),
+          ("a3_r", "each of the 4 tensor words arms READ barrier 2; nothing waits on it"),
+          ("a3_w", "each tensor word arms read barrier 2 and the 12 words that rewrite a tensor word's source register wait on it"),
+          ("a3_d", "as a3_w, and each tensor word waits on read barrier 2 before it arms it again"),
+          ("a4", "the LDS.128 waits on its own write barrier 1 before it arms it again"),
+          ("a_all", "a1_16 + a3_d + a4 together (NOT one change: the sum check)"),
+          ("b_none", "NO yield flag on any word"),
+          ("b_tensor", "the yield flag ONLY on the tensor words (stall <= 11)"),
+          ("b_alt", "the yield flag on every second word that may carry it"),
+          ("base2", "the base stage again (the null of the series)")],
+    "e": [("base", "the EMPTY stage: the counter tail, ISETP and BRA only (the loop's skeleton)")],
+}
+
+
+def thr_words(req):
+    """the words of one stage iteration: [(issue cycle, key, text, sem)] and the static cycles of the iteration"""
+    fn = req["form"]
+    form = MMA_FORMS[fn]
+    tail = [("T0", TAIL[0]), ("T1", TAIL[1]), ("T2", TAIL[2])]
+    isetp = f"ISETP.LT.U32.AND P1, PT, R11, 0x{REPEAT:x}, PT ;"
+    if req["stage"] == "e":
+        w = [(0, "T0", tail[0][1].text, tail[0][1].sem), (1, "T1", tail[1][1].text, tail[1][1].sem), (2, "T2", tail[2][1].text, tail[2][1].sem),
+             (8, "I0", isetp, ("nop",)), (21, "B0", "@P1 BRA L_loop ;", ("nop",))]
+        return w, 25
+    q = lambda k, rb: (f"{form} R{THR_QUADS[k]}, R16, {rb}, R{THR_QUADS[k]}, R14, R14, URZ ;", ("qmma", f"R{THR_QUADS[k]}", "R16", rb, None, fn))
+    tog = lambda r, c: (f"LOP3.LUT {r}, {r}, 0x{c:x}, RZ, 0x3c, !PT ;", ("xor", r, r, c))
+    prm = lambda r, sel: (f"PRMT {r}, R44, 0x{sel:x}, R44 ;", ("prmt", r, "R44", sel, "R44"))
+    msk = lambda r: (f"LOP3.LUT {r}, {r}, 0x3c3c3c3c, RZ, 0xc0, !PT ;", ("and", r, r, 0x3c3c3c3c))
+    fold = lambda r, x: (f"IMAD R10, {r}, {x}, R10 ;", ("mad", "R10", r, x, "R10"))
+    w = [(0, "D0", "LOP3.LUT R40, R4, R5, RZ, 0x3c, !PT ;", ("xor", "R40", "R4", "R5")),
+         (1, "A0") + tog("R16", THR_AX), (2, "A1") + tog("R17", THR_AX), (3, "A2") + tog("R18", THR_AX), (4, "A3") + tog("R19", THR_AX),
+         (5, "S0") + tog("R44", THR_SX),
+         (6, "F0") + fold(f"R{THR_QUADS[0]}", "R4"),
+         (8, "L0", "LDS.128 R40, [R9+0x10] ;", ("lds", "R40", "R9", 0x10, 4)),
+         (11, "G0a") + prm("R12", 0x1010), (12, "F1") + fold(f"R{THR_QUADS[1] + 1}", "R4"), (13, "G0b") + prm("R13", 0x1010),
+         (14, "G1a") + prm("R6", 0x3232), (15, "G1b") + prm("R7", 0x3232),
+         (17, "G0c") + msk("R12"), (18, "F2") + fold(f"R{THR_QUADS[2] + 2}", "R5"), (19, "G0d") + msk("R13"),
+         (20, "G1c") + msk("R6"), (21, "G1d") + msk("R7"),
+         (24, "F3") + fold(f"R{THR_QUADS[3] + 3}", "R5"),
+         (26, "X0") + q(0, "R12"),
+         (30, "FL") + fold("R40", "R5"),
+         (34, "G2a") + prm("R12", 0x1010), (35, "G2b") + prm("R13", 0x1010), (40, "G2c") + msk("R12"), (41, "G2d") + msk("R13"),
+         (42, "X1") + q(1, "R6"),
+         (50, "G3a") + prm("R6", 0x3232), (51, "G3b") + prm("R7", 0x3232), (56, "G3c") + msk("R6"), (57, "G3d") + msk("R7"),
+         (58, "X2") + q(2, "R12"),
+         (73, "N0", "NOP ;", ("nop",)),
+         (74, "X3") + q(3, "R6"),
+         (75, "T0", tail[0][1].text, tail[0][1].sem), (76, "T1", tail[1][1].text, tail[1][1].sem), (77, "T2", tail[2][1].text, tail[2][1].sem),
+         (83, "I0", isetp, ("nop",)), (96, "B0", "@P1 BRA L_loop ;", ("nop",))]
+    return w, 100
+
+
+def thr_slot(req, slot):
+    """the control fields of slot `slot` (1-based) of the request's stage: (name, waits {key: digits}, read barriers {key: digit},
+    write barriers {key: digit}, the yield pattern all | none | tensor | alt)"""
+    slots = THR_STAGES[req["stage"]]
+    if not 1 <= slot <= len(slots):
+        raise SystemExit(f"{req.get('id')}: stage {req['stage']} has the slots 1 .. {len(slots)}")
+    name = slots[slot - 1][0]
+    if req["stage"] == "e":
+        return name, {}, {}, {}, "all"
+    waits, rb, wb, yl = {"FL": "1"}, {}, {"L0": "1"}, "all"
+
+    def add(keys, b):
+        for k in keys:
+            waits[k] = "".join(sorted(set(waits.get(k, "") + b)))
+    if name.startswith("a1_") or name == "a_all":
+        add(THR_FREE16[:16 if name == "a_all" else int(name.split("_")[1])], "1")
+    if name == "a1n_16":
+        add(THR_FREE16, "5")
+    if name.startswith("a2_"):
+        add(THR_FLY8[:int(name.split("_")[1])], "1")
+    if name in ("a3_r", "a3_w", "a3_d", "a_all"):
+        rb.update({k: "2" for k in THR_X})
+    if name in ("a3_w", "a3_d", "a_all"):
+        add(THR_RBW, "2")
+    if name in ("a3_d", "a_all"):
+        add(THR_X, "2")
+    if name in ("a4", "a_all"):
+        add(["L0"], "1")
+    if name.startswith("b_"):
+        yl = name[2:]
+    return name, waits, rb, wb, yl
+
+
+def body_thr(req, slot, front="none"):
+    """the stage iteration of slot `slot` as instructions (control codes written out); the audit runs on every body"""
+    words, total = thr_words(req)
+    name, waits, rb, wb, yl = thr_slot(req, slot)
+    b, nflag = [], 0
+    for j, (t, key, text, sem) in enumerate(words):
+        s = (words[j + 1][0] if j + 1 < len(words) else total) - t
+        tensor = sem[0] == "qmma"
+        may = 1 <= s <= 11 and not text.startswith("NOP")      # (the yield flag has no encoding with a stall of 12 .. 15)
+        if yl == "all":
+            y = may
+        elif yl == "none":
+            y = False
+        elif yl == "tensor":
+            y = may and tensor
+        else:      # alt: every second word that may carry it
+            y = may and nflag % 2 == 0
+            nflag += 1 if may else 0
+        b.append(Ins(text, sem, ctl=C(s, wait=waits.get(key, ""), rb=rb.get(key, "-"), wb=wb.get(key, "-"), y=y), tag=key))
+    thr_audit(req, b, total, f"{req.get('id')} slot {slot} ({name})")
+    return b
+
+
+def thr_pro(req):
+    """behind the tensor prologue: the copy of the first input, the source word of the B pairs, the A quad, the outer counter"""
+    return ([Ins("MOV R46, R4 ;", ("mov", "R46", "R4")), Ins(f"MOV R44, 0x{THR_S0:x} ;", ("mov", "R44", THR_S0))]
+            + [Ins(f"MOV R{16 + k}, 0x{THR_A0:x} ;", ("mov", f"R{16 + k}", THR_A0)) for k in range(4)]
+            + [Ins("MOV R45, RZ ;", ("nop",)), PAD(), PAD()])
+
+
+def thr_init(req):
+    """at the head of every pass: every register the inner loop carries is set again (R10, the checksum, is NOT)"""
+    i = [Ins("MOV R4, R46 ;", ("mov", "R4", "R46"), ctl=C(6)),
+         Ins("LOP3.LUT R5, R1, 0x5bd1e995, RZ, 0x3c, !PT ;", ("xor", "R5", "R1", 0x5bd1e995), ctl=C(6)),
+         Ins("MOV R11, RZ ;", ("mov", "R11", 0), ctl=C(6))]
+    for q0, src in zip(THR_QUADS, ("R4", "R5", "R23", "R20")):
+        i += [Ins(f"LOP3.LUT R{q0}, {src}, 0x3fffff, RZ, 0xc0, !PT ;", ("and", f"R{q0}", src, 0x3fffff), ctl=C(6)),
+              Ins(f"LOP3.LUT R{q0}, R{q0}, 0x4b000000, RZ, 0xfc, !PT ;", ("or", f"R{q0}", f"R{q0}", 0x4b000000), ctl=C(6))]
+        i += [Ins(f"IADD3 R{q0 + k}, PT, PT, R{q0}, 0x{k:x}, RZ ;", ("add", f"R{q0 + k}", f"R{q0}", k), ctl=C(6)) for k in (1, 2, 3)]
+    return i
+
+
+def thr_post(req):
+    """behind the 256 iterations of a pass: the 16 accumulator registers into the checksum (45 cycles behind the last tensor word)"""
+    mul = (3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59)
+    p = [Ins("NOP ;", ("nop",)), Ins("NOP ;", ("nop",))]
+    for n, q0 in enumerate(THR_QUADS):
+        p += [Ins(f"IMAD R10, R{q0 + k}, 0x{mul[4 * n + k]:x}, R10 ;", ("mad", "R10", f"R{q0 + k}", mul[4 * n + k], "R10"), ctl=C(6)) for k in range(4)]
+    return p
+
+
+def thr_rw(ins):
+    """(registers read, registers written, class alu | tensor | load | none) of a stage word - from its model line"""
+    sem, text = ins.sem, ins.text
+    quad = lambda r, n: [f"R{int(r[1:]) + k}" for k in range(n)]
+    isr = lambda x: isinstance(x, str) and re.fullmatch(r"R\d+", x)
+    op = sem[0]
+    if op == "qmma":
+        return quad(sem[1], 4) + quad(sem[2], 4) + quad(sem[3], 2) + ["R14"], quad(sem[1], 4), "tensor"
+    if op == "lds":
+        return [sem[2]], quad(sem[1], sem[4]), "load"
+    if op in ("xor", "and", "or", "add"):
+        return [x for x in sem[2:4] if isr(x)], [sem[1]], "alu"
+    if op == "mad":
+        return [x for x in sem[2:5] if isr(x)], [sem[1]], "alu"
+    if op == "prmt":
+        return [x for x in (sem[2], sem[4]) if isr(x)], [sem[1]], "alu"
+    if op == "mov":
+        return [x for x in sem[2:3] if isr(x)], [sem[1]], "alu"
+    if op == "nop":
+        if text.startswith("ISETP"):
+            return re.findall(r"(?<![UA-Za-z])R\d+", text), ["P1"], "alu"
+        if text.startswith("@P1 BRA"):
+            return ["P1"], [], "branch"
+        if text.startswith("NOP"):
+            return [], [], "none"
+    raise SystemExit(f"thr: a stage word the audit does not know: {text}")
+
+
+def thr_audit(req, body, total, what):
+    """the table's cells and the holds on the cyclic stage iteration (this iteration and the next); refuses on a violation.
+    ALU -> ALU >= 6 (every cell of these words is <= 6 = the data default); ALU -> an operand of a tensor word >= 7 (default
+    mma_input); tensor result -> ALU >= 28, -> the accumulate operand of a tensor word >= 29; tensor -> tensor >= 16; a
+    fixed-latency rewrite of ANY register a tensor word reads >= 8 behind the word (law (d)); ISETP -> BRA >= 13; a tensor
+    word >= 14 in front of the branch; IMAD -> IMAD >= 2; a barrier's first waiter >= 2 behind the word that arms it; the first
+    reader of a load's register waits its write barrier and the load stands >= 6 behind an ALU write of a register it writes;
+    the yield flag only with a stall 1 .. 11; the stalls sum to the stage's static cycles. -> a summary for the family file"""
+    bad = []
+    ctl = [re.fullmatch(r"\[B([-\d]{6}):R([-\d]):W([-\d]):([-Y]):S(\d\d)\]", i.ctl) for i in body]
+    if not all(ctl):
+        raise SystemExit(f"thr audit {what}: a control code the audit cannot read")
+    st = [int(c.group(5)) for c in ctl]
+    t, acc = [], 0
+    for s in st:
+        t.append(acc)
+        acc += s
+    if acc != total:
+        bad.append(f"the stalls sum to {acc}, the stage has {total} static cycles")
+    n = len(body)
+    rw = [thr_rw(i) for i in body]
+    for j, c in enumerate(ctl):
+        if c.group(4) == "Y" and not 1 <= st[j] <= 11:
+            bad.append(f"{body[j].tag}: the yield flag with stall {st[j]}")
+    # two iterations in a row: positions j (this) and j + n (the next)
+    seq = [(t[j % n] + (total if j >= n else 0), j % n) for j in range(2 * n)]
+
+    def last_writer(pos, reg):
+        for p in range(pos - 1, -1, -1):
+            if reg in rw[seq[p][1]][1]:
+                return p
+        return None
+    for pos in range(n, 2 * n):
+        tj, j = seq[pos]
+        rd, _wr, cls = rw[j]
+        for reg in rd:
+            p = last_writer(pos, reg)
+            if p is None:
+                continue      # (set in front of the loop only)
+            tw, jw = seq[p]
+            d, wcls = tj - tw, rw[jw][2]
+            if wcls == "load":      # the nearest wait on the load's barrier between the load and this reader (the reader itself counts)
+                wbar = ctl[jw].group(3)
+                waited = any(wbar in ctl[seq[x][1]].group(1) for x in range(p + 1, pos + 1))
+                if not waited:
+                    bad.append(f"{body[j].tag} reads {reg} of the load {body[jw].tag} with no wait on barrier {wbar} between them")
+                continue
+            need = (29 if (cls == "tensor" and reg in rw[j][1]) else 28) if wcls == "tensor" else 7 if cls == "tensor" else 13 if cls == "branch" else 6
+            if d < need:
+                bad.append(f"{body[jw].tag} -> {body[j].tag} ({reg}): {d} cycles, the rule asks {need}")
+    tens = [pos for pos in range(2 * n) if rw[seq[pos][1]][2] == "tensor"]
+    for a, b2 in zip(tens, tens[1:]):
+        if seq[b2][0] - seq[a][0] < 16:
+            bad.append(f"{body[seq[a][1]].tag} -> {body[seq[b2][1]].tag}: tensor words {seq[b2][0] - seq[a][0]} cycles apart (the resource row: 16)")
+    for a in [p for p in tens if p < n]:      # law (d): the next fixed-latency writer of every register the word reads
+        ta, ja = seq[a]
+        for reg in rw[ja][0]:
+            for p in range(a + 1, 2 * n):
+                jp = seq[p][1]
+                if reg in rw[jp][1] and rw[jp][2] in ("alu", "tensor"):
+                    if seq[p][0] - ta < 8:
+                        bad.append(f"law (d): {body[jp].tag} rewrites {reg} {seq[p][0] - ta} cycles behind {body[ja].tag}")
+                    break
+        for p in range(a + 1, 2 * n):      # the landing row: a tensor word >= 14 in front of the conditional branch
+            if rw[seq[p][1]][2] == "branch":
+                if seq[p][0] - ta < 14:
+                    bad.append(f"{body[ja].tag} stands {seq[p][0] - ta} cycles in front of the branch (the landing row: 14)")
+                break
+    imad = [pos for pos in range(2 * n) if body[seq[pos][1]].text.startswith("IMAD")]
+    for a, b2 in zip(imad, imad[1:]):
+        if seq[b2][0] - seq[a][0] < 2:
+            bad.append(f"IMAD -> IMAD {seq[b2][0] - seq[a][0]} cycle apart (the resource row: 2)")
+    for pos in range(n):      # a barrier's first waiter behind the word that arms it; a load behind an ALU write of its registers
+        tj, j = seq[pos]
+        for bar in (ctl[j].group(2), ctl[j].group(3)):
+            if bar == "-":
+                continue
+            for p in range(pos + 1, 2 * n):
+                if bar in ctl[seq[p][1]].group(1):
+                    if seq[p][0] - tj < 2:
+                        bad.append(f"{body[seq[p][1]].tag} waits barrier {bar} {seq[p][0] - tj} cycle behind {body[j].tag}, which arms it (the arming distance: 2)")
+                    break
+        if rw[j][2] == "load":
+            for reg in rw[j][1]:
+                p = last_writer(pos + n, reg)
+                if p is not None and rw[seq[p][1]][2] == "alu" and seq[pos + n][0] - seq[p][0] < 6:
+                    bad.append(f"the load {body[j].tag} stands {seq[pos + n][0] - seq[p][0]} cycles behind the ALU write of {reg} ({body[seq[p][1]].tag})")
+    if bad:
+        raise SystemExit(f"thr audit {what}: " + "; ".join(bad))
+    return {"static_cycles": total, "words": n, "tensor_words": sum(1 for x in rw if x[2] == "tensor"), "loads": sum(1 for x in rw if x[2] == "load"),
+            "wait_bits": sum(len(c.group(1).replace("-", "")) for c in ctl), "waiting_words": sum(1 for c in ctl if c.group(1) != "------"),
+            "read_barriers": sum(1 for c in ctl if c.group(2) != "-"), "write_barriers": sum(1 for c in ctl if c.group(3) != "-"),
+            "yield_flags": sum(1 for c in ctl if c.group(4) == "Y")}
+
+
+def thr_points(req):
+    """the family file's table: slot -> name, what changes, and the audit's counts"""
+    words, total = thr_words(req)
+    out = []
+    for k, (name, text) in enumerate(THR_STAGES[req["stage"]], 1):
+        if k not in req["distance_list"]:
+            continue
+        b = [Ins(i.text, i.sem, ctl=i.ctl, tag=i.tag) for i in body_thr(req, k)]
+        out.append(dict({"slot": k, "name": name, "what": text}, **thr_audit(req, b, total, f"{req.get('id')} slot {k}")))
+    return {"stage": req["stage"], "repeat": req["repeat"], "iterations_per_pass": REPEAT, "stage_iterations_per_thread": REPEAT * req["repeat"],
+            "slots": out}
+
+
+def thr_text(r):
+    n = len(THR_STAGES[r["stage"]])
+    return (f"throughput stage `{r['stage']}` (version 26): {r['repeat']} passes x {REPEAT} stage iterations per thread, {n} slot(s) in the distance slot - "
+            + "; ".join(f"{k} = {name}" for k, (name, _t) in enumerate(THR_STAGES[r["stage"]], 1))
+            + ". What is read is the kernel's TIME (the median launch time per slot); every slot computes the same checksum - only control fields differ - "
+              "and keeps the table's cells and the holds (the generator's audit); a slot whose checksum is not right in every thread-launch has no time")
+
+
+def thr_kernel_text(name, req, ctas, body, smem):
+    full = prologue(req, ctas)
+    ni = len(thr_init(req))
+    common, init = full[:-ni], full[-ni:]
+    lines = [f".entry {name}", f"    .reg R0-R{THR_REGS - 1}", f"    .regcount {THR_REGS + 8}", "    .param ptr out", "    .param u32 seed", f"    .shared smem[{smem}]"]
+    lines += [f"    {i.line()}" for i in common]
+    lines.append("L_outer:")
+    lines += [f"    {i.line()}" for i in init]
+    lines.append("L_loop:")
+    lines += [f"    {i.line()}" for i in body]
+    lines += [f"    {i.line()}" for i in thr_post(req)]
+    lines += [f"    {C(6)} IADD3 R45, PT, PT, R45, 0x1, RZ ;", f"    {C()} ISETP.LT.U32.AND P1, PT, R45, 0x{int(req['repeat']):x}, PT ;", f"    {C()} @P1 BRA L_outer ;",
+              f"    {C()} IMAD.WIDE.U32 R2, R1, 0x4, R2 ;", f"    {C()} STG.E desc[UR4][R2.64], R10 ;", f"    {C()} EXIT ;", ".endentry", ""]
+    text = "\n".join(lines)
+    bad = misaligned(text)
+    if bad:
+        raise SystemExit(f"{name}: refusing to write a kernel the card would trap on - {sorted(set(bad))}")
+    return text
+
+
+def thr_passes_scalar(req, gid, passes):
+    """the independent check of the outer loop: one thread on Python integers through `passes` whole passes (INIT, 256
+    iterations, POST) - its checksum must be passes x (the model's checksum of ONE pass) mod 2^32"""
+    R, _get, ex = _machine(gid)
+    full = prologue(req, 188)
+    ni = len(thr_init(req))
+    body = body_thr(req, 1)
+    for i in full[:-ni]:
+        ex(i.sem)
+    for _ in range(passes):
+        for i in full[-ni:]:
+            ex(i.sem)
+        start = {k: R[k] for k in ("R4", "R5", "R11", "R16", "R17", "R18", "R19", "R44") + tuple(f"R{q0 + k}" for q0 in THR_QUADS for k in range(4))}
+        if _ == 0:
+            first = start
+        elif start != first:
+            raise AssertionError("thr: a pass does not start in the state of the first pass")
+        for _i in range(REPEAT):
+            for i in body:
+                ex(i.sem)
+        for i in thr_post(req):
+            ex(i.sem)
+    return R["R10"]
+
+
+# ------------------------------------------------------------------------------------------------ kind gw (version 26, second build)
+# A WAIT CARRIED BY A WORD UNDER A GUARD. A scoreboarded producer (SHFL.BFLY | LDS, write barrier 1) writes R6; the ONLY
+# wait on that barrier stands on a word under the guard @P4 (`@P4 PRMT R24, R6, 0x3210, R6`), two cycles behind the
+# producer; the READER is a word under the opposite guard, `@!P4 PRMT R8, R6, 0x3210, R6`, with NO wait of its own, d issue
+# cycles behind the producer. P4 is false in part of the iterations ("guard": "bit" - bit 31 of counter x 0x9e3779b1, the
+# same in every lane, not the counter's parity) or in every iteration ("false"): there the word that carries the wait does
+# not execute and the reader does. `stale` = the reader took R6's previous content (the iteration's input, written into R6
+# far in front) in every iteration in which it executed. "wait": "none" = the same text with no wait at all - the positive
+# control, and the floor of producer -> reader by distance alone (its distances start at 1: the reader then stands in front
+# of the two words). Both results go into the checksum weighted by the iteration's inputs.
+GW_PRODUCERS = {"SHFL": ("SHFL.BFLY PT, R6, R14, 0x1, 0x1f ;", ("shfl", "R6", "R14", "bfly", 1), "SHFL.BFLY PT, R6, R14, 0x1, 0x1f (every lane takes lane ^ 1's R14 = that lane's input)"),
+                "LDS": ("LDS R6, [R9+0x20] ;", ("lds", "R6", "R9", 0x20, 1), "LDS R6, [R9+0x20] (the thread's own line: warm)")}
+
+
+def gw_layout(req, d):
+    """-> (the producer's stall, the waiter's stall, PADs behind the waiter, reader in front of the two words?) for the distance
+    producer -> reader d; None when the request cannot have it"""
+    y = req.get("yield") == "set"
+    if d in (1, 2):
+        return (d, 1, 0, True) if req["wait"] in ("none", "end") else None
+    k = (d - 3) // 15
+    s = d - 2 - 15 * k
+    if not 1 <= s <= 15 or (y and s > 11):
+        return None
+    return 1, s, k, False
+
+
+def body_gw(req, d, front="none"):
+    lay = gw_layout(req, d)
+    if lay is None:
+        raise SystemExit(f"{req.get('id')}: distance {d} cannot be built (a guarded wait: 3 .. ; with the yield flag the waiter's stall is <= 11; 1 and 2 only with wait none)")
+    ps, ws, pads, front_reader = lay
+    y = req.get("yield") == "set"
+    ptext, psem, _t = GW_PRODUCERS[req["producer"]]
+    b = []
+    if req["guard"] == "bit":
+        b += [Ins("IMAD R0, R11, 0x9e3779b1, RZ ;", ("mad", "R0", "R11", 0x9e3779b1, "RZ")), Ins("SHF.R.U32.HI R0, RZ, 0x1f, R0 ;", ("shr", "R0", "R0", 31)),
+              Ins("ISETP.NE.U32.AND P4, PT, R0, RZ, PT ;", ("mov", "P4", "R0"))]
+    else:
+        b += [Ins("ISETP.NE.U32.AND P4, PT, RZ, RZ, PT ;", ("mov", "P4", 0))]
+    b += [Ins("MOV R14, R5 ;", ("mov", "R14", "R5")), Ins("MOV R6, R4 ;", ("mov", "R6", "R4")), Ins("MOV R8, R5 ;", ("mov", "R8", "R5")),
+          Ins("MOV R24, R4 ;", ("mov", "R24", "R4")), PAD(), PAD()]
+    prod = Ins(ptext, psem, ctl=C(ps, wb="1", y=y and ps <= 11), tag="P", dst=["R6"])
+    fill = Ins("IADD3 R15, PT, PT, R15, 0x1, RZ ;", ("nop",), ctl=C(1, y=y))
+    waiter = Ins("@P4 PRMT R24, R6, 0x3210, R6 ;", ("gprmt", "R24", "R6", 0x3210, "R6", "P4", 1),
+                 ctl=C(ws, wait="1" if req["wait"] == "guarded" else "", y=y and ws <= 11), tag="W")
+    reader = Ins("@!P4 PRMT R8, R6, 0x3210, R6 ;", ("gprmt", "R8", "R6", 0x3210, "R6", "P4", 0), ctl=C(1, y=y), tag="C")
+    if front_reader:
+        b += [prod, reader, fill, waiter]
+    else:
+        b += [prod, fill, waiter] + [PAD() for _ in range(pads)] + [reader]
+    b += [PAD(), PAD(), PAD(),
+          Ins("IMAD R10, R8, R5, R10 ;", ("mad", "R10", "R8", "R5", "R10")), Ins("IMAD R10, R24, R4, R10 ;", ("mad", "R10", "R24", "R4", "R10"))]
+    if req["wait"] == "end":      # (fourth build) the barrier drained once per iteration, 45 cycles and more behind the reader
+        b += [Ins("IADD3 R15, PT, PT, R15, 0x1, RZ ;", ("nop",), ctl=C(wait="1")), PAD()]
+    return b
+
+
+def gw_text(r):
+    return (f"a WAIT carried by a word under a guard (version 26): {GW_PRODUCERS[r['producer']][2]} on write barrier 1; "
+            + ("the only wait on that barrier stands on `@P4 PRMT R24, R6, 0x3210, R6`, two cycles behind the producer"
+               if r["wait"] == "guarded" else "NO wait between the producer and the reader; ONE wait on that barrier at the END of the iteration, behind the checksum (the barrier is "
+               "drained once per iteration): the floor of producer -> reader by distance alone" if r["wait"] == "end"
+               else "NO wait on that barrier at all, in any iteration (the positive control of the guarded wait; NOT a floor by distance: the barrier is armed 256 times and never waited)")
+            + "; the reader `@!P4 PRMT R8, R6, 0x3210, R6` has no wait of its own - distance = producer -> reader; P4 is "
+            + ("bit 31 of (iteration counter x 0x9e3779b1): false in part of the iterations, the same in every lane" if r["guard"] == "bit"
+               else "FALSE in every iteration: the word that carries the wait never executes, the reader always does")
+            + "; stale = the reader took R6's previous content (the iteration's input) wherever it executed")
+
+
+# ------------------------------------------------------------------------------------------------ kind lb (version 26, third build)
+# THE BASE REGISTER OF A LOAD REWRITTEN BY A YOUNGER LOAD OF THE SAME PIPE. The older load `LDS R6, [R13+0x4]`
+# (write barrier 1, NO read barrier) reads word 1 of the thread's own line through the base R13; d issue cycles behind it the
+# younger load `LDS R13, [R13+0x3c]` (write barrier 2) brings a NEW base - the address of word 2 of the same line, stored
+# there by the prologue - and nobody waits in between. With the old base the older load reads word 1, with the new one
+# word 3: a late read of the base shows as the other word (`late`), never as a trap (both addresses are inside the thread's
+# 64 bytes). The reader waits both barriers. "control": "front" = the positive control: the younger load stands 45 cycles
+# IN FRONT of the older one and is waited - the older load then reads through the new base: expect 0 % good, class `late`.
+def body_lb(req, d, front="none"):
+    y = req.get("yield") == "set"
+    b = [Ins("MOV R13, R9 ;", ("mov", "R13", "R9")), PAD(), PAD()]
+    older = lambda s: Ins("LDS R6, [R13+0x4] ;", ("lds", "R6", "R13", 0x4, 1), ctl=C(s, wb="1", y=y and s <= 11), tag="S")
+    if req.get("control") == "front":
+        # (the model ignores the younger load in front; the word tagged O carries its effect for the hypothesis `late`: the
+        # older load executed behind the rewrite - which is what the card does in this control)
+        b += [Ins("LDS R13, [R13+0x3c] ;", ("nop",), ctl=C(wb="2")), Ins("IADD3 R15, PT, PT, R15, 0x1, RZ ;", ("nop",), ctl=C(wait="2")), PAD(), PAD(),
+              older(1), Ins("IADD3 R15, PT, PT, R15, 0x1, RZ ;", ("add", "R13", "R9", 0x8), tag="O")]
+    else:
+        s, fill = split_distance(d)
+        b += [older(s)] + fill + [Ins("LDS R13, [R13+0x3c] ;", ("lds", "R13", "R13", 0x3c, 1), ctl=C(1 if y else 15, wb="2", y=y), tag="O")]      # (the yield flag has no encoding with a stall of 15)
+    b += [PAD(), Ins("IMAD R10, R6, R4, R10 ;", ("mad", "R10", "R6", "R4", "R10"), ctl=C(wait="12" if req.get("control") != "front" else "1")), PAD()]
+    return b
+
+
+def lb_pro(req):
+    """word 15 of the thread's line := the address of word 2 of the line (a store with a read barrier, waited): the NEW base"""
+    return [Ins("IADD3 R13, PT, PT, R9, 0x8, RZ ;", ("add", "R13", "R9", 0x8)),
+            Ins("STS [R9+0x3c], R13 ;", ("sts", "R9", 0x3c, "R13", 1), ctl=C(rb="5")),
+            Ins("IADD3 R15, PT, PT, R15, 0x1, RZ ;", ("nop",), ctl=C(wait="5")), PAD()]
+
+
+def lb_text(r):
+    return ("the BASE register of a load rewritten by a younger load of the same pipe (version 26): `LDS R6, [R13+0x4]` on write barrier 1, no read barrier; "
+            + ("the younger `LDS R13, [R13+0x3c]` stands 45 cycles IN FRONT of it and is waited - the POSITIVE CONTROL: the older load reads through the NEW base, expect 0 % good, class late"
+               if r.get("control") == "front" else "the younger `LDS R13, [R13+0x3c]` (write barrier 2) brings a new base d issue cycles behind it, nobody waits in between - distance = older -> younger")
+            + "; the new base is the address of word 2 of the thread's own line: a late read of the base shows as word 3 of the line instead of word 1 (late), never as a trap; the reader waits both barriers")
+
+
 # ------------------------------------------------------------------------------------------------ kind reuse (version 20)
 # The operand-reuse flag. A 128-bit word has three flag bits - 122 (slot A) / 123 (slot B) / 124 (slot C); a slot IS its
 # flag bit (the vendor's census decides it 780 to 0 on the IMAD pair of forms). In the seven forms below - and in most
@@ -1968,7 +2466,7 @@ def prologue(req, ctas):
          Ins("STS.128 [R9+0x30], R20 ;", ("sts", "R9", 0x30, "R20", 4)), Ins("STS.128 [R9], R20 ;", ("sts", "R9", 0, "R20", 4)),
          Ins("STS.128 [R9+0x10], R20 ;", ("sts", "R9", 0x10, "R20", 4)), Ins("STS.128 [R9+0x20], R20 ;", ("sts", "R9", 0x20, "R20", 4)),
          PAD(), PAD(), PAD(), PAD()]
-    if req["kind"] != "mma" and not is_traw(req):
+    if req["kind"] not in ("mma", "thr") and not is_traw(req):
         p += [] if ordn_no_gaddr(req) else [Ins("IMAD.WIDE.U32 R16, R1, 0x4, R2 ;", ("gaddr", "R16", 0)),                          # A = &out[gid]
               Ins(f"MOV R14, 0x{half:x} ;", ("nop",)),
               Ins("IMAD.WIDE.U32 R18, R14, 0x1, R16 ;", ("gaddr", "R18", 1)),                        # B = A + half
@@ -1985,6 +2483,8 @@ def prologue(req, ctas):
               Ins(f"MOV R7, 0x{sp['b2']:x} ;", ("mov", "R7", sp["b2"])), Ins("MOV R8, RZ ;", ("mov", "R8", 0)),
               Ins("MOV R24, RZ ;", ("mov", "R24", 0)), Ins("MOV R25, RZ ;", ("mov", "R25", 0)),
               Ins("MOV R26, RZ ;", ("mov", "R26", 0)), Ins("MOV R27, RZ ;", ("mov", "R27", 0))]
+        if req["kind"] == "thr":      # version 26: + the stage's constants, + INIT (the head of every pass; the model runs ONE pass)
+            p += thr_pro(req) + thr_init(req)
         return p
     p += [Ins("MOV R7, RZ ;", ("mov", "R7", 0)), Ins("MOV R8, RZ ;", ("mov", "R8", 0)),
          Ins("MOV R13, RZ ;", ("mov", "R13", 0)), Ins("MOV R14, RZ ;", ("mov", "R14", 0)),
@@ -2000,6 +2500,8 @@ def prologue(req, ctas):
         p += [Ins("IADD3 R13, PT, PT, R9, 0x30, RZ ;", ("add", "R13", "R9", 0x30)),
               Ins("STS [R9+0x3c], R13 ;", ("sts", "R9", 0x3c, "R13", 1), ctl=C(rb="5")),
               Ins("IADD3 R15, PT, PT, R15, 0x1, RZ ;", ("nop",), ctl=C(wait="5")), PAD()]
+    if req["kind"] == "lb":      # version 26, third build
+        p += lb_pro(req)
     if addr:      # a stale ADDRESS must still be an address of the thread's own slot
         p += [Ins("IADD3 R6, PT, PT, R9, 0x20, RZ ;", ("add", "R6", "R9", 0x20)),
               Ins("IADD3 R13, PT, PT, R9, 0x20, RZ ;", ("add", "R13", "R9", 0x20))]
@@ -2102,6 +2604,8 @@ def misaligned(text):
 
 
 def kernel_text(name, req, ctas, body, smem=SMEM):
+    if req["kind"] == "thr":      # version 26: the outer loop, R0-R47
+        return thr_kernel_text(name, req, ctas, body, smem)
     lines = [f".entry {name}", "    .reg R0-R31", "    .regcount 40", "    .param ptr out", "    .param u32 seed", f"    .shared smem[{smem}]"]
     if is_set(req):      # version 23: the destinations of a set are R32..R72 (a register above the declared count traps)
         lines[1:3] = [f"    .reg R0-R{SET_REGS - 1}", f"    .regcount {SET_REGS + 8}"]
@@ -2143,12 +2647,20 @@ def model(req, mode, gids=None, scalar=False):
         body = body_mma(dict(req, via="stall"), 15, req.get("_model_front", "none"))
     elif req["kind"] == "reuse":
         body = body_reuse(req, max(req["distance_list"]), "none", "bare")
+    elif req["kind"] == "thr":      # version 26: every slot has the base stage's arithmetic
+        body = body_thr(req, 1, "none")
+    elif req["kind"] == "gw":       # version 26, second build
+        body = body_gw(req, max(req["distance_list"]), "none")
+    elif req["kind"] == "lb":       # version 26, third build
+        body = body_lb(req, 15, "none")
     else:
         body = body_raw(dict(req, via="stall"), 15, "none")
     if mode in ("drop1", "drop2"):      # mma: the first / the second MMA changed nothing in any iteration
         body = [i for i in body if i.tag != ("P" if mode == "drop1" else "C")]
         mode = "good"
     pro = prologue(req, 188)
+    if scalar and req["kind"] == "thr":      # version 26: one pass (the stage carries its own tail), the fold, x repeat
+        return [(_scalar(int(g), pro, body, mode, tail=[], post=thr_post(req)) * int(req["repeat"])) & 0xFFFFFFFF for g in gids]
     if scalar:
         return [_scalar(int(g), pro, body, mode) for g in gids]
     n = len(gids)
@@ -2215,6 +2727,13 @@ def model(req, mode, gids=None, scalar=False):
                 nib = (sem[3] >> (4 * k)) & 7
                 out |= ((pool >> np.uint64(8 * nib)) & np.uint64(0xFF)) << np.uint64(8 * k)
             R[sem[1]] = out.astype(U)
+        elif op == "gprmt":         # version 26, second build: a PRMT under a guard - done where (predicate != 0) == sem[6]
+            pool = get(sem[2]).astype(np.uint64) | (get(sem[4]).astype(np.uint64) << np.uint64(32))
+            out = np.zeros(n, np.uint64)
+            for k in range(4):
+                nib = (sem[3] >> (4 * k)) & 7
+                out |= ((pool >> np.uint64(8 * nib)) & np.uint64(0xFF)) << np.uint64(8 * k)
+            R[sem[1]] = np.where((get(sem[5]) != 0) == bool(sem[6]), out.astype(U), get(sem[1])).astype(U)
         elif op == "bf16pack2":     # round to nearest even at bit 16, the same bf16 in both halves
             x = get(sem[2])
             h = ((x.astype(np.uint64) + np.uint64(0x7FFF) + ((x >> U(16)) & U(1)).astype(np.uint64)) >> np.uint64(16)) & np.uint64(0xFFFF)
@@ -2357,8 +2876,12 @@ def model(req, mode, gids=None, scalar=False):
                 ex(i.sem)
         if deferred is not None:
             raise RuntimeError(f"model: mode {mode} found no place for the deferred store")
-        for i in TAIL:
+        for i in ([] if req["kind"] == "thr" else TAIL):
             ex(i.sem)
+    if req["kind"] == "thr":      # version 26: the fold behind the 256 iterations of ONE pass; every pass adds the same amount
+        for i in thr_post(req):
+            ex(i.sem)
+        return (R["R10"] * U(int(req["repeat"]))).astype(U)
     return R["R10"].copy()
 
 
@@ -2417,6 +2940,10 @@ def _machine(gid):
         elif op == "prmt":
             pool = (get(sem[2]) | (get(sem[4]) << 32)).to_bytes(8, "little")
             R[sem[1]] = int.from_bytes(bytes(pool[(sem[3] >> (4 * k)) & 7] for k in range(4)), "little")
+        elif op == "gprmt":         # version 26, second build
+            if bool(get(sem[5])) == bool(sem[6]):
+                pool = (get(sem[2]) | (get(sem[4]) << 32)).to_bytes(8, "little")
+                R[sem[1]] = int.from_bytes(bytes(pool[(sem[3] >> (4 * k)) & 7] for k in range(4)), "little")
         elif op == "bf16pack2":
             x = get(sem[2])
             h = ((x + 0x7FFF + ((x >> 16) & 1)) >> 16) & 0xFFFF
@@ -2518,7 +3045,7 @@ def _machine(gid):
     return R, get, ex
 
 
-def _scalar(gid, pro, body, mode):
+def _scalar(gid, pro, body, mode, tail=None, post=()):
     """the same semantics on Python integers, one thread (a body with a warp shuffle: the thread and the lane it reads,
     two interpreters in step)"""
     sh = [i.sem for i in body if i.sem[0] == "shfl"]
@@ -2565,12 +3092,20 @@ def _scalar(gid, pro, body, mode):
                 deferred = None
             else:
                 ex(i.sem)
-        for i in TAIL:
+        for i in (TAIL if tail is None else tail):
             ex(i.sem)
+    for i in post:      # version 26
+        ex(i.sem)
     return R["R10"]
 
 
 def modes_of(req):
+    if req["kind"] == "thr":      # version 26: a time probe - one hypothesis; anything else is `other` and voids the time
+        return ["good"]
+    if req["kind"] == "gw":       # version 26, second build
+        return ["good", "stale"]
+    if req["kind"] == "lb":       # version 26, third build
+        return ["good", "late"]
     if req["kind"] == "mma":
         if str(req.get("variant", "")).startswith(("hold_", "sens_")):
             return ["good", "drop1"]
@@ -2763,9 +3298,54 @@ def normalise(req):
             raise SystemExit(f"{r['id']}: reuse: distances {lo}..{hi} (the swept word's stall is 1..{hi - lo + 1}; with the yield flag at most 11)")
         r["controls"] = True
         r["control_distances"] = r["distances"]
+    elif r.get("kind") == "lb":       # version 26, third build
+        if r.get("control") not in (None, "front") or r.get("yield") not in (None, "set") or (r.get("control") and r.get("yield")):
+            raise SystemExit(f"{r['id']}: lb: control is \"front\" or absent, yield is \"set\" or absent (not on the control)")
+        if any(k in r for k in ("via", "cell", "wanted", "front", "controls", "producer", "consumer")):
+            raise SystemExit(f"{r['id']}: lb: no via / cell / wanted / front / controls / producer / consumer field")
+        if r.get("control"):
+            r["distances"] = "45"
+        r.setdefault("distances", "1-8,10,12,15,30,45" if not r.get("yield") else "1-8,10,11,26,41")
+        if r.get("yield") and any((d_ - 15 * ((d_ - 1) // 15)) > 11 for d_ in parse_distances(r["distances"])):
+            raise SystemExit(f"{r['id']}: lb: with the yield flag the older load's stall is <= 11 (distances 1 .. 11, 16 .. 26, 31 .. 41, 45 ..)")
+        r.setdefault("occupancy", ["w1", "w8", "w32"])
+        r["front"] = ["none"]
+    elif r.get("kind") == "gw":       # version 26, second build
+        r.setdefault("wait", "guarded")
+        r.setdefault("guard", "bit")
+        if r.get("producer") not in GW_PRODUCERS or r["wait"] not in ("guarded", "none", "end") or r["guard"] not in ("bit", "false"):
+            raise SystemExit(f"{r['id']}: gw: producer {' | '.join(GW_PRODUCERS)}, wait guarded | none | end, guard bit | false")
+        if any(k in r for k in ("via", "control", "cell", "wanted", "front", "controls")):
+            raise SystemExit(f"{r['id']}: gw: no via / control / cell / wanted / front / controls field (the request with wait none is the control)")
+        if r.get("yield") not in (None, "set"):
+            raise SystemExit(f"{r['id']}: yield is \"set\" or absent")
+        r.setdefault("distances", ("3-11,13,17,32,47" if not r.get("yield") else "3-13,18,33") if r["wait"] == "guarded" else ("1-11,13,17,32,47" if not r.get("yield") else "1-13,18,33"))
+        for d_ in parse_distances(r["distances"]):
+            if gw_layout(r, d_) is None:
+                raise SystemExit(f"{r['id']}: gw: distance {d_} cannot be built (a guarded wait: from 3; with the yield flag the waiter's stall is <= 11; 1 and 2 only with wait none)")
+        r.setdefault("occupancy", ["w1", "w8", "w32"])
+        r["front"] = ["none"]
+    elif r.get("kind") == "thr":      # version 26
+        r.setdefault("form", "QMMA.SF.E4M3.E2M1")
+        r.setdefault("stage", "a")
+        r.setdefault("repeat", 255)
+        if r["form"] != "QMMA.SF.E4M3.E2M1" or r["stage"] not in THR_STAGES:
+            raise SystemExit(f"{r['id']}: thr: form QMMA.SF.E4M3.E2M1, stage one of {', '.join(THR_STAGES)}")
+        if not (isinstance(r["repeat"], int) and 1 <= r["repeat"] <= 4095 and r["repeat"] % 2 == 1):
+            raise SystemExit(f"{r['id']}: thr: repeat is an ODD number of passes 1 .. 4095 (a thread ends with repeat x the checksum of one pass mod 2^32: an odd factor loses nothing)")
+        if any(k in r for k in ("yield", "via", "control", "cell", "wanted", "front", "controls")):
+            raise SystemExit(f"{r['id']}: thr: no yield / via / control / cell / wanted / front / controls field (the slots carry what changes)")
+        nslot = len(THR_STAGES[r["stage"]])
+        r.setdefault("distances", f"1-{nslot}" if nslot > 1 else "1")
+        if max(parse_distances(r["distances"])) > nslot or 1 not in parse_distances(r["distances"]):
+            raise SystemExit(f"{r['id']}: thr: stage {r['stage']} has the slots 1 .. {nslot}; slot 1 (the base stage) is always part of a request")
+        r.setdefault("occupancy", ["w1", "w32"])
+        if any(o not in THR_OCC for o in r["occupancy"]):
+            raise SystemExit(f"{r['id']}: thr: its kernels declare {THR_REGS + 8} registers; grids {', '.join(THR_OCC)}")
+        r["front"] = ["none"]
     else:
-        raise SystemExit(f"{r.get('id')}: kind must be raw, war, ord, mma or reuse")
-    if r.get("yield") not in (None, "set") or (r.get("yield") and not ((r["kind"] in ("raw", "mma") and r.get("via") == "stall") or (r["kind"] == "ord" and r.get("nload")))):
+        raise SystemExit(f"{r.get('id')}: kind must be raw, war, ord, mma, reuse, thr, gw or lb")
+    if r.get("yield") not in (None, "set") or (r.get("yield") and not ((r["kind"] in ("raw", "mma") and r.get("via") == "stall") or (r["kind"] == "ord" and r.get("nload")) or r["kind"] in ("gw", "lb"))):
         raise SystemExit(f"{r['id']}: yield is \"set\" (the swept instruction of a raw / mma request, via stall, or the loads of an N-load request carry the yield flag) or absent")
     if r.get("cold") and not is_set(r):
         raise SystemExit(f"{r['id']}: cold is for a SET request of global loads (version 23, third build)")
@@ -2788,6 +3368,12 @@ def reg_text24(r):
 
 
 def pair_text(r):
+    if r["kind"] == "thr":      # version 26
+        return thr_text(r)
+    if r["kind"] == "gw":       # version 26, second build
+        return gw_text(r)
+    if r["kind"] == "lb":       # version 26, third build
+        return lb_text(r)
     if r["kind"] == "reuse":
         return (f"operand-reuse flag, slot {r['slot']}: {r['flagged']} reads R6 with `.reuse`; {REUSE_WRITERS[r['writer']]}; the reader {r['reader']} of R6 "
                 f"{r['words']} word(s) behind the " + ("flagged word" if r["writer"] == "none" else "write")
@@ -2975,7 +3561,7 @@ def cmd_gen(args):
                     dl = r["distance_list"] if v in ("bare", "raw") else parse_distances(r["control_distances"])
                     for dist in dl:
                         name = f"{r['id']}_{v}_{occ}_{front_id(front)}_d{dist:04d}"
-                        body = (body_reuse(r, dist, front, v) if r["kind"] == "reuse"
+                        body = (body_thr(r, dist, front) if r["kind"] == "thr" else body_gw(r, dist, front) if r["kind"] == "gw" else body_lb(r, dist, front) if r["kind"] == "lb" else body_reuse(r, dist, front, v) if r["kind"] == "reuse"
                                 else body_raw(r, dist, front) if r["kind"] == "raw" else body_ord(rk, dist, front, v) if r["kind"] == "ord"
                                 else body_mma(r, dist, front) if r["kind"] == "mma"
                                 else body_war(r, dist, front, v))
@@ -2991,7 +3577,8 @@ def cmd_gen(args):
         fam = {"request": r, "pair": pair_text(r) + (" [the swept instruction carries the YIELD flag]" if r.get("yield") else "")
                                  + (" [COLD: every load reads another line of the never-written tail of another CTA's block of the output buffer, chosen by lane and iteration]" if r.get("cold") else ""),
                "provenance": prov, "kernels": kernels, "modes": modes_of(r), "late_delta": late_delta,
-               "table_cell": table_cell(args.dep_table, r.get("cell"), producer_word(r))}
+               "table_cell": table_cell(args.dep_table, r.get("cell"), producer_word(r)),
+               **({"thr_points": thr_points(r)} if r["kind"] == "thr" else {})}
         (d / "family.json").write_text(json.dumps(fam, indent=1) + "\n")
         total += len(kernels)
 
@@ -3027,6 +3614,12 @@ def cmd_gen(args):
                 raise SystemExit(f"{r['id']}: the vectorised model and the scalar interpreter disagree in mode {mode}")
         if (r["kind"] == "raw" or is_set(r)) and float((cand["good"] == 0).mean()) > 0.01:      # version 22 (version 23: a set too)
             raise SystemExit(f"{r['id']}: the checksum of `good` is 0 in {100 * float((cand['good'] == 0).mean()):.0f} % of the threads - a kernel that never ran would pass; give the request the field salt = set")
+        if r["kind"] == "lb" and not (cand["good"] != cand["late"]).all():       # version 26, third build
+            raise SystemExit(f"{r['id']}: a late read of the base gives the checksum of `good` in some thread - the probe could not see it there")
+        if r["kind"] == "gw" and not (cand["good"] != cand["stale"]).all():      # version 26, second build
+            raise SystemExit(f"{r['id']}: a stale reader gives the checksum of `good` in some thread - the probe could not see it there")
+        if r["kind"] == "thr" and (cand["good"] == 0).any():      # version 26
+            raise SystemExit(f"{r['id']}: the checksum of `good` is 0 in some thread - a thread that never ran would pass there")
         if any(np.array_equal(cand["good"], v) for m, v in cand.items() if m != "good") and r["kind"] != "mma":
             raise SystemExit(f"{r['id']}: a failure hypothesis gives the checksums of `good` - the probe could not see it")
         if r["kind"] == "raw" and r.get("control") == "stale" and "stale" in cand and not (cand["good"] != cand["stale"]).all():      # version 25
@@ -3628,6 +4221,12 @@ def cmd_list(_args):
         print(f"  writer {k:6s} {v}")
     print("  \"words\": 1..5 = the reader k words behind the write (fillers \"fill\": clean | other); \"fstall\": 1 | 2; \"chain\": true = the reader flagged too; \"window_yield\": set | none; "
           "\"between\": " + " | ".join(f"{k} ({v})" for k, v in REUSE_BETWEEN.items() if k) + "; variants bare (the flag) and ctl (no flag)")
+    print("kind lb (version 26, third build) - the BASE register of a load rewritten by a younger load of the same pipe (LDS R6, [R13+0x4] <- LDS R13, [R13+0x3c]); \"control\": \"front\"; \"yield\": \"set\"")
+    print("kind gw (version 26, second build) - a WAIT carried by a word under a guard: producer " + " | ".join(GW_PRODUCERS) + "; \"wait\": guarded | none | end (fourth build: one wait at the end of the iteration - the floor by distance alone); \"guard\": bit | false; \"yield\": \"set\"")
+    print("kind thr (version 26) - a THROUGHPUT probe: the time of a synthetic stage loop with tensor words; \"stage\", \"repeat\" (odd); the slot in the distance slot:")
+    for st_, sl_ in THR_STAGES.items():
+        for k_, (nm_, tx_) in enumerate(sl_, 1):
+            print(f"  stage {st_} slot {k_:2d} {nm_:9s} {tx_}")
     print("occupancy:", "; ".join(f"{k} = {v}" for k, v in OCC.items()))
     print("front: none | sts128xK@S | stsxK@S | stgxK@S  (K stores of a constant at stall S in front of the tested instruction)")
     return 0
@@ -4416,6 +5015,111 @@ def cmd_selftest(_args):
     assert smem_of({"id": "x", "kind": "ord", "nload": 8, "place": "far"}, "c2w9s") == 49152 and smem_of({"id": "x", "kind": "ord", "nload": 8, "place": "far"}, "w32") == 98304
     assert smem_of({"id": "x", "kind": "ord", "nload": 8, "place": "far"}, "c4w8") == 24576
     assert far_layout(288) == (18432, 1280) and far_layout(1024) == (65536, 4096) and far_layout(32) == (2048, 1024)
+    # version 26, third build - kind lb: the distance older -> younger, the control's shape, both hypotheses against the scalar interpreter
+    for extra in ({}, {"yield": "set"}, {"control": "front"}):
+        rl_ = normalise(dict({"id": "xx", "kind": "lb"}, **extra))
+        for dd in rl_["distance_list"]:
+            bl_ = body_lb(rl_, dd)
+            io, iy = next(k for k, a in enumerate(bl_) if a.tag == "S"), next(k for k, a in enumerate(bl_) if a.tag == "O")
+            assert all(("Y" in a.ctl.split(":")[3]) <= (int(a.ctl[-3:-1]) <= 11) for a in bl_)
+            assert bl_[io].text == "LDS R6, [R13+0x4] ;" and "W1" in bl_[io].ctl and ":R-:" in bl_[io].ctl and io < iy and not misaligned(kernel_text("x", rl_, 188, bl_))
+            if extra.get("control"):
+                iyf = next(k for k, a in enumerate(bl_) if a.text.startswith("LDS R13"))
+                assert iyf < io and bl_[iyf].sem == ("nop",) and st_(bl_, iyf, io) == 60 and bl_[iy].text.startswith("IADD3 R15") and sum(a.text.startswith("LDS R13") for a in bl_) == 1
+            else:
+                assert st_(bl_, io, iy) == dd and bl_[iy].text == "LDS R13, [R13+0x3c] ;" and "W2" in bl_[iy].ctl and "B------" in bl_[iy].ctl
+                assert not any("B" + w_ in a.ctl for a in bl_[io:iy + 1] for w_ in ("-1", "--2", "-12"))
+        assert any(a.text == "STS [R9+0x3c], R13 ;" for a in prologue(rl_, 188))
+        g, lt_ = model(rl_, "good", gids=gids), model(rl_, "late", gids=gids)
+        assert [int(x) for x in g] == model(rl_, "good", gids=gids, scalar=True) and [int(x) for x in lt_] == model(rl_, "late", gids=gids, scalar=True) and (g != lt_).all(), extra
+        n += 2
+    assert np.array_equal(model(normalise({"id": "xx", "kind": "lb"}), "good", gids=gids), model(normalise({"id": "xx", "kind": "lb", "control": "front"}), "good", gids=gids))
+    assert np.array_equal(model(normalise({"id": "xx", "kind": "lb"}), "late", gids=gids), model(normalise({"id": "xx", "kind": "lb", "control": "front"}), "late", gids=gids))
+    for bad in ({"control": "x"}, {"control": "front", "yield": "set"}, {"yield": "set", "distances": "12-14"}, {"producer": "LDS"}):
+        try:
+            normalise(dict({"id": "xx", "kind": "lb"}, **bad))
+            raise AssertionError(bad)
+        except SystemExit:
+            pass
+    # version 26, second build - kind gw: the shape of the body at every distance, both hypotheses against the scalar interpreter, refusals
+    for prod_ in GW_PRODUCERS:
+        for extra in ({}, {"guard": "false"}, {"wait": "none"}, {"wait": "none", "guard": "false"}, {"yield": "set"}, {"wait": "none", "yield": "set"},
+                      {"wait": "end"}, {"wait": "end", "guard": "false", "yield": "set"}):
+            rg = normalise(dict({"id": "xx", "kind": "gw", "producer": prod_}, **extra))
+            for dd in rg["distance_list"]:
+                bg = body_gw(rg, dd)
+                ip, iw, ic = (next(k for k, a in enumerate(bg) if a.tag == t_) for t_ in ("P", "W", "C"))
+                assert st_(bg, ip, ic) == dd and sum(1 for a in bg if a.tag in ("P", "W", "C")) == 3, (prod_, extra, dd)
+                assert ("B-1----" in bg[iw].ctl) == (rg["wait"] == "guarded") and "W1" in bg[ip].ctl and "B------" in bg[ic].ctl and bg[ic].text.startswith("@!P4 ") and bg[iw].text.startswith("@P4 ")
+                assert (iw < ic and st_(bg, ip, iw) == 2) or (dd <= 2 and rg["wait"] != "guarded" and ic < iw), (prod_, extra, dd)
+                ends = [k for k, a in enumerate(bg) if "B-1----" in a.ctl and a.tag is None]
+                assert (len(ends) == 1 and ends[0] > ic and st_(bg, ic, ends[0]) >= 45 and bg[ends[0]].sem == ("nop",)) if rg["wait"] == "end" else not ends, (prod_, extra, dd)
+                assert all(("Y" in a.ctl.split(":")[3]) <= (int(a.ctl[-3:-1]) <= 11) for a in bg) and not misaligned(kernel_text("x", rg, 188, bg))
+            g, sl_ = model(rg, "good", gids=gids), model(rg, "stale", gids=gids)
+            assert [int(x) for x in g] == model(rg, "good", gids=gids, scalar=True) and [int(x) for x in sl_] == model(rg, "stale", gids=gids, scalar=True) and (g != sl_).all(), (prod_, extra)
+            n += 2
+        assert np.array_equal(model(normalise({"id": "xx", "kind": "gw", "producer": prod_}), "good", gids=gids),
+                              model(normalise({"id": "xx", "kind": "gw", "producer": prod_, "wait": "none"}), "good", gids=gids))
+    for bad in ({"producer": "LDG"}, {"producer": "SHFL", "wait": "x"}, {"producer": "SHFL", "guard": "true"}, {"producer": "SHFL", "distances": "1-5"},
+                {"producer": "LDS", "yield": "set", "distances": "14-16"}, {"producer": "LDS", "front": ["none"]}):
+        try:
+            normalise(dict({"id": "xx", "kind": "gw"}, **bad))
+            raise AssertionError(bad)
+        except SystemExit:
+            pass
+    # version 26 - kind thr: every slot of every stage passes the audit with the stage's static cycles, differs from the base
+    # stage in control fields only, assembles to a text the alignment check takes; the model of ONE pass x repeat equals the
+    # scalar interpreter; three whole passes on Python integers give 3 x the checksum of one pass; refusals
+    for stg, slots in THR_STAGES.items():
+        rt = normalise({"id": "xx", "kind": "thr", "stage": stg, "repeat": 3, "occupancy": ["w1", "w32", "c4w8", "c2w9s"]})
+        base = body_thr(rt, 1)
+        tot = thr_words(rt)[1]
+        pts = thr_points(rt)["slots"]
+        assert [p_["slot"] for p_ in pts] == list(range(1, len(slots) + 1)) and all(p_["static_cycles"] == tot for p_ in pts), stg
+        for k in range(1, len(slots) + 1):
+            bk = body_thr(rt, k)
+            assert [(a.text, a.sem, a.tag) for a in bk] == [(a.text, a.sem, a.tag) for a in base], (stg, k)
+            assert [a.ctl[-4:] for a in bk] == [a.ctl[-4:] for a in base], (stg, k)      # the same stalls
+            assert not misaligned(kernel_text("x", rt, 188, bk)), (stg, k)
+        if stg == "a":
+            assert [a.ctl for a in body_thr(rt, len(slots))] == [a.ctl for a in base]      # the null slot IS the base stage
+            by = {p_["name"]: p_ for p_ in pts}
+            assert (by["base"]["wait_bits"], by["base"]["read_barriers"], by["base"]["write_barriers"], by["base"]["tensor_words"], by["base"]["loads"]) == (1, 0, 1, 4, 1)
+            assert [by[f"a1_{m}"]["wait_bits"] for m in (1, 2, 4, 8, 16)] == [2, 3, 5, 9, 17] and by["a1n_16"]["wait_bits"] == 17
+            assert [by[f"a2_{m}"]["wait_bits"] for m in (1, 2, 4, 8)] == [2, 3, 5, 9]
+            assert (by["a3_r"]["read_barriers"], by["a3_r"]["wait_bits"]) == (4, 1) and (by["a3_w"]["read_barriers"], by["a3_w"]["wait_bits"]) == (4, 13)
+            assert (by["a3_d"]["read_barriers"], by["a3_d"]["wait_bits"]) == (4, 17) and by["a4"]["wait_bits"] == 2
+            assert by["b_none"]["yield_flags"] == 0 and by["b_tensor"]["yield_flags"] == 3 and by["b_alt"]["yield_flags"] * 2 in (by["base"]["yield_flags"], by["base"]["yield_flags"] + 1)
+        g = model(rt, "good", gids=gids)
+        assert [int(x) for x in g] == model(rt, "good", gids=gids, scalar=True) and (g != 0).all(), stg
+        one = model(dict(rt, repeat=1), "good", gids=gids, scalar=True)
+        for gi, d1 in zip(gids, one):
+            assert thr_passes_scalar(rt, int(gi), 3) == (3 * d1) & 0xFFFFFFFF, (stg, int(gi))
+        n += 1
+    for bad in ({"repeat": 2}, {"repeat": 0}, {"stage": "zz"}, {"distances": "2-5"}, {"distances": "1-99"}, {"occupancy": ["g32"]}, {"yield": "set"}, {"form": "HMMA.BF16"}):
+        try:
+            normalise(dict({"id": "xx", "kind": "thr"}, **bad))
+            raise AssertionError(bad)
+        except SystemExit:
+            pass
+    # a stage that breaks a rule is refused by the audit: a rewrite of a B register 7 cycles behind its tensor word; a reader of the load that does not wait
+    rt = normalise({"id": "xx", "kind": "thr", "stage": "a", "repeat": 3})
+    for mut in ("hold", "nowait", "cycles"):
+        b_ = body_thr(rt, 1)
+        tot = thr_words(rt)[1]
+        ix = {a.tag: k for k, a in enumerate(b_)}
+        if mut == "hold":      # X0 one cycle later, FL one cycle earlier in stall: G2a then stands 7 behind X0
+            b_[ix["F3"]] = Ins(b_[ix["F3"]].text, b_[ix["F3"]].sem, ctl=b_[ix["F3"]].ctl[:-3] + "03]", tag="F3")
+            b_[ix["X0"]] = Ins(b_[ix["X0"]].text, b_[ix["X0"]].sem, ctl=b_[ix["X0"]].ctl[:-3] + "03]", tag="X0")
+        elif mut == "nowait":
+            b_[ix["FL"]] = Ins(b_[ix["FL"]].text, b_[ix["FL"]].sem, ctl=C(4, y=True), tag="FL")
+        else:
+            b_[ix["B0"]] = Ins(b_[ix["B0"]].text, b_[ix["B0"]].sem, ctl=C(5, y=True), tag="B0")
+        try:
+            thr_audit(rt, b_, tot, mut)
+            raise AssertionError(mut)
+        except SystemExit:
+            pass
     print(f"selftest: {n} (pair, hypothesis) models equal the scalar interpreter on {len(gids)} threads; `good` differs from every failure hypothesis")
     return 0
 

@@ -642,6 +642,15 @@ decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `
   `LEA → IMAD` r3 5, `SHF → PRMT` r3 4, `IMAD → PRMT` r1 5, `IADD3 → LEA` r2 4 — each equal to its cell in every state, one
   cycle closer not right in 94.0 … 99.99 % of the thread-launches; `UMOV` rewriting the selector 1 … 45 cycles behind a
   `QMMA.SF` never reaches it; every positive control not right in every thread-launch.
+- **`probe.py` 26: a throughput probe (kind `thr`), a wait carried by a guarded instruction (kind `gw`), the base register of a
+  load rewritten by a younger load (kind `lb`)** (`_b48`, `_b49`, `_b50`, a card of the Server Edition; selftest 3 696; readers
+  `read_thr.py`, `read_gw.py`). Kind `thr` times a synthetic stage loop with four `QMMA.SF`, one `LDS.128` and `PRMT` /
+  `LOP3.LUT` groups in which one control field changes per slot, at one warp per SM and at full grids, every kernel checked: a
+  wait bit on a free barrier, a read barrier on the tensor instructions and the re-arm wait change nothing (−0.11 % … +0.02 % at
+  one warp), one instruction that waits on a load in flight earlier than its reader costs +14.3 % at one warp per SM, +19.6 % at
+  8 and +1.6 % at 32. Kind `gw`: a wait on an instruction whose guard is false holds the reader behind it (0 of 1 913 200 640;
+  the same text without the wait bit is not right). Kind `lb`: right at every distance 1 … 45 (0 of 239 150 080; with the yield
+  flag 0 of 220 753 920).
 
 ## Unreleased — 2026-11-11 (session SCH-4: the stall-floor probes on grids that hold two CTAs per SM and on production's card model in two clock states — tools and result files only, no source line changes)
 
