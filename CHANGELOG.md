@@ -4,6 +4,20 @@ User-visible changes, newest first. Table syncs name the blackwell-isa revision 
 (`tables/SOURCE.json` pins it byte for byte). Numbered `BUG-NNN` entries are the encoder /
 decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `docs/TESTS.md`).
 
+## Unreleased — E2 / L1a FP32x2 source shapes
+
+- On SM100a and SM103a, FADD2, FMUL2 and FFMA2 share one source-shape bit
+  mapping and one printer/encoder guard. Measured register and uniform-register
+  families use real table fields instead of synthetic keys, printed-text routes
+  or contradictory donors. Immediate-operand ownership stays with E3/E4.
+- The returned-unit repair removes the scalar-second-source restriction on
+  reuse. Served-control nvdisasm witnesses admit independent per-operand reuse,
+  including all 532 FlashMLA FMUL2 words (2,510 occurrences) that the previous
+  unit refused. FADD2 now owns its first-source reuse bit [122]; FMUL2 no
+  longer forbids that field. The five three-token rows refuse unowned [75:74]
+  instead of re-assembling without those bits. Fixed RZ/UR shapes are constants,
+  and an isolated FFMA2 UR pair measures reuse [123].
+
 ## Unreleased — 2026-11-13 (engine unit E1/X3a: F2FP E2M1 selectors, reuse and unpack type order)
 
 - `op_f2fp_ra_sel` accepts one E2M1 source byte selector and one `.reuse` flag in either order; an omitted selector remains B0. Repeated or unknown suffixes are refused. SM103a and SM100a gain the existing measured `F16.E2M1.UNPACK_B` row from blackwell-isa `bceec379`; its F16-before-E2M1 print order follows the row type and the `F2FP_R_R` key, not an exact modifier-set lookup.

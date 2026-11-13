@@ -238,7 +238,7 @@ fn t476_7_corpus_exact() {
 #[test]
 fn t476_8_census_and_source() {
     // Current byte-pinned cut; historical fixture provenance remains unchanged.
-    const CURRENT_VENDORED_CANON: &str = "8742d744ea740e556f8f0d49ec910de41d594833" /* 2026-11-06 T-11 (was c258f8a, T-10) */ /* 2026-11-06 T-10 (was b75cc20, T-9) */;
+    const CURRENT_VENDORED_CANON: &str = "0915d9673f8339314b2838d945806631c973ba6f" /* 2026-11-06 T-11 (was c258f8a, T-10) */ /* 2026-11-06 T-10 (was b75cc20, T-9) */;
     assert_eq!(CANON476, "9c0e4ce", "historical fixture revision drift");
 
     for (leg, want_forms, want_variants, want_cf) in CENSUS476 {

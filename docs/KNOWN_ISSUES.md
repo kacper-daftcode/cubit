@@ -22,6 +22,25 @@ is stated, not a defect to fix), **closed** (kept for the record; closed in the 
 | T6 | The 2026-11-02 rows are **encoding** evidence only where no execution exists. Closed on silicon 2026-11-03 (4x RTX PRO 6000 Server Edition): **HMUL2 packed immediates** behave as the register form (imm (2,−2) = register (2,−2); (1,1) identity; `-Ra` negates both halves; `.H1_H1` broadcasts the high half — 4/4), **LDSM.U4x16P64TO8** executes (fragment dump `T/gpu/out_testhost/ldsm_fp4_layout.u32.txt`; the unpack law is recorded, not yet turned into a documented layout). Still encoding-only: `ARRIVES_ARURI` (`ctrl_class alu_simple` cloned from UBLKPF; the 297 shipped words all carry the plain stall-1/yield control word), the `UTMASTG` dimensions, the `LDSM.U6x16P32TO8` unpack. **LDSM.U4x16P64TO8.M816.2 fragment dump recorded 2026-11-04** (`T/gpu/out_testhost/ldsm_fp4_layout.u32.txt`, 32 lanes × 4 u32) and **re-read 2026-11-05 with the second SKU** (`rtx`, GB202): the `.2` form writes **two** result registers (one per 8×16 U4 matrix, each = four U4 elements unpacked to U8 lanes: lane 0 reg0 `0x00010000` = input bytes 0x00 0x01 of row 0, reg1 `0x08010800` = bytes 0x80 0x81 of the row addressed by lane 8), the two high registers of the 4-register destination the probe declared are **not written** (they differ between hosts and runs — the 2026-11-04 reading "two low = fragment index, two high = payload" was wrong). The element→lane law needs a de-aliased input (two launches whose nibble values are the low / high four bits of the nibble's index) — prepared as `ldsm_fp4_dealiased`. | **closed 2026-11-05 on both SKUs** (test host GPU 0 `pt-t5probes` / `pt-t5utmastg`, and `rtx` GB202): **`ARRIVES.LDGSTSBAR.64.ARVCNT` = `cp.async.mbarrier.arrive.noinc`** (the phase completes with count == arriving threads, 32/32 and 1/32; the form without `.ARVCNT` never completes it — net-neutral like PTX `cp.async.mbarrier.arrive`; `SYNCS.ARRIVE.TRANS64.A1T0` completes at once but does not wait for the cp.asyncs); **`UTMASTG.2D [UR12 = smem, UR13 = x, UR14 = y], [UR4 = tensor map]`** stores the tensor-map box at the coordinates (box 64×8 @ (0,0), 64×4 @ (0,4) verified); **the LDSM.U4x16P64TO8.M816.2 law de-aliased 256/256** (three launches with the nibble index in the payload): `Rd+m` = matrix m, lane l = row l/4, columns 4·(l mod 4)..+3. **IMAD bit 72 measured 2026-11-08 (session T-19, test host GPU 0, `pt-needs53`): compute-inert** — plain `IMAD` and the same word with bit 72 set both compute a·b+c (a = 0x70000007, b = 5, c = 3 → 0x30000026; the `-Rc` control, bit 75, computes a·b−c; `IMAD.U32` the same), so cubit's `-Ra` reading of bit 72 (BUG-296) had no silicon basis. **Retired 2026-11-08 (session T-20, blackwell-isa `27b1272`):** the `neg@72` field is gone from the 24 measured IMAD rows (they fail closed on the bit like on every text-inert bit; nvdisasm 13.1 prints nothing for it on the four targets), the encoder refuses `-Ra` / `|Ra|` / `-Rb` / `|Rb|` on IMAD on SM120 instead of minting the inert bit (`-Rc` at bit 75 and `-URc` at bit 63 stay as the measured fields), the decoder fails closed on the bit-62 / 63 / 72 words, bug296's IMAD control re-pinned; whole-census parity 0 changes on 249 929 words (0 carry the bit). | `T/gpu/out_testhost/t5probes.log`, `t5utmastg.log`, `needs53.log`, `T/remote/rtx5090/t5/`; generators `T/gpu/gen/`, `T/gpu/kernels/imad_b72_probe.sass`. |
 | T7 | Scheduling metadata outside `hw_measured` rows is synthetic or a ptxas weight; `sched_only` entries have no encoding. | documented | README of blackwell-isa; `latency_source` per row. |
 
+## Engine unit E2 / L1a (2026-11-13)
+
+The FP32x2 source-shape rows are encoding evidence only. The measured-law
+table and complete retained fixtures live at `pubwave/hidden-b300/engine-l1a/`.
+No silicon execution, arithmetic semantics, timing, six-corpus coverage, or
+publication is implied by the local CPU tests. Immediate suffix ownership is
+not part of this unit. SM120 and SM121a tables and print behavior are unchanged.
+
+The returned-unit reuse repair is bounded by complete-word nvdisasm evidence:
+532 distinct FlashMLA words (2,510 occurrences) and 78 clear/set reuse cells
+per target. The source-shape helper does not couple reuse to another operand's
+scalar bit. Three-token FADD2/FMUL2 rows refuse [75:74], for which they have no
+operand field; 66 formerly lossy fixture records per target are covered by this
+boundary. Regular vendor text that a row does not adopt is a stated table
+decision, not a measured hardware prohibition. nvdisasm's reuse refusals on an
+all-zero control field are not treated as operand evidence; cubit does not model
+that control-only rejection. H still owns the six served-corpus acceptance runs
+and checks that no served word is newly refused.
+
 ## Assembler / encoder
 
 | # | item | status | evidence / what it needs |

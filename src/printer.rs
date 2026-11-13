@@ -1814,7 +1814,7 @@ fn format_operand(
         }
         // R with a byte_sel field (R2P/I2F "R0.B1" form): append .B<n> when set.
         "R" => {
-            let s = format_reg(fields, mod_group, tok, raw, ins_key);
+            let s = format_reg(fields, mod_group, tok, raw, ins_key, ef_flags);
             let bsel = fields
                 .iter()
                 .find(|f| {
@@ -1918,13 +1918,27 @@ fn format_operand(
             // pins b88=1 (other cells fail-closed), so .F32 is the only
             // reachable shape (graft arb234z x{100a,103a}, corpus 512/512).
             // Donor UR rows have no opmod fields for this slot.
+            let opcode = ins_key.split('_').next().unwrap_or("");
+            if crate::table::is_sm103a_encoding_family(ef_flags) {
+                if let Some(suffix) = crate::table::fp32x2_shape_suffix(opcode, tok, raw) {
+                    let base = s.split('.').filter(|part| {
+                        !matches!(part.trim_end_matches('|'), "F32" | "F32x2" | "HI_LO" | "LO_HI" | "NP" | "INVALID3")
+                    }).collect::<Vec<_>>().join(".");
+                    return if s.ends_with('|') {
+                        format!("{}.{}|", base.trim_end_matches('|'), suffix.join("."))
+                    } else {
+                        format!("{base}.{}", suffix.join("."))
+                    };
+                }
+            }
+            // SM120's donor UR form has no B300 row and keeps its old text.
             if ins_key == "FFMA2_R_R_UR_R" && tok == 3 {
                 format!("{s}.F32")
             } else {
                 s
             }
         }
-        "II" | "IM" | "LO" => format_imm_or_reg(fields, mod_group, ins_key, tok, raw, lossless),
+        "II" | "IM" | "LO" => format_imm_or_reg(fields, mod_group, ins_key, tok, raw, ef_flags, lossless),
         "FI" => format_float_imm(fields, lossless),
         "L" | "SR" => format_lit_or_sysreg(fields, mod_group, raw),
         // BUG-179 (superset of parked-BUG-157): SYNCS- and ATOMS-family ARI
@@ -2348,6 +2362,7 @@ fn format_reg(
     tok: i32,
     raw: u128,
     ins_key: &str,
+    ef_flags: u32,
 ) -> String {
     let mut reg: Option<u64> = None;
     let mut neg = false;
@@ -2484,7 +2499,14 @@ fn format_reg(
     //        else       -> .F32x2.HI_LO
     //   t4:             -> .F32x2.HI_LO always (neg@75/abs@74/reuse@124 are
     //                      row fields, graft-proven)
-    if ins_key.starts_with("FFMA2") {
+    if crate::table::is_sm103a_encoding_family(ef_flags) {
+        if let Some(shape) = crate::table::fp32x2_shape_suffix(
+            ins_key.split('_').next().unwrap_or(""), tok, raw,
+        ) {
+            opmods.retain(|m| !matches!(m.as_str(), "F32" | "F32x2" | "HI_LO" | "LO_HI" | "NP" | "INVALID3"));
+            opmods.extend(shape.into_iter().map(str::to_string));
+        }
+    } else if ins_key.starts_with("FFMA2") {
         let b81 = (raw >> 81) & 1 != 0;
         let b82 = (raw >> 82) & 1 != 0;
         let b88 = (raw >> 88) & 1 != 0;
@@ -2680,6 +2702,7 @@ fn format_imm_or_reg(
     ins_key: &str,
     tok: i32,
     raw: u128,
+    ef_flags: u32,
     lossless: bool,
 ) -> String {
     // If any imm-like extraction is present → format as immediate
@@ -2748,7 +2771,7 @@ fn format_imm_or_reg(
         return format_imm(fields, mod_group, ins_key, lossless);
     }
     // Might also be an R slot formatted as II (IMAD.SHL case)
-    format_reg(fields, mod_group, tok, raw, ins_key)
+    format_reg(fields, mod_group, tok, raw, ins_key, ef_flags)
 }
 
 // ── P — predicate ─────────────────────────────────────────────────────────────
