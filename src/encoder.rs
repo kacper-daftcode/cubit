@@ -6147,20 +6147,24 @@ fn op_f2fp_scale_sel(insn: &Instruction, tok: i32) -> Option<u64> {
         .map(|n| n as u64)
 }
 
-/// E2M1 uses (b88,b72) = B3/B2/B1/B0. Fit each bit separately.
+/// E2M1 uses (b88,b72) = B3/B2/B1/B0, with .reuse in either vendor order.
 fn op_f2fp_ra_sel(insn: &Instruction, tok: i32, shift: u32) -> Option<u64> {
     if insn.opcode != "F2FP" {
         return None;
     }
     let token = op_token_text(insn, tok);
-    let value = match token.split('.').next_back() {
-        Some("B3") => 3,
-        Some("B2") => 2,
-        Some("B1") => 1,
-        Some("B0") => 0,
-        _ if !token.contains('.') => 0,
-        _ => return None,
-    };
+    let mut selector = None;
+    let mut reuse_seen = false;
+    for suffix in token.split('.').skip(1) {
+        match suffix {
+            "reuse" if !reuse_seen => reuse_seen = true,
+            "B0" | "B1" | "B2" | "B3" if selector.is_none() => {
+                selector = Some(suffix[1..].parse::<u64>().ok()?);
+            }
+            _ => return None,
+        }
+    }
+    let value = selector.unwrap_or(0);
     match shift {
         72 => Some(value & 1),
         88 => Some((value >> 1) & 1),
