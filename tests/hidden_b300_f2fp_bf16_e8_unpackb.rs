@@ -95,7 +95,7 @@ fn measured_production_and_field_words_roundtrip() {
         let entry = &raw["instructions"]["F2FP_R_R"];
         assert_eq!(entry["operand_sig"], "R_R");
         assert_eq!(entry["scheduling"]["pipe_name"], "UNKNOWN");
-        assert_eq!(entry["mod_groups"].as_object().unwrap().len(), 7);
+        assert_eq!(entry["mod_groups"].as_object().unwrap().len(), 8);
         let group = &entry["mod_groups"]["BF16,E8,UNPACK_B"];
         assert_eq!(group["_src"], SOURCE);
         assert_eq!(group["and_base"], "0x00000000020816ff00000000ff00023e");

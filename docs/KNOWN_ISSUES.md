@@ -90,6 +90,10 @@ is stated, not a defect to fix), **closed** (kept for the record; closed in the 
 | R4 | `tests/target-suite/` (a committed Cargo build directory, 458 files / 195 MB) was removed from the tree on 2026-11-02 and from the whole history on 2026-11-03 (`git filter-repo`, the one sanctioned force push; pack 56.5 → 12.6 MB; clones made before 2026-11-03 must be re-cloned, see README). | closed | CHANGELOG 0.2.0 carries the commit-id mapping. |
 | R5 | The Python bindings (`pip install -e .`, maturin) are verified on Python 3.12 only (2026-11-02). | documented | README states it. |
 
+## Engine unit notes
+
+| A56 | **Engine E1/X3a: the E2M1 selector can neighbour `.reuse`; F16/E2M1 unpack follows measured modifier order (2026-11-13).** `op_f2fp_ra_sel` permits one B0..B3 and one `.reuse` in either order and refuses repetitions or unknown suffixes. The one measured F16/E2M1 row on each of SM103a and SM100a carries selector bits 72 and 88; `F16` is ranked before `E2M1` by type and key only. Existing immediate suffix ownership remains E3; silicon effect, silicon semantics and timing are not measured. | **closed on this unit's CPU/SASS scope** | `tests/hidden_b300_f2fp_bf16_e2m1_reuse_selector.rs`, `tests/hidden_b300_f2fp_f16_e2m1_unpackb.rs`, provenance rows `rows-f2fp-f16-e2m1-unpackb-production-2026-11-10`. |
+
 ## Validation claims that cannot be re-run from the build host
 
 | # | claim | status |
