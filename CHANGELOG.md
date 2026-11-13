@@ -55,14 +55,21 @@ decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `
   of the kernel under the switch reads fc1 0.652 ± 0.024 % and the span 0.336 ± 0.018 % below ptxas's own build of
   that form (full form; one block). Both halves of the rule stand on those two forms of one kernel, as cubit lays
   their frames out; off the same class of words in a schedule of FC2 whose frame is ptxas's own the flag bought
-  nothing (0.01 ± 0.11 µs a call at 4 096 rows; one block, one load order) — the rule stays off such a schedule.
+  nothing (0.01 ± 0.11 µs a call at 4 096 rows; one block, one load order) — on FC2 the rule gains nothing. A
+  ranking on each form (one block in one load order; the flag taken off by hand) then separated the kernel from
+  the author of the frame: with the rule's flags off ptxas's OWN frame of FC1 | its r33 form the schedule read
+  1.19 ± 0.14 | 4.77 ± 0.15 µs a call faster than with them — the kernel decides; cubit's frame under the rule
+  stayed the faster of the two (by 0.35 ± 0.10 | 2.34 ± 0.11 µs). In the same rankings one stall cycle more on
+  the rule's stall-1 words, without the flag, was not seen (0.10 ± 0.10 slower | 0.14 ± 0.11 faster), and the flag
+  on them at a stall of 2 cost 1.26 ± 0.10 | 1.41 ± 0.11 µs where the schedule without the rule — the flag on them
+  at a stall of 1, and on the rule's stall-2 words — costs 2.43 ± 0.10 | 6.14 ± 0.11: the rule's time is the time
+  of the yield flag, not of a stall cycle.
 - **What moves under the switch:** in cubit's schedule of the three served texts (`CUBIT_WAIT_POLICY=1`) 882 | 897 | 587 words
   give up the flag at n = 1 and 955 | 979 | 643 at n = 2 (FC1 | its r33 form | FC2) and nothing else moves; ptxas carries the
   flag on 914 | 937 | 600 of the latter, so the words whose flag differs from his rise 148 → 1021 | 145 → 1040 | 108 → 665. Without the switch every schedule
   is byte for byte what it was.
 - **Not known:** whether the rule holds on FC2 as cubit lays it out, at the power limit, on another card model;
-  whether the kernel or the frame's author decides where it gains; why a yield costs in the frame and pays in the
-  tensor loop.
+  why a yield costs in the frame and pays in the tensor loop, and why its price falls with the stall count.
 - `tests/yield_hold.rs` (4 tests; 3 fail without the change): the flag off the frame's words; nothing else moved; the
   tensor loop and the barrier setters as they were; the variable alone, a value that is no switch, the default path
   and an author's schedule untouched. Five unit tests of `apply_yield_hold` and `tensor_loop_words`
