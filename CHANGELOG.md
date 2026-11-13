@@ -4,6 +4,35 @@ User-visible changes, newest first. Table syncs name the blackwell-isa revision 
 (`tables/SOURCE.json` pins it byte for byte). Numbered `BUG-NNN` entries are the encoder /
 decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `docs/TESTS.md`).
 
+## Unreleased — 2026-11-13 (`CUBIT_YIELD_HOLD=1|2`, opt-in: outside the tensor loops a datapath word that sets no barrier gives up the yield flag at stall 1, or 1 and 2 — measured on the served FC1; without the switch nothing changes)
+
+- **`CUBIT_YIELD_HOLD=<n>`**, n = 1 or 2 (honoured only together with `CUBIT_SYNC_CLASSES=1`; KNOWN_ISSUES A55): on
+  the schedule the stall passes leave, in front of the OPEX law, a word that carries the yield flag at a stall of
+  1 ..= n, sets neither a write nor a read barrier, carries no `.reuse` operand, whose opcode ptxas has without the
+  flag at stall 2 on a word that sets no barrier (41 opcodes, the tensor words left out) and that stands in no
+  tensor loop gives the flag up. A tensor loop is the innermost resolved loop around a `QMMA`, `HMMA`, `IMMA` or
+  `DMMA`. No stall count, wait or barrier moves; a hand-scheduled word is not touched.
+- **Where it comes from: a card, not ptxas.** He carries the flag on almost every stall-1 word. The served FC1 as
+  `CUBIT_WAIT_POLICY=1` builds it was read with the flag taken off sets of words and nothing else changed (4 096
+  rows; one card model, free of its power limit; one block, one load order; every call's result compared): off the
+  qualifying words outside the tensor loop at stall 1 (876) 2.19 ± 0.10 µs a call faster, at stall 1 and 2 (944)
+  2.47 ± 0.10; on today's table (955 words — the schedule the switch builds) 2.57 ± 0.15 µs faster than without and
+  0.27 % below ptxas's own build; off the 223 qualifying words of the tensor loop as well, 11.07 ± 0.14 µs slower
+  than without those. In the full form (both load orders; one block) the schedule the switch builds reads fc1
+  0.276 ± 0.023 % and the span of the call 0.118 ± 0.017 % below ptxas's own build at 4 096 rows; at 2 048 rows and
+  below it reads like the kernel's best schedule without the rule — the gain is of 4 096 rows alone. Both halves
+  of the rule stand on that one kernel.
+- **What moves under the switch:** in cubit's schedule of the three served texts (`CUBIT_WAIT_POLICY=1`) 882 | 897 | 587 words
+  give up the flag at n = 1 and 955 | 979 | 643 at n = 2 (FC1 | its r33 form | FC2) and nothing else moves; ptxas carries the
+  flag on 914 | 937 | 600 of the latter, so the words whose flag differs from his rise 148 → 1021 | 145 → 1040 | 108 → 665. Without the switch every schedule
+  is byte for byte what it was.
+- **Not known:** whether the rule holds on the r33 form of the kernel and on FC2 (neither has been read under it), at
+  the power limit, on another card model; why a yield costs in the frame and pays in the tensor loop.
+- `tests/yield_hold.rs` (4 tests; 3 fail without the change): the flag off the frame's words; nothing else moved; the
+  tensor loop and the barrier setters as they were; the variable alone, a value that is no switch, the default path
+  and an author's schedule untouched. Five unit tests of `apply_yield_hold` and `tensor_loop_words`
+  (`src/scheduling_pass.rs`).
+
 ## Unreleased — 2026-11-13 (the sm_120 dependency table: sixteen cells of eleven pairs on a uniform register, measured on two card models; the verifier's census of the uniform datapath)
 
 - **`tables/dep_latency_sm120.json`: fourteen new cells and two lowered ones** (KNOWN_ISSUES A54; read only under

@@ -3528,6 +3528,178 @@ pub(crate) fn resolved_back_edges(insns: &[Instruction]) -> (Vec<(usize, usize)>
     (edges, ltop, lback)
 }
 
+/// `CUBIT_YIELD_HOLD=<n>` (n = 1 or 2; opt-in, honoured only together with `CUBIT_SYNC_CLASSES=1`):
+/// the largest stall at which a word of the fixed-latency datapath outside the tensor loops gives
+/// up the yield flag ([`apply_yield_hold`], in front of the OPEX law). Without it nothing changes.
+///
+/// Measured, not taken from ptxas: he carries the flag on almost every such word at stall 1. The
+/// served FC1 as `CUBIT_WAIT_POLICY=1` builds it read 2.57 µs a call faster with the flag off its
+/// 955 such words at stall 1 and 2 -- 0.27 % below ptxas's own build (4 096 rows; one card
+/// model, free of its power limit; one block, one load order). A schedule of that kernel with
+/// the flag also off the 223 such words of its tensor loop read 11 µs a call SLOWER than without
+/// those -- so the words of a tensor loop keep their flags.
+pub fn yield_hold() -> Option<u8> {
+    if !crate::sync_class::enabled() {
+        return None;
+    }
+    match std::env::var("CUBIT_YIELD_HOLD").ok().as_deref() {
+        Some("1") => Some(1),
+        Some("2") => Some(2),
+        _ => None,
+    }
+}
+
+/// The opcodes of [`apply_yield_hold`]: those ptxas's sm_120 schedules (166 modules) carry
+/// WITHOUT the yield flag at stall 2 on a word that sets no barrier, the tensor words left out.
+/// It leaves out the words on which a flag may be more than a hint -- memory words, `SHFL`,
+/// `MUFU`, `BSSY`, `BAR`, `P2R`, the synchronisation words: at stall 2 he carries the flag on
+/// every one of them.
+pub const HOLD_OPCODES: [&str; 41] = [
+    "CS2R", "ELECT", "F2FP", "FADD", "FFMA", "FMNMX", "FMUL", "FSEL", "FSETP", "HADD2", "HFMA2", "HMUL2", "IABS", "IADD",
+    "IADD3", "IMAD", "ISETP", "LEA", "LOP3", "MOV", "NOP", "PLOP3", "PRMT", "R2UR", "SEL", "SGXT", "SHF", "UFLO", "UFMUL",
+    "UIADD3", "UIMAD", "UISETP", "ULEA", "ULOP3", "UMOV", "UPLOP3", "USEL", "USHF", "UVIMNMX", "VIMNMX", "VOTEU",
+];
+
+/// The words of the tensor loops: for every warp tensor word (`QMMA`, `HMMA`, `IMMA`, `DMMA`)
+/// the innermost resolved loop around it (`resolved_back_edges`), first word to back edge.
+pub fn tensor_loop_words(insns: &[Instruction]) -> Vec<bool> {
+    let (_, ltop, lback) = resolved_back_edges(insns);
+    let mut inside = vec![false; insns.len()];
+    for i in 0..insns.len() {
+        if is_warp_mma(insns[i].opcode.as_str()) && ltop[i] != usize::MAX {
+            for w in inside.iter_mut().take(lback[i] + 1).skip(ltop[i]) {
+                *w = true;
+            }
+        }
+    }
+    inside
+}
+
+/// [`yield_hold`] on a finished schedule: a word that carries the yield flag at a stall of
+/// 1 ..= `max_stall`, sets no barrier, carries no `.reuse` operand, whose opcode is one of
+/// [`HOLD_OPCODES`] and that stands in no tensor loop loses the flag. Returns the number of such
+/// words. No stall, wait or barrier moves; a hand-scheduled word is not touched.
+///
+/// What stays out and why: a word that sets a barrier (ptxas carries the flag on 243 696 of
+/// 243 720 of them at a stall of 1 … 11, and a waiter one cycle behind a setter WITH the flag
+/// does not see the barrier -- clearing it there would arm what the schedule left unarmed); a
+/// word with a `.reuse` operand (every one of ptxas's 219 187 carries the flag); the words of a
+/// tensor loop (measured: there the flag is worth time).
+pub fn apply_yield_hold(insns: &mut [Instruction], max_stall: u8) -> usize {
+    let inside = tensor_loop_words(insns);
+    let mut cleared = 0;
+    for (i, w) in insns.iter_mut().enumerate() {
+        if w.hand_sched || inside[i] || !w.ctrl.yield_flag || !(1..=max_stall).contains(&w.ctrl.stall) {
+            continue;
+        }
+        let sets = (w.ctrl.write_bar as usize) < NUM_BARRIERS || (w.ctrl.read_bar as usize) < NUM_BARRIERS;
+        let reuse = w.operands.iter().any(|o| matches!(o, Operand::Reg { reuse: true, .. } | Operand::UReg { reuse: true, .. }));
+        if sets || reuse || !HOLD_OPCODES.contains(&w.opcode.as_str()) {
+            continue;
+        }
+        w.ctrl.yield_flag = false;
+        cleared += 1;
+    }
+    cleared
+}
+
+#[cfg(test)]
+mod yield_hold_tests {
+    use super::*;
+
+    const NONE: u8 = 7;
+
+    fn word(s: &str, addr: u32, stall: u8, wb: u8) -> Instruction {
+        let mut i = crate::parse_sass(s, addr).unwrap();
+        i.hand_sched = false;
+        i.ctrl.stall = stall;
+        i.ctrl.yield_flag = true;
+        i.ctrl.write_bar = wb;
+        i.ctrl.read_bar = NONE;
+        i.ctrl.wait_mask = 0;
+        i
+    }
+
+    fn flags(k: &[Instruction]) -> Vec<bool> {
+        k.iter().map(|x| x.ctrl.yield_flag).collect()
+    }
+
+    #[test]
+    fn a_datapath_word_at_stall_1_gives_up_the_flag_and_nothing_else_moves() {
+        let mut k = vec![
+            word("MOV R4, R5", 0x00, 1, NONE),
+            word("IADD3 R6, PT, PT, R4, 0x40, RZ", 0x10, 1, NONE),
+            word("FMUL R7, R6, R6", 0x20, 1, NONE),
+        ];
+        let before: Vec<_> = k.iter().map(|x| (x.ctrl.stall, x.ctrl.write_bar, x.ctrl.read_bar, x.ctrl.wait_mask)).collect();
+        assert_eq!(apply_yield_hold(&mut k, 1), 3);
+        assert_eq!(flags(&k), [false, false, false]);
+        assert_eq!(k.iter().map(|x| (x.ctrl.stall, x.ctrl.write_bar, x.ctrl.read_bar, x.ctrl.wait_mask)).collect::<Vec<_>>(), before);
+        assert_eq!(apply_yield_hold(&mut k, 1), 0, "a second pass finds nothing");
+    }
+
+    #[test]
+    fn a_setter_a_reuse_word_another_opcode_and_an_authors_word_keep_the_flag() {
+        let mut k = vec![
+            word("MUFU.EX2 R8, R8", 0x00, 1, 2),                    // sets a write barrier
+            word("FMNMX R10, R10, R6.reuse, PT", 0x10, 1, NONE),     // a `.reuse` operand
+            word("LDC R6, c[0x0][0x388]", 0x20, 1, NONE),            // an opcode outside the list
+            word("MOV R4, R5", 0x30, 1, NONE),                       // hand-scheduled
+            word("MOV R4, R5", 0x40, 1, NONE),
+        ];
+        k[3].hand_sched = true;
+        let mut rb = word("FADD R9, R8, R4", 0x50, 1, NONE);       // sets a read barrier
+        rb.ctrl.read_bar = 1;
+        k.push(rb);
+        assert_eq!(apply_yield_hold(&mut k, 2), 1);
+        assert_eq!(flags(&k), [true, true, true, true, false, true]);
+    }
+
+    #[test]
+    fn the_argument_is_the_largest_stall() {
+        let build = || vec![word("MOV R4, R5", 0x00, 1, NONE), word("IADD3 R6, PT, PT, R4, 0x40, RZ", 0x10, 2, NONE), word("FMUL R7, R6, R6", 0x20, 3, NONE)];
+        let mut k = build();
+        assert_eq!(apply_yield_hold(&mut k, 1), 1);
+        assert_eq!(flags(&k), [false, true, true]);
+        let mut k = build();
+        assert_eq!(apply_yield_hold(&mut k, 2), 2);
+        assert_eq!(flags(&k), [false, false, true], "a stall of 3 keeps the flag under either value");
+    }
+
+    #[test]
+    fn the_words_of_a_tensor_loop_keep_their_flags() {
+        // [0] frame | [1 ..= 3] a loop around a tensor word | [4] frame | [5 ..= 6] a loop without one
+        let mut k = vec![
+            word("MOV R4, R5", 0x00, 1, NONE),
+            word("MOV R6, R7", 0x10, 1, NONE),
+            word("HMMA.16816.F32 R8, R12, R16, R8", 0x20, 1, NONE),
+            word("BRA 0x10", 0x30, 5, NONE),
+            word("MOV R9, R10", 0x40, 1, NONE),
+            word("IADD3 R6, PT, PT, R4, 0x40, RZ", 0x50, 1, NONE),
+            word("BRA 0x50", 0x60, 5, NONE),
+        ];
+        assert_eq!(tensor_loop_words(&k), [false, true, true, true, false, false, false]);
+        assert_eq!(apply_yield_hold(&mut k, 2), 3);
+        assert_eq!(flags(&k), [false, true, true, true, false, false, true]);
+    }
+
+    #[test]
+    fn the_tensor_loop_is_the_innermost_loop_around_the_tensor_word() {
+        // an outer loop [0 ..= 5] around the tensor loop [2 ..= 3]: the outer loop's own words are frame
+        let mut k = vec![
+            word("MOV R4, R5", 0x00, 1, NONE),
+            word("MOV R6, R7", 0x10, 1, NONE),
+            word("HMMA.16816.F32 R8, R12, R16, R8", 0x20, 1, NONE),
+            word("BRA 0x20", 0x30, 5, NONE),
+            word("MOV R9, R10", 0x40, 1, NONE),
+            word("BRA 0x0", 0x50, 5, NONE),
+        ];
+        assert_eq!(tensor_loop_words(&k), [false, false, true, true, false, false]);
+        assert_eq!(apply_yield_hold(&mut k, 1), 3);
+        assert_eq!(flags(&k), [false, false, true, true, false, true]);
+    }
+}
+
 pub fn reallocate_barriers(insns: &mut [Instruction], table: Option<&IsaTable>) {
     let n = insns.len();
     if n == 0 { return; }

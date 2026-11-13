@@ -5756,6 +5756,18 @@ fn cmd_asm_directive_format(
             }
         }
 
+        // CUBIT_YIELD_HOLD: a word of the fixed-latency datapath that sets no barrier gives up the yield
+        // flag at a stall of 1 ..= n -- outside the tensor loops, whose words keep theirs. No stall, wait
+        // or barrier moves; in front of the OPEX law.
+        if let Some(n) = cubit::scheduling_pass::yield_hold() {
+            if !fully_frozen {
+                let cleared = cubit::scheduling_pass::apply_yield_hold(&mut insns_with_ctrl, n);
+                if cleared > 0 {
+                    println!("  {}: yield hold: {} word(s) give up the yield flag (stall 1 ..= {})", def.name, cleared, n);
+                }
+            }
+        }
+
         // Post-pass stall bumps (MMA / back-edge settle) run after schedule()
         // and can re-pair a long stall with yield. Reapply the native SM120
         // OPEX law, or the earlier BUG-170 LOP3-only rule on other targets.
