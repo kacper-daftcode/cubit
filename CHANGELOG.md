@@ -15,6 +15,11 @@ decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `
 - The two loops of the r33 form differ in nine control words, all at the scale loads, where the third clause regroups
   them. The switch is a policy for FC1's consumer loop: a schedule it builds for another kernel has to be measured
   before anything is said about its speed.
+- **Measured since (2026-11-13): which of the nine control words cost on the r33 form — none** (KNOWN_ISSUES A51). The
+  hand-made text's loop inside ptxas's schedule of the rest of the kernel reads +0.14 % against ptxas (+0.138 ± 0.026,
+  one block), like the switch's loop there (+0.16 % in the same block) and 0.21 points above the hand-made text
+  itself, whose schedule outside the loop is cubit's. The loss is not made at the scale loads; clause (3) is not
+  changed. Which words outside the loop carry it is open. No code change.
 
 ## Unreleased — 2026-11-12 (`CUBIT_WAIT_POLICY=1`: a reader waits both guarded producers that may have written its register)
 
