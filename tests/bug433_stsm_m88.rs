@@ -220,7 +220,7 @@ fn t433_5_mints_refuse_canon() {
 #[test]
 fn t433_6_source_manifest_and_table_presence() {
     // Current byte-pinned cut; historical fixture provenance remains unchanged.
-    const CURRENT_VENDORED_CANON: &str = "276a1a7da9e502f7709200f64ec400bd8afa6b40" /* 2026-11-06 T-11 (was c258f8a, T-10) */ /* 2026-11-06 T-10 (was b75cc20, T-9) */;
+    const CURRENT_VENDORED_CANON: &str = "69e3d33e818382cc3b412b493eb1e7ee36f76c36" /* 2026-11-06 T-11 (was c258f8a, T-10) */ /* 2026-11-06 T-10 (was b75cc20, T-9) */;
     assert_eq!(CANON433, "9c0e4cec355119065444f59d0710de372b9d0577", "historical fixture revision drift");
 
     let src: serde_json::Value =
