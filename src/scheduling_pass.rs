@@ -364,6 +364,44 @@ pub fn wait_policy() -> bool {
     std::env::var("CUBIT_WAIT_POLICY").ok().as_deref() == Some("1") && crate::sync_class::enabled()
 }
 
+/// `CUBIT_LOAD_COVER=1` (opt-in, default off; honoured only together with [`wait_policy`]): the
+/// vendor's form of a shared-memory load. The memory pipe of a thread delivers in issue order, and
+/// ptxas lets ONE wait on a younger shared load stand for the older ones in front of it. Three
+/// clauses, each in front of the colouring of [`reallocate_barriers`] (a use that is dropped
+/// takes no scoreboard, so the loads that keep one share less):
+///
+/// * **a shared load carries no write barrier when the wait of a younger shared load stands at or
+///   in front of each of its own first readers.** `LDS R86, [R12+0x2100] ; LDS R91, [R90+0x2000]
+///   [W3] ... QMMA ... R91, R86 [B3]`: the reader waits the younger load and reads both. The older
+///   load is BARE; no word waits for it. On the 102 shared loads of the served fc2 kernel as the
+///   vendor schedules it this one sentence names his 17 bare loads and no other (KNOWN_ISSUES
+///   A57).
+/// * **no read barrier on the base of a shared load that a younger shared load rewrites** -- the
+///   clause of [`wait_policy`] for a plain `LDS`, here also for `LDS.64` and `LDS.U16` on either
+///   side (`LDS.64 R58, [R64+0x1e00] ... LDS.64 R64, [R92]`); the distance is the same operand
+///   hold (`sync_class::SHARED_LOAD_BASE_HOLD`).
+/// * **of the shared loads off one base register that the same words rewrite, the youngest
+///   carries the read barrier** (`LDS R86, [R12+0x2100] ... LDS R81, [R12+0x2120] [R4] ...
+///   LOP3.LUT R12, ... [B4]`): when the youngest has read its address, the older ones have.
+///
+/// Every load in question is unguarded and stands with its cover and its readers on one straight
+/// line of the text. What silicon has measured of this form is the first clause's simplest shape
+/// (ONE bare load under ONE younger load, the base not rewritten: `tools/probe_sm120`, the cover
+/// set); the shapes a served kernel has beyond it -- several bare loads under one cover, a bare
+/// `LDS.U16`, the second and third clause -- are the vendor's practice, not a measurement. The
+/// switch is for exploration.
+pub fn load_cover() -> bool {
+    std::env::var("CUBIT_LOAD_COVER").ok().as_deref() == Some("1") && wait_policy()
+}
+
+/// A shared-memory load of the forms [`load_cover`] speaks of: `LDS`, `LDS.64`, `LDS.U16`, with
+/// no guard, scheduled by cubit.
+pub(crate) fn plain_shared_load(insn: &Instruction) -> bool {
+    matches!(insn.opcode_full.as_str(), "LDS" | "LDS.64" | "LDS.U16")
+        && insn.guard.as_ref().is_none_or(|g| g.pred >= 7)
+        && !insn.hand_sched
+}
+
 /// `CUBIT_SB_SHARE=1`, or [`wait_policy`], which contains it.
 fn sb_share_enabled() -> bool {
     std::env::var("CUBIT_SB_SHARE").ok().as_deref() == Some("1") || wait_policy()
@@ -4005,6 +4043,9 @@ pub fn reallocate_barriers(insns: &mut [Instruction], table: Option<&IsaTable>) 
     // rewrites, a set of scale loads that became part of another -- and the read-barrier uses of
     // the `SYNCS.ARRIVE` words (use, word).
     let policy = wait_policy() && cfg.is_some();
+    // CUBIT_LOAD_COVER: the uses a younger shared load stands for -- neither coloured nor written
+    let cover = load_cover() && cfg.is_some();
+    let mut covered: Vec<usize> = Vec::new();
     let mut not_written: Vec<usize> = Vec::new();
     let mut arrive_uses: Vec<(usize, usize)> = Vec::new();
     // BUG-478: per load, its UNGUARDED RAW waiters — past them the load's address latch
@@ -4271,7 +4312,11 @@ pub fn reallocate_barriers(insns: &mut [Instruction], table: Option<&IsaTable>) 
         // younger plain shared load (the last load off the base) -- no read barrier, the younger
         // load does not wait; the distance is `sync_class::SHARED_LOAD_BASE_HOLD`
         let plain_lds = |k: usize| insns[k].opcode_full == "LDS" && !guarded[k];
-        if policy && plain_lds(idx) && waiters.iter().all(|&w| w > idx && plain_lds(w)) {
+        if cover && plain_shared_load(&insns[idx]) && waiters.iter().all(|&w| w > idx && plain_shared_load(&insns[w])) {
+            // CUBIT_LOAD_COVER: the same for `LDS.64` and `LDS.U16` on either side -- and the use
+            // takes no scoreboard
+            covered.push(uses.len());
+        } else if policy && plain_lds(idx) && waiters.iter().all(|&w| w > idx && plain_lds(w)) {
             not_written.push(uses.len());
         }
         uses.push(BarUse {
@@ -4448,11 +4493,58 @@ pub fn reallocate_barriers(insns: &mut [Instruction], table: Option<&IsaTable>) 
         pin_of.push(Some(b));
     }
 
+    // ---- CUBIT_LOAD_COVER: the uses a younger shared load stands for (see `load_cover`) ----
+    if let (true, Some(c)) = (cover, &cfg) {
+        // one straight line of the text from a to b: every word falls through to the next and
+        // no other word enters between
+        let straight = |a: usize, b: usize| (a..b).all(|k| c.succ[k].len() == 1 && c.succ[k][0] == k + 1 && c.pred[k + 1].len() == 1);
+        for u in 0..uses.len() {
+            if pin_of[u].is_some() || covered.contains(&u) || not_written.contains(&u) || uses[u].setters.is_empty() {
+                continue;
+            }
+            // (a batch of loads off one line is one use: its youngest load decides)
+            let (first, l) = (*uses[u].setters.iter().min().unwrap(), *uses[u].setters.iter().max().unwrap());
+            if !uses[u].setters.iter().all(|&s| plain_shared_load(&insns[s])) || uses[u].waiters.is_empty() || uses[u].waiters.iter().any(|&t| t <= l) {
+                continue;
+            }
+            let far = *uses[u].waiters.iter().max().unwrap();
+            if !straight(first, far) {
+                continue;
+            }
+            let stands_for = |v: usize| -> bool {
+                if v == u || pin_of[v].is_some() || uses[v].is_rb != uses[u].is_rb || not_written.contains(&v) {
+                    return false;
+                }
+                if uses[u].is_rb {
+                    // the read barrier of a younger load off the same base, waited by the same words
+                    uses[v].setters.len() == 1
+                        && uses[v].setters[0] > l
+                        && plain_shared_load(&insns[uses[v].setters[0]])
+                        && !covered.contains(&v)
+                        && uses[v].waiters == uses[u].waiters
+                        && uses[v].waiters.iter().all(|&w| can_wait[w])
+                        && late_operands(l).iter().all(|r| late_operands(uses[v].setters[0]).contains(r))
+                } else {
+                    // a younger load whose wait stands at or in front of every first reader
+                    uses[u].waiters.iter().all(|&t| {
+                        uses[v].waiters.iter().any(|&w| {
+                            w <= t && can_wait[w] && uses[v].setters.iter().any(|&s| s > l && s < w && plain_shared_load(&insns[s]))
+                        })
+                    })
+                }
+            };
+            let hit = (0..uses.len()).any(stands_for);
+            if hit {
+                covered.push(u);
+            }
+        }
+    }
+
     // ---- colour the uses onto 6 scoreboards via per-instruction occupancy ----
     // `occ[i]` = bitmask of scoreboards live at instruction i. A use takes a barrier
     // free across ALL of its occupied indices (its 1-2 segments). Loop-carried uses
     // (2 segments) are coloured first since they are the most constrained.
-    let mut order: Vec<usize> = (0..uses.len()).collect();
+    let mut order: Vec<usize> = (0..uses.len()).filter(|u| !covered.contains(u)).collect();
     order.sort_by_key(|&u| (uses[u].segs.len() == 1, uses[u].segs[0].0));
     // CUBIT_SB_LONG_KEEP=1 (with CUBIT_SB_SHARE=1; default off): a prefetch keeps its scoreboard
     // to itself. Scoreboards are counters, so every wait on a scoreboard waits for everything
@@ -4606,7 +4698,7 @@ pub fn reallocate_barriers(insns: &mut [Instruction], table: Option<&IsaTable>) 
                 && x.setters.iter().all(|&s| insns[s].opcode_full == "LDS" && !guarded[s])
                 && x.waiters.iter().all(|&w| is_warp_mma(insns[w].opcode.as_str()))
         };
-        let mut scale: Vec<usize> = (0..uses.len()).filter(|&u| is_scale(&uses[u], pin_of[u].is_some())).collect();
+        let mut scale: Vec<usize> = (0..uses.len()).filter(|&u| is_scale(&uses[u], pin_of[u].is_some()) && !covered.contains(&u)).collect();
         scale.sort_by_key(|&u| uses[u].setters[0]);
         let scale_setters: Vec<usize> = scale.iter().flat_map(|&u| uses[u].setters.clone()).collect();
         for &u in &scale {
@@ -4685,7 +4777,7 @@ pub fn reallocate_barriers(insns: &mut [Instruction], table: Option<&IsaTable>) 
         for (u, use_) in uses.iter().enumerate() {
             eprintln!("USE b={} {} setters={:?} waiters={:?} segs={:?}{}",
                 assigned[u], if use_.is_rb {"rb"} else {"wb"}, use_.setters, use_.waiters, use_.segs,
-                if not_written.contains(&u) { " (not written)" } else { "" });
+                if covered.contains(&u) { " (covered)" } else if not_written.contains(&u) { " (not written)" } else { "" });
         }
     }
 

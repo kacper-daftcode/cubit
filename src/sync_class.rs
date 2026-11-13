@@ -505,6 +505,16 @@ pub fn hold_need(reader: &Instruction, writer: &Instruction, key: RegKey) -> Opt
     {
         return Some(SHARED_LOAD_BASE_HOLD);
     }
+    // `CUBIT_LOAD_COVER`: the same for `LDS.64` and `LDS.U16` on either side
+    if !uniform
+        && k < 255
+        && crate::scheduling_pass::load_cover()
+        && crate::scheduling_pass::plain_shared_load(reader)
+        && matches!(writer.opcode_full.as_str(), "LDS" | "LDS.64" | "LDS.U16")
+        && reader.ctrl.read_bar == 7
+    {
+        return Some(SHARED_LOAD_BASE_HOLD);
+    }
     if uniform && k < 64 && w == "UMOV" {
         let r = reader.opcode.as_str();
         // (`ISETP` on a uniform operand keeps 3 as well: 44 + 6 sites, none below; `IADD3`,

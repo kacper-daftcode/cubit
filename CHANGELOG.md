@@ -4,6 +4,48 @@ User-visible changes, newest first. Table syncs name the blackwell-isa revision 
 (`tables/SOURCE.json` pins it byte for byte). Numbered `BUG-NNN` entries are the encoder /
 decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `docs/TESTS.md`).
 
+## Unreleased — 2026-11-13 (`CUBIT_LOAD_COVER=1`, opt-in: the vendor's form of a shared-memory load — a load under the wait of a younger load carries no barrier; static, no card has read a schedule under it; without the switch nothing changes)
+
+- **`CUBIT_LOAD_COVER=1`** (honoured only together with `CUBIT_WAIT_POLICY=1`; KNOWN_ISSUES A57): the memory pipe of a
+  thread delivers in issue order, and ptxas lets ONE wait on a younger shared load stand for the older ones in front
+  of it. Three clauses in `reallocate_barriers`, each in front of the colouring — a use that is dropped takes no
+  scoreboard, so the loads that keep one share less:
+  1. a shared load (`LDS`, `LDS.64`, `LDS.U16`) carries no write barrier when the wait of a younger shared load stands
+     at or in front of each of its own first readers: the load is BARE and no word waits for it;
+  2. no read barrier on the base of a shared load that a younger shared load rewrites — the clause of
+     `CUBIT_WAIT_POLICY` for a plain `LDS`, here also for `LDS.64` and `LDS.U16` on either side; the younger load keeps
+     4 issue cycles (`sync_class::SHARED_LOAD_BASE_HOLD`);
+  3. of the shared loads off one base register that the same word rewrites, the youngest carries the read barrier.
+  Every load in question is unguarded and stands with its cover and its readers on one straight line of the text. No
+  stall count and no yield flag moves; a hand-scheduled word is not touched.
+- **Where it comes from: the vendor's schedule, read load by load.** In the stage loop of the served FC2 kernel (460
+  words, 72 shared loads) ptxas leaves 17 loads bare, keeps 13 in three sets on one scoreboard and 42 alone. One
+  sentence names his bare loads on all 102 shared loads of the kernel that have a reader and names no other: a load
+  is bare exactly when a younger shared load, issued in front of its first reader, has its own first reader at or in
+  front of that word. cubit under `CUBIT_WAIT_POLICY=1` gave every one of the 72 a scoreboard —
+  34 of them in nine shared sets, 12 read barriers, and one load that waits four scoreboards before it rewrites the
+  base register of six loads in flight.
+- **What moves under the switch** (cubit's schedules of the three served texts under `CUBIT_WAIT_POLICY=1`; FC1 | its
+  r33 form | FC2): 30 | 35 | 97 control words — write barriers 14 | 14 | 45, read barriers 8 | 13 | 16, wait bits on
+  8 | 12 | 45 words — and nothing else. FC2's stage loop: 17 bare loads, the vendor's 17 load for load, each under his
+  own covering load waited at his own word; 12 loads in three sets (his two sets of four; his set of five is a set of
+  four and one load alone); 43 alone; 3 read barriers on the loads (his 3); no load word waits. With the vendor's
+  control codes around it, that loop differs from the schedule with his load words carried over in 51 control words:
+  scoreboard numbers, the one split set, 18 stall counts of the same sum and 4 yield flags. In FC1 and its r33 form 3
+  loads become bare (the vendor has 15 | 23 bare there: guarded loads and loads across a branch, which this clause
+  leaves alone).
+- **Not known — and the reason the switch is for exploration:** no card has read a schedule under it. What silicon
+  has measured of the form is clause 1 in its simplest shape (ONE bare load under ONE younger load, the base not
+  rewritten, no read barrier, no other word on the cover's scoreboard). The shapes of the served kernel beyond it —
+  several bare loads under one cover, several covers, the base rewritten on the way to the reader, a bare `LDS.U16` —
+  and clauses 2 (for `LDS.64` / `LDS.U16`) and 3 are the vendor's practice in that kernel, not a measurement. Why the
+  vendor shares a scoreboard where he does is not read. cubit's verifier knows a producer by its write barrier: the
+  reader of a bare load is not checked by `CUBIT_VERIFY`.
+- `tests/load_cover.rs` (5 tests; four fail without the change, the fifth is their control): a load under the wait of
+  a younger one is bare; the base of an `LDS.64` rewritten by a younger `LDS.64` carries no read barrier; of two loads
+  off one base the younger carries it; the variable alone changes nothing; and the control — a load read in front of
+  every younger load, and a guarded load, keep their barrier.
+
 ## Unreleased — 2026-11-13 (`CUBIT_YIELD_HOLD=1n|2n`, opt-in: the rule of `CUBIT_YIELD_HOLD` in the nests alone — the natural loops that hold no tensor word; the values 1 and 2 and every schedule without the switch are what they were)
 
 - **`CUBIT_YIELD_HOLD=<n>n`**, `1n` or `2n` (honoured only together with `CUBIT_SYNC_CLASSES=1`; KNOWN_ISSUES A56): the

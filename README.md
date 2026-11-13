@@ -96,6 +96,8 @@ and its r33 form as cubit schedules them, not ptxas's practice (opt-in, KNOWN_IS
 tensor word, where the rule's whole gain stands: the schedule under `2n` reads fc1 0.287 ± 0.011 % below ptxas's own
 build of the served FC1 at 4 096 rows (both load orders; one card model, free of its power limit; opt-in,
 KNOWN_ISSUES A56).
+`CUBIT_LOAD_COVER=1` (with `CUBIT_WAIT_POLICY=1`): the vendor's form of a shared-memory load — a load under the wait
+of a younger shared load carries no barrier; no card has read a schedule under it (opt-in, KNOWN_ISSUES A57).
 `CUBIT_SCHED2=1` selects the dependency-aware stall model (a stall is charged where a consumer needs it, not
 after every producer); with `CUBIT_SCHED2_LAT=sm120` the latencies come from the pair table
 `tables/dep_latency_sm120.json` (ptxas's practice, measured on sm_120 silicon) and hold on every control-flow
