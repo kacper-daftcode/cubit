@@ -90,8 +90,8 @@ cubit's schedule of the served MoE consumer kernel's text at ptxas's on silicon:
 result that it does not read (three clauses; opt-in, KNOWN_ISSUES A49), and a reader waits both guarded
 producers that may have written its register (A50).
 `CUBIT_YIELD_HOLD=1` or `2` (with `CUBIT_SYNC_CLASSES=1`): outside the tensor loops a word of the fixed-latency
-datapath that sets no barrier gives up the yield flag at a stall of 1 (or 1 and 2) — measured on the served FC1,
-not ptxas's practice (opt-in, KNOWN_ISSUES A55).
+datapath that sets no barrier gives up the yield flag at a stall of 1 (or 1 and 2) — measured on the served FC1
+and its r33 form as cubit schedules them, not ptxas's practice (opt-in, KNOWN_ISSUES A55).
 `CUBIT_SCHED2=1` selects the dependency-aware stall model (a stall is charged where a consumer needs it, not
 after every producer); with `CUBIT_SCHED2_LAT=sm120` the latencies come from the pair table
 `tables/dep_latency_sm120.json` (ptxas's practice, measured on sm_120 silicon) and hold on every control-flow
