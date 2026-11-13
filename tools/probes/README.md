@@ -29,6 +29,7 @@ Older scripts (2026-10-22/23) follow the same idea with their own helpers; the t
 produced are listed with their tags.
 
 | script | measured | `_src` tag (rows in `sm120.json`) | test |
+| `re_b300_viaddmnmx_p1.py` | B300 measured operands | `hidden-b300-viaddmnmx-p1-2026-11-08` | `tests/hidden_b300_viaddmnmx_p1.rs` |
 |---|---|---|---|
 | `re_sm120_ublkcp_dir.py` | the bulk copy's direction code [74:73] (`UBLKCP`, 0x3ba): 2 = `.G.S` (shared → global, the TMA bulk store `cp.async.bulk.global.shared::cta.bulk_group`), 3 = `.S.S`, plain and descriptor forms — an ordered modifier pair the sorted group name cannot spell, so the two directions live on dotted keys; `.MULTICAST` / `.LTC64B` / `.LTC128B` / `.SEQUENCED` / `.DST_G_BYTE_MASK` recorded as unclaimed lattice | `ublkcp-dir-sm120-2026-11-08` (4) | `sm120_ublkcp_dir.rs` |
 | `re_sm120_fence_view_async.py` | `FENCE.VIEW.ASYNC.S` / `.G` (0x3c6, the async-proxy fence `fence.proxy.async[.shared::cta\|.global]`): the scope bit 72, the live guard, the donor `.T` row (bit 73, sm_100 / sm_103's tensor-memory scope) illegal on SM120 and retired; the control law that a read barrier on the word is illegal | `fence-view-async-sm120-2026-11-08` (2) | `sm120_fence_view_async.rs` |

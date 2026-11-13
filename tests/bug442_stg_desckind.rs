@@ -185,7 +185,7 @@ fn t442_5_masked_mints_and_circles() {
 #[test]
 fn t442_6_source_manifest_and_invariants() {
     // Current byte-pinned cut; historical fixture provenance remains unchanged.
-    const CURRENT_VENDORED_CANON: &str = "b3ca8301d93f08f70d2d86c00cb4197814a1c9d6" /* 2026-11-06 T-11 (was c258f8a, T-10) */ /* 2026-11-06 T-10 (was b75cc20, T-9) */;
+    const CURRENT_VENDORED_CANON: &str = "276a1a7da9e502f7709200f64ec400bd8afa6b40" /* 2026-11-06 T-11 (was c258f8a, T-10) */ /* 2026-11-06 T-10 (was b75cc20, T-9) */;
 
     let m: serde_json::Value =
         serde_json::from_str(&std::fs::read_to_string("tables/SOURCE.json").unwrap()).unwrap();

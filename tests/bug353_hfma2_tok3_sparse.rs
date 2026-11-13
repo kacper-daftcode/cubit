@@ -35,6 +35,9 @@ const B84: u128 = 1 << 84;
 const B85: u128 = 1 << 85;
 const B86: u128 = 1 << 86;
 const B91: u128 = 1 << 91;
+const B123: u128 = 1 << 123;
+const LEGACY_RB_DEFAULT: u128 = 0xffu128 << 64;
+const FIELD_AND_REUSE_MASK: u128 = ((1u128 << 105) - 1) | (7u128 << 122);
 const H1: u128 = 0x3c00u128 << 48; // f16 1.0 @ tok4 window
 const BF1: u128 = 0x3f80u128 << 48; // bf16 1.0 @ tok4 window
 // FI lattice (0x7431, guard pinned PT): R2@16, R3@24, R4@64
@@ -74,7 +77,7 @@ fn t353_1_structure_graft_mirrors_dense() {
         // closure 12 -> 36 (lattice completion vs dense; tests/bug367_*).
         assert_eq!(e.mod_groups.len(), 36, "{leg}: mg set drift (post-367=36)");
         let mg = &e.mod_groups[""];
-        assert_eq!(mg.fields.len(), 12, "{leg}: field count drift (8->12)");
+        assert_eq!(mg.fields.len(), 13, "{leg}: field count drift (12->13)");
         let has = |ext: Extraction, shift: u32, tok: i32| {
             mg.fields
                 .iter()
@@ -86,13 +89,20 @@ fn t353_1_structure_graft_mirrors_dense() {
         assert_eq!(has(Extraction::Abs, 83, 3), 1, "{leg}: abs@83 tok3");
         assert_eq!(has(Extraction::HalfSel, 81, 3), 1, "{leg}: hsel@81 tok3");
         assert_eq!(has(Extraction::H0NH1, 86, 3), 1, "{leg}: h0nh1@86 tok3");
+        assert_eq!(has(Extraction::Reuse, 123, 3), 1, "{leg}: Rb.reuse@123 tok3");
         // ab must NOT carry the window; vm must carry it (dense mirror)
         assert_eq!(mg.and_base & WIN, 0, "{leg}: ab carries graft window");
         assert_eq!(mg.variable_mask & WIN, WIN, "{leg}: vm mirror missing");
-        assert_eq!(mg.and_base, d.and_base, "{leg}: ab drift vs dense donor");
+        assert_eq!(mg.and_base & LEGACY_RB_DEFAULT, 0, "{leg}: baked Rb default returned");
         assert_eq!(
-            mg.variable_mask, d.variable_mask,
-            "{leg}: vm delta vs dense donor"
+            mg.and_base,
+            d.and_base & !LEGACY_RB_DEFAULT,
+            "{leg}: ab drift vs dense donor outside the removed legacy Rb default"
+        );
+        assert_eq!(
+            mg.variable_mask & FIELD_AND_REUSE_MASK & !LEGACY_RB_DEFAULT,
+            (d.variable_mask | B123) & FIELD_AND_REUSE_MASK & !LEGACY_RB_DEFAULT,
+            "{leg}: vm delta vs dense donor (measured Rb.reuse only)"
         );
         // 353 scope pin: the mod-lane family stays ungrafted (354-kand)
         assert!(

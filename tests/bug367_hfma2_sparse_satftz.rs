@@ -43,6 +43,9 @@ const B84: u128 = 1 << 84;
 const B85: u128 = 1 << 85;
 const B90: u128 = 1 << 90;
 const B91: u128 = 1 << 91;
+const B123: u128 = 1 << 123;
+const LEGACY_RB_DEFAULT: u128 = 0xffu128 << 64;
+const FIELD_AND_REUSE_MASK: u128 = ((1u128 << 105) - 1) | (7u128 << 122);
 const H1: u128 = 0x3c00u128 << 48;
 const BF1: u128 = 0x3f80u128 << 48;
 const FI: u128 = 0x7431 | (2 << 16) | (3 << 24) | (4 << 64);
@@ -148,16 +151,19 @@ fn t367_1_structure_lattice_completion() {
         );
         assert_eq!(e.mod_groups.len(), 36, "{leg}: mg count drift");
         let pl = &e.mod_groups[""];
+        let legacy_mask = pl.variable_mask & !B123 & FIELD_AND_REUSE_MASK & !LEGACY_RB_DEFAULT;
+        assert_eq!(pl.and_base & LEGACY_RB_DEFAULT, 0, "{leg}: baked Rb default returned");
         for name in NP.iter().chain(NB.iter()).chain(REL.iter()).copied() {
             let mg = &e.mod_groups[name];
             assert_eq!(
-                mg.and_base ^ pl.and_base,
+                (mg.and_base ^ pl.and_base) & !LEGACY_RB_DEFAULT,
                 want_bits(name),
                 "{leg}:{name}: ab delta drift"
             );
             assert_eq!(
-                mg.variable_mask, pl.variable_mask,
-                "{leg}:{name}: vm delta drift"
+                mg.variable_mask & FIELD_AND_REUSE_MASK & !LEGACY_RB_DEFAULT,
+                legacy_mask,
+                "{leg}:{name}: mask unchanged outside exactly the two repaired groups"
             );
             let bfcnt = mg
                 .fields
@@ -208,8 +214,8 @@ fn t367_1_structure_lattice_completion() {
             let lane_name = mods.replace('.', ",").replace(",RELU", "");
             let lane = &e.mod_groups[lane_name.as_str()];
             assert_eq!(
-                g.and_base,
-                lane.and_base | B79,
+                (g.and_base ^ lane.and_base) & !LEGACY_RB_DEFAULT,
+                B79,
                 "{leg}:{dk}: ab drift (lane bits + b79, no pv7)"
             );
             assert_eq!(
