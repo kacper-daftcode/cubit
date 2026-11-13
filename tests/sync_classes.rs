@@ -23,7 +23,10 @@
 //! origin/main built from the same fixtures without the switch (`*.default.txt`, `*.sched2.txt`,
 //! `default_path.sha256`: written by the binary of `c507a7c` for the first eleven fixtures, by the
 //! binary of `cbe37f4` for the five added with the operand laws, of `e0fd6e5` for `conversion`;
-//! `e0fd6e5` builds all 34).
+//! `e0fd6e5` builds all 34). The `sched2` pins read the dependency table (`CUBIT_SCHED2_LAT=sm120`): a
+//! cell that prices a pair of a fixture moves them -- the cells of eleven pairs on a uniform register
+//! (2026-11-13, KNOWN_ISSUES A54) moved four, `mbar_init`, `bulk`, `sync_probes` and `operand_hold`,
+//! re-written by the binary of that change; the seventeen `default` pins have never moved).
 
 use std::process::Command;
 use std::sync::atomic::{AtomicUsize, Ordering};

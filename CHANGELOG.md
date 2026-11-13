@@ -4,6 +4,33 @@ User-visible changes, newest first. Table syncs name the blackwell-isa revision 
 (`tables/SOURCE.json` pins it byte for byte). Numbered `BUG-NNN` entries are the encoder /
 decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `docs/TESTS.md`).
 
+## Unreleased — 2026-11-13 (the sm_120 dependency table: sixteen cells of eleven pairs on a uniform register, measured on two card models; the verifier's census of the uniform datapath)
+
+- **`tables/dep_latency_sm120.json`: fourteen new cells and two lowered ones** (KNOWN_ISSUES A54; read only under
+  `CUBIT_SCHED2_LAT=sm120` — the default path does not read the table and is byte for byte what it was): `UIADD3` → `ULEA` (roles `u0`, `u2`) 4; `UMOV` → `ULEA` (`u0`, `u2`) 2; `ULEA` → `ULEA` (`u0`, `u2`) 4; `ULEA` → `LEA` (`u2`) 6; `ULEA` → `IADD3` (`u2`) 6; `ULEA` → the uniform base of `STS` (`u0`) 9; `VOTEU` → `FLO` (`u1`) 2; `VOTEU` → `POPC` (`u1`) 3; `USHF` → `ULOP3` (`u3`) 4; `ULOP3` → `USHF` (`u0`, `u1`) 4; `UMOV` → `UIADD3` (`u0`, `u1`) 2, where the global floor had clamped the cell to 4.
+  Each is ptxas's census minimum; `tools/stallfloor/probe_sm120_20261113_b63.json` and its `_ws_` file read every one of
+  these pairs right from its floor on — at or below the cell — on a Server Edition card and on a Workstation Edition card.
+- **The verifier's census** (`tools/stallfloor/uniform_pairs_census.py` → `census_pairs_uniform_sm120.json`): the census
+  pairs are mined from the certified operand sets, which do not know `ULEA`, `USHF` or the uniform result of `VOTEU`; the
+  same frozen modules read by `CUBIT_DEP_VERIFY` give ptxas's smallest distance of every pair on a uniform register that
+  stands below a default or a clamped cell, per set of roles the register has in the consumer (28 519 pairs, 268 classes).
+- **`gen_dep_latency.py`:** `MEASURED_MIN_CELLS` reads a pair's minimum from that census where the census pairs have no
+  row, checks every probe file of an entry (both card models, every request named), and stops when the cells of a pair
+  would put a role set of the verifier's census below ptxas's own minimum for the set. That check keeps `UMOV` → `USHF`
+  and `UMOV` → `ULOP3` (in place) of the same batch at the default: their cells would price a form ptxas keeps farther
+  apart (`USHF.L.U32`: 6; `ULOP3.LUT` without the third source: 12) at 2. The table is the generator's output byte for byte.
+- **What moves under the opt-in:** in cubit's schedule of the three served texts (`CUBIT_WAIT_POLICY=1`) 26 | 26 | 16
+  control words; the stall sum 8 574 → 8 443 | 8 541 → 8 410 | 7 072 → 6 979 (ptxas 8 404 | 8 354 | 7 003); the words at a
+  stall of 12 or more 114 → 102 | 116 → 104 | 76 → 66. `CUBIT_DEP_VERIFY` finds nothing in the three. No card has seen
+  the moved schedules.
+- `tests/sync_classes.rs`: four of its seventeen `sched2` pins (the fixtures built with `CUBIT_SCHED2=1
+  CUBIT_SCHED2_LAT=sm120` and no other switch — `mbar_init`, `bulk`, `sync_probes`, `operand_hold`) hold a pair that has a
+  cell now; their listings and cubin pins are re-written. None of the seventeen `default` pins moves.
+- `src/dep_stall.rs`: the two unit pins of the bundled table's pair cells 535 → 549. `tests/uniform_pair_cells.rs`
+  (6 tests; with the census file in place the two new ones fail on the parent): every cell of the batch against ptxas's minimum and both result files;
+  no role set below ptxas's own minimum; the two pairs that stay at the default; cubit's schedule of a constant into
+  `ULEA` in place (2) and of `ULEA` into `LEA R, R, UR` (6), and the verifier's reading of the pair one cycle closer.
+
 ## Unreleased — 2026-11-12 (the sm_120 dependency table: a pair on a uniform register takes ptxas's census minimum once its floor is measured — the first cell, `UMOV` → `MOV R, UR` = 2)
 
 - **`tables/dep_latency_sm120.json`: one new cell, `UMOV` → `MOV` (role `u1`) = 2** (KNOWN_ISSUES A52; read only under

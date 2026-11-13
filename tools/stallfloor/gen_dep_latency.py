@@ -19,7 +19,12 @@
       (fewer than MIN_AT pairs at the minimum) or a clamped one (a minimum below the global floor of 4) -- taken only where
       a probe of this directory measured the pair's floor at or below that minimum on BOTH card models. The cell is the
       census minimum, never the floor: cubit does not stand closer than ptxas ever does. The generator reads the census row
-      and the probe's result files and refuses an entry they do not carry.
+      and the probe's result files and refuses an entry they do not carry. A pair with a word of the uniform datapath that
+      the certified operand sets do not know (`ULEA`, `USHF`, the uniform result of `VOTEU`) has no row in the census pairs:
+      its minimum is read from the verifier's census (`census_pairs_uniform_sm120.json`, uniform_pairs_census.py), which has
+      it per SET of roles the register has in the consumer -- the cell of a role is the smallest minimum of the sets that
+      hold the role, and the run stops when the cells of a pair would put any role set of that census below ptxas's own
+      minimum for the set (an in-place form needs the cells of two roles; a form that has only one of them rides along).
   (7) a pair row of a --floors file that names what superseded it (key `superseded`: the pair's own kernels measured
       nothing, its `floor_d0` is another measurement's): the cell's `silicon` sentence is the one written here
       (SUPERSEDED_SILICON), not `floor d0 S<nn>`; such a row without a sentence stops the run.
@@ -99,11 +104,46 @@ SUPERSEDED_SILICON = {
         "5 every one); the pair isetp_isetp of stall_floors_sm120_20261110_pairs.json (floor 1) measured "
         "nothing"),
 }
+B63 = ["probe_sm120_20261113_b63.json", "probe_sm120_20261113_b63_ws_2eabe5dcdba4_alone.json"]
 MEASURED_MIN_CELLS = [
     {"producer": "UMOV", "consumer": "MOV", "role": "u1", "request": "pu_umov_mov_u1",
      "probe_files": ["probe_sm120_20261111_b46.json", "probe_sm120_20261111_b46_ws_2eabe5dcdba4_alone.json",
                      "probe_sm120_20261111_b46_ws_2eabe5dcdba4_capped.json"],
      "form": "`UMOV UR, imm` -> `MOV R, UR`"},
+    # the pairs of the batch b63, each with the roles of its measured form (`census`: where ptxas's minimum is read)
+    {"producer": "UIADD3", "consumer": "ULEA", "role": "u0", "request": "u01_uiadd3_ulea", "probe_files": B63, "census": "uniform",
+     "form": "`UIADD3 UR, UPT, UPT, UR, imm, URZ` -> `ULEA UR, URb, UR, imm` (in place: roles u0 and u2)"},
+    {"producer": "UIADD3", "consumer": "ULEA", "role": "u2", "request": "u01_uiadd3_ulea", "probe_files": B63, "census": "uniform",
+     "form": "`UIADD3 UR, UPT, UPT, UR, imm, URZ` -> `ULEA UR, URb, UR, imm` (in place: roles u0 and u2)"},
+    {"producer": "UMOV", "consumer": "ULEA", "role": "u0", "request": "u02_umov_ulea", "probe_files": B63, "census": "uniform",
+     "form": "`UMOV UR, imm` -> `ULEA UR, URb, UR, imm` (in place: roles u0 and u2)"},
+    {"producer": "UMOV", "consumer": "ULEA", "role": "u2", "request": "u02_umov_ulea", "probe_files": B63, "census": "uniform",
+     "form": "`UMOV UR, imm` -> `ULEA UR, URb, UR, imm` (in place: roles u0 and u2)"},
+    {"producer": "ULEA", "consumer": "ULEA", "role": "u0", "request": "u03_ulea_ulea", "probe_files": B63, "census": "uniform",
+     "form": "`ULEA UR, URb, UR, 0x18` -> `ULEA UR, URc, UR, 0x3` (in place: roles u0 and u2)"},
+    {"producer": "ULEA", "consumer": "ULEA", "role": "u2", "request": "u03_ulea_ulea", "probe_files": B63, "census": "uniform",
+     "form": "`ULEA UR, URb, UR, 0x18` -> `ULEA UR, URc, UR, 0x3` (in place: roles u0 and u2)"},
+    {"producer": "ULEA", "consumer": "LEA", "role": "u2", "request": "u04_ulea_lea", "probe_files": B63, "census": "uniform",
+     "form": "`ULEA UR, URb, UR, imm` -> `LEA R, R, UR, imm`"},
+    {"producer": "ULEA", "consumer": "IADD3", "role": "u2", "request": "u05_ulea_iadd3", "probe_files": B63, "census": "uniform",
+     "form": "`ULEA UR, URb, UR, imm` -> `IADD3 R, PT, PT, R, UR, RZ`"},
+    {"producer": "ULEA", "consumer": "STS", "role": "u0", "request": "u06_ulea_sts", "also": ["u06_ulea_sts128"], "probe_files": B63, "census": "uniform",
+     "form": "`ULEA UR, URb, UR, imm` -> the uniform base of `STS [UR+imm], R` and of `@!P0 STS.128 [UR+imm], R`"},
+    {"producer": "VOTEU", "consumer": "FLO", "role": "u1", "request": "u11_voteu_flo", "probe_files": B63, "census": "uniform",
+     "form": "`VOTEU.ANY UR, UP, P` -> `FLO.U32 R, UR`"},
+    {"producer": "VOTEU", "consumer": "POPC", "role": "u1", "request": "u12_voteu_popc", "probe_files": B63, "census": "uniform",
+     "form": "`VOTEU.ANY UR, UP, P` -> `POPC R, UR`"},
+    {"producer": "USHF", "consumer": "ULOP3", "role": "u3", "request": "u14_ushf_ulop3", "probe_files": B63, "census": "uniform",
+     "form": "`USHF.R.U32 UR, URa, imm, URZ` -> the third source of `ULOP3.LUT URd, URa, imm, UR, lut, !UPT`"},
+    {"producer": "ULOP3", "consumer": "USHF", "role": "u0", "request": "u16_ulop3_ushf", "probe_files": B63, "census": "uniform",
+     "form": "`ULOP3.LUT UR, ...` -> `USHF.L.U32 UR, UR, imm, URZ` (in place: roles u0 and u1)"},
+    {"producer": "ULOP3", "consumer": "USHF", "role": "u1", "request": "u16_ulop3_ushf", "probe_files": B63, "census": "uniform",
+     "form": "`ULOP3.LUT UR, ...` -> `USHF.L.U32 UR, UR, imm, URZ` (in place: roles u0 and u1)"},
+    # the dense-cell rule clamps these two at the global floor of 4; ptxas stands at 2 (the census pairs have the rows)
+    {"producer": "UMOV", "consumer": "UIADD3", "role": "u0", "request": "ua_umov_uiadd3i", "probe_files": B63,
+     "form": "`UMOV UR, imm` -> `UIADD3 UR, UPT, UPT, UR, imm, URZ` (in place: roles u0 and u1)"},
+    {"producer": "UMOV", "consumer": "UIADD3", "role": "u1", "request": "ua_umov_uiadd3", "also": ["ua_umov_uiadd3i"], "probe_files": B63,
+     "form": "`UMOV UR, imm` -> `UIADD3 URd, UPT, UPT, UR, imm, URZ` (into a second register, and in place)"},
 ]
 PRODUCER_FORMS_COMMENT = (" `producer_forms`: the result of a producer FORM named there -- the class plus the modifiers the form"
                           " does not carry (`CS2R` without `.32` = the 64-bit form, a register pair) -- is never read closer than"
@@ -158,32 +198,60 @@ def main():
     # cells on a measured floor (MEASURED_MIN_CELLS): the census minimum, checked against the census row and the probe's files
     by_key = {(r["prod"], r["cons"], r["role"]): r for r in rows}
     here = os.path.dirname(os.path.abspath(__file__))
+    uniform = json.load(open(os.path.join(here, "census_pairs_uniform_sm120.json")))["rows"]
     measured_min = {}
     for m in MEASURED_MIN_CELLS:
         key = (m["producer"], m["consumer"], m["role"])
-        r = by_key[key]
+        if m.get("census") == "uniform":
+            # the verifier's census: the role's minimum over the role sets that hold it
+            assert key not in by_key, f"{key}: the census pairs have a row -- read it there"
+            sets = [u for u in uniform if (u["producer"], u["consumer"]) == key[:2] and key[2] in u["roles"].split("+") and u["below"] == "uniform"]
+            assert sets, f"{key}: no role set of the uniform census holds the role"
+            mn = min(u["min"] for u in sets)
+            r = {"min": mn, "n_min": sum(u["n_min"] for u in sets if u["min"] == mn), "n": sum(u["n_below"] for u in sets)}
+        else:
+            r = by_key[key]
         assert key not in cells or cells[key]["L"] > r["min"], f"{key}: the dense-cell rule gives {cells.get(key)} already"
         floors, models = [], set()
         for fn in m["probe_files"]:
-            req = [q for q in json.load(open(os.path.join(here, fn)))["requests"] if q["id"] == m["request"]]
-            assert len(req) == 1, f"{key}: {fn} has {len(req)} requests `{m['request']}`"
-            fl = req[0]["floor"]
-            assert isinstance(fl["binding"], int) and fl["binding"] <= r["min"] and not fl["oracle_failures"] and not req[0]["errors"], \
-                f"{key}: {fn} does not carry a floor at or below the census minimum {r['min']}: {fl}"
-            floors.append(fl["binding"])
+            for rq in [m["request"]] + m.get("also", []):
+                req = [q for q in json.load(open(os.path.join(here, fn)))["requests"] if q["id"] == rq]
+                assert len(req) == 1, f"{key}: {fn} has {len(req)} requests `{rq}`"
+                fl = req[0]["floor"]
+                assert isinstance(fl["binding"], int) and fl["binding"] <= r["min"] and not fl["oracle_failures"] and not req[0]["errors"], \
+                    f"{key}: {fn} does not carry a floor at or below the census minimum {r['min']}: {fl}"
+                if rq == m["request"]:
+                    floors.append(fl["binding"])
             models.add("workstation" if "_ws_" in fn else "server")
         assert models == {"server", "workstation"}, f"{key}: a cell on a measured floor needs both card models, not {models}"
-        why = (f"fewer than {MIN_AT} pairs at the minimum" if r["n_min"] < MIN_AT else "fewer pairs than a dense cell needs" if r["n"] < MIN_N
-               else "a minimum below the global floor of 4")
+        capped = any(fn.endswith("_capped.json") for fn in m["probe_files"])
+        cards = ("its _ws_ files: a Server Edition card, a Workstation Edition card alone and at its 400-W limit" if capped
+                 else "its _ws_ file: a Server Edition card and a Workstation Edition card, each with the probe alone")
+        if m.get("census") == "uniform":
+            basis = (f"ptxas census min {r['min']} x {r['n_min']} of {r['n']} pairs below the default -- the verifier's reading of the frozen census "
+                     f"(tools/stallfloor/census_pairs_uniform_sm120.json: the certified operand sets have no row for the pair, it took the default); ")
+        else:
+            why = (f"fewer than {MIN_AT} pairs at the minimum" if r["n_min"] < MIN_AT else "fewer pairs than a dense cell needs" if r["n"] < MIN_N
+                   else "a minimum below the global floor of 4")
+            took = "the cell was clamped to 4" if key in cells else "the pair took the default"
+            basis = f"ptxas census min {r['min']} x {r['n_min']} of {r['n']} pairs -- no dense cell ({why}: {took}); "
         measured_min[key] = {
             "producer": key[0], "consumer": key[1], "role": key[2], "L": r["min"],
-            "basis": f"ptxas census min {r['min']} x {r['n_min']} of {r['n']} pairs -- no dense cell ({why}: the pair took the default); "
-                     f"the census minimum is the cell because the pair's floor is measured at or below it on both card models "
-                     f"(never closer than ptxas ever stands)",
+            "basis": basis + "the census minimum is the cell because the pair's floor is measured at or below it on both card models "
+                             "(never closer than ptxas ever stands)",
             "silicon": f"floor {' | '.join(str(f) for f in floors)} for the form {m['form']} -- tools/stallfloor "
-                       f"{m['probe_files'][0][:-len('.json')]} (request `{m['request']}`) and its _ws_ files: a Server Edition card, a "
-                       f"Workstation Edition card alone and at its 400-W limit; the cell is ptxas's minimum, not the floor"}
+                       f"{m['probe_files'][0][:-len('.json')]} (request `{m['request']}`) and {cards}; the cell is ptxas's minimum, not the floor"}
         cells.pop(key, None)
+    # no role set of the verifier's census may come out below ptxas's own minimum for the set: the distance the table asks of a
+    # set is the largest of its roles' cells; a set with a role that has no cell keeps a default
+    final = {k: v["L"] for k, v in cells.items()}
+    final.update({k: v["L"] for k, v in measured_min.items()})
+    for u in uniform:
+        if not any((u["producer"], u["consumer"]) == k[:2] for k in measured_min):
+            continue
+        ls = [final.get((u["producer"], u["consumer"], x)) for x in u["roles"].split("+")]
+        assert any(l is None for l in ls) or max(ls) >= u["min"], \
+            f"the cells of {u['producer']} -> {u['consumer']} put the role set {u['roles']} at {max(ls)} where ptxas's own minimum is {u['min']} ({u['forms_at_min']})"
     # MMA rows, written out explicitly (census: HMMA -> HMMA accumulate 29 x 2 368, HMMA -> FADD / FMUL 28; any MMA -> MMA 16)
     out_cells = []
     for (p, c, role), v in sorted(cells.items()):

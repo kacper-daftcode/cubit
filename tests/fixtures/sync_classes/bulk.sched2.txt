@@ -2,7 +2,7 @@
 [B------:R-:W1:Y:S04] LDCU.64 UR4, c[0x0][0x388] ;
 [B------:R-:W1:Y:S04] LDCU.64 UR8, c[0x0][0x358] ;
 [B------:R-:W2:Y:S01] S2UR UR5, SR_CgaCtaId ;
-[B------:R-:W-:-:S13] UMOV UR7, 0x400 ;
+[B------:R-:W-:Y:S02] UMOV UR7, 0x400 ;
 [B--2---:R-:W-:Y:S01] ULEA UR42, UR5, UR7, 0x18 ;
 [B------:R-:W-:Y:S01] UMOV UR6, 0x1000 ;
 [B------:R-:W-:-:S12] FENCE.VIEW.ASYNC.S ;

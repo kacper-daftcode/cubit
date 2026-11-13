@@ -1,5 +1,5 @@
 [B------:R-:W0:Y:S01] S2UR UR5, SR_CgaCtaId ;
-[B------:R-:W-:-:S13] UMOV UR4, 0x400 ;
+[B------:R-:W-:Y:S02] UMOV UR4, 0x400 ;
 [B0-----:R-:W-:Y:S01] ULEA UR6, UR5, UR4, 0x18 ;
 [B------:R-:W-:Y:S01] UMOV UR4, 0x1 ;
 [B------:R-:W-:Y:S01] FENCE.VIEW.ASYNC.S ;

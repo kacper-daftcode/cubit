@@ -16,6 +16,16 @@
 //! census row and the three result files; cubit's schedule of the pair (2 issue cycles where it had 13); the
 //! verifier's reading of an author's schedule (the vendor's 2 is no finding, 1 is one); and the default path,
 //! which does not read the table. KNOWN_ISSUES A52.
+//!
+//! The next pairs (2026-11-13): a batch of probes measured thirteen more pairs on a uniform register on a Server
+//! Edition card and on a Workstation Edition card (`probe_sm120_20261113_b63.json` and its `_ws_` file) -- no
+//! floor above ptxas's minimum. Most of them have a word the certified operand sets do not know (`ULEA`, `USHF`,
+//! the uniform result of `VOTEU`), so the census pairs have no row: ptxas's minimum is read from the verifier's
+//! census (`tools/stallfloor/census_pairs_uniform_sm120.json`), per SET of roles the register has in the
+//! consumer. Sixteen cells of eleven pairs take it; the cells of a pair never put a role set of that census
+//! below ptxas's own minimum for the set -- which keeps `UMOV` -> `USHF` and `UMOV` -> `ULOP3` (in place) at the
+//! default: their cells would price a form that only shares a role (`USHF.L.U32`: ptxas never closer than 6;
+//! `ULOP3.LUT` without the third source: 12) at 2.
 
 use serde_json::Value;
 use std::process::Command;
@@ -25,6 +35,30 @@ static SCRATCH: AtomicUsize = AtomicUsize::new(0);
 const ISA: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tables/sm120.json.gz");
 const TABLE: &str = include_str!("../tables/dep_latency_sm120.json");
 const CENSUS: &str = include_str!("../tools/stallfloor/census_pairs_sm120.json");
+const UNIFORM_CENSUS: &str = include_str!("../tools/stallfloor/census_pairs_uniform_sm120.json");
+const B63: [(&str, &str); 2] = [
+    ("a Server Edition card", include_str!("../tools/stallfloor/probe_sm120_20261113_b63.json")),
+    ("a Workstation Edition card", include_str!("../tools/stallfloor/probe_sm120_20261113_b63_ws_2eabe5dcdba4_alone.json")),
+];
+/// The cells on the floors of that batch: (producer, consumer, role, the cell, the batch's requests).
+const B63_CELLS: [(&str, &str, &str, u64, &[&str]); 16] = [
+    ("UIADD3", "ULEA", "u0", 4, &["u01_uiadd3_ulea"]),
+    ("UIADD3", "ULEA", "u2", 4, &["u01_uiadd3_ulea"]),
+    ("UMOV", "ULEA", "u0", 2, &["u02_umov_ulea"]),
+    ("UMOV", "ULEA", "u2", 2, &["u02_umov_ulea"]),
+    ("ULEA", "ULEA", "u0", 4, &["u03_ulea_ulea"]),
+    ("ULEA", "ULEA", "u2", 4, &["u03_ulea_ulea"]),
+    ("ULEA", "LEA", "u2", 6, &["u04_ulea_lea"]),
+    ("ULEA", "IADD3", "u2", 6, &["u05_ulea_iadd3"]),
+    ("ULEA", "STS", "u0", 9, &["u06_ulea_sts", "u06_ulea_sts128"]),
+    ("VOTEU", "FLO", "u1", 2, &["u11_voteu_flo"]),
+    ("VOTEU", "POPC", "u1", 3, &["u12_voteu_popc"]),
+    ("USHF", "ULOP3", "u3", 4, &["u14_ushf_ulop3"]),
+    ("ULOP3", "USHF", "u0", 4, &["u16_ulop3_ushf"]),
+    ("ULOP3", "USHF", "u1", 4, &["u16_ulop3_ushf"]),
+    ("UMOV", "UIADD3", "u0", 2, &["ua_umov_uiadd3i"]),
+    ("UMOV", "UIADD3", "u1", 2, &["ua_umov_uiadd3", "ua_umov_uiadd3i"]),
+];
 const PROBES: [(&str, &str); 3] = [
     ("a Server Edition card", include_str!("../tools/stallfloor/probe_sm120_20261111_b46.json")),
     ("a Workstation Edition card alone", include_str!("../tools/stallfloor/probe_sm120_20261111_b46_ws_2eabe5dcdba4_alone.json")),
@@ -161,7 +195,7 @@ fn the_cell_is_ptxas_minimum_of_the_census_and_no_measured_floor_stands_above_it
     // the default stays what it was for every pair on a uniform register without a cell
     let t: Value = serde_json::from_str(TABLE).unwrap();
     assert_eq!(t["defaults"]["uniform"], 13);
-    assert!(cell("UMOV", "ULEA", "u2").is_none() && cell("ULEA", "LEA", "u2").is_none(), "an unmeasured pair has a cell");
+    assert!(cell("UMOV", "USHF", "u1").is_none() && cell("UISETP", "BRA", "gc").is_none(), "a pair without a cell of this kind has one");
 }
 
 #[test]
@@ -201,4 +235,111 @@ fn the_default_path_does_not_read_the_table() {
     let codes: Vec<&str> = w.iter().map(|x| x.0.as_str()).collect();
     assert_eq!(codes, DEFAULT_CODES, "the default scheduler's schedule moved:\n{w:?}");
     assert_eq!(distance(&w, "UMOV", "MOV R26"), 5);
+}
+
+/// The uniform datapath of the served MoE kernels in small: a constant, `ULEA` on it in place, and the two
+/// general consumers of the result.
+const KERNEL_ULEA: &str = "\
+.entry uniform_cells_probe
+    .reg R0-R31
+    .param ptr out
+    LDCU.64 UR8, c[0x0][0x358] ;
+    LDC.64 R2, c[0x0][0x380] ;
+    LDC R4, c[0x0][0x388] ;
+    LDCU UR5, c[0x0][0x38c] ;
+    UMOV UR4, 0x400 ;
+    ULEA UR4, UR5, UR4, 0x18 ;
+    LEA R6, R4, UR4, 0x3 ;
+    IADD3 R7, PT, PT, R6, UR4, RZ ;
+    STG.E desc[UR8][R2.64], R7 ;
+    EXIT ;
+.endentry
+";
+
+#[test]
+fn the_cells_of_the_batch_are_ptxas_minima_and_no_floor_of_either_card_stands_above_them() {
+    let table: Value = serde_json::from_str(TABLE).unwrap();
+    let cells: std::collections::HashMap<(String, String, String), u64> = table["cells"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|c| ((c["producer"].as_str().unwrap().into(), c["consumer"].as_str().unwrap().into(), c["role"].as_str().unwrap().into()), c["L"].as_u64().unwrap()))
+        .collect();
+    let census: Value = serde_json::from_str(CENSUS).unwrap();
+    let uniform: Value = serde_json::from_str(UNIFORM_CENSUS).unwrap();
+    let sets = uniform["rows"].as_array().unwrap();
+    let holds = |row: &Value, role: &str| row["roles"].as_str().unwrap().split('+').any(|x| x == role);
+    for (p, c, role, l, requests) in B63_CELLS {
+        assert_eq!(cell(p, c, role).unwrap_or_else(|| panic!("no cell {p} -> {c} {role}"))["L"].as_u64().unwrap(), l, "{p} -> {c} {role}");
+        // ptxas's minimum: the census pairs where they have the row, else the verifier's census -- the smallest
+        // minimum of the role sets that hold the role
+        let row = census.as_array().unwrap().iter().find(|r| r["prod"] == p && r["cons"] == c && r["role"] == role);
+        let min = match row {
+            Some(r) => r["min"].as_u64().unwrap(),
+            None => sets.iter().filter(|r| r["producer"] == p && r["consumer"] == c && holds(r, role)).map(|r| r["min"].as_u64().unwrap()).min().unwrap_or_else(|| panic!("no census row {p} -> {c} {role}")),
+        };
+        assert_eq!(l, min, "{p} -> {c} {role}: the cell is not ptxas's census minimum");
+        // the floor on both card models, on every grid, never above the cell
+        for (card, file) in B63 {
+            let f: Value = serde_json::from_str(file).unwrap();
+            for id in requests {
+                let req: Vec<&Value> = f["requests"].as_array().unwrap().iter().filter(|q| q["id"] == *id).collect();
+                assert_eq!(req.len(), 1, "{card}: {id}");
+                let floor = req[0]["floor"]["binding"].as_u64().unwrap_or_else(|| panic!("{card}: no floor in {}", req[0]["floor"]));
+                assert!(floor <= l, "{card}, {id}: the measured floor {floor} stands above the cell {l}");
+                assert!(req[0]["floor"]["oracle_failures"].as_array().unwrap().is_empty() && req[0]["errors"] == 0, "{card}, {id}: {}", req[0]["floor"]);
+                for (grid, g) in req[0]["floor"]["per_condition"].as_object().unwrap() {
+                    assert!(g.as_u64().unwrap() <= l, "{card}, {id}, grid {grid}: floor {g}");
+                }
+            }
+        }
+    }
+    // no role set of the verifier's census stands below ptxas's own minimum for the set: the table asks the
+    // largest of the roles' cells; a set with a role that has no cell keeps a default
+    let mut priced = 0;
+    for r in sets {
+        let (p, c) = (r["producer"].as_str().unwrap(), r["consumer"].as_str().unwrap());
+        if !B63_CELLS.iter().any(|x| x.0 == p && x.1 == c) {
+            continue;
+        }
+        let ls: Vec<Option<u64>> = r["roles"].as_str().unwrap().split('+').map(|x| cells.get(&(p.to_string(), c.to_string(), x.to_string())).copied()).collect();
+        if ls.iter().all(|l| l.is_some()) {
+            priced += 1;
+            let need = ls.iter().map(|l| l.unwrap()).max().unwrap();
+            assert!(need >= r["min"].as_u64().unwrap(), "{p} -> {c} {}: the table asks {need}, ptxas never stands closer than {}", r["roles"], r["min"]);
+        }
+    }
+    assert!(priced >= 16, "{priced} role sets priced by cells alone");
+    // the two pairs of the batch that stay at the default: a cell on their shared role would price a form
+    // ptxas keeps farther apart
+    for (p, c, role) in [("UMOV", "USHF", "u0"), ("UMOV", "USHF", "u1"), ("UMOV", "ULOP3", "u0"), ("UMOV", "ULOP3", "u1")] {
+        assert!(cell(p, c, role).is_none(), "{p} -> {c} {role} has a cell");
+    }
+    let alone = |p: &str, c: &str, roles: &str| sets.iter().find(|r| r["producer"] == p && r["consumer"] == c && r["roles"] == roles).unwrap()["min"].as_u64().unwrap();
+    assert_eq!((alone("UMOV", "USHF", "u0+u1"), alone("UMOV", "USHF", "u1")), (2, 6));
+    assert_eq!((alone("UMOV", "ULOP3", "u0+u1"), alone("UMOV", "ULOP3", "u1")), (12, 7));
+}
+
+#[test]
+fn cubit_schedules_the_uniform_datapath_at_ptxas_distances() {
+    let (w, log) = build(KERNEL_ULEA, &with(S1, &[("CUBIT_DEP_VERIFY", "1")]));
+    // the constant into `ULEA` in place: 2 (it was 13); `ULEA` into `LEA R, R, UR`: 6 (it was 13)
+    assert_eq!(distance(&w, "UMOV UR4", "ULEA"), 2, "{w:?}");
+    assert_eq!(distance(&w, "ULEA", "LEA R6"), 6, "{w:?}");
+    assert!(distance(&w, "ULEA", "IADD3 R7") >= 6, "{w:?}");
+    assert!(log.contains("DEP_VERIFY 0 below a table cell, 0 waits closer than the arming distance to their barrier's setter, 0 below a resource spacing, 0 below a default"), "{log}");
+    // an author's schedule: the same words, `ULEA` one cycle closer to its reader than ptxas ever stands
+    let frozen = |stall: u32| {
+        let mut t = String::from(".entry uniform_cells_probe\n    .reg R0-R7\n    .regcount 40\n    .param ptr p0 offset=0x0\n");
+        for x in &w {
+            let code = if x.2.starts_with("ULEA") { format!("{}S{stall:02}]", &x.0[..x.0.len() - 4]) } else { x.0.clone() };
+            t.push_str(&format!("    {code} {} ;\n", x.2));
+        }
+        t + ".endentry\n"
+    };
+    let env = [("CUBIT_SYNC_CLASSES", "1"), ("CUBIT_VERIFY", "1"), ("CUBIT_DEP_VERIFY", "1")];
+    let (_, log) = build(&frozen(6), &env);
+    assert!(log.contains("DEP_VERIFY 0 below a table cell") && log.contains("0 below a default"), "the pair at 6: {log}");
+    let (_, log) = build(&frozen(5), &env);
+    assert!(log.contains("DEP_VERIFY 1 below a table cell") && log.contains("LEA R6, R4, UR4, 0x3 (raw UR4): distance 5 < 6"), "the pair at 5: {log}");
 }

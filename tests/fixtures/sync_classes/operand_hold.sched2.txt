@@ -17,9 +17,9 @@
 [B------:R-:W-:-:S15] @!UPT UIADD3 URZ, UPT, UPT, URZ, URZ, URZ ;
 [B-1----:R-:W-:-:S13] IADD3 R12, PT, PT, RZ, 0x1, R20 ;
 [B------:R-:W1:Y:S01] S2UR UR5, SR_CgaCtaId ;
-[B------:R-:W-:-:S13] UMOV UR4, 0x400 ;
+[B------:R-:W-:Y:S02] UMOV UR4, 0x400 ;
 [B-1----:R-:W-:Y:S01] ULEA UR4, UR5, UR4, 0x18 ;
-[B------:R-:W-:-:S12] UMOV UR5, 0xffffffff ;
+[B------:R-:W-:-:S05] UMOV UR5, 0xffffffff ;
 [B------:R-:W-:Y:S01] LEA R16, R13, UR4, 0x3 ;
 [B0-2---:R-:W-:Y:S05] STG.E.64 desc[UR8][R2.64], R4 ;
 [B------:R-:W-:Y:S04] STG.E desc[UR8][R2.64+0x10], R16 ;
