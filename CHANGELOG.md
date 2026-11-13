@@ -28,8 +28,18 @@ decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `
   byte the two schedules the card ranked; in FC2 30 of them stand in a loop behind the tensor loop that the values 1
   and 2 leave alone because the text's layout puts it inside a backward branch around tensor words. Under the values 1
   and 2 and without the switch every schedule is byte for byte what it was.
-- **Not known:** a number of record for the nests alone (both load orders) — the readings above rank; FC2 under it;
-  the power limit; another card model; why a yield costs in a loop without a tensor word and pays around one.
+- **Numbers of record** (the full form: both load orders, 1 200 pairs at 4 096 rows; one card model, free of its
+  power limit; every call's result compared; the schedule cubit writes under `CUBIT_WAIT_POLICY=1 CUBIT_YIELD_HOLD=2n`
+  against ptxas's own build of the kernel): the served FC1 reads fc1 0.287 ± 0.011 % and the span of the call
+  0.139 ± 0.009 % below; its r33 form 0.721 ± 0.014 % and 0.372 ± 0.010 % below ptxas's build of that form. In the
+  same blocks the schedule under the value `2` — the whole rule — read 0.252 ± 0.011 % | 0.666 ± 0.013 % below: the
+  nests alone are the better schedule at 4 096 rows, by 0.034 ± 0.011 | 0.055 ± 0.013 points of fc1. At the lower
+  row counts (200 pairs) the two are not told apart: 2 048 rows +0.034 ± 0.028 | −0.036 ± 0.028 points (the nests'
+  schedule minus the whole rule's), 1 024 rows −0.014 ± 0.036 | +0.006 ± 0.035, 256 rows −0.007 ± 0.028 |
+  −0.014 ± 0.028. The untouched FC2 kernel behind the changed FC1 reads 0.6 – 0.9 µs a call slower than behind
+  ptxas's FC1 (the span has it in); why is not known.
+- **Not known:** FC2 under it; the power limit; another card model; why a yield costs in a loop without a tensor
+  word and pays around one.
 - `tests/yield_hold.rs` (5 tests; the new one fails without the change): under `1n` and `2n` the nest's words give up
   the flag, the frame's words in no loop and around the tensor loop keep it where the values 1 and 2 take it, nothing
   else moves. Two unit tests of `nest_words` (`src/scheduling_pass.rs`): the nests are the loops that hold no tensor
