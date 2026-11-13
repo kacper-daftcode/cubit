@@ -13,11 +13,21 @@
   (4) producer FORMS priced apart from their class (PRODUCER_FORMS -> `producer_forms`): the result of such a form is never
       read closer than the entry's L in any register / address role, except in the (consumer, role) pairs the entry names.
       It is written as it stands here (no census input); the cells of (1) - (3) are not touched by it.
+  (5) cells written out (WRITTEN_CELLS): a pair the census walk does not see (the certified operand sets have no rule for
+      the producer) and that is priced by ptxas's distance and a measured floor -- the cell stands here with its evidence.
+  (6) cells on a measured floor (MEASURED_MIN_CELLS): ptxas's census MINIMUM of a pair to which rule (1) gives no cell
+      (fewer than MIN_AT pairs at the minimum) or a clamped one (a minimum below the global floor of 4) -- taken only where
+      a probe of this directory measured the pair's floor at or below that minimum on BOTH card models. The cell is the
+      census minimum, never the floor: cubit does not stand closer than ptxas ever does. The generator reads the census row
+      and the probe's result files and refuses an entry they do not carry.
+  (7) a pair row of a --floors file that names what superseded it (key `superseded`: the pair's own kernels measured
+      nothing, its `floor_d0` is another measurement's): the cell's `silicon` sentence is the one written here
+      (SUPERSEDED_SILICON), not `floor d0 S<nn>`; such a row without a sentence stops the run.
 
 usage: gen_dep_latency.py census_pairs.json out.json [--floors pair_floors.json ...] [--v6 cells.json ...]
                           [--mma-registers file] [--result-census census_pairs_result.json --result-floors floors.json]
 """
-import sys, json, argparse, collections
+import sys, json, argparse, collections, os
 
 VARIABLE = ["LDG", "LDS", "LDSM", "LDL", "LDC", "LDCU", "LD", "LDGSTS", "S2R", "S2UR", "MUFU", "SHFL", "ATOM", "ATOMG", "ATOMS",
             "RED", "REDG", "REDUX", "I2F", "F2I", "FLO", "POPC", "B2R", "TEX", "TLD", "TXQ", "LEPC", "GETLMEMBASE", "LDTM",
@@ -46,6 +56,54 @@ PRODUCER_FORMS = [
                 "on every grid, not right at 5 -- and into IMAD r1 / IADD3 r1 / LOP3 r1 (probe_sm120_20261110_b3, Server): the "
                 "default 6 is the floor itself, without a margin -- a trial floor, not a number of this table; -> STS data "
                 "floor 3 | 3 | 3 (probe_sm120_20261111_b35 and its _ws_ files): the exception keeps the default 6"},
+    {"producer": "CS2UR", "without": [], "L": 6, "except": [],
+     "basis": "ptxas: the 190 CS2UR words of the census (each a read of the global timer in the timeout check "
+              "of a spin-wait) carry no write barrier and have their first reader 6 issue cycles behind them "
+              "(184) or 16 (6), never closer",
+     "silicon": "a reader closer than 6 takes the register's old content: `CS2UR UR6, SRZ` and `CS2UR.32` into "
+                "MOV and into the low word of IADD.64 not right at 1 .. 5, right from 6 (two card models -- a "
+                "Server Edition card, tools/stallfloor/probe_sm120_20261112_b53.json, and a Workstation "
+                "Edition card alone and at its 400-W limit, "
+                "probe_sm120_20261112_b53_ws_2eabe5dcdba4_alone.json / "
+                "probe_sm120_20261112_b53_ws_2eabe5dcdba4_capped.json, the same floors; six grids, with and "
+                "without the yield flag; the high word from 5, UIADD3 from 4 -- measurements, not numbers of "
+                "this table); a write barrier on the word and a wait on its reader change no count: the word "
+                "has no scoreboard result"},
+]
+# cells written out as they stand: the census walk has no row for the pair (the certified operand sets do not know the
+# producer), ptxas's distance and the measured floor are the evidence
+WRITTEN_CELLS = [
+    {"producer": "CS2UR", "consumer": "IADD", "role": "u2", "L": 6,
+     "basis": "ptxas: every CS2UR word of the vendor's sm_120 kernels is a read of the global timer for the "
+              "timeout check of a spin-wait, none carries a write barrier, and its first reader -- `IADD.64 R, "
+              "-R, UR` -- stands 6 issue cycles behind it or later, never closer",
+     "silicon": "floor 6 on two card models (a Server Edition card, "
+                "tools/stallfloor/probe_sm120_20261112_b53.json, six grids, with and without the yield flag; a "
+                "Workstation Edition card alone and at its 400-W limit, "
+                "probe_sm120_20261112_b53_ws_2eabe5dcdba4_alone.json / "
+                "probe_sm120_20261112_b53_ws_2eabe5dcdba4_capped.json: the same floor): the low word into "
+                "IADD.64 and the result into MOV not right at 1 .. 5, right from 6; a write barrier on the "
+                "word and a wait on its reader change no count -- the cell is the floor itself, without a "
+                "margin"},
+]
+# cells on a measured floor: ptxas's census MINIMUM of a pair that the dense-cell rule leaves to a default (fewer than MIN_AT
+# pairs at the minimum) or clamps (a minimum below 4), where a probe measured the pair's floor at or below that minimum on
+# both card models (`request` in every file of `probe_files`: a Server Edition card, a Workstation Edition card alone and
+# at its power limit). The number of the cell is read off the census row; an entry the files do not carry stops the run.
+# the `silicon` sentence of a cell whose pair row carries the key `superseded` (rule (7)): what the newer measurement says
+SUPERSEDED_SILICON = {
+    ("ISETP", "ISETP", "p"): (
+        "a prohibition below 5 on two card models (a Server Edition card and a Workstation Edition card, "
+        "tools/stallfloor/probe_sm120_20261112_b61.json and its two _ws_ files: the consumer takes the old "
+        "predicate -- at 1 ... 3 issue cycles no thread-launch is right, at 4 at most 7264 of 73584640, from "
+        "5 every one); the pair isetp_isetp of stall_floors_sm120_20261110_pairs.json (floor 1) measured "
+        "nothing"),
+}
+MEASURED_MIN_CELLS = [
+    {"producer": "UMOV", "consumer": "MOV", "role": "u1", "request": "pu_umov_mov_u1",
+     "probe_files": ["probe_sm120_20261111_b46.json", "probe_sm120_20261111_b46_ws_2eabe5dcdba4_alone.json",
+                     "probe_sm120_20261111_b46_ws_2eabe5dcdba4_capped.json"],
+     "form": "`UMOV UR, imm` -> `MOV R, UR`"},
 ]
 PRODUCER_FORMS_COMMENT = (" `producer_forms`: the result of a producer FORM named there -- the class plus the modifiers the form"
                           " does not carry (`CS2R` without `.32` = the 64-bit form, a register pair) -- is never read closer than"
@@ -97,11 +155,44 @@ def main():
                 continue
             L = max(L, 4)                  # floor_global of the 2026-11-03 silicon run; late-read operands are not modelled
         cells[(p, c, role)] = dict(L=L, n=r["n"], n_min=r["n_min"], census_min=r["min"])
+    # cells on a measured floor (MEASURED_MIN_CELLS): the census minimum, checked against the census row and the probe's files
+    by_key = {(r["prod"], r["cons"], r["role"]): r for r in rows}
+    here = os.path.dirname(os.path.abspath(__file__))
+    measured_min = {}
+    for m in MEASURED_MIN_CELLS:
+        key = (m["producer"], m["consumer"], m["role"])
+        r = by_key[key]
+        assert key not in cells or cells[key]["L"] > r["min"], f"{key}: the dense-cell rule gives {cells.get(key)} already"
+        floors, models = [], set()
+        for fn in m["probe_files"]:
+            req = [q for q in json.load(open(os.path.join(here, fn)))["requests"] if q["id"] == m["request"]]
+            assert len(req) == 1, f"{key}: {fn} has {len(req)} requests `{m['request']}`"
+            fl = req[0]["floor"]
+            assert isinstance(fl["binding"], int) and fl["binding"] <= r["min"] and not fl["oracle_failures"] and not req[0]["errors"], \
+                f"{key}: {fn} does not carry a floor at or below the census minimum {r['min']}: {fl}"
+            floors.append(fl["binding"])
+            models.add("workstation" if "_ws_" in fn else "server")
+        assert models == {"server", "workstation"}, f"{key}: a cell on a measured floor needs both card models, not {models}"
+        why = (f"fewer than {MIN_AT} pairs at the minimum" if r["n_min"] < MIN_AT else "fewer pairs than a dense cell needs" if r["n"] < MIN_N
+               else "a minimum below the global floor of 4")
+        measured_min[key] = {
+            "producer": key[0], "consumer": key[1], "role": key[2], "L": r["min"],
+            "basis": f"ptxas census min {r['min']} x {r['n_min']} of {r['n']} pairs -- no dense cell ({why}: the pair took the default); "
+                     f"the census minimum is the cell because the pair's floor is measured at or below it on both card models "
+                     f"(never closer than ptxas ever stands)",
+            "silicon": f"floor {' | '.join(str(f) for f in floors)} for the form {m['form']} -- tools/stallfloor "
+                       f"{m['probe_files'][0][:-len('.json')]} (request `{m['request']}`) and its _ws_ files: a Server Edition card, a "
+                       f"Workstation Edition card alone and at its 400-W limit; the cell is ptxas's minimum, not the floor"}
+        cells.pop(key, None)
     # MMA rows, written out explicitly (census: HMMA -> HMMA accumulate 29 x 2 368, HMMA -> FADD / FMUL 28; any MMA -> MMA 16)
     out_cells = []
     for (p, c, role), v in sorted(cells.items()):
         out_cells.append({"producer": p, "consumer": c, "role": role, "L": v["L"],
                           "basis": f"ptxas census min {v['census_min']} x {v['n_min']} of {v['n']} pairs"})
+    for w in WRITTEN_CELLS:
+        assert (w["producer"], w["consumer"], w["role"]) not in cells and (w["producer"], w["consumer"], w["role"]) not in measured_min
+        out_cells.append(dict(w))
+    out_cells += [measured_min[k] for k in sorted(measured_min)]
     doc = {
         "arch": "sm_120",
         "schema": 1,
@@ -165,6 +256,11 @@ def main():
             elif isinstance(floor, int) and floor > c["L"]:
                 c["basis"] += f"; RAISED from {c['L']} by the silicon floor"
                 c["L"] = floor
+            if f.get("superseded"):
+                if key not in SUPERSEDED_SILICON:
+                    raise SystemExit(f"{fp}: the row of {' / '.join(key)} names what superseded it and SUPERSEDED_SILICON has no sentence for its cell")
+                c["silicon"] = SUPERSEDED_SILICON[key]
+                continue
             c["silicon"] = (f"floor d0 S{floor:02d}" if isinstance(floor, int) else str(floor)) + (f" ({f['note']})" if f.get("note") else "")
     # population harness v6: per cell, kernels at the tested latency Lt and at Lt - 1 (random registers / yield / neighbours)
     for fp in a.v6:

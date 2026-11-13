@@ -1911,7 +1911,7 @@ mod tests {
 
     /// A table without `producer_forms` (every table written before it, a deployment's own copy)
     /// loads and prices the pair form with the pair's cell or the default, as before; the section
-    /// touches no cell (a binary that does not know it reads the same 534 cells).
+    /// touches no cell (a binary that does not know it reads the same 535 cells).
     #[test]
     fn a_table_without_the_producer_forms_prices_the_pair_form_by_its_cell() {
         let mut j: serde_json::Value = serde_json::from_str(SM120_TABLE).unwrap();
@@ -1922,7 +1922,7 @@ mod tests {
         assert_eq!(section[0]["without"], serde_json::json!([".32"]));
         assert_eq!(section[0]["L"], 7);
         assert_eq!(section[0]["except"], serde_json::json!([{"consumer": "STS", "role": "r1"}]));
-        assert_eq!(j["cells"].as_array().unwrap().len(), 534);
+        assert_eq!(j["cells"].as_array().unwrap().len(), 535);
         let old = DepLatTable::from_json(&j.to_string()).unwrap();
         let pair = ins("CS2R R6, SRZ");
         assert_eq!(old.latency(&pair, &ins("IMAD R8, R6, R5, R4"), 6), (6, false));
@@ -1932,7 +1932,7 @@ mod tests {
 
     /// A table without the section (every table written before it, a deployment's own copy) loads
     /// and prices both registers with the pair's cell, as before; the section does not touch the
-    /// pair cells (a binary that does not know it reads the same 534 cells).
+    /// pair cells (a binary that does not know it reads the same 535 cells).
     #[test]
     fn a_table_without_the_result_split_prices_the_pair() {
         let mut j: serde_json::Value = serde_json::from_str(SM120_TABLE).unwrap();
@@ -1940,7 +1940,7 @@ mod tests {
         assert_eq!(section["producers"], serde_json::json!(["IMAD.WIDE"]));
         assert_eq!(section["floor"], 5);
         assert_eq!(section["cells"].as_array().unwrap().len(), 7);
-        assert_eq!(j["cells"].as_array().unwrap().len(), 534);
+        assert_eq!(j["cells"].as_array().unwrap().len(), 535);
         let old = DepLatTable::from_json(&j.to_string()).unwrap();
         let wide = ins("IMAD.WIDE.U32 R6, R4, R5, RZ");
         let lop3 = ins("LOP3.LUT R8, R7, R5, RZ, 0x3c, !PT");

@@ -520,6 +520,7 @@
   {"producer": "ULOP3", "consumer": "ULOP3", "role": "u1", "L": 4, "basis": "ptxas census min 4 x 9 of 116 pairs"},
   {"producer": "UMOV", "consumer": "BRA", "role": "u0", "L": 4, "basis": "ptxas census min 3 x 1094 of 1618 pairs"},
   {"producer": "UMOV", "consumer": "ISETP", "role": "u1", "L": 4, "basis": "ptxas census min 3 x 46 of 323 pairs"},
+  {"producer": "UMOV", "consumer": "MOV", "role": "u1", "L": 2, "basis": "ptxas census min 2 x 4 of 751 pairs -- no dense cell (fewer than 8 pairs at the minimum: the pair took the default); the census minimum is the cell because the pair's floor is measured at or below it on both card models (never closer than ptxas ever stands)", "silicon": "floor 1 | 1 | 1 for the form `UMOV UR, imm` -> `MOV R, UR` -- tools/stallfloor probe_sm120_20261111_b46 (request `pu_umov_mov_u1`) and its _ws_ files: a Server Edition card, a Workstation Edition card alone and at its 400-W limit; the cell is ptxas's minimum, not the floor"},
   {"producer": "UMOV", "consumer": "MOV.64", "role": "u1", "L": 4, "basis": "ptxas census min 3 x 12 of 104 pairs"},
   {"producer": "UMOV", "consumer": "UIADD3", "role": "u0", "L": 4, "basis": "ptxas census min 2 x 804 of 1844 pairs"},
   {"producer": "UMOV", "consumer": "UIADD3", "role": "u1", "L": 4, "basis": "ptxas census min 2 x 918 of 4228 pairs"},

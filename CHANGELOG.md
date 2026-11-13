@@ -4,6 +4,33 @@ User-visible changes, newest first. Table syncs name the blackwell-isa revision 
 (`tables/SOURCE.json` pins it byte for byte). Numbered `BUG-NNN` entries are the encoder /
 decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `docs/TESTS.md`).
 
+## Unreleased — 2026-11-12 (the sm_120 dependency table: a pair on a uniform register takes ptxas's census minimum once its floor is measured — the first cell, `UMOV` → `MOV R, UR` = 2)
+
+- **`tables/dep_latency_sm120.json`: one new cell, `UMOV` → `MOV` (role `u1`) = 2** (KNOWN_ISSUES A52; read only under
+  `CUBIT_SCHED2_LAT=sm120` — the default path does not read the table and is byte for byte what it was). The pair was
+  priced by `defaults.uniform` = 13: the census has it 751 times but only 4 times at its minimum of 2, below the
+  dense-cell rule. `tools/stallfloor/probe_sm120_20261111_b46.json` and its two `_ws_` files read the form
+  `UMOV UR, imm` → `MOV R, UR` right from 1 issue cycle on a Server Edition card and on a Workstation Edition card
+  alone and at its power limit. The cell is ptxas's minimum, not the floor: cubit does not stand closer than ptxas
+  ever does.
+- **The rule, for the pairs that follow:** a pair on a uniform register without a dense cell takes ptxas's census
+  minimum as its cell only where a probe measured its floor at or below that minimum on both card models
+  (`tools/stallfloor/gen_dep_latency.py`, `MEASURED_MIN_CELLS`: the generator reads the census row and the result
+  files and refuses an entry they do not carry). In ptxas's schedules of the served FC1 | its r33 form | FC2, 29 | 29 |
+  27 word pairs of 17 such classes stand below the default at 2 … 11 issue cycles where cubit's schedule stands at
+  13 … 15; 16 classes wait for their floors.
+- **What moves under the opt-in:** `UMOV UR4, 0x400 ; MOV R26, UR4` is scheduled 2 issue cycles apart with the yield
+  flag kept (it was 13, and a stall of 12 … 15 cannot carry the flag); in cubit's schedule of the three served texts
+  6 | 4 | 2 control words, the stall sum −32 | −31 | −22 cycles. `CUBIT_DEP_VERIFY` reads ptxas's own distance on the
+  pair as no finding and one cycle closer as a finding against the cell. No card has seen the moved schedules.
+- **The generator carries the `CS2UR` rows:** the cell `CS2UR` → `IADD` (role `u2`) = 6 and the `CS2UR` entry of
+  `producer_forms` had been written into the table only; `gen_dep_latency.py` writes them now (`WRITTEN_CELLS`,
+  `PRODUCER_FORMS`), and the table is its output byte for byte again (the command in `tools/stallfloor/README.md`).
+  The same for the sentence of the cell `ISETP` → `ISETP` (role `p`), whose pair row names the measurement that
+  superseded it (`SUPERSEDED_SILICON`; a row with that key and no sentence stops the generator).
+- `tests/uniform_pair_cells.rs`: the cell against the census row and the three result files; cubit's schedule of the
+  pair; the verifier's reading of an author's schedule; the default path.
+
 ## Unreleased — 2026-11-13 (the dependency table's cell `ISETP` → `ISETP` p and the old pair `isetp_isetp` name the measurement: a prohibition below 5 on two card models)
 
 - **Documents only: no cell and no number of `tables/dep_latency_sm120.json` moves.** The cell `ISETP` → the predicate
