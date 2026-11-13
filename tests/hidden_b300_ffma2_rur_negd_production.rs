@@ -116,24 +116,29 @@ fn only_neg75_is_added_to_the_existing_row_with_measured_provenance() {
                 .unwrap(),
         )
         .unwrap();
-        assert_eq!(raw["_meta"]["provenance"]["sources"][SOURCE]["rows"], 1);
+        let source = &raw["_meta"]["provenance"]["sources"][SOURCE];
+        assert_eq!(source["rows"], 0);
+        assert_eq!(source.as_object().unwrap().len(), 6);
+        assert!(source["note"].as_str().unwrap().contains("neg [75]"));
+        assert!(source["note"].as_str().unwrap().contains("_srcc68"));
         let entry = &raw["instructions"][KEY];
         assert_eq!(entry["base_op"], "FFMA2");
         assert_eq!(entry["operand_sig"], "R_R_UR_R");
         assert_eq!(entry["scheduling"]["pipe_name"], "UNKNOWN");
         let group = &entry["mod_groups"][""];
-        assert_eq!(group["_src"], SOURCE, "{arch}");
-        assert_eq!(group["count"], Value::Null);
+        assert!(group.get("_src").is_none(), "{arch}");
+        assert!(entry.get("_src").is_none(), "{arch}");
+        assert_eq!(group["count"], 256);
         assert_eq!(
             hex(&group["and_base"]),
             0x00000000092000000000000000007c49u128
         );
         let fields = group["fields"].as_array().unwrap();
-        let expected_mask = fields.iter().fold(0u128, |mask, field| {
-            mask | (((1u128 << field["bits"].as_u64().unwrap()) - 1)
-                << field["shift"].as_u64().unwrap())
-        });
-        assert_eq!(hex(&group["variable_mask"]), expected_mask, "{arch}");
+        assert_eq!(
+            hex(&group["variable_mask"]),
+            0x10e02e00000008a300000015fefe0000u128,
+            "{arch}"
+        );
         assert_eq!(fields.len(), 6);
         for (bits, shift, extraction, token) in [
             (8, 16, "reg", 1),
@@ -143,18 +148,39 @@ fn only_neg75_is_added_to_the_existing_row_with_measured_provenance() {
             (1, 75, "neg", 4),
             (1, 124, "reuse", 4),
         ] {
-            assert!(
-                fields.iter().any(|field| field["bits"] == bits
-                    && field["shift"] == shift
-                    && field["extraction"] == extraction
-                    && field["token_idx"] == token),
-                "{arch}: {extraction}@{shift}/{bits}"
+            let field = fields
+                .iter()
+                .find(|field| {
+                    field["bits"] == bits
+                        && field["shift"] == shift
+                        && field["extraction"] == extraction
+                        && field["token_idx"] == token
+                })
+                .unwrap_or_else(|| panic!("{arch}: {extraction}@{shift}/{bits}"));
+            assert_eq!(
+                field["_src"],
+                if extraction == "neg" {
+                    Value::from(SOURCE)
+                } else {
+                    Value::from("2aE")
+                },
+                "{arch}: {extraction}@{shift} source"
             );
         }
         assert!(
             !fields.iter().any(|field| field["shift"] == 74),
             "abs74 is a separate boundary"
         );
+        assert_eq!(
+            group["claim_forbid"],
+            serde_json::json!([{"bits": 1, "shift": 74, "values": [1]}]),
+            "{arch}"
+        );
+        assert_eq!(group["_srcc68"], SOURCE, "{arch}");
+        assert!(group["_notec68"]
+            .as_str()
+            .unwrap()
+            .contains("4 records per target"));
     }
 }
 
@@ -163,6 +189,7 @@ fn negative_adjacent_and_control_records_are_not_silently_adopted() {
     for (position, (arch, fixture)) in arches().iter().enumerate() {
         let (table, index) = &tables()[position];
         let mut counts = std::collections::BTreeMap::new();
+        let mut read: Vec<(String, String, bool)> = Vec::new();
         for row in rows(fixture) {
             let role = row["role"].as_str().unwrap().to_string();
             *counts.entry(role.clone()).or_insert(0usize) += 1;
@@ -175,19 +202,63 @@ fn negative_adjacent_and_control_records_are_not_silently_adopted() {
                     "{arch}: static negative must stay rejected {word:032x}"
                 ),
                 "text_inert" | "vendor_invalid" | "adjacent_modifier" | "other_family" => {
-                    // Some neighbours may decode elsewhere. They must not
-                    // masquerade as the vendor's measured operand signature.
+                    // The existing row retains its standard modifier slots.
+                    // Every neighbour it reads must re-assemble losslessly;
+                    // the exact set and vendor-text relation is pinned below.
                     if let Ok(decoded) = index.decode(word, 0, table) {
-                        assert_ne!(
-                            decoded.to_string(),
-                            format!("{} ;", row["nvidia_sass"].as_str().unwrap()),
-                            "{arch}: {role} rendered as the scoped signature {word:032x}"
+                        let rendered = cubit::printer::to_sass_lossless(&decoded);
+                        let control = cubit::scheduling::format_control_code(
+                            &cubit::scheduling::decode_sched_upper32((word >> 96) as u32),
                         );
+                        let parsed =
+                            cubit::parse_cuasm_line(&format!("[{control}] {rendered} ;"), 0)
+                                .unwrap();
+                        let encoded = cubit::encoder::encode_instruction(&parsed, table)
+                            .unwrap_or_else(|error| {
+                                panic!("{arch}: encode {word:032x} {rendered}: {error}")
+                            });
+                        assert_eq!(
+                            (encoded & LOWER96, encoded & (1u128 << 124)),
+                            (word & LOWER96, word & (1u128 << 124)),
+                            "{arch}: {role} read with loss {word:032x} {rendered}"
+                        );
+                        let vendor = format!("{} ;", row["nvidia_sass"].as_str().unwrap());
+                        read.push((role, format!("{word:032x}"), decoded.to_string() == vendor));
                     }
                 }
                 other => panic!("unexpected role {other}"),
             }
         }
+        let read: Vec<(&str, &str, bool)> = read
+            .iter()
+            .map(|(role, word, exact)| (role.as_str(), word.as_str(), *exact))
+            .collect();
+        assert_eq!(
+            read,
+            [
+                (
+                    "adjacent_modifier",
+                    "000fc400092008474000000c04047c49",
+                    false
+                ),
+                (
+                    "adjacent_modifier",
+                    "000fc400092008478000000c04047c49",
+                    true
+                ),
+                (
+                    "adjacent_modifier",
+                    "000fc400092009470000000c04047c49",
+                    true
+                ),
+                (
+                    "adjacent_modifier",
+                    "000fc40009200a470000000c04047c49",
+                    true
+                ),
+            ],
+            "{arch}"
+        );
         assert_eq!(counts["negative"], 10, "{arch}");
         assert_eq!(counts["adopt"], 1108, "{arch}");
         assert_eq!(counts.values().sum::<usize>(), 1201, "{arch}");
