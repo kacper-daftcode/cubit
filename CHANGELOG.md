@@ -22,8 +22,9 @@ decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `
   0.08 ± 0.11 slower); off the 535 | 561 words of the frame around the tensor loop 0.21 ± 0.10 | 0.63 ± 0.11 µs
   SLOWER. The rule's whole gain stands in the nests; against ptxas's own build the schedule with the nests' flags off
   read 0.290 ± 0.014 % | 0.719 ± 0.015 % below, the whole rule's 0.270 ± 0.014 | 0.675 ± 0.015.
-- **What moves under the new values:** in cubit's schedule of the three served texts (`CUBIT_WAIT_POLICY=1`) 220 | 214 |
-  191 words give up the flag at `1n` and 262 | 261 | 231 at `2n` (FC1 | its r33 form | FC2) and nothing else moves; in
+- **What moves under the new values:** in cubit's schedule of the three texts (`CUBIT_WAIT_POLICY=1`) 220 | 214 |
+  191 words give up the flag at `1n` and 262 | 261 | 231 at `2n` (FC1 | its r33 form | FC2 — served are FC1 and FC2; the
+  r33 form of the FC1 kernel stands in the image under a key that is switched off as served) and nothing else moves; in
   FC1 and its r33 form they are words the value without `n` takes as well, and the schedules under `2n` are byte for
   byte the two schedules the card ranked; in FC2 30 of them stand in a loop behind the tensor loop that the values 1
   and 2 leave alone because the text's layout puts it inside a backward branch around tensor words. Under the values 1
@@ -74,8 +75,9 @@ decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `
   on them at a stall of 2 cost 1.26 ± 0.10 | 1.41 ± 0.11 µs where the schedule without the rule — the flag on them
   at a stall of 1, and on the rule's stall-2 words — costs 2.43 ± 0.10 | 6.14 ± 0.11: the rule's time is the time
   of the yield flag, not of a stall cycle.
-- **What moves under the switch:** in cubit's schedule of the three served texts (`CUBIT_WAIT_POLICY=1`) 882 | 897 | 587 words
-  give up the flag at n = 1 and 955 | 979 | 643 at n = 2 (FC1 | its r33 form | FC2) and nothing else moves; ptxas carries the
+- **What moves under the switch:** in cubit's schedule of the three texts (`CUBIT_WAIT_POLICY=1`) 882 | 897 | 587 words
+  give up the flag at n = 1 and 955 | 979 | 643 at n = 2 (FC1 | its r33 form | FC2 — served are FC1 and FC2, the r33 form
+  is not) and nothing else moves; ptxas carries the
   flag on 914 | 937 | 600 of the latter, so the words whose flag differs from his rise 148 → 1021 | 145 → 1040 | 108 → 665. Without the switch every schedule
   is byte for byte what it was.
 - **Not known:** whether the rule holds on FC2 as cubit lays it out, at the power limit, on another card model;
@@ -100,7 +102,8 @@ decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `
   would put a role set of the verifier's census below ptxas's own minimum for the set. That check keeps `UMOV` → `USHF`
   and `UMOV` → `ULOP3` (in place) of the same batch at the default: their cells would price a form ptxas keeps farther
   apart (`USHF.L.U32`: 6; `ULOP3.LUT` without the third source: 12) at 2. The table is the generator's output byte for byte.
-- **What moves under the opt-in:** in cubit's schedule of the three served texts (`CUBIT_WAIT_POLICY=1`) 26 | 26 | 16
+- **What moves under the opt-in:** in cubit's schedule of the three texts (`CUBIT_WAIT_POLICY=1`; FC1 | its r33 form |
+  FC2 — served are FC1 and FC2, the r33 form is not) 26 | 26 | 16
   control words; the stall sum 8 574 → 8 443 | 8 541 → 8 410 | 7 072 → 6 979 (ptxas 8 404 | 8 354 | 7 003); the words at a
   stall of 12 or more 114 → 102 | 116 → 104 | 76 → 66. `CUBIT_DEP_VERIFY` finds nothing in the three. No card has seen
   the moved schedules.
@@ -128,8 +131,9 @@ decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `
   27 word pairs of 17 such classes stand below the default at 2 … 11 issue cycles where cubit's schedule stands at
   13 … 15; 16 classes wait for their floors.
 - **What moves under the opt-in:** `UMOV UR4, 0x400 ; MOV R26, UR4` is scheduled 2 issue cycles apart with the yield
-  flag kept (it was 13, and a stall of 12 … 15 cannot carry the flag); in cubit's schedule of the three served texts
-  6 | 4 | 2 control words, the stall sum −32 | −31 | −22 cycles. `CUBIT_DEP_VERIFY` reads ptxas's own distance on the
+  flag kept (it was 13, and a stall of 12 … 15 cannot carry the flag); in cubit's schedule of the three texts
+  (FC1 | its r33 form | FC2 — served are FC1 and FC2, the r33 form is not) 6 | 4 | 2 control words, the stall sum
+  −32 | −31 | −22 cycles. `CUBIT_DEP_VERIFY` reads ptxas's own distance on the
   pair as no finding and one cycle closer as a finding against the cell. No card has seen the moved schedules.
 - **The generator carries the `CS2UR` rows:** the cell `CS2UR` → `IADD` (role `u2`) = 6 and the `CS2UR` entry of
   `producer_forms` had been written into the table only; `gen_dep_latency.py` writes them now (`WRITTEN_CELLS`,
