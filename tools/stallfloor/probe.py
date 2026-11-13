@@ -200,6 +200,25 @@ the THIRD predicate (`@P4`; g = P0, k = P2); "pguard" then has three letters (P0
 "cold").
     {"id": "f3_lll", "kind": "ord", "forms": "gT,kT,jT", "barrier": "all", "yield": "set", "pguard": "lll", "pneg": "set", "distances": "1,4"}
     {"id": "f3_lll_ew", "kind": "ord", "forms": "gT,kT,jT", "barrier": "all", "yield": "set", "pguard": "lll", "pneg": "set", "distances": "1,4", "wait": "end"}
+
+Version 32 - kind `raw`, the pair classes on a UNIFORM register (or a uniform predicate) for which the sm_120 table has no
+cell: new uniform producers ULEA (`ULEA UR6, UR8, UR9, 0x18`), ULEA.addr (the base of a shared store), USHF (`USHF.R.U32
+UR6, UR8, 0x4, URZ`), ULOP3 (`ULOP3.LUT UR6, UR9, 0xf, UR8, 0xf8, !UPT` - the table 0xf8 = a | (imm & c)), VOTEU
+(`VOTEU.ANY UR6, UPT, PT`: the lane mask of a full warp) - UR6 holds a marker until the producer lands - and the uniform
+PREDICATE producer UISETP (`UISETP.GE.AND UP0, UPT, UR8, 0x80, UPT`; UP0 holds the other value until it lands). Consumers
+(each takes the producers of its pair classes): ULEA.u2 / ULEA.u2.s3 (in place), LEA.u2, IADD3.u2, STS.u0 and STS128.u0 (the
+uniform base of a shared store; `@!P0 STS.128 [UR6+0x10], R24` is the vendor's form), FLO.u1, POPC.u1, USHF.u1 / USHF.L.u1
+(in place), ULOP3.u3, ULOP3.u1 (in place), UIADD3.u1i (in place), BRA.gc (`BRA.U !UP0, L`); MOV.u1 takes every new producer
+but ULEA.addr. `stale` = the consumer took the register's previous content; "control": "stale" as for every raw pair.
+    {"id": "u_ulea_lea", "kind": "raw", "producer": "ULEA", "consumer": "LEA.u2", "distances": "1-15,20,30"}
+    {"id": "u_ulea_lea_c", "kind": "raw", "producer": "ULEA", "consumer": "LEA.u2", "control": "stale", "distances": "2,7,13"}
+Version 32 - a TENSOR READER UNDER A GUARD: "rguard": "t" | "f" | "c" on `CS2R -> QMMA.r3 / QMMA.r3h` and on `UMOV ->
+QMMA.u6` writes the reader `@P2 QMMA.SF...` - P2 true | false | bit 1 of the iteration counter, written at the top of the
+iteration, the same in every lane of a warp (f: the reader never executes - one hypothesis, no control). "upguard": "set"
+(QMMA.u6 with rguard) writes the producer `@UP0 UMOV UR6, 0x9` (UP0 by `VOTEU.ANY UP0, P0`: true) and both QMMA words of
+the relative pair under `@P2`.
+    {"id": "tg_cs2r_r3_c", "kind": "raw", "producer": "CS2R", "consumer": "QMMA.r3", "rguard": "c", "front": ["none", "mmax1@7"]}
+    {"id": "tg_umov_u6_t", "kind": "raw", "producer": "UMOV", "consumer": "QMMA.u6", "rguard": "t", "upguard": "set"}
 """
 from __future__ import annotations
 
@@ -216,7 +235,7 @@ import subprocess
 import sys
 import time
 
-TOOL = "probe.py 31 (2026-11-12)"
+TOOL = "probe.py 32 (2026-11-13)"
 HERE = pathlib.Path(__file__).resolve().parent
 SEED = 0x12345
 PTR_STANDIN = [0, 0]      # version 28: the scalar interpreter's stand-in for the output pointer R2:R3 (the selftest sets it nonzero: no fold may depend on it)
@@ -355,10 +374,50 @@ def uniform_producer(name):
     if name == "CS2UR":        # the 64-bit form (the kernel's `CS2UR UR4, SR_GLOBALTIMERLO`): it writes UR6 AND UR7
         return ([Ins("UMOV UR6, 0x155 ;", ("mov", "UR6", 0x155)), Ins("UMOV UR7, 0x2aa ;", ("mov", "UR7", 0x2aa))],
                 "CS2UR UR6, SRZ ;", ("zero2u", "UR6", "UR7"), "CS2UR")
+    if name == "ULEA":         # version 32: UR6 = UR9 + (UR8 << 24) (the vendor's shift); UR8 counts the iterations, UR9 = 0x650; UR6 holds a marker until it lands
+        return ([Ins("UIADD3 UR8, UPT, UPT, UR8, 0x1, URZ ;", ("add", "UR8", "UR8", 1)), Ins("UMOV UR9, 0x650 ;", ("mov", "UR9", 0x650)),
+                 Ins(f"UMOV UR6, 0x{U32_MARK:x} ;", ("mov", "UR6", U32_MARK))],
+                "ULEA UR6, UR8, UR9, 0x18 ;", ("mad", "UR6", "UR8", 1 << 24, "UR9"), "ULEA")
+    if name == "ULEA.addr":    # version 32: UR6 = the address of lane 0's line of the warp (UR9, through R2UR) + (0 << 24); until it lands UR6 = 0x10, another valid place of the CTA
+        return ([Ins("LOP3.LUT R13, R0, 0x1f, RZ, 0xc0, !PT ;", ("and", "R13", "R0", 31)),
+                 Ins("IMAD R14, R13, -0x40, R9 ;", ("mov", "R14", "R9")),      # (the model: the thread's own line stands for lane 0's - the same values in every lane)
+                 Ins("R2UR UR9, R14 ;", ("mov", "UR9", "R9")), Ins("UMOV UR10, 0x0 ;", ("mov", "UR10", 0)),
+                 Ins("UMOV UR6, 0x10 ;", ("mov", "UR6", 0x10))],
+                "ULEA UR6, UR10, UR9, 0x18 ;", ("mad", "UR6", "UR10", 1 << 24, "UR9"), "ULEA")
+    if name == "USHF":         # version 32: UR6 = UR8 >> 4 (the vendor's shift); UR8 grows by 0x20 an iteration - the result is even, never the marker's low bits
+        return ([Ins("UIADD3 UR8, UPT, UPT, UR8, 0x20, URZ ;", ("add", "UR8", "UR8", 0x20)), Ins(f"UMOV UR6, 0x{U32_MARK:x} ;", ("mov", "UR6", U32_MARK))],
+                "USHF.R.U32 UR6, UR8, 0x4, URZ ;", ("shr", "UR6", "UR8", 4), "USHF")
+    if name == "ULOP3":        # version 32: the vendor's table 0xf8 = a | (imm & c): UR6 = 0x120 | (0xf & UR8); UR8 counts the iterations
+        return ([Ins("UIADD3 UR8, UPT, UPT, UR8, 0x1, URZ ;", ("add", "UR8", "UR8", 1)), Ins("UMOV UR9, 0x120 ;", ("mov", "UR9", 0x120)),
+                 Ins(f"UMOV UR6, 0x{U32_MARK:x} ;", ("mov", "UR6", U32_MARK))],
+                "ULOP3.LUT UR6, UR9, 0xf, UR8, 0xf8, !UPT ;", ("orand", "UR6", "UR9", 0xf, "UR8"), "ULOP3")
+    if name == "VOTEU":        # version 32: the mask of the warp's lanes (every grid of the tool has full warps: 0xffffffff); UR6 holds 0xffff until it lands
+        return [Ins("UMOV UR6, 0xffff ;", ("mov", "UR6", 0xffff))], "VOTEU.ANY UR6, UPT, PT ;", ("mov", "UR6", 0xffffffff), "VOTEU"
     raise SystemExit(f"unknown uniform producer {name!r} (probe.py list)")
 
 
-UNIFORM_PRODUCERS = ["UMOV", "UIADD3", "CS2UR.32", "CS2UR"]
+UNIFORM_PRODUCERS = ["UMOV", "UIADD3", "CS2UR.32", "CS2UR", "ULEA", "ULEA.addr", "USHF", "ULOP3", "VOTEU"]
+U32_MARK = 0x155      # version 32: what UR6 holds until a new uniform producer lands
+U32_SLOT1 = (0x51a70001, 0x51a70002, 0x51a70003, 0x51a70004)      # version 32: slot 1 of every line until the 128-bit store through the uniform base lands
+U32_PRODUCERS = ("ULEA", "ULEA.addr", "USHF", "ULOP3", "VOTEU")
+# version 32: a new uniform consumer -> the producers of its pair classes
+U32_PAIRS = {"ULEA.u2": ("UIADD3", "UMOV"), "ULEA.u2.s3": ("ULEA",), "LEA.u2": ("ULEA",), "IADD3.u2": ("ULEA",), "STS.u0": ("ULEA.addr",), "STS128.u0": ("ULEA.addr",),
+             "FLO.u1": ("VOTEU",), "POPC.u1": ("VOTEU",), "USHF.u1": ("UMOV",), "USHF.L.u1": ("ULOP3",), "ULOP3.u3": ("USHF",), "ULOP3.u1": ("UMOV",),
+             "UIADD3.u1i": ("UMOV",), "BRA.gc": ("UISETP",)}
+
+
+def upred_producer(name):
+    """version 32 -> (pre, text, sem, class): UP0 = a uniform predicate of the iteration counter (UR8 >= 0x80: false in the first
+    127 iterations, true in the other 129); until it lands UP0 holds the OTHER value (UR8 < 0x80), written 15 cycles or more in
+    front of it"""
+    if name == "UISETP":
+        return ([Ins("UIADD3 UR8, UPT, UPT, UR8, 0x1, URZ ;", ("add", "UR8", "UR8", 1)),
+                 Ins("UISETP.LT.AND UP0, UPT, UR8, 0x80, UPT ;", ("ltu", "UP0", "UR8", 0x80))],
+                "UISETP.GE.AND UP0, UPT, UR8, 0x80, UPT ;", ("ltu", "UP0", 0x7f, "UR8"), "UISETP")
+    raise SystemExit(f"unknown uniform predicate producer {name!r} (probe.py list)")
+
+
+UPRED_PRODUCERS = ["UISETP"]
 
 
 def pred_producer(name):
@@ -479,6 +538,21 @@ RAW_CONSUMERS = {
     "ISETP.p": ("pdata", 2, "ISETP", "p", "the predicate INPUT (the last operand) of ISETP.GT.AND P3, PT, R21, RZ, P2 - the vendor's form; R21 is a positive constant, so P3 = P2; P3 reaches the checksum through SEL R8, R4, R5, P3 15 cycles behind (version 31)"),
     "ISETP.p.or": ("pdata", 2, "ISETP", "p", "the predicate INPUT of ISETP.NE.U32.OR P3, PT, RZ, RZ, P2 - the OR form with a compare that is FALSE, so P3 = P2; P3 reaches the checksum through SEL R8, R4, R5, P3 15 cycles behind (version 31)"),
     "LDS128.g": ("pdata", 2, "LDS", "g", "the GUARD of @P2 LDS.128 R28, [R9+0x20] (the thread's own line; where the load is nullified its four registers keep markers; the load on write barrier 1, the fold waits it) (version 31)"),
+    # version 32 - the pair classes on a UNIFORM register that the table prices by a default
+    "ULEA.u2": ("udata", 6, "ULEA", "u2", "the unshifted operand of ULEA UR6, UR10, UR6, 0x18 - IN PLACE (the vendor's form: the word reads and rewrites the register); the result reaches the checksum through MOV R8, UR6 15 cycles behind (version 32)"),
+    "ULEA.u2.s3": ("udata", 6, "ULEA", "u2", "the unshifted operand of ULEA UR6, UR10, UR6, 0x3 - in place, the shift of the vendor's second ULEA behind a ULEA (version 32)"),
+    "LEA.u2": ("udata", 6, "LEA", "u2", "the uniform operand of LEA R8, R4, UR6, 0x3 = (R4 << 3) + UR6 (version 32)"),
+    "IADD3.u2": ("udata", 6, "IADD3", "u2", "the uniform addend of IADD3 R8, PT, PT, R4, UR6, RZ (version 32)"),
+    "STS.u0": ("udata", 6, "STS", "u0", "the uniform BASE of STS [UR6+0x24], R6 (producer ULEA.addr: the base = lane 0's line of the warp; every lane stores lane 0's value; a store through the old base goes to another valid word of the CTA; read back through a general register) (version 32)"),
+    "STS128.u0": ("udata", 6, "STS", "u0", "the uniform BASE of @!P0 STS.128 [UR6+0x10], R24 - the vendor's form: a 128-bit store under a negated guard whose predicate is false, so the store executes (producer ULEA.addr) (version 32)"),
+    "FLO.u1": ("udata", 6, "FLO", "u1", "the uniform source of FLO.U32 R8, UR6 (on write barrier 1, the checksum word waits it; producer VOTEU) (version 32)"),
+    "POPC.u1": ("udata", 6, "POPC", "u1", "the uniform source of POPC R8, UR6 (on write barrier 1, the checksum word waits it; producer VOTEU) (version 32)"),
+    "USHF.u1": ("udata", 6, "USHF", "u1", "the operand of USHF.R.U32 UR6, UR6, 0x4, URZ - IN PLACE; the result through MOV R8, UR6 (version 32)"),
+    "USHF.L.u1": ("udata", 6, "USHF", "u1", "the operand of USHF.L.U32 UR6, UR6, 0x14, URZ - IN PLACE; the result through MOV R8, UR6 (version 32)"),
+    "ULOP3.u3": ("udata", 6, "ULOP3", "u3", "the THIRD source of ULOP3.LUT UR7, UR7, 0xf, UR6, 0xf8, !UPT = UR7 | (0xf & UR6) (UR7 = 0x120, set long before); the result through MOV R8, UR7 (version 32)"),
+    "ULOP3.u1": ("udata", 6, "ULOP3", "u1", "the FIRST source of ULOP3.LUT UR6, UR6, 0xf, UR10, 0xf8, !UPT = UR6 | (0xf & UR10) - IN PLACE (UR10 = 0xf); the result through MOV R8, UR6 (version 32)"),
+    "UIADD3.u1i": ("udata", 6, "UIADD3", "u1", "the uniform addend of UIADD3 UR6, UPT, UPT, UR6, 0x650, URZ - IN PLACE (the vendor's form); the result through MOV R8, UR6 (version 32)"),
+    "BRA.gc": ("updata", 0, "BRA", "gc", "the uniform predicate of BRA.U !UP0, L (producer UISETP): the branch skips MOV R8, R4, so R8 = UP0 ? the iteration's first input : its second reaches the checksum (version 32)"),
 }
 RR_CONSUMERS = ("IADD.64rr.r1", "IADD.64rr.r1h", "IADD.64rr.r2", "IADD.64rr.r2h")      # version 25
 RR_HIGH = ("IADD.64rr.r1h", "IADD.64rr.r2h")
@@ -492,6 +566,8 @@ R6_TOKEN = r"(?<![A-Za-z0-9])R6(?![0-9])"
 
 
 def raw_pair_ok(prod, cons):
+    if cons in U32_PAIRS or prod in U32_PRODUCERS:      # version 32: a new uniform consumer takes the producers of its pair classes; a new uniform producer stands in front of its own consumers and of MOV.u1
+        return prod in U32_PAIRS.get(cons, ()) or (prod in U32_PRODUCERS and prod != "ULEA.addr" and cons == "MOV.u1")
     if cons in ("IADD.64.u2", "IADD.64.u2h") or prod in ("CS2UR", "CS2UR.32"):      # version 27, third build
         # the reader of a uniform PAIR takes the producer that writes both registers; the 64-bit producer does not stand in front of UIADD3.u1 (that consumer writes UR7 itself)
         return (prod == "CS2UR" and cons in ("IADD.64.u2", "IADD.64.u2h", "MOV.u1")) or (prod == "CS2UR.32" and cons in ("MOV.u1", "UIADD3.u1"))
@@ -690,6 +766,8 @@ def body_raw24(req, d, front):
           Ins("IADD3 R29, PT, PT, R28, 0x1, RZ ;", ("add", "R29", "R28", 1)), Ins("IADD3 R30, PT, PT, R28, 0x2, RZ ;", ("add", "R30", "R28", 2)),
           Ins("IADD3 R31, PT, PT, R28, 0x3, RZ ;", ("add", "R31", "R28", 3))]
     fk, fs = mma_front(front) if MMAFRONT_RE.fullmatch(str(front)) else (0, 0)
+    rg = req.get("rguard")      # version 32: the reader under a guard (norm24: CS2R -> the accumulator quad, UMOV -> the uniform operand)
+    gq = "@P2 " if rg else ""
     if kind == "u":      # the second accumulator of the relative form: the same four values; the selector 0; a scale register whose bytes differ
         b += [Ins(f"MOV R{24 + k}, R{28 + k} ;", ("mov", f"R{24 + k}", f"R{28 + k}")) for k in range(4)]
         # (second build) the scale register: bytes 0x7f + m, 0x80 + m, 0x7e + m, 0x7d + m with m = lane & 3 - four different scales in
@@ -702,6 +780,13 @@ def body_raw24(req, d, front):
               Ins("LOP3.LUT R24, R24, 0x4b000000, RZ, 0xfc, !PT ;", ("or", "R24", "R24", 0x4b000000)),
               Ins("IADD3 R25, PT, PT, R24, 0x1, RZ ;", ("add", "R25", "R24", 1)), Ins("IADD3 R26, PT, PT, R24, 0x2, RZ ;", ("add", "R26", "R24", 2)),
               Ins("IADD3 R27, PT, PT, R24, 0x3, RZ ;", ("add", "R27", "R24", 3))]
+    if rg:      # version 32: the reader's guard P2, the same in every lane of a warp - written here, 45 cycles or more in front of the reader
+        if rg == "c":      # bit 1 of the iteration counter (bit 0 switches the A word): the reader executes in 128 of the 256 iterations
+            b += [Ins("LOP3.LUT R0, R11, 0x2, RZ, 0xc0, !PT ;", ("and", "R0", "R11", 2)), Ins("ISETP.NE.U32.AND P2, PT, R0, RZ, PT ;", ("ltu", "P2", "RZ", "R0"))]
+        else:
+            b.append(Ins(f"ISETP.{'EQ' if rg == 't' else 'NE'}.U32.AND P2, PT, RZ, RZ, PT ;", ("mov", "P2", 1 if rg == "t" else 0)))
+        if req.get("upguard"):      # the producer's guard UP0 := true (P0 is true since the prologue)
+            b.append(Ins("VOTEU.ANY UP0, P0 ;", ("nop",)))
     tr = f"R{(28 if kind == 'acc' else 16 if kind == 'a' else 12) + t}"      # the tested register
     if kind == "acc" and prod == "CS2R":      # the pair's OTHER register holds zero before and after: only the tested one can be stale
         pb = 28 + (t & ~1)
@@ -722,7 +807,7 @@ def body_raw24(req, d, front):
         ptext, psem = f"LOP3.LUT {tr}, R0, 0x3c3c3c3c, RZ, 0xc0, !PT ;", ("and", tr, "R0", 0x3c3c3c3c)
     else:                    # u: the selector 0 -> 9
         tr = "UR6"
-        ptext, psem = "UMOV UR6, 0x9 ;", ("mov", "UR6", 9)
+        ptext, psem = ("@UP0 " if req.get("upguard") else "") + "UMOV UR6, 0x9 ;", ("mov", "UR6", 9)      # (version 32: upguard)
     b += [PAD(), PAD()]
     if fk:
         b += [Ins(q("R24"), ("nop",), ctl=C(fs), tag="F") for _ in range(fk)]
@@ -734,11 +819,11 @@ def body_raw24(req, d, front):
     b += fill
     acc4 = ["R28", "R29", "R30", "R31"]
     if kind == "u":
-        b.append(Ins(q("R28"), ("qmma", "R28", "R16", "R12", None, fn), tag="C", dst=acc4))
+        b.append(Ins(gq + q("R28"), ("qmma", "R28", "R16", "R12", "P2" if rg else None, fn), tag="C", dst=acc4))      # (version 32: gq, the model's guard)
         if control:      # the real producer: behind X, 60 cycles in front of Y
             b.append(Ins(ptext, ("nop",)))
         b += [PAD(), PAD(), PAD()]
-        b.append(Ins(q("R24"), ("qmma", "R24", "R16", "R12", None, fn)))
+        b.append(Ins(gq + q("R24"), ("qmma", "R24", "R16", "R12", "P2" if rg else None, fn)))      # (version 32: the second word under the same guard)
         b += [PAD(), PAD(), PAD()]
         b += [Ins("LOP3.LUT R0, R28, R24, RZ, 0x3c, !PT ;", ("xor", "R0", "R28", "R24")), Ins("LOP3.LUT R7, R29, R25, RZ, 0x3c, !PT ;", ("xor", "R7", "R29", "R25")),
               Ins("IMAD R8, R7, 0x3, R0 ;", ("mad", "R8", "R7", 3, "R0")),
@@ -746,8 +831,13 @@ def body_raw24(req, d, front):
               Ins("LOP3.LUT R7, R31, R27, RZ, 0x3c, !PT ;", ("xor", "R7", "R31", "R27")), Ins("IMAD R8, R7, 0x7, R8 ;", ("mad", "R8", "R7", 7, "R8")),
               Ins("IADD3 R10, PT, PT, R10, R8, RZ ;", ("add", "R10", "R10", "R8")), Ins("IADD3 R10, PT, PT, R10, R4, RZ ;", ("add", "R10", "R10", "R4"))]
         return b
-    b.append(Ins(q("R28"), ("tmma", "R28", "R16", "R12", fn), tag="C", dst=acc4))
-    b += [PAD(), PAD(), PAD()]      # a reader of the tensor word's result is 45 cycles behind it
+    if rg:      # version 32: the model's result goes to shadow registers (R128..R131 exist in the model only) and the first filler behind the word merges them under the
+        # guard - a reader that is nullified leaves the accumulator as the PRODUCER left it, under the stale hypothesis too
+        b.append(Ins(gq + q("R28"), ("tmma", "R128", "R16", "R12", fn, "R28"), tag="C"))
+        b += [Ins("IADD3 R15, PT, PT, R15, 0x1, RZ ;", ("gmov4", "P2", 1, "R28", "R128")), PAD(), PAD()]
+    else:
+        b.append(Ins(q("R28"), ("tmma", "R28", "R16", "R12", fn), tag="C", dst=acc4))
+        b += [PAD(), PAD(), PAD()]      # a reader of the tensor word's result is 45 cycles behind it
     for tx, sem in (("IMAD R8, R29, 0x3, R28 ;", ("mad", "R8", "R29", 3, "R28")), ("IMAD R8, R30, 0x5, R8 ;", ("mad", "R8", "R30", 5, "R8")),
                     ("IMAD R8, R31, 0x7, R8 ;", ("mad", "R8", "R31", 7, "R8")), ("IADD3 R10, PT, PT, R10, R8, RZ ;", ("add", "R10", "R10", "R8"))):
         b.append(Ins(tx, sem))
@@ -765,6 +855,12 @@ def norm24(r):
         raise SystemExit(f"{r['id']}: control is \"stale\" (the positive control: the producer's word behind the consumer) or absent")
     if r.get("via") not in (None, "stall") or r.get("salt") is not None:
         raise SystemExit(f"{r['id']}: a version-24 consumer is swept via stall and has no salt field")
+    rg_ = r.get("rguard")      # version 32: the tensor reader under a guard
+    if rg_ is not None and (rg_ not in ("t", "f", "c") or not ((kind == "acc" and prod == "CS2R" and cons.startswith("QMMA")) or kind == "u") or (rg_ == "f" and r.get("control"))):
+        raise SystemExit(f"{r['id']}: rguard is \"t\" | \"f\" | \"c\" (version 32: the reader `@P2 QMMA.SF` - P2 true | false | bit 1 of the iteration counter, the same in every lane of a warp) "
+                         "on CS2R -> QMMA.r3 / QMMA.r3h and on UMOV -> QMMA.u6; with f the reader never executes - no control")
+    if r.get("upguard") not in (None, "set") or (r.get("upguard") and (kind != "u" or rg_ is None)):
+        raise SystemExit(f"{r['id']}: upguard is \"set\" (version 32: the producer `@UP0 UMOV UR6, 0x9` in front of QMMA.u6 with rguard) or absent")
     r["via"] = "stall"
     role = RAW_CONSUMERS[cons][3]
     if kind != "rel":
@@ -816,6 +912,11 @@ def text24(r):
              + {"acc": "another integer-valued float", "a": "the other A code", "b": "the 2.0 code"}[kind]
              + (("; the pair's other register holds zero before and after; the consumer takes the producer's " + ("SECOND" if r.get("result") == 1 else "FIRST") + " result register")
                 if prod == "CS2R" else "") + "]")
+    if r.get("rguard"):      # version 32
+        s += (" [version 32 - THE READER UNDER A GUARD: `@P2`, P2 written at the top of the iteration, the same in every lane of a warp - "
+              + {"t": "TRUE in every iteration", "f": "FALSE in every iteration: the reader never executes - the request can only show that a nullified reader changes nothing (one hypothesis, no control)",
+                 "c": "bit 1 of the iteration counter: the reader executes in 128 of the 256 iterations"}[r["rguard"]]
+              + ("; the producer under `@UP0` (UP0 by `VOTEU.ANY UP0, P0` at the top of the iteration: true)" if r.get("upguard") else "") + "]")
     if r.get("control") == "stale":
         s += " [POSITIVE CONTROL: the producer's word stands BEHIND the consumer and its checksum, the model gives the consumer the new content - expect 0 % good]"
     return s
@@ -838,6 +939,8 @@ def body_raw(req, d, front):
             pre = pre + [Ins("MOV R26, R5 ;", ("mov", "R26", "R5")), Ins("MOV R27, R4 ;", ("mov", "R27", "R4"))]
     elif what == "gaddr":      # version 25
         pre, ptext, psem, _ = gaddr_producer(prod)
+    elif what == "updata":      # version 32: a uniform PREDICATE producer - UP0 holds the OTHER value until it lands
+        pre, ptext, psem, _ = upred_producer(prod)
     elif what == "pdata":      # version 31: a predicate producer - P2 holds the OTHER value until it lands
         pre, ptext, psem, _ = pred_producer(prod)
         if cons == "LDS128.g":      # where the guarded load is nullified its four registers keep these markers (the iteration's second input)
@@ -873,9 +976,24 @@ def body_raw(req, d, front):
             pre = pre + [Ins("MOV R26, 0x40400000 ;", ("mov", "R26", 0x40400000))]
         if prod == "CS2R":           # the pair holds FINITE floats until the CS2R lands (not the raw inputs)
             pre = pre + fin(6, 4) + fin(7, 5)
+    # version 32: the new uniform consumers' own words, set long before (15 cycles apart, in front of the producer)
+    if cons in ("ULEA.u2", "ULEA.u2.s3"):      # the shifted operand
+        pre = pre + [Ins("UMOV UR10, 0x5 ;", ("mov", "UR10", 5))]
+    elif cons == "ULOP3.u3":      # the word's first source (the vendor: UMOV UR5, 0x120)
+        pre = pre + [Ins("UMOV UR7, 0x120 ;", ("mov", "UR7", 0x120))]
+    elif cons == "ULOP3.u1":      # the word's third source (the vendor: 0xf0 >> 4)
+        pre = pre + [Ins("UMOV UR10, 0xf ;", ("mov", "UR10", 0xf))]
+    elif cons == "STS.u0":      # every lane stores lane 0's value of the iteration's first input (R13 = the lane: the producer's first word)
+        pre = pre + [Ins("IADD3 R6, PT, PT, -R13, R4, RZ ;", ("rsub", "R6", "R13", "R4"))]
+    elif cons == "STS128.u0":      # the quad every lane stores (lane 0's), and the guard's predicate: false - the negated guard lets the store execute
+        pre = pre + [Ins("IADD3 R24, PT, PT, -R13, R4, RZ ;", ("rsub", "R24", "R13", "R4")), Ins("IADD3 R25, PT, PT, R24, 0x1, RZ ;", ("add", "R25", "R24", 1)),
+                     Ins("IADD3 R26, PT, PT, R24, 0x2, RZ ;", ("add", "R26", "R24", 2)), Ins("IADD3 R27, PT, PT, R24, 0x3, RZ ;", ("add", "R27", "R24", 3)),
+                     Ins("ISETP.NE.U32.AND P0, PT, RZ, RZ, PT ;", ("mov", "P0", 0))]
+    elif cons == "BRA.gc":      # what R8 holds where the branch is taken
+        pre = pre + [Ins("MOV R8, R5 ;", ("mov", "R8", "R5"))]
     b += pre
     b += front_ins(front, what == "gaddr")
-    dst = ["P2"] if what == "pdata" else (["UR6", "UR7"] if prod == "CS2UR" else ["UR6"]) if what == "udata" else ["R6", "R7"] if what == "gaddr" else [f"R{rd}", f"R{rd + 1}"] if prod in PAIR_PRODUCERS else [f"R{rd}"]
+    dst = ["UP0"] if what == "updata" else ["P2"] if what == "pdata" else (["UR6", "UR7"] if prod == "CS2UR" else ["UR6"]) if what == "udata" else ["R6", "R7"] if what == "gaddr" else [f"R{rd}", f"R{rd + 1}"] if prod in PAIR_PRODUCERS else [f"R{rd}"]
     # (version 25, the control: the model's producer in its place under a filler's text, the real word behind the consumer and its checksum)
     b.append(Ins("IADD3 R15, PT, PT, R15, 0x1, RZ ;" if control else ptext, psem, ctl=C(s, y=req.get("yield") == "set", wb="1" if req.get("pbar") and not control else "-"), tag="P", dst=dst))
     b += fill
@@ -973,6 +1091,37 @@ def body_raw(req, d, front):
               Ins("SEL R8, R4, R5, P3 ;", ("sel", "R8", "R4", "R5", "P3")), ADD10()]
     elif cons == "LDS128.g":      # version 31: the load executes where P2 is true; nullified, R28..R31 keep their markers; the address is the thread's own line whatever P2 is
         b += [Ins("@P2 LDS.128 R28, [R9+0x20] ;", ("g", "P2", 1, ("R28", "R29", "R30", "R31"), ("lds", "R28", "R9", 0x20, 4)), ctl=C(wb="1"), tag="C")] + fold4("1")
+    elif cons in ("ULEA.u2", "ULEA.u2.s3"):      # version 32: UR6 = UR6 + (UR10 << k), in place - under the stale hypothesis the word runs on the old content and keeps its result
+        k_ = 0x18 if cons == "ULEA.u2" else 0x3
+        b += [Ins(f"ULEA UR6, UR10, UR6, 0x{k_:x} ;", ("mad", "UR6", "UR10", 1 << k_, "UR6"), tag="C", dst=["UR6"]),
+              Ins("MOV R8, UR6 ;", ("mov", "R8", "UR6")), ADD10()]
+    elif cons == "LEA.u2":      # version 32
+        b += [Ins("LEA R8, R4, UR6, 0x3 ;", ("mad", "R8", "R4", 8, "UR6"), tag="C"), ADD10()]
+    elif cons == "IADD3.u2":      # version 32
+        b += [Ins("IADD3 R8, PT, PT, R4, UR6, RZ ;", ("add", "R8", "R4", "UR6"), tag="C"), ADD10()]
+    elif cons == "STS.u0":      # version 32: one word per warp (offset 0x24 of lane 0's line; its first content is the prologue's constant in every thread)
+        b += [Ins("STS [UR6+0x24], R6 ;", ("sts", "UR6", 0x24, "R6", 1), ctl=C(rb="2"), tag="C"),
+              Ins("LDS R8, [R14+0x24] ;", ("lds", "R8", "R9", 0x24, 1), ctl=C(wb="1")), ADD10("12")]
+    elif cons == "STS128.u0":      # version 32: slot 1 of lane 0's line (its first content: the prologue's four constants in every thread); the guard is false everywhere - the store executes
+        b += [Ins("@!P0 STS.128 [UR6+0x10], R24 ;", ("sts", "UR6", 0x10, "R24", 4), ctl=C(rb="2"), tag="C"),
+              Ins("LDS.128 R28, [R14+0x10] ;", ("lds", "R28", "R9", 0x10, 4), ctl=C(wb="1"))] + fold4("12")
+    elif cons in ("FLO.u1", "POPC.u1"):      # version 32: scoreboarded words - the result on write barrier 1, the checksum word waits it
+        b += [Ins("FLO.U32 R8, UR6 ;" if cons == "FLO.u1" else "POPC R8, UR6 ;", ("flo" if cons == "FLO.u1" else "popc", "R8", "UR6"), ctl=C(wb="1"), tag="C"), ADD10("1")]
+    elif cons in ("USHF.u1", "USHF.L.u1"):      # version 32: in place
+        b += [Ins("USHF.R.U32 UR6, UR6, 0x4, URZ ;", ("shr", "UR6", "UR6", 4), tag="C", dst=["UR6"]) if cons == "USHF.u1"
+              else Ins("USHF.L.U32 UR6, UR6, 0x14, URZ ;", ("shl", "UR6", "UR6", 0x14), tag="C", dst=["UR6"]),
+              Ins("MOV R8, UR6 ;", ("mov", "R8", "UR6")), ADD10()]
+    elif cons == "ULOP3.u3":      # version 32: UR7 = UR7 | (0xf & UR6)
+        b += [Ins("ULOP3.LUT UR7, UR7, 0xf, UR6, 0xf8, !UPT ;", ("orand", "UR7", "UR7", 0xf, "UR6"), tag="C"),
+              Ins("MOV R8, UR7 ;", ("mov", "R8", "UR7")), ADD10()]
+    elif cons == "ULOP3.u1":      # version 32: UR6 = UR6 | (0xf & UR10), in place
+        b += [Ins("ULOP3.LUT UR6, UR6, 0xf, UR10, 0xf8, !UPT ;", ("orand", "UR6", "UR6", 0xf, "UR10"), tag="C", dst=["UR6"]),
+              Ins("MOV R8, UR6 ;", ("mov", "R8", "UR6")), ADD10()]
+    elif cons == "UIADD3.u1i":      # version 32: in place
+        b += [Ins("UIADD3 UR6, UPT, UPT, UR6, 0x650, URZ ;", ("add", "UR6", "UR6", 0x650), tag="C", dst=["UR6"]),
+              Ins("MOV R8, UR6 ;", ("mov", "R8", "UR6")), ADD10()]
+    elif cons == "BRA.gc":      # version 32: a uniform branch (the whole warp goes one way): taken, R8 keeps the iteration's second input; not taken, it takes the first
+        b += [Ins("BRA.U !UP0, L_u32 ;", ("sel", "R8", "R4", "R5", "UP0"), tag="C"), Ins("MOV R8, R4 ;", ("nop",)), Lbl("L_u32"), ADD10()]
     else:
         raise SystemExit(f"unknown raw consumer {cons!r} (probe.py list)")
     if req.get("salt") == "set":      # version 22: the iteration's input goes into the checksum too (behind the consumer: no distance moves) -
@@ -3354,8 +3503,12 @@ def prologue(req, ctas):
          Ins("MOV R24, RZ ;", ("mov", "R24", 0)), Ins("MOV R25, RZ ;", ("mov", "R25", 0)),
          Ins("MOV R26, RZ ;", ("mov", "R26", 0)), Ins("MOV R27, RZ ;", ("mov", "R27", 0))]
     addr = req["kind"] == "raw" and RAW_CONSUMERS[req["consumer"]][0] == "addr"
-    if req["kind"] == "raw" and RAW_CONSUMERS[req["consumer"]][0] == "udata":
+    if req["kind"] == "raw" and RAW_CONSUMERS[req["consumer"]][0] in ("udata", "updata"):      # (version 32: updata)
         p += [Ins("UMOV UR6, 0x0 ;", ("mov", "UR6", 0)), Ins("UMOV UR7, 0x0 ;", ("mov", "UR7", 0)), Ins("UMOV UR8, 0x0 ;", ("mov", "UR8", 0))]
+        if req["consumer"] == "STS128.u0":      # version 32: slot 1 of every thread's line := four constants - a store with a read barrier, waited, behind the prologue's bare
+            # store of the same slot: what lane 0's slot holds until the tested store lands is the same in every thread
+            p += [Ins(f"MOV R{28 + k_}, 0x{c_:x} ;", ("mov", f"R{28 + k_}", c_)) for k_, c_ in enumerate(U32_SLOT1)]
+            p += [Ins("STS.128 [R9+0x10], R28 ;", ("sts", "R9", 0x10, "R28", 4), ctl=C(rb="5")), Ins("IADD3 R15, PT, PT, R15, 0x1, RZ ;", ("nop",), ctl=C(wait="5")), PAD()]
         if req["consumer"] in ("IADD.64.u2", "IADD.64.u2h"):      # version 27, third build
             p += [Ins("MOV R24, RZ ;", ("mov", "R24", 0)), Ins("MOV R25, RZ ;", ("mov", "R25", 0)), Ins("MOV R26, RZ ;", ("mov", "R26", 0)), Ins("MOV R27, RZ ;", ("mov", "R27", 0))]
     if req["kind"] == "raw" and (req["producer"] == "SEL" or req["consumer"] == "SEL.r1"):
@@ -3667,6 +3820,16 @@ def model(req, mode, gids=None, scalar=False):
                 R[r_] = np.where(m, get(r_), v_).astype(U)
         elif op == "sge0":          # version 27: ISETP.GE against zero - the register as a signed 32-bit integer >= 0
             R[sem[1]] = (get(sem[2]) < U(0x80000000)).astype(U)
+        elif op == "orand":         # version 32: ULOP3.LUT d, a, imm, c with the table 0xf8 = a | (imm & c)
+            R[sem[1]] = get(sem[2]) | (get(sem[3]) & get(sem[4]))
+        elif op == "flo":           # version 32: FLO.U32 - the bit index of the highest one (0xffffffff for zero); float64 holds every 32-bit integer exactly
+            R[sem[1]] = ((np.frexp(get(sem[2]).astype(np.float64))[1].astype(np.int64) - 1) & 0xFFFFFFFF).astype(U)
+        elif op == "popc":          # version 32: POPC - the number of ones
+            R[sem[1]] = np.unpackbits(np.ascontiguousarray(get(sem[2])).view(np.uint8)).reshape(n, 32).sum(axis=1).astype(U)
+        elif op == "gmov4":         # version 32: four registers take four others where (predicate != 0) == sem[2] - the result of a tensor word under a guard; elsewhere they keep their content
+            m = (get(sem[1]) != 0) == bool(sem[2])
+            for k_ in range(4):
+                R[reg(sem[3], k_)] = np.where(m, get(reg(sem[4], k_)), get(reg(sem[3], k_))).astype(U)
         elif op == "lea":           # version 27: Rd = Rb + (Ra << k); the predicate = the carry out of bit 31
             v = get(sem[3]).astype(np.uint64) + ((get(sem[2]).astype(np.uint64) << np.uint64(sem[4])) & np.uint64(0xFFFFFFFF))
             R[sem[1]] = (v & np.uint64(0xFFFFFFFF)).astype(U)
@@ -3914,6 +4077,16 @@ def _machine(gid):
                 R.update(keep)
         elif op == "sge0":          # version 27
             R[sem[1]] = 1 if get(sem[2]) < 0x80000000 else 0
+        elif op == "orand":         # version 32
+            R[sem[1]] = get(sem[2]) | (get(sem[3]) & get(sem[4]))
+        elif op == "flo":           # version 32
+            R[sem[1]] = (get(sem[2]).bit_length() - 1) & M
+        elif op == "popc":          # version 32
+            R[sem[1]] = bin(get(sem[2])).count("1")
+        elif op == "gmov4":         # version 32
+            if bool(get(sem[1])) == bool(sem[2]):
+                for k_ in range(4):
+                    R[reg(sem[3], k_)] = get(reg(sem[4], k_))
         elif op == "lea":           # version 27
             v = get(sem[3]) + ((get(sem[2]) << sem[4]) & M)
             R[sem[1]] = v & M
@@ -4108,6 +4281,8 @@ def modes_of(req):
         return ["good", "late"]      # (no read-back a late shuffle / a late first write could come behind)
     if req["kind"] == "reuse":      # (no write of the flagged register: nothing a stale reader could show)
         return ["good", "stale"] if req.get("writer") != "none" else ["good"]
+    if req["kind"] == "raw" and req.get("rguard") == "f":      # version 32: a tensor reader under a guard that is FALSE never executes - nothing a stale reader could show
+        return ["good"]
     if req["kind"] == "raw" and RAW_CONSUMERS.get(req.get("consumer"), ("",))[0] in ("trel", "rel"):
         return ["good"]      # (version 24: X against a late Y of the same word - a stale X is `other`)
     if req["kind"] == "ord" and is_cov(req):      # version 30: stale = every reader word of the BARE load's register took its marker
@@ -4155,10 +4330,14 @@ def normalise(req):
         if r.get("consumer") not in RAW_CONSUMERS:
             raise SystemExit(f"{r['id']}: raw consumer {r.get('consumer')!r} not in the catalogue (probe.py list)")
         what = RAW_CONSUMERS[r["consumer"]][0]
-        if r.get("producer") not in (ADDR_PRODUCERS if what == "addr" else UNIFORM_PRODUCERS if what == "udata" else GADDR_PRODUCERS if what == "gaddr" else PRED_PRODUCERS if what == "pdata" else DATA_PRODUCERS):
+        if r.get("producer") not in (ADDR_PRODUCERS if what == "addr" else UNIFORM_PRODUCERS if what == "udata" else GADDR_PRODUCERS if what == "gaddr" else PRED_PRODUCERS if what == "pdata" else UPRED_PRODUCERS if what == "updata" else DATA_PRODUCERS):
             raise SystemExit(f"{r['id']}: producer {r.get('producer')!r} not in the catalogue for {r['consumer']} (probe.py list)")
         if what == "gaddr" and (r.get("result") is not None or r.get("salt") is not None or any(str(f).startswith("stg") for f in r.get("front", []))):
             raise SystemExit(f"{r['id']}: {r['consumer']} has no result / salt field and no stg front (word B is the target of a store through a stale address)")
+        if (r["consumer"] in U32_PAIRS or r["producer"] in U32_PRODUCERS) and not raw_pair_ok(r["producer"], r["consumer"]):      # version 32
+            raise SystemExit(f"{r['id']}: version 32 - " + (f"{r['consumer']} takes the producer(s) {', '.join(U32_PAIRS[r['consumer']])}" if r["consumer"] in U32_PAIRS
+                             else f"the uniform producer {r['producer']} stands in front of its own consumers and of MOV.u1 (ULEA.addr: of the two stores)")
+                             + f", not the pair {r['producer']} -> {r['consumer']}")
         if not raw_pair_ok(r["producer"], r["consumer"]):
             raise SystemExit(f"{r['id']}: {r['consumer']} takes a producer that brings a finite float ({', '.join(FLOAT_PRODUCERS)}; MUFU.RCP.r1: MOV.pow2)")
         if r.get("pbar") not in (None, "set") or (r.get("pbar") and (r["producer"] not in ("CS2UR", "CS2UR.32") or r["consumer"] == "UIADD3.u1")):      # version 27, third build
@@ -4439,6 +4618,8 @@ def normalise(req):
         raise SystemExit(f"{r['id']}: yield is \"set\" (the swept instruction of a raw / mma request, via stall, or the loads of an N-load request carry the yield flag) or absent")
     if r.get("cold") and not is_set(r):
         raise SystemExit(f"{r['id']}: cold is for a SET request of global loads (version 23, third build)")
+    if (r.get("rguard") is not None or r.get("upguard") is not None) and not is_traw(r):      # version 32
+        raise SystemExit(f"{r['id']}: rguard / upguard belong to a tensor consumer of kind raw (version 32: CS2R -> QMMA.r3 / QMMA.r3h, UMOV -> QMMA.u6)")
     if r.get("pneg") is not None and not (r["pneg"] == "set" and r["kind"] == "ord" and r.get("pguard") and is_set(r) and not is_sf(r) and not is_cov(r)):      # version 31
         raise SystemExit(f"{r['id']}: pneg is \"set\" (version 31: the guards of a set under predicates are written negated, `@!Pn` - a load executes where its predicate is false) or absent")
     r.setdefault("occupancy", ["w8", "w32"])
@@ -4578,7 +4759,7 @@ def _table_cell0(dep_path, cell):
                     "basis": c.get("basis", ""), "silicon": c.get("silicon", "")}
     role = cell["role"]
     d = t.get("defaults", {})
-    L = d.get("guard") if role == "g" else d.get("uniform") if role.startswith("u") else d.get("data")
+    L = d.get("guard") if role in ("g", "gc") else d.get("uniform") if role.startswith("u") else d.get("data")      # (version 32: gc - the predicate a branch names)
     if re.fullmatch(r"[A-Z]MMA", str(cell["consumer"])) and role != "g" and d.get("mma_input") is not None:
         # version 24, second build: an operand register of a tensor word (a fragment, the accumulator, the uniform operand)
         return {"producer": cell["producer"], "consumer": cell["consumer"], "role": role, "L": d["mma_input"], "source": "default mma_input (no dense cell)"}
@@ -4611,7 +4792,8 @@ def producer_word(r):
     if r.get("kind") != "raw":
         return None
     try:
-        return next(i.text for i in body_raw(dict(r, control=None), 3, "none") if i.tag == "P").split()[0]
+        w_ = next(i.text for i in body_raw(dict(r, control=None), 3, "none") if i.tag == "P").split()
+        return w_[1] if w_[0].startswith("@") else w_[0]      # (version 32: a producer under a guard - the mnemonic behind the guard)
     except (StopIteration, Poison):
         return None
 
@@ -5370,6 +5552,11 @@ def cmd_list(_args):
           "no wait in front of either); hypotheses stale1 (only the S2UR's reader took its marker), stale2 (only the LDC's), stale (both)")
     print("kind ord (version 31) - a SET UNDER THREE PREDICATES: the prefix j on a load = under the third predicate (@P4), \"pguard\" of three letters (P0, P2, P4); the letter T = LDG.E.128.STRONG.GPU "
           "(as Q); \"pneg\": \"set\" = the guards written negated (@!Pn): a load executes where its predicate is false")
+    print("kind raw (version 32) - the pair classes on a UNIFORM register without a table cell: uniform producers ULEA (UR9 + (UR8 << 24)), ULEA.addr (the base of a shared store), USHF, ULOP3 (the table 0xf8 = a | (imm & c)), "
+          "VOTEU (the lane mask of a full warp); the uniform PREDICATE producer " + ", ".join(UPRED_PRODUCERS) + " (UP0); a new consumer takes the producers of its classes: "
+          + "; ".join(f"{c_} <- {', '.join(p_)}" for c_, p_ in U32_PAIRS.items()) + "; MOV.u1 takes every new producer but ULEA.addr; \"control\": \"stale\" as for every raw pair")
+    print("kind raw (version 32) - a TENSOR READER UNDER A GUARD: \"rguard\": t | f | c on CS2R -> QMMA.r3 / QMMA.r3h and on UMOV -> QMMA.u6 = the reader `@P2 QMMA.SF` (P2 true | false | bit 1 of the iteration counter, "
+          "the same in every lane of a warp; f: one hypothesis, no control); \"upguard\": \"set\" on QMMA.u6 with rguard = the producer `@UP0 UMOV UR6, 0x9` (UP0 by VOTEU.ANY UP0, P0: true)")
     print("occupancy:", "; ".join(f"{k} = {v}" for k, v in OCC.items()))
     print("front: none | sts128xK@S | stsxK@S | stgxK@S  (K stores of a constant at stall S in front of the tested instruction)")
     return 0
@@ -5384,7 +5571,7 @@ def cmd_selftest(_args):
         what = RAW_CONSUMERS[cons][0]
         if what in T24_WHAT:      # version 24: their own part below
             continue
-        for prod in (ADDR_PRODUCERS if what == "addr" else UNIFORM_PRODUCERS if what == "udata" else GADDR_PRODUCERS if what == "gaddr" else PRED_PRODUCERS if what == "pdata" else DATA_PRODUCERS):
+        for prod in (ADDR_PRODUCERS if what == "addr" else UNIFORM_PRODUCERS if what == "udata" else GADDR_PRODUCERS if what == "gaddr" else PRED_PRODUCERS if what == "pdata" else UPRED_PRODUCERS if what == "updata" else DATA_PRODUCERS):
             if cons in ("IADD.64.r1h", "SHF.L.U64.HI.r1") and prod not in PAIR_PRODUCERS:
                 continue
             if prod == "CS2R" and RAW_CONSUMERS[cons][1] % 2:
@@ -6874,6 +7061,189 @@ def cmd_selftest(_args):
         n += 1
     else:
         raise AssertionError("version 31: pneg on a raw request must be refused")
+    # version 32 - (1) the uniform pair classes: every new pair - the cycles of the probe's own text, the words, the hypotheses by hand
+    def st32(a):
+        return int(a.ctl[-3:-1])
+    W32 = {"ULEA.u2": "ULEA UR6, UR10, UR6, 0x18 ;", "ULEA.u2.s3": "ULEA UR6, UR10, UR6, 0x3 ;", "LEA.u2": "LEA R8, R4, UR6, 0x3 ;", "IADD3.u2": "IADD3 R8, PT, PT, R4, UR6, RZ ;",
+           "STS.u0": "STS [UR6+0x24], R6 ;", "STS128.u0": "@!P0 STS.128 [UR6+0x10], R24 ;", "FLO.u1": "FLO.U32 R8, UR6 ;", "POPC.u1": "POPC R8, UR6 ;",
+           "USHF.u1": "USHF.R.U32 UR6, UR6, 0x4, URZ ;", "USHF.L.u1": "USHF.L.U32 UR6, UR6, 0x14, URZ ;", "ULOP3.u3": "ULOP3.LUT UR7, UR7, 0xf, UR6, 0xf8, !UPT ;",
+           "ULOP3.u1": "ULOP3.LUT UR6, UR6, 0xf, UR10, 0xf8, !UPT ;", "UIADD3.u1i": "UIADD3 UR6, UPT, UPT, UR6, 0x650, URZ ;", "BRA.gc": "BRA.U !UP0, L_u32 ;", "MOV.u1": "MOV R8, UR6 ;"}
+    P32 = {"ULEA": "ULEA UR6, UR8, UR9, 0x18 ;", "ULEA.addr": "ULEA UR6, UR10, UR9, 0x18 ;", "USHF": "USHF.R.U32 UR6, UR8, 0x4, URZ ;", "ULOP3": "ULOP3.LUT UR6, UR9, 0xf, UR8, 0xf8, !UPT ;",
+           "VOTEU": "VOTEU.ANY UR6, UPT, PT ;", "UISETP": "UISETP.GE.AND UP0, UPT, UR8, 0x80, UPT ;", "UMOV": "UMOV UR6, 0x400 ;", "UIADD3": "UIADD3 UR6, UPT, UPT, UR8, 0x650, URZ ;"}
+    assert set(U32_PAIRS) == set(W32) - {"MOV.u1"} and all(c_ in RAW_CONSUMERS for c_ in U32_PAIRS)
+    assert all(((0xf8 >> ((a_ << 2) | (b_ << 1) | c_)) & 1) == (a_ | (b_ & c_)) for a_ in (0, 1) for b_ in (0, 1) for c_ in (0, 1)), "the table 0xf8 is a | (b & c)"
+    pairs32 = [(p_, c_) for c_, ps_ in U32_PAIRS.items() for p_ in ps_] + [(p_, "MOV.u1") for p_ in U32_PRODUCERS if p_ != "ULEA.addr"]
+    assert len(pairs32) == 19, len(pairs32)
+    big32 = np.arange(0, 752 * 1024, 61, dtype=np.int64)
+    for prod_, cons_ in pairs32:
+        what_ = RAW_CONSUMERS[cons_][0]
+        assert what_ == ("updata" if cons_ == "BRA.gc" else "udata") and raw_pair_ok(prod_, cons_), (prod_, cons_)
+        r_ = normalise({"id": "selftest", "kind": "raw", "producer": prod_, "consumer": cons_})
+        rc_ = normalise({"id": "selftest", "kind": "raw", "producer": prod_, "consumer": cons_, "control": "stale"})
+        assert modes_of(r_) == ["good", "stale"], (prod_, cons_)
+        g_, s_ = model(r_, "good", gids=big32), model(r_, "stale", gids=big32)
+        assert (g_ != s_).all() and (g_ != 0).all(), (prod_, cons_, "a stale consumer must change every thread's checksum; `good` is never 0")
+        tested_ = "UP0" if what_ == "updata" else "UR6"
+        for dd in list(range(1, 17)) + [20, 30]:
+            b_ = body_raw(r_, dd, "none")
+            kp_, kc_ = next(k for k, a in enumerate(b_) if a.tag == "P"), next(k for k, a in enumerate(b_) if a.tag == "C")
+            assert sum(st32(a) for a in b_[kp_:kc_]) == dd, (prod_, cons_, dd)      # producer -> consumer = the swept distance
+            assert b_[kp_].text == P32[prod_] and b_[kp_].dst == (tested_,) and b_[kc_].text == W32[cons_], (prod_, cons_, dd)
+            assert all(a.ctl[1:8] == "B------" for a in b_[:kc_ + 1]), (prod_, cons_, dd)      # no wait up to the consumer
+            assert all(st32(a) == 15 for a in b_[:kp_]), (prod_, cons_, dd)      # every word in front of the producer stands 15 cycles from the next
+            # the tested register is written in front of the producer by ONE word (its old content: a marker / the OTHER value), 15 cycles or more in front -
+            # UIADD3 has none (the old content is the last iteration's) - and between that word and the consumer by the producer alone
+            wr_ = [k for k, a in enumerate(b_[:kc_]) if re.match(r"[A-Z0-9.]+ " + tested_ + r"[, ]", a.text)]
+            assert wr_ == ([kp_] if prod_ == "UIADD3" else [wr_[0], kp_]) and wr_[0] <= kp_, (prod_, cons_, dd, wr_)
+            # every other uniform register the consumer reads was written in front of the producer
+            for u_ in set(re.findall(r"UR\d+", b_[kc_].text)) - {"UR6"}:
+                assert any(re.match(r"[A-Z0-9.]+ " + u_ + ",", a.text) for a in b_[:kp_]), (prod_, cons_, dd, u_)
+        bc_ = body_raw(rc_, 7, "none")
+        assert bc_[-1].text == P32[prod_] and bc_[-1].sem == ("nop",) and next(a for a in bc_ if a.tag == "P").text == "IADD3 R15, PT, PT, R15, 0x1, RZ ;", (prod_, cons_)
+        assert not misaligned(kernel_text("x", r_, 188, body_raw(r_, 3, "none"))), (prod_, cons_)
+        n += 1
+    M32 = 0xFFFFFFFF
+
+    def c32(p_, c_, m_):
+        return [int(x) for x in model(normalise({"id": "selftest", "kind": "raw", "producer": p_, "consumer": c_}), m_, gids=gids)]
+    # ... a checksum that is the same in every thread: 256 x the consumer's result
+    for p_, c_, good_, stale_ in (("VOTEU", "FLO.u1", 31, 15), ("VOTEU", "POPC.u1", 32, 16), ("VOTEU", "MOV.u1", 0xffffffff, 0xffff), ("UMOV", "USHF.u1", 0x40, 0x15),
+                                  ("UMOV", "ULOP3.u1", 0x40f, 0x15f), ("UMOV", "UIADD3.u1i", 0xa50, 0x7a5), ("UMOV", "ULEA.u2", 0x400 + (5 << 24), 0x155 + (5 << 24))):
+        assert c32(p_, c_, "good") == [(REPEAT * good_) & M32] * len(gids) and c32(p_, c_, "stale") == [(REPEAT * stale_) & M32] * len(gids), (p_, c_)
+    # ... a producer of the iteration counter (it = 1 .. 256): the sums by hand; stale = 256 x what the marker gives
+    it_ = range(1, REPEAT + 1)
+    for p_, c_, good_, stale_ in (("ULEA", "MOV.u1", sum(0x650 + (i_ << 24) for i_ in it_), REPEAT * U32_MARK),
+                                  ("ULEA", "ULEA.u2.s3", sum(0x650 + (i_ << 24) + (5 << 3) for i_ in it_), REPEAT * (U32_MARK + (5 << 3))),
+                                  ("USHF", "MOV.u1", sum((0x20 * i_) >> 4 for i_ in it_), REPEAT * U32_MARK),
+                                  ("USHF", "ULOP3.u3", sum(0x120 | (0xf & ((0x20 * i_) >> 4)) for i_ in it_), REPEAT * (0x120 | (0xf & U32_MARK))),
+                                  ("ULOP3", "MOV.u1", sum(0x120 | (0xf & i_) for i_ in it_), REPEAT * U32_MARK),
+                                  ("ULOP3", "USHF.L.u1", sum(((0x120 | (0xf & i_)) << 20) & M32 for i_ in it_), REPEAT * ((U32_MARK << 20) & M32)),
+                                  ("UIADD3", "ULEA.u2", sum(i_ + 0x650 + (5 << 24) for i_ in it_), sum((i_ * (5 << 24)) & M32 for i_ in it_))):
+        assert c32(p_, c_, "good") == [good_ & M32] * len(gids) and c32(p_, c_, "stale") == [stale_ & M32] * len(gids), (p_, c_)
+    # ... consumers that take the iteration's inputs (a = seed + gid, + 0x9e3779b9 an iteration; b = gid ^ 0x5bd1e995, + 0x7f4a7c15 an iteration)
+    a32 = [(SEED + int(g_)) & M32 for g_ in gids]
+    b32 = [(int(g_) ^ 0x5bd1e995) & M32 for g_ in gids]
+    l32 = [(int(g_) % 1024) & 31 for g_ in gids]
+    ja_, jb_ = (lambda a_, j_: (a_ + j_ * 0x9e3779b9) & M32), (lambda b_, j_: (b_ + j_ * 0x7f4a7c15) & M32)
+    assert c32("ULEA", "LEA.u2", "good") == [sum(8 * ja_(a_, j_) + 0x650 + ((j_ + 1) << 24) for j_ in range(REPEAT)) & M32 for a_ in a32]
+    assert c32("ULEA", "LEA.u2", "stale") == [sum(8 * ja_(a_, j_) + U32_MARK for j_ in range(REPEAT)) & M32 for a_ in a32]
+    assert c32("ULEA", "IADD3.u2", "good") == [sum(ja_(a_, j_) + 0x650 + ((j_ + 1) << 24) for j_ in range(REPEAT)) & M32 for a_ in a32]
+    assert c32("ULEA", "IADD3.u2", "stale") == [sum(ja_(a_, j_) + U32_MARK for j_ in range(REPEAT)) & M32 for a_ in a32]
+    assert c32("UISETP", "BRA.gc", "good") == [(sum(jb_(b_, j_) for j_ in range(127)) + sum(ja_(a_, j_) for j_ in range(127, REPEAT))) & M32 for a_, b_ in zip(a32, b32)]
+    assert c32("UISETP", "BRA.gc", "stale") == [(sum(ja_(a_, j_) for j_ in range(127)) + sum(jb_(b_, j_) for j_ in range(127, REPEAT))) & M32 for a_, b_ in zip(a32, b32)]
+    assert c32("ULEA.addr", "STS.u0", "good") == [sum(ja_(a_, j_) - l_ for j_ in range(REPEAT)) & M32 for a_, l_ in zip(a32, l32)]
+    assert c32("ULEA.addr", "STS.u0", "stale") == [(REPEAT * 0x0f0f0f0f) & M32] * len(gids), "a store through the old base leaves the warp's word as the prologue wrote it"
+    assert c32("ULEA.addr", "STS128.u0", "good") == [sum(16 * (ja_(a_, j_) - l_) + 34 for j_ in range(REPEAT)) & M32 for a_, l_ in zip(a32, l32)]
+    assert c32("ULEA.addr", "STS128.u0", "stale") == [(REPEAT * (U32_SLOT1[0] + 3 * U32_SLOT1[1] + 5 * U32_SLOT1[2] + 7 * U32_SLOT1[3])) & M32] * len(gids)
+    r_ = normalise({"id": "selftest", "kind": "raw", "producer": "ULEA.addr", "consumer": "STS128.u0"})
+    assert [i.text for i in prologue(r_, 188) if "STS.128 [R9+0x10], R28" in i.text] == ["STS.128 [R9+0x10], R28 ;"] and not any("R28" in i.text for i in prologue(normalise({"id": "selftest", "kind": "raw", "producer": "ULEA.addr", "consumer": "STS.u0"}), 188))
+    assert [i.line() for i in body_raw(normalise({"id": "selftest", "kind": "raw", "producer": "UISETP", "consumer": "BRA.gc"}), 9, "none")[-5:]] == [
+        "[B------:R-:W-:-:S09] UISETP.GE.AND UP0, UPT, UR8, 0x80, UPT ;", "[B------:R-:W-:-:S15] BRA.U !UP0, L_u32 ;", "[B------:R-:W-:-:S15] MOV R8, R4 ;", "L_u32:",
+        "[B------:R-:W-:-:S15] IADD3 R10, PT, PT, R10, R8, RZ ;"]
+    assert table_cell(DEF_DEP, {"producer": "UISETP", "consumer": "BRA", "role": "gc"}) is None or table_cell(DEF_DEP, {"producer": "UISETP", "consumer": "BRA", "role": "gc"})["L"] == json.load(open(DEF_DEP))["defaults"]["guard"]
+    assert producer_word(normalise({"id": "selftest", "kind": "raw", "producer": "UMOV", "consumer": "QMMA.u6", "rguard": "t", "upguard": "set"})) == "UMOV"
+    assert producer_word(normalise({"id": "selftest", "kind": "raw", "producer": "CS2R", "consumer": "QMMA.r3"})) == "CS2R" and producer_word(normalise({"id": "selftest", "kind": "raw", "producer": "ULEA", "consumer": "LEA.u2"})) == "ULEA"
+    # the three new operations of the scalar interpreter against plain arithmetic
+    R_, _get, ex_ = _machine(0)
+    for x_ in (0, 1, 2, 3, 0x80, 0xffff, 0x10000, 0x7fffffff, 0x80000000, 0xffffffff, 0x12345678):
+        R_["R40"] = x_
+        ex_(("flo", "R41", "R40"))
+        ex_(("popc", "R42", "R40"))
+        ex_(("orand", "R43", "R40", 0xf, 0x125))
+        assert R_["R41"] == (0xFFFFFFFF if x_ == 0 else max(k_ for k_ in range(32) if (x_ >> k_) & 1)) and R_["R42"] == sum((x_ >> k_) & 1 for k_ in range(32)) and R_["R43"] == x_ | 5, x_
+    for bad in ({"producer": "UMOV", "consumer": "LEA.u2"}, {"producer": "ULEA", "consumer": "UIADD3.u1"}, {"producer": "ULEA.addr", "consumer": "MOV.u1"}, {"producer": "VOTEU", "consumer": "ULEA.u2"},
+                {"producer": "UISETP", "consumer": "MOV.u1"}, {"producer": "UMOV", "consumer": "BRA.gc"}, {"producer": "CS2UR", "consumer": "ULEA.u2"}, {"producer": "ULEA", "consumer": "STS.u0"},
+                {"producer": "UMOV", "consumer": "MOV.u1", "rguard": "t"}, {"producer": "CS2R", "consumer": "QMMA.r3", "rguard": "x"}, {"producer": "MOV", "consumer": "QMMA.r3", "rguard": "t"},
+                {"producer": "CS2R", "consumer": "QMMA.r3", "rguard": "f", "control": "stale"}, {"producer": "UMOV", "consumer": "QMMA.u6", "upguard": "set"},
+                {"producer": "CS2R", "consumer": "QMMA.r3", "rguard": "t", "upguard": "set"}, {"producer": "CS2R", "consumer": "HMMA.r3", "rguard": "t"},
+                {"producer": "MOV", "consumer": "QMMA.r1", "rguard": "c"}, {"producer": "CS2R", "consumer": "IMAD.rel", "rguard": "t"},
+                {"producer": "UMOV", "consumer": "QMMA.u6", "rguard": "t", "upguard": "yes"}, {"producer": "IADD3", "consumer": "MOV.r1", "upguard": "set"}):
+        try:
+            normalise(dict({"id": "selftest", "kind": "raw"}, **bad))
+        except SystemExit:
+            n += 1
+        else:
+            raise AssertionError(f"version 32: {bad} must be refused")
+    # version 32 - (2) a tensor reader under a guard: CS2R -> the accumulator quad
+    QG32 = "@P2 QMMA.SF.16832.F32.E4M3.E2M1.E8 "
+    for cons_, reg_ in (("QMMA.r3", None), ("QMMA.r3h", 1), ("QMMA.r3h", 2), ("QMMA.r3h", 3)):
+        q0_ = dict({"id": "selftest", "kind": "raw", "producer": "CS2R", "consumer": cons_}, **({"reg": reg_} if reg_ else {}))
+        r0_ = normalise(q0_)
+        g0_, s0_ = model(r0_, "good", gids=gids), model(r0_, "stale", gids=gids)
+        mods_ = {}
+        for rg_ in ("t", "f", "c"):
+            r_ = normalise(dict(q0_, rguard=rg_))
+            assert modes_of(r_) == (["good"] if rg_ == "f" else ["good", "stale"]), (cons_, reg_, rg_)
+            for mode in modes_of(r_):
+                v = model(r_, mode, gids=gids)
+                assert [int(x) for x in v] == model(r_, mode, gids=gids, scalar=True), (cons_, reg_, rg_, mode)
+                mods_[rg_, mode] = v
+                n += 1
+            for dd in (1, 2, 7, 11, 16, 45):
+                for fr_ in ("none", "mmax1@7"):
+                    b_, b0_ = body_raw(r_, dd, fr_), body_raw(r0_, dd, fr_)
+                    kc_ = next(k for k, a in enumerate(b_) if a.tag == "C")
+                    kg_ = [k for k, a in enumerate(b_) if a.text.startswith("ISETP.") and " P2, " in a.text]
+                    # the guard's predicate: written once, 45 cycles or more in front of the reader, 15 behind the word that makes its source
+                    assert dist24(b_) == dd and len(kg_) == 1 and sum(st32(a) for a in b_[kg_[0]:kc_]) >= 45, (cons_, reg_, rg_, dd)
+                    assert b_[kg_[0]].text == {"t": "ISETP.EQ.U32.AND P2, PT, RZ, RZ, PT ;", "f": "ISETP.NE.U32.AND P2, PT, RZ, RZ, PT ;", "c": "ISETP.NE.U32.AND P2, PT, R0, RZ, PT ;"}[rg_], (cons_, reg_, rg_)
+                    assert rg_ != "c" or (b_[kg_[0] - 1].text == "LOP3.LUT R0, R11, 0x2, RZ, 0xc0, !PT ;" and st32(b_[kg_[0] - 1]) == 15), (cons_, reg_, dd)
+                    assert b_[kc_].text == QG32 + "R28, R16, R12, R28, R14, R14, URZ ;" and b_[kc_].dst == (), (cons_, reg_, rg_, dd)
+                    assert b_[kc_ + 1].sem == ("gmov4", "P2", 1, "R28", "R128") and b_[kc_ + 1].text == "IADD3 R15, PT, PT, R15, 0x1, RZ ;", (cons_, reg_, rg_, dd)
+                    # the tensor traffic in front is NOT guarded; nothing else of the body names P2
+                    assert [a.text for a in b_ if a.tag == "F"] == ([] if fr_ == "none" else ["QMMA.SF.16832.F32.E4M3.E2M1.E8 R24, R16, R12, R24, R14, R14, URZ ;"]), (cons_, reg_, rg_, dd)
+                    assert sum(1 for a in b_ if re.search(r"(?<![A-Z])P2\b", a.text)) == 2, (cons_, reg_, rg_, dd)
+                    # the unguarded request of the same pair: the same words but the guard's own and the reader's prefix
+                    drop_ = range(kg_[0] - (1 if rg_ == "c" else 0), kg_[0] + 1)
+                    assert [a.line() for a in b0_] == [a.line().replace("@P2 QMMA", "QMMA") for k, a in enumerate(b_) if k not in drop_], (cons_, reg_, rg_, dd)
+                    assert not misaligned(kernel_text("x", r_, 188, b_)), (cons_, reg_, rg_, dd)
+            if rg_ != "f":
+                rc_ = normalise(dict(q0_, rguard=rg_, control="stale"))
+                bc_ = body_raw(rc_, 7, "none")
+                assert bc_[-1].text.startswith("CS2R R") and bc_[-1].sem == ("nop",) and next(a for a in bc_ if a.tag == "P").text == "IADD3 R15, PT, PT, R15, 0x1, RZ ;", (cons_, reg_, rg_)
+                assert np.array_equal(mods_[rg_, "good"], model(rc_, "good", gids=gids)) and np.array_equal(mods_[rg_, "stale"], model(rc_, "stale", gids=gids)), (cons_, reg_, rg_)
+        # true = the unguarded request, in both hypotheses
+        assert np.array_equal(mods_["t", "good"], g0_) and np.array_equal(mods_["t", "stale"], s0_), (cons_, reg_)
+        # false = the accumulator as the CS2R left it (its pair zero), folded 256 times - by hand
+        t_ = reg_ or 0
+        w_ = [1, 3, 5, 7]
+        w_[t_ & ~1], w_[(t_ & ~1) + 1] = 0, 0
+        fh_ = [sum(sum(w_[k_] * ((0x4b000000 | (ja_(a_, j_) & 0x3fffff)) + k_) for k_ in range(4)) for j_ in range(REPEAT)) & M32 for a_ in a32]
+        assert [int(x) for x in mods_["f", "good"]] == fh_, (cons_, reg_, "false: the accumulator as the CS2R left it")
+        # the bit: neither; a stale reader changes every thread's checksum, and only in the iterations in which the reader executes
+        assert (mods_["c", "good"] != mods_["c", "stale"]).all() and (mods_["c", "good"] != mods_["t", "good"]).all() and (mods_["c", "good"] != mods_["f", "good"]).all(), (cons_, reg_)
+        assert (mods_["c", "stale"] != mods_["t", "stale"]).all(), (cons_, reg_)
+        bigc_ = {m_: model(normalise(dict(q0_, rguard="c")), m_, gids=big32) for m_ in ("good", "stale")}
+        assert (bigc_["good"] != bigc_["stale"]).all() and (bigc_["good"] != 0).all(), (cons_, reg_)
+    # version 32 - (3) the uniform operand of the QMMA under a guard (relative), the producer under @UP0
+    ru0_ = normalise({"id": "selftest", "kind": "raw", "producer": "UMOV", "consumer": "QMMA.u6"})
+    gu0_ = model(ru0_, "good", gids=gids)
+    for rg_ in ("t", "f", "c"):
+        for up_ in (None, "set"):
+            qu_ = dict({"id": "selftest", "kind": "raw", "producer": "UMOV", "consumer": "QMMA.u6", "rguard": rg_}, **({"upguard": up_} if up_ else {}))
+            ru_ = normalise(qu_)
+            assert modes_of(ru_) == ["good"], (rg_, up_)
+            gu_ = model(ru_, "good", gids=gids)
+            assert [int(x) for x in gu_] == model(ru_, "good", gids=gids, scalar=True) and np.array_equal(gu_, gu0_), (rg_, up_)      # the relative fold is zero in `good` whatever executes
+            n += 1
+            pt_ = "@UP0 UMOV UR6, 0x9 ;" if up_ else "UMOV UR6, 0x9 ;"
+            for dd in (1, 4, 7, 16, 45):
+                b_ = body_raw(ru_, dd, "none")
+                kp_ = next(k for k, a in enumerate(b_) if a.tag == "P")
+                assert dist24(b_) == dd and b_[kp_].text == pt_ and b_[kp_].dst == ("UR6",), (rg_, up_, dd)
+                assert [a.text for a in b_ if "QMMA" in a.text] == [QG32 + "R28, R16, R12, R28, R14, R14, UR6 ;", QG32 + "R24, R16, R12, R24, R14, R14, UR6 ;"], (rg_, up_, dd)
+                assert [a.sem[4] for a in b_ if a.sem[0] == "qmma"] == ["P2", "P2"], (rg_, up_, dd)
+                kg_ = [k for k, a in enumerate(b_) if a.text.startswith("ISETP.") and " P2, " in a.text]
+                kv_ = [k for k, a in enumerate(b_) if a.text == "VOTEU.ANY UP0, P0 ;"]
+                assert len(kg_) == 1 and sum(st32(a) for a in b_[kg_[0]:kp_]) >= 30 and len(kv_) == (1 if up_ else 0) and (not up_ or sum(st32(a) for a in b_[kv_[0]:kp_]) >= 30), (rg_, up_, dd)
+                assert not misaligned(kernel_text("x", ru_, 188, b_)), (rg_, up_, dd)
+            if rg_ != "f":
+                bc_ = body_raw(normalise(dict(qu_, control="stale")), 7, "none")
+                kc_ = next(k for k, a in enumerate(bc_) if a.tag == "C")
+                assert bc_[kc_ + 1].text == pt_ and bc_[kc_ + 1].sem == ("nop",) and next(a for a in bc_ if a.tag == "P").text == "IADD3 R15, PT, PT, R15, 0x1, RZ ;", (rg_, up_)
+    bu_ = body_raw(ru0_, 4, "none")
+    assert [a.text for a in bu_ if "QMMA" in a.text] == ["QMMA.SF.16832.F32.E4M3.E2M1.E8 R28, R16, R12, R28, R14, R14, UR6 ;", "QMMA.SF.16832.F32.E4M3.E2M1.E8 R24, R16, R12, R24, R14, R14, UR6 ;"] \
+        and not any("P2" in a.text or "UP0" in a.text for a in bu_), "the unguarded request of the pair is as it was"
     print(f"selftest: {n} (pair, hypothesis) models equal the scalar interpreter on {len(gids)} threads; `good` differs from every failure hypothesis")
     return 0
 

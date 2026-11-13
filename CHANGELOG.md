@@ -841,6 +841,17 @@ decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `
   predicate) and by the guard of a load from 13 — both equal to the table's cells, no cycle to spare. The pair `isetp_isetp` of
   `stall_floors_sm120_20261110_pairs.json` (floor 1) measured nothing: its consumer was true whatever the predicate held (the
   README's row says so).
+- **`probe.py` 32: pairs on a uniform register (kind `raw`: the uniform producers `ULEA`, `USHF`, `ULOP3`, `VOTEU`, the uniform
+  predicate producer `UISETP`, fourteen consumers) and a tensor reader under a guard (`"rguard"`, `"upguard"`)** (`_b63` and its
+  `_ws_` file; selftest 4 835; old requests give the same texts). On a card of the Server Edition and on a card of the
+  Workstation Edition, each with the probe alone — the same verdict in 4 776 of 4 776 cells and the same floor in 228 of 228:
+  thirteen pairs on a uniform register that the table prices by its default of 13 have floors of 1 (`UMOV` → `ULEA`, → `USHF`, →
+  `ULOP3`), 2 (`VOTEU` → `FLO`, → `POPC`), 4 (`UIADD3` → `ULEA`, `ULEA` → `ULEA`, `USHF` → `ULOP3`, `ULOP3` → `USHF`), 6 (`ULEA`
+  → `LEA`, → `IADD3`) and 8 cycles (`ULEA` → the uniform base of a shared store, two forms); `UMOV` → `UIADD3` has floor 1 (the
+  cell is 4); a `CS2R` result is read by the accumulator of a guarded `QMMA.SF` from 1 cycle (0 of 7 358 464 000 thread-launches
+  not right on each card, the guard true, a bit of the iteration counter or false), as is a guarded `UMOV` by the word's uniform
+  operand. No cell of the table changes in this commit. The pair `UISETP` → `BRA.U` of the tool is in no result file: its batch
+  hung a launch on one card (the README's kind row says so).
 
 ## Unreleased — 2026-11-11 (session SCH-4: the stall-floor probes on grids that hold two CTAs per SM and on production's card model in two clock states — tools and result files only, no source line changes)
 
