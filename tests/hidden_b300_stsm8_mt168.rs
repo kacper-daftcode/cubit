@@ -73,11 +73,25 @@ fn invalid_and_unmeasured_neighbors_stay_unclaimed() {
     for arch in ["sm103a", "sm100a"] {
         let table = table(arch);
         let index = DecodeIndex::build(&table);
+        let mut migrated_16 = 0;
         for row in fixtures(arch) {
             if !matches!(row["role"].as_str(), Some("reject" | "reject-scoped")) { continue; }
             let word = u128::from_str_radix(row["word"].as_str().unwrap(), 16).unwrap();
+            if row["kind"] == "existing-16-aruri" {
+                // The independently measured .16.MT88.4 ARURI family owns
+                // exactly these 24 prior scoped negatives on each target.
+                let decoded = index.decode(word, 0, &table).unwrap();
+                assert_eq!(decoded.key, "STSM_ARURI_R");
+                assert_eq!(decoded.mod_group, "16,4,MT88");
+                let vendor = row["nvidia_sass"].as_str().unwrap();
+                assert_eq!(cubit::printer::to_sass_lossless(&decoded), vendor);
+                assert_eq!(reencode(&table, word, vendor), word);
+                migrated_16 += 1;
+                continue;
+            }
             assert!(index.decode(word, 0, &table).is_err(), "claimed {arch} {word:032x}");
         }
+        assert_eq!(migrated_16, 24, "{arch}: unexpected .16 migration scope");
     }
 }
 
@@ -89,6 +103,8 @@ fn new_rows_have_provenance_and_disjoint_fail_closed_fields() {
             &cubit::table::read_table_bytes(Path::new(&path)).unwrap()).unwrap();
         for key in ["STSM_ARI_R", "STSM_ARURI_R"] {
             for (name, group) in raw["instructions"][key]["mod_groups"].as_object().unwrap() {
+                // The separately sourced .16 group is outside this .8 family.
+                if key == "STSM_ARURI_R" && name == "16,4,MT88" { continue; }
                 if key == "STSM_ARI_R" && !name.contains("8,MT168") { continue; }
                 assert_eq!(group["_src"], SRC, "{key}:{name}");
                 assert!(group["count"].is_null());
