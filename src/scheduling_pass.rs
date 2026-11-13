@@ -614,8 +614,7 @@ fn insn_can_set_wait_mask(insn: &Instruction, table: Option<&IsaTable>) -> bool 
     // Fallback (no ctrl_class): apply conservative restrictions
     let op = insn.opcode.as_str();
     if matches!(op, "MUFU") { return false; }
-    if matches!(op, "IADD3" | "UIADD3") && iadd3_rc2_is_rz(insn) { return false; }
-    true
+    !(matches!(op, "IADD3" | "UIADD3") && iadd3_rc2_is_rz(insn))
 }
 
 /// Returns true when the scheduler may assign write_bar for this instruction.
@@ -638,8 +637,7 @@ fn insn_can_set_write_bar(insn: &Instruction, table: Option<&IsaTable>) -> bool 
     }
     // Fallback
     let op = insn.opcode.as_str();
-    if matches!(op, "IADD3" | "UIADD3") && iadd3_rc2_is_rz(insn) { return false; }
-    true
+    !(matches!(op, "IADD3" | "UIADD3") && iadd3_rc2_is_rz(insn))
 }
 
 fn is_pred_writer(op: &str) -> bool {
