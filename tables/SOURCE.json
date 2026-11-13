@@ -1,7 +1,7 @@
 {
   "schema": 2,
   "repository": "https://github.com/kacper-daftcode/blackwell-isa",
-  "base_revision": "8ce9074c0cb88b4f3fd732649ad0f7b2342f1933",
+  "base_revision": "9f0fd8f8be601e5614f977b5eb572176df3a12e7",
   "tables": {
     "sm120.json": {
       "arch": "SM120",
@@ -16,9 +16,9 @@
     },
     "sm103a.json": {
       "arch": "SM103a",
-      "base_sha256": "6d0b6e6d4d5b9f730b2b9949ecf67374ad15b73902783d35365f4a99c8c659eb",
-      "instruction_forms": 556,
-      "encoding_variants": 37943,
+      "base_sha256": "48fb20f857886a23bb40e5adb8866afeb4df6c6d0d8c5edcadd1a05b57ef57ec",
+      "instruction_forms": 557,
+      "encoding_variants": 37957,
       "sched_only_entries": 0,
       "sections": [
         "cost_model",
@@ -28,9 +28,9 @@
     },
     "sm100a.json": {
       "arch": "SM100a",
-      "base_sha256": "6031d56a6d91aea715a6f3b94f38a847147cba036aae6d2ef77acb176a4ad3ef",
-      "instruction_forms": 555,
-      "encoding_variants": 37937,
+      "base_sha256": "e2537440539adec9334ba3038e721882bffb83fbf1e8ac9d9d8c392252107662",
+      "instruction_forms": 556,
+      "encoding_variants": 37951,
       "sched_only_entries": 0,
       "sections": [
         "operand_roles"

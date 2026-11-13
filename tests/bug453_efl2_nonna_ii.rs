@@ -320,7 +320,7 @@ fn t453_8_census_and_canonical() {
     let src: serde_json::Value =
         serde_json::from_str(&std::fs::read_to_string("tables/SOURCE.json").unwrap()).unwrap();
     assert!(
-        src["base_revision"].as_str().unwrap().starts_with("8ce9074c0cb88b4f3fd732649ad0f7b2342f1933") /* 2026-11-06 T-11 (was c258f8a, T-10) */,
+        src["base_revision"].as_str().unwrap().starts_with("9f0fd8f8be601e5614f977b5eb572176df3a12e7") /* 2026-11-06 T-11 (was c258f8a, T-10) */,
         "SOURCE.json must pin canonical {CANON453} (= BUG-453 graft, ride-after e03e0348d98b9d20ffb4ca557cfc6eae625cf995 = BUG-452 narrow): {:?}",
         src["base_revision"]
     );

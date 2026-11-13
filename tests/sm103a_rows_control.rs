@@ -18,7 +18,9 @@ const ALIAS_KEYS: &[(&str, &str)] = &[
 ];
 /// Rows of the family's mnemonics that stay without `_src` (key, group, reason) -- the probe's verdict names each.
 const EXCEPTIONS: &[(&str, &str, &str)] = &[
-    ("BAR_II", "DEFER_BLOCKING,SYNC", "field bit 16 (imm tok 1) is text-inert"),
+    ("BAR_II", "DEFER_BLOCKING,SYNC", "re-measured since: rows-bar-arv-defer-production-2026-11-11 -- field bit 16 (imm tok 1) is text-inert"),
+    ("BAR_II_R", "ARV", "re-measured since: rows-bar-arv-defer-production-2026-11-11 (complete-word fixture tests/hidden_b300_bar_arv_defer_production.rs); production BAR.ARV IMM,R at opcode 0x091d"),
+    ("BAR_II_R", "DEFER_BLOCKING,SYNC", "re-measured since: rows-bar-arv-defer-production-2026-11-11 (complete-word fixture tests/hidden_b300_bar_arv_defer_production.rs); production BAR.SYNC.DEFER_BLOCKING IMM,R at opcode 0x091d"),
     ("BAR_II_II", "ARV", "field bit 58 (imm tok 1) is text-inert"),
     ("BAR_II_II", "DEFER_BLOCKING,SYNC", "field bit 58 (imm tok 1) is text-inert"),
     ("BAR_II_P", "AND,DEFER_BLOCKING,RED", "field bit 15 (imm tok 1) moves guard 0: '@!PT BAR.RED.AND.DEFER_BLOCKING 0x0, PT'"),
@@ -28,7 +30,7 @@ const EXCEPTIONS: &[(&str, &str, &str)] = &[
     ("BAR_R_R", "ARV", "field bit 32 (reg tok 2) moves complex None: 'BAR.ARV R49, R49'"),
     ("BAR_R_R", "DEFER_BLOCKING,SYNC", "field bit 32 (reg tok 2) moves complex None: 'BAR.SYNC.DEFER_BLOCKING R49, R49'"),
     ("BMOV_R_B", "32,CLEAR", "cubit mishandles the row's words (not tagged; T-23): cubit prints 'BMOV.CLEAR.32 R16, B1' for 'BMOV.32.CLEAR R16, B1' (+3 more)"),
-    ("BREAK_P_B", "RELIABLE", "the key does not spell the vendor text: '@!P0 LEPC R1, 0x1000000000010' -> LEPC_R_II / ''"),
+    ("BREAK_P_B", "RELIABLE", "re-measured since: rows-break-reliable-production-2026-11-12 -- the key does not spell the vendor text: '@!P0 LEPC R1, 0x1000000000010' -> LEPC_R_II / ''"),
     ("CALL_II", "NOINC,REL", "bit 16 outside the fields moves operand 1 of the same form: 'CALL.REL.NOINC 0x254'"),
     ("EXIT_P", "", "cubit mishandles the row's words (not tagged; T-23): field word bit 90: cubit 'EXIT' re-encode mismatch:000fe20003800000000000000000794d for 'EXIT !P3'"),
     ("WARPSYNC_II", "ALL,COLLECTIVE", "bit 16 outside the fields moves operand 1 of the same form: 'WARPSYNC.COLLECTIVE.ALL 0x1b4'"),
