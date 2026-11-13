@@ -78,7 +78,7 @@ fn measured_production_and_field_words_roundtrip() {
         let entry = &raw["instructions"]["LDG_R_dARI"];
         assert_eq!(entry["operand_sig"], "R_dARI");
         assert_eq!(entry["scheduling"]["pipe_name"], "UNKNOWN");
-        assert_eq!(entry["mod_groups"].as_object().unwrap().len(), 56);
+        assert_eq!(entry["mod_groups"].as_object().unwrap().len(), 59);
         let group = &entry["mod_groups"]["E,S16"];
         assert_eq!(group["_src"], SOURCE);
         assert_eq!(group["and_base"], "0x000000000c1e17000000000000000981");

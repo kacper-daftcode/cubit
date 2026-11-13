@@ -66,7 +66,7 @@ fn scaled_unpack_b_twenty_measured_groups_and_provenance() {
         let ins = &instructions["F2FP_R_R_R"];
         // 24 since batch 7 of the lane's candidates: + `E4M3,F16,SATFINITE,UNPACK_B_MERGE_C`
         // (hidden-b300/f2fp-e4m3-f16-unpack-merge-c, tests/hidden_b300_f2fp_e4m3_f16_unpack_merge_c.rs)
-        assert_eq!(ins["mod_groups"].as_object().unwrap().len(), 24);
+        assert_eq!(ins["mod_groups"].as_object().unwrap().len(), 27);
         assert_eq!(raw["_meta"]["provenance"]["sources"][SRC]["rows"], 20);
         for typ in TYPES {
             for prefix in ["", "RELU,", "SATFINITE,", "RELU,SATFINITE,"] {

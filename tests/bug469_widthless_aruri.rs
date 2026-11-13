@@ -154,7 +154,7 @@ fn t469_4_mint_circle() {
 #[test]
 fn t469_5_census_and_source() {
     // Current byte-pinned cut; historical fixture provenance remains unchanged.
-    const CURRENT_VENDORED_CANON: &str = "8ce9074c0cb88b4f3fd732649ad0f7b2342f1933" /* 2026-11-06 T-11 (was c258f8a, T-10) */ /* 2026-11-06 T-10 (was b75cc20, T-9) */;
+    const CURRENT_VENDORED_CANON: &str = "43c32936e20f09c35d3513481a23b515cfafa24d" /* 2026-11-06 T-11 (was c258f8a, T-10) */ /* 2026-11-06 T-10 (was b75cc20, T-9) */;
     assert_eq!(CANON469, "9c0e4cec355119065444f59d0710de372b9d0577", "historical fixture revision drift");
 
     for (leg, want) in CENSUS469 {

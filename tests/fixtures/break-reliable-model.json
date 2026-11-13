@@ -1,0 +1,158 @@
+{
+  "accepted_unnamed_records": 0,
+  "accepted_unnamed_words": 0,
+  "adopt_per_target": 972,
+  "and_base": "0x00000000000001000000000000000942",
+  "base_op": "BREAK",
+  "checks": {
+    "barriers": 16,
+    "full_crosses": 1024,
+    "guards": 16,
+    "omitted_pt": "raw[90:87]=7 is BREAK_B, not BREAK_P_B",
+    "output_predicate_values_with_explicit_operand": 15,
+    "reuse_masks": {
+      "1": {
+        "kind": "positive",
+        "rc": 0,
+        "stderr": "",
+        "text": "@P0 BREAK.RELIABLE P1, B0",
+        "word": "040fea00008001000000000000000942"
+      },
+      "2": {
+        "kind": "positive",
+        "rc": 0,
+        "stderr": "",
+        "text": "@P0 BREAK.RELIABLE P1, B0",
+        "word": "080fea00008001000000000000000942"
+      },
+      "3": {
+        "kind": "positive",
+        "rc": 0,
+        "stderr": "",
+        "text": "@P0 BREAK.RELIABLE P1, B0",
+        "word": "0c0fea00008001000000000000000942"
+      },
+      "4": {
+        "kind": "positive",
+        "rc": 0,
+        "stderr": "",
+        "text": "@P0 BREAK.RELIABLE P1, B0",
+        "word": "100fea00008001000000000000000942"
+      },
+      "5": {
+        "kind": "positive",
+        "rc": 0,
+        "stderr": "",
+        "text": "@P0 BREAK.RELIABLE P1, B0",
+        "word": "140fea00008001000000000000000942"
+      },
+      "6": {
+        "kind": "negative",
+        "rc": 1,
+        "stderr": "nvdisasm error   : Opclass 'break_reliability_', undefined value 0xd5 for table 'TABLES_opex_0' at address 0x00000000\n",
+        "text": null,
+        "word": "180fea00008001000000000000000942"
+      },
+      "7": {
+        "kind": "negative",
+        "rc": 1,
+        "stderr": "nvdisasm error   : Opclass 'break_reliability_', undefined value 0xf5 for table 'TABLES_opex_0' at address 0x00000000\n",
+        "text": null,
+        "word": "1c0fea00008001000000000000000942"
+      }
+    }
+  },
+  "claim_forbid": [
+    {
+      "bits": 4,
+      "shift": 87,
+      "values": [
+        7
+      ]
+    },
+    {
+      "bits": 1,
+      "shift": 122,
+      "values": [
+        1
+      ]
+    },
+    {
+      "bits": 1,
+      "shift": 123,
+      "values": [
+        1
+      ]
+    },
+    {
+      "bits": 1,
+      "shift": 124,
+      "values": [
+        1
+      ]
+    }
+  ],
+  "cuda_contexts": 0,
+  "fields": [
+    {
+      "bits": 4,
+      "extraction": "guard",
+      "shift": 12,
+      "token_idx": 0
+    },
+    {
+      "bits": 3,
+      "extraction": "pred",
+      "shift": 87,
+      "token_idx": 1
+    },
+    {
+      "bits": 1,
+      "extraction": "neg",
+      "shift": 90,
+      "token_idx": 1
+    },
+    {
+      "bits": 4,
+      "extraction": "barrier",
+      "shift": 16,
+      "token_idx": 2
+    }
+  ],
+  "gpu_launches": 0,
+  "group": "RELIABLE",
+  "key": "BREAK_P_B",
+  "kind_counts": {
+    "adjacent_modifier": 96,
+    "control_plane": 37,
+    "negative": 11,
+    "other_family": 5,
+    "positive": 1742
+  },
+  "negative_only_values_closed": true,
+  "operand_sig": "P_B",
+  "positive_fixed_mask_closure": true,
+  "production_complete": true,
+  "production_unique_words": 2,
+  "production_word_target_text_pairs": 2,
+  "role_counts": {
+    "adjacent_modifier": 1,
+    "adopt": 972,
+    "claim_forbidden": 102,
+    "control": 37,
+    "negative": 9,
+    "other": 5,
+    "unclaimed_text_inert": 765
+  },
+  "scheduling": {
+    "def_latency": 1,
+    "is_variable_latency": false,
+    "pipe_class": 0,
+    "pipe_name": "UNKNOWN",
+    "throughput": 1
+  },
+  "source": "rows-break-reliable-production-2026-11-12",
+  "unique_words": 1891,
+  "unresolved_static_negatives": [],
+  "variable_mask": "0x000000000780000000000000000ff000"
+}
