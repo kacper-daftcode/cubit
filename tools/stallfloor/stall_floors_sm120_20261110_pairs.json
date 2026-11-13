@@ -371,7 +371,7 @@
   {"producer": "IMAD.WIDE", "consumer": "IMAD.WIDE", "role": "r3", "floor_d0": 1, "pair": "imadw_imadw_c"},
   {"producer": "ISETP", "consumer": "FSEL", "role": "p", "floor_d0": 5, "pair": "isetp_fsel"},
   {"producer": "ISETP", "consumer": "IADD3", "role": "g", "floor_d0": 13, "pair": "isetp_guard"},
-  {"producer": "ISETP", "consumer": "ISETP", "role": "p", "floor_d0": 1, "pair": "isetp_isetp"},
+  {"producer": "ISETP", "consumer": "ISETP", "role": "p", "floor_d0": 5, "pair": "isetp_isetp", "superseded": "this pair measured nothing: its consumer ISETP.NE.U32.OR P4, PT, R5, RZ, P0 is true whatever P0 holds, so the 0 mismatches of the rows isetp_isetp_d0 ... _d2 (kept in `floors` and `mismatches` as the record of what the probe returned: floor 1) are no floor; floor_d0 = 5 is the measurement of tools/stallfloor/probe_sm120_20261112_b61.json and its two _ws_ files (a Server Edition card and a Workstation Edition card): a prohibition below 5 on two card models"},
   {"producer": "ISETP", "consumer": "SEL", "role": "p", "floor_d0": 5, "pair": "isetp_sel"},
   {"producer": "LOP3", "consumer": "SHF", "role": "r3", "floor_d0": 4, "pair": "lop3_shf"},
   {"producer": "MOV", "consumer": "FSEL", "role": "r2", "floor_d0": 5, "pair": "mov_fsel_f"},

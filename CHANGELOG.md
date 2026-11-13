@@ -4,6 +4,20 @@ User-visible changes, newest first. Table syncs name the blackwell-isa revision 
 (`tables/SOURCE.json` pins it byte for byte). Numbered `BUG-NNN` entries are the encoder /
 decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `docs/TESTS.md`).
 
+## Unreleased — 2026-11-13 (the dependency table's cell `ISETP` → `ISETP` p and the old pair `isetp_isetp` name the measurement: a prohibition below 5 on two card models)
+
+- **Documents only: no cell and no number of `tables/dep_latency_sm120.json` moves.** The cell `ISETP` → the predicate
+  input of `ISETP` (5, ptxas's census minimum) carried the string `floor d0 S01` of the pair `isetp_isetp` of
+  `tools/stallfloor/stall_floors_sm120_20261110_pairs.json` — a pair that measured nothing: its consumer is true
+  whatever the predicate holds. The measurement is `tools/stallfloor/probe_sm120_20261112_b61.json` and its two `_ws_`
+  files (a card of the Server Edition; a card of the Workstation Edition alone and at its 400-W limit): four requests
+  on six grids each — the `AND` and the `OR` form of the consumer, without and with the yield flag —, the binding floor
+  5 in every one. At 1 … 3 issue cycles 0 of 220 753 920 thread-launches are right in each of the three files; at 4
+  issue cycles 0 | 1 920 | 7 264 of 73 584 640 (the Server card | the Workstation card alone | at its limit);
+  from 5 every one is: **a prohibition below 5 on two card models**, equal to the cell, no cycle to spare. The cell's
+  `silicon` string says so; the pair's row in the old file carries `floor_d0` 5 and a key `superseded`, and the raw
+  rows of the old probe (`isetp_isetp_d0` … `_d2` = 1 and their counts) stay as the record of what it returned.
+
 ## Unreleased — 2026-11-12 (`CUBIT_WAIT_POLICY=1`, measured: the policy does not carry from FC1 to its r33 form)
 
 - **No code change — a limit of the opt-in switch, measured** (KNOWN_ISSUES A51; one card model, the state free of the
@@ -33,8 +47,9 @@ decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `
   past guarded writers and ends at an unguarded word that waits the scoreboard). Only waits are added, behind the
   colouring: no scoreboard number moves.
 - **What it changes on the served kernels' text:** ONE control word of 3 040 on the r33 form (that reader: the place
-  where the hand-made text that was measured at −0.07 % has its wait too), one of 2 576 on FC2 (`@P0 LDG.E.CONSTANT
-  R30` in the front end), none of 3 048 on FC1. The schedule cubit builds by itself has not been on a card.
+  where the hand-made text has its wait too; that text read −0.07 % in one block and equal with ptxas in a later one
+  — the section on A51 above), one of 2 576 on FC2 (`@P0 LDG.E.CONSTANT R30` in the front end), none of 3 048 on FC1.
+  The schedule cubit builds by itself has not been on a card.
 - `tests/wait_policy.rs` (a fourth test; it fails without the clause).
 
 ## Unreleased — 2026-11-12 (`CUBIT_WAIT_POLICY=1`, opt-in: where the waits of an nvcc-shaped kernel stand — no word waits behind a young result that it does not read)

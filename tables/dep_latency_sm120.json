@@ -259,7 +259,7 @@
   {"producer": "ISETP", "consumer": "IMAD.HI", "role": "g", "L": 13, "basis": "ptxas census min 13 x 88 of 120 pairs"},
   {"producer": "ISETP", "consumer": "IMAD.WIDE", "role": "g", "L": 13, "basis": "ptxas census min 13 x 422 of 5613 pairs"},
   {"producer": "ISETP", "consumer": "ISETP", "role": "g", "L": 13, "basis": "ptxas census min 13 x 44 of 154 pairs"},
-  {"producer": "ISETP", "consumer": "ISETP", "role": "p", "L": 5, "basis": "ptxas census min 5 x 1041 of 2502 pairs", "silicon": "floor d0 S01"},
+  {"producer": "ISETP", "consumer": "ISETP", "role": "p", "L": 5, "basis": "ptxas census min 5 x 1041 of 2502 pairs", "silicon": "a prohibition below 5 on two card models (a Server Edition card and a Workstation Edition card, tools/stallfloor/probe_sm120_20261112_b61.json and its two _ws_ files: the consumer takes the old predicate -- at 1 ... 3 issue cycles no thread-launch is right, at 4 at most 7264 of 73584640, from 5 every one); the pair isetp_isetp of stall_floors_sm120_20261110_pairs.json (floor 1) measured nothing"},
   {"producer": "ISETP", "consumer": "LDC", "role": "g", "L": 13, "basis": "ptxas census min 13 x 542 of 2557 pairs"},
   {"producer": "ISETP", "consumer": "LDG", "role": "g", "L": 13, "basis": "ptxas census min 13 x 356 of 6259 pairs", "silicon": "floor d0 S13"},
   {"producer": "ISETP", "consumer": "LDS", "role": "g", "L": 13, "basis": "ptxas census min 13 x 28 of 668 pairs"},
