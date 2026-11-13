@@ -5759,11 +5759,19 @@ fn cmd_asm_directive_format(
         // CUBIT_YIELD_HOLD: a word of the fixed-latency datapath that sets no barrier gives up the yield
         // flag at a stall of 1 ..= n -- outside the tensor loops, whose words keep theirs. No stall, wait
         // or barrier moves; in front of the OPEX law.
+        // `CUBIT_YIELD_HOLD=<n>n`: in the nests alone -- the natural loops that hold no tensor word.
         if let Some(n) = cubit::scheduling_pass::yield_hold() {
             if !fully_frozen {
-                let cleared = cubit::scheduling_pass::apply_yield_hold(&mut insns_with_ctrl, n);
+                let nests = cubit::scheduling_pass::yield_hold_nests();
+                let cleared = cubit::scheduling_pass::apply_yield_hold_in(&mut insns_with_ctrl, n, nests);
                 if cleared > 0 {
-                    println!("  {}: yield hold: {} word(s) give up the yield flag (stall 1 ..= {})", def.name, cleared, n);
+                    println!(
+                        "  {}: yield hold: {} word(s) give up the yield flag (stall 1 ..= {}{})",
+                        def.name,
+                        cleared,
+                        n,
+                        if nests { ", in the nests alone" } else { "" }
+                    );
                 }
             }
         }

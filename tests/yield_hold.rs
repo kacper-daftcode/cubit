@@ -2,6 +2,11 @@
 //! datapath that sets no barrier gives up the yield flag at a stall of 1 ..= n -- outside the tensor loops,
 //! whose words keep theirs (2026-11-13).
 //!
+//! `CUBIT_YIELD_HOLD=<n>n` (`1n` or `2n`): the same word, and only in a NEST -- a natural loop that holds no
+//! tensor word. A card ranked the rule's regions (one block in one load order on each form of the kernel): the
+//! whole gain stands in the nests; the words in no loop give nothing, and the frame around the tensor loop reads
+//! slower without its flags.
+//!
 //! WHERE IT COMES FROM. Not from ptxas: in his sm_120 schedules a word that sets no barrier carries the flag
 //! at stall 1 in every opcode but three (`NOP`, and a handful of `IADD3` and `LEA`); only at stall 2 is the
 //! form without the flag his practice (43 opcodes). It comes from a card. The served FC1, as
@@ -259,4 +264,98 @@ fn the_variable_alone_the_default_path_and_an_authors_schedule_are_untouched() {
         assert_eq!((a.code(), a.opcode()), (b.code(), b.opcode()), "an author's schedule moved under the switch");
     }
     assert!(!log.contains("yield hold"), "{log}");
+}
+
+/// A frame, a NEST (a loop that holds no tensor word), then a stage loop whose frame stands around a tensor loop, a
+/// frame: the place the values `1n` and `2n` name is the nest alone.
+const NESTS: &str = "\
+.entry yield_hold_nests
+    .reg R0-R31
+    .param ptr out
+    LDCU.64 UR8, c[0x0][0x358] ;
+    LDC.64 R2, c[0x0][0x380] ;
+    LDC R4, c[0x0][0x388] ;
+    LDC R5, c[0x0][0x38c] ;
+    MOV R6, R4 ;
+    IADD3 R7, PT, PT, R6, 0x40, RZ ;
+    MOV R21, RZ ;
+    MOV R18, RZ ;
+    MOV R19, RZ ;
+L_nest:
+    IADD3 R18, PT, PT, R18, 0x3, RZ ;
+    MOV R28, R5 ;
+    MOV R29, R4 ;
+    MOV R30, R5 ;
+    MOV R23, R18 ;
+    IADD3 R21, PT, PT, R21, 0x1, RZ ;
+    ISETP.NE.AND P1, PT, R21, 0x4, PT ;
+    @P1 BRA L_nest ;
+    LOP3.LUT R8, R7, R23, RZ, 0x3c, !PT ;
+    MOV R24, RZ ;
+    MOV R25, RZ ;
+    MOV R26, RZ ;
+    MOV R27, RZ ;
+    MOV R22, RZ ;
+L_stage:
+    MOV R9, R8 ;
+    MOV R10, R5 ;
+    MOV R20, RZ ;
+L_top:
+    MOV R12, R9 ;
+    MOV R13, R9 ;
+    MOV R14, R9 ;
+    MOV R15, R9 ;
+    MOV R16, R10 ;
+    MOV R17, R10 ;
+    HMMA.16816.F32 R24, R12, R16, R24 ;
+    IADD3 R20, PT, PT, R20, 0x1, RZ ;
+    ISETP.NE.AND P0, PT, R20, 0x4, PT ;
+    @P0 BRA L_top ;
+    IADD3 R22, PT, PT, R22, 0x1, RZ ;
+    ISETP.NE.AND P2, PT, R22, 0x2, PT ;
+    @P2 BRA L_stage ;
+    FADD R9, R24, R25 ;
+    FADD R10, R26, R27 ;
+    FADD R9, R9, R10 ;
+    STG.E desc[UR8][R2.64], R9 ;
+    EXIT ;
+.endentry
+";
+
+/// The words from `top` to the backward branch under `guard`.
+fn loop_of(w: &[Word], top: &str, guard: &str) -> std::ops::RangeInclusive<usize> {
+    let a = w.iter().position(|x| x.text == top).unwrap_or_else(|| panic!("no word `{top}`: {w:?}"));
+    let b = w.iter().position(|x| x.text.starts_with(guard) && x.opcode() == "BRA").unwrap_or_else(|| panic!("no branch under `{guard}`"));
+    assert!(a < b);
+    a..=b
+}
+
+#[test]
+fn in_the_nests_alone_only_a_loop_without_a_tensor_word_gives_up_the_flag() {
+    for (name, env) in recipes() {
+        let (off, _) = build(NESTS, &env);
+        let nest = loop_of(&off, "IADD3 R18, PT, PT, R18, 0x3, RZ", "@P1 ");
+        let stage = loop_of(&off, "MOV R9, R8", "@P2 ");
+        let tensor = loop_of(&off, "MOV R12, R9", "@P0 ");
+        assert!(stage.contains(tensor.start()) && stage.contains(tensor.end()) && nest.end() < stage.start(), "{name}: {off:?}");
+        for n in [1u32, 2] {
+            let inside: Vec<usize> = nest.clone().filter(|i| off[*i].qualifies(n)).collect();
+            let outside: Vec<usize> = (0..off.len()).filter(|i| !nest.contains(i) && !tensor.contains(i) && off[*i].qualifies(n)).collect();
+            assert!(inside.len() >= 2, "{name}, n = {n}: the nest has no words of the form this test is about: {off:?}");
+            assert!(outside.iter().any(|i| stage.contains(i)) && outside.iter().any(|i| !stage.contains(i)), "{name}, n = {n}: no such word in the stage loop's frame or in no loop: {off:?}");
+            // the whole rule takes the nest's words AND those outside it ...
+            let v = n.to_string();
+            let (all, _) = build(NESTS, &with(&env, &[("CUBIT_YIELD_HOLD", v.as_str())]));
+            assert!(inside.iter().chain(&outside).all(|i| !all[*i].flag), "{name}, CUBIT_YIELD_HOLD={n}");
+            // ... the value with `n` the nest's alone, and nothing else moves
+            let v = format!("{n}n");
+            let (on, log) = build(NESTS, &with(&env, &[("CUBIT_YIELD_HOLD", v.as_str()), ("CUBIT_DEP_VERIFY", "1")]));
+            assert_eq!(off.len(), on.len());
+            for (i, (a, b)) in off.iter().zip(&on).enumerate() {
+                assert_eq!(Word { flag: a.flag && !inside.contains(&i), ..a.clone() }, *b, "{name}, CUBIT_YIELD_HOLD={v}, word {i}: `{}`", a.text);
+            }
+            assert!(log.contains(&format!("yield hold: {} word(s) give up the yield flag (stall 1 ..= {n}, in the nests alone)", inside.len())), "{name}: the build does not name the words:\n{log}");
+            assert!(log.contains("DEP_VERIFY 0 below a table cell, 0 waits closer than the arming distance to their barrier's setter, 0 below a resource spacing, 0 below a default"), "{name}: {log}");
+        }
+    }
 }

@@ -3539,12 +3539,32 @@ pub(crate) fn resolved_back_edges(insns: &[Instruction]) -> (Vec<(usize, usize)>
 /// the flag also off the 223 such words of its tensor loop read 11 µs a call SLOWER than without
 /// those -- so the words of a tensor loop keep their flags.
 pub fn yield_hold() -> Option<u8> {
+    yield_hold_value().map(|(n, _)| n)
+}
+
+/// `CUBIT_YIELD_HOLD=<n>n` (`1n` or `2n`): the rule of [`yield_hold`] IN THE NESTS ALONE -- a word gives the
+/// flag up only where it stands in a natural loop that holds no tensor word ([`nest_words`]); the words in no
+/// loop and the frame of a loop that holds a tensor loop keep theirs, as the tensor loop's words do.
+///
+/// Measured, as rankings (one block in one load order on each form; 4 096 rows; one card model, free of its
+/// power limit): with the flag off the rule's words of the nests alone -- 262 of its 955 words in the served
+/// FC1, 261 of 979 in its r33 form -- the kernel read 2.71 ± 0.11 | 6.66 ± 0.11 µs a call faster than with its
+/// flags, where the whole rule read 2.54 ± 0.10 | 6.27 ± 0.12; off the rule's words in no loop it read like the
+/// schedule with its flags (0.07 ± 0.10 faster | 0.08 ± 0.11 slower), off those of the loop around the tensor
+/// loop 0.21 ± 0.10 | 0.63 ± 0.11 µs SLOWER.
+pub fn yield_hold_nests() -> bool {
+    yield_hold_value().is_some_and(|(_, nests)| nests)
+}
+
+fn yield_hold_value() -> Option<(u8, bool)> {
     if !crate::sync_class::enabled() {
         return None;
     }
     match std::env::var("CUBIT_YIELD_HOLD").ok().as_deref() {
-        Some("1") => Some(1),
-        Some("2") => Some(2),
+        Some("1") => Some((1, false)),
+        Some("2") => Some((2, false)),
+        Some("1n") => Some((1, true)),
+        Some("2n") => Some((2, true)),
         _ => None,
     }
 }
@@ -3575,6 +3595,152 @@ pub fn tensor_loop_words(insns: &[Instruction]) -> Vec<bool> {
     inside
 }
 
+/// The words of the NESTS: a word that stands in a natural loop and in no natural loop that holds a warp tensor
+/// word (`QMMA`, `HMMA`, `IMMA`, `DMMA`).
+///
+/// A natural loop is named by a back edge -- a branch to a word that dominates it -- and holds every word that
+/// reaches the branch without passing its target; back edges to one word make one loop. The flow graph is the
+/// text's own: a `BRA` goes to its target, and falls through when it is guarded or a `BRA.U` / `BRA.DIV`; `EXIT`
+/// and `RET` fall through when guarded; every other word falls through (a register-indirect transfer has no
+/// target in the text, a `BSYNC` stands in front of its label). A word the entry does not reach this way -- the
+/// blocks behind a register-indirect dispatch -- belongs to the loops it flows into.
+///
+/// Unlike [`tensor_loop_words`] this does not go by the text's layout: a loop's out-of-line block may stand
+/// anywhere in the text, and the words between a loop and that block are not the loop's.
+pub fn nest_words(insns: &[Instruction]) -> Vec<bool> {
+    let n = insns.len();
+    let mut nest = vec![false; n];
+    if n == 0 {
+        return nest;
+    }
+    let at: std::collections::HashMap<u32, usize> = insns.iter().enumerate().map(|(i, w)| (w.addr, i)).collect();
+    let mut succ: Vec<Vec<usize>> = vec![Vec::new(); n];
+    for (i, w) in insns.iter().enumerate() {
+        let mut falls = true;
+        match w.opcode.as_str() {
+            "BRA" => {
+                if let Some(t) = branch_target(w).and_then(|a| at.get(&a).copied()) {
+                    succ[i].push(t);
+                }
+                falls = w.guard.is_some() || matches!(w.opcode_full.as_str(), "BRA.U" | "BRA.DIV");
+            }
+            "EXIT" | "RET" => falls = w.guard.is_some(),
+            _ => {}
+        }
+        if falls && i + 1 < n {
+            succ[i].push(i + 1);
+        }
+    }
+    let mut pred: Vec<Vec<usize>> = vec![Vec::new(); n];
+    for (i, s) in succ.iter().enumerate() {
+        for &j in s {
+            pred[j].push(i);
+        }
+    }
+    // the words the entry reaches, in reverse postorder
+    let mut seen = vec![false; n];
+    let mut order: Vec<usize> = Vec::with_capacity(n);
+    let mut stack: Vec<(usize, usize)> = vec![(0, 0)];
+    seen[0] = true;
+    while let Some(&(v, k)) = stack.last() {
+        if k < succ[v].len() {
+            stack.last_mut().expect("the stack holds the word").1 += 1;
+            let w = succ[v][k];
+            if !seen[w] {
+                seen[w] = true;
+                stack.push((w, 0));
+            }
+        } else {
+            order.push(v);
+            stack.pop();
+        }
+    }
+    order.reverse();
+    let mut num = vec![usize::MAX; n];
+    for (k, &v) in order.iter().enumerate() {
+        num[v] = k;
+    }
+    // immediate dominators (Cooper, Harvey, Kennedy)
+    let mut idom = vec![usize::MAX; n];
+    idom[0] = 0;
+    let mut changed = true;
+    while changed {
+        changed = false;
+        for &v in order.iter().skip(1) {
+            let mut new = usize::MAX;
+            for &p in &pred[v] {
+                if idom[p] == usize::MAX {
+                    continue;
+                }
+                if new == usize::MAX {
+                    new = p;
+                    continue;
+                }
+                let (mut a, mut b) = (new, p);
+                while a != b {
+                    while num[a] > num[b] {
+                        a = idom[a];
+                    }
+                    while num[b] > num[a] {
+                        b = idom[b];
+                    }
+                }
+                new = a;
+            }
+            if new != usize::MAX && idom[v] != new {
+                idom[v] = new;
+                changed = true;
+            }
+        }
+    }
+    // the natural loops, one a header
+    let mut loops: std::collections::BTreeMap<usize, Vec<bool>> = std::collections::BTreeMap::new();
+    for j in (0..n).filter(|&j| seen[j]) {
+        for &k in &succ[j] {
+            let mut b = j;
+            let dominates = loop {
+                if b == k {
+                    break true;
+                }
+                if idom[b] == b {
+                    break false;
+                }
+                b = idom[b];
+            };
+            if !dominates {
+                continue;
+            }
+            let body = loops.entry(k).or_insert_with(|| {
+                let mut v = vec![false; n];
+                v[k] = true;
+                v
+            });
+            let mut walk = vec![j];
+            while let Some(v) = walk.pop() {
+                if !body[v] {
+                    body[v] = true;
+                    walk.extend(pred[v].iter().copied());
+                }
+            }
+        }
+    }
+    let mut holds_tensor = vec![false; n];
+    for body in loops.values() {
+        let tensor = (0..n).any(|i| body[i] && is_warp_mma(insns[i].opcode.as_str()));
+        for i in (0..n).filter(|&i| body[i]) {
+            if tensor {
+                holds_tensor[i] = true;
+            } else {
+                nest[i] = true;
+            }
+        }
+    }
+    for (x, &h) in nest.iter_mut().zip(&holds_tensor) {
+        *x = *x && !h;
+    }
+    nest
+}
+
 /// [`yield_hold`] on a finished schedule: a word that carries the yield flag at a stall of
 /// 1 ..= `max_stall`, sets no barrier, carries no `.reuse` operand, whose opcode is one of
 /// [`HOLD_OPCODES`] and that stands in no tensor loop loses the flag. Returns the number of such
@@ -3586,7 +3752,14 @@ pub fn tensor_loop_words(insns: &[Instruction]) -> Vec<bool> {
 /// word with a `.reuse` operand (every one of ptxas's 219 187 carries the flag); the words of a
 /// tensor loop (measured: there the flag is worth time).
 pub fn apply_yield_hold(insns: &mut [Instruction], max_stall: u8) -> usize {
-    let inside = tensor_loop_words(insns);
+    apply_yield_hold_in(insns, max_stall, false)
+}
+
+/// [`apply_yield_hold`] with the place named: with `nests_alone` ([`yield_hold_nests`]) only a word of the nests
+/// ([`nest_words`]) gives the flag up -- a word in no loop and a word of a loop that holds a tensor word keep
+/// theirs; without it every word outside the tensor loops does ([`tensor_loop_words`]).
+pub fn apply_yield_hold_in(insns: &mut [Instruction], max_stall: u8, nests_alone: bool) -> usize {
+    let inside: Vec<bool> = if nests_alone { nest_words(insns).iter().map(|x| !x).collect() } else { tensor_loop_words(insns) };
     let mut cleared = 0;
     for (i, w) in insns.iter_mut().enumerate() {
         if w.hand_sched || inside[i] || !w.ctrl.yield_flag || !(1..=max_stall).contains(&w.ctrl.stall) {
@@ -3697,6 +3870,48 @@ mod yield_hold_tests {
         assert_eq!(tensor_loop_words(&k), [false, false, true, true, false, false]);
         assert_eq!(apply_yield_hold(&mut k, 1), 3);
         assert_eq!(flags(&k), [false, false, true, true, false, true]);
+    }
+
+    #[test]
+    fn the_nests_are_the_loops_that_hold_no_tensor_word() {
+        // [0] no loop | [1 ..= 2] a nest | [3] the frame of the loop [3 ..= 7] around the tensor loop [4 ..= 6] | [8] no loop
+        let mut k = vec![
+            word("MOV R4, R5", 0x00, 1, NONE),
+            word("MOV R6, R7", 0x10, 1, NONE),
+            word("@P1 BRA 0x10", 0x20, 5, NONE),
+            word("MOV R9, R10", 0x30, 1, NONE),
+            word("MOV R11, R12", 0x40, 1, NONE),
+            word("HMMA.16816.F32 R8, R12, R16, R8", 0x50, 1, NONE),
+            word("@P0 BRA 0x40", 0x60, 5, NONE),
+            word("@P2 BRA 0x30", 0x70, 5, NONE),
+            word("MOV R13, R14", 0x80, 1, NONE),
+        ];
+        assert_eq!(nest_words(&k), [false, true, true, false, false, false, false, false, false]);
+        let all = apply_yield_hold(&mut k.clone(), 2);
+        assert_eq!(all, 4, "outside the tensor loop four datapath words carry the flag");
+        assert_eq!(apply_yield_hold_in(&mut k, 2, true), 1, "in the nests alone: one");
+        assert_eq!(flags(&k), [true, false, true, true, true, true, true, true, true]);
+    }
+
+    #[test]
+    fn a_nest_holds_its_out_of_line_block_wherever_the_text_puts_it() {
+        // the nest [1 ..= 3] leaves for the block [8 ..= 9], which stands BEHIND the tensor loop [5 ..= 6] and returns
+        // into the nest: by the flow graph the block is the nest's and the words between them ([4 ..= 7]) are not
+        let mut k = vec![
+            word("MOV R4, R5", 0x00, 1, NONE),
+            word("MOV R6, R7", 0x10, 1, NONE),
+            word("@P3 BRA 0x80", 0x20, 5, NONE),
+            word("@P1 BRA 0x10", 0x30, 5, NONE),
+            word("MOV R9, R10", 0x40, 1, NONE),
+            word("HMMA.16816.F32 R8, R12, R16, R8", 0x50, 1, NONE),
+            word("@P0 BRA 0x50", 0x60, 5, NONE),
+            word("EXIT", 0x70, 1, NONE),
+            word("MOV R13, R14", 0x80, 1, NONE),
+            word("BRA 0x30", 0x90, 5, NONE),
+        ];
+        assert_eq!(nest_words(&k), [false, true, true, true, false, false, false, false, true, true]);
+        assert_eq!(apply_yield_hold_in(&mut k, 1, true), 2);
+        assert_eq!(flags(&k), [true, false, true, true, true, true, true, true, false, true]);
     }
 }
 

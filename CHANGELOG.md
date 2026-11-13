@@ -4,6 +4,37 @@ User-visible changes, newest first. Table syncs name the blackwell-isa revision 
 (`tables/SOURCE.json` pins it byte for byte). Numbered `BUG-NNN` entries are the encoder /
 decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `docs/TESTS.md`).
 
+## Unreleased — 2026-11-13 (`CUBIT_YIELD_HOLD=1n|2n`, opt-in: the rule of `CUBIT_YIELD_HOLD` in the nests alone — the natural loops that hold no tensor word; the values 1 and 2 and every schedule without the switch are what they were)
+
+- **`CUBIT_YIELD_HOLD=<n>n`**, `1n` or `2n` (honoured only together with `CUBIT_SYNC_CLASSES=1`; KNOWN_ISSUES A56): the
+  word `CUBIT_YIELD_HOLD=<n>` names gives the yield flag up only where it stands in a NEST — a natural loop that holds
+  no tensor word. A word in no loop, the frame of a loop that holds a tensor loop and the tensor loop keep their flags.
+  No stall count, wait or barrier moves; a hand-scheduled word is not touched.
+- **Natural loops, not the text's layout** (`scheduling_pass::nest_words`): a loop is named by a branch to a word that
+  dominates it and holds every word that reaches that branch without passing its target, so a loop's out-of-line block
+  is the loop's wherever the text puts it and the words between the two are not. The values 1 and 2 keep naming the
+  tensor loop by the innermost backward branch around a tensor word.
+- **Where it comes from: a card.** Rankings — one block in one load order on each form; 4 096 rows; one card model,
+  free of its power limit; every call's result compared — with the flag taken off the rule's words of ONE region and
+  nothing else changed, each against the schedule with its flags (the served FC1 | its r33 form): off the 262 | 261
+  words of the nests 2.71 ± 0.11 | 6.66 ± 0.11 µs a call faster, where the whole rule (955 | 979 words) read
+  2.54 ± 0.10 | 6.27 ± 0.12 in the same blocks; off the 158 | 157 words in no loop nothing (0.07 ± 0.10 faster |
+  0.08 ± 0.11 slower); off the 535 | 561 words of the frame around the tensor loop 0.21 ± 0.10 | 0.63 ± 0.11 µs
+  SLOWER. The rule's whole gain stands in the nests; against ptxas's own build the schedule with the nests' flags off
+  read 0.290 ± 0.014 % | 0.719 ± 0.015 % below, the whole rule's 0.270 ± 0.014 | 0.675 ± 0.015.
+- **What moves under the new values:** in cubit's schedule of the three served texts (`CUBIT_WAIT_POLICY=1`) 220 | 214 |
+  191 words give up the flag at `1n` and 262 | 261 | 231 at `2n` (FC1 | its r33 form | FC2) and nothing else moves; in
+  FC1 and its r33 form they are words the value without `n` takes as well, and the schedules under `2n` are byte for
+  byte the two schedules the card ranked; in FC2 30 of them stand in a loop behind the tensor loop that the values 1
+  and 2 leave alone because the text's layout puts it inside a backward branch around tensor words. Under the values 1
+  and 2 and without the switch every schedule is byte for byte what it was.
+- **Not known:** a number of record for the nests alone (both load orders) — the readings above rank; FC2 under it;
+  the power limit; another card model; why a yield costs in a loop without a tensor word and pays around one.
+- `tests/yield_hold.rs` (5 tests; the new one fails without the change): under `1n` and `2n` the nest's words give up
+  the flag, the frame's words in no loop and around the tensor loop keep it where the values 1 and 2 take it, nothing
+  else moves. Two unit tests of `nest_words` (`src/scheduling_pass.rs`): the nests are the loops that hold no tensor
+  word; a nest holds its out-of-line block wherever the text puts it.
+
 ## Unreleased — 2026-11-13 (`CUBIT_YIELD_HOLD=1|2`, opt-in: outside the tensor loops a datapath word that sets no barrier gives up the yield flag at stall 1, or 1 and 2 — measured on the served FC1 and its r33 form as cubit lays them out; without the switch nothing changes)
 
 - **`CUBIT_YIELD_HOLD=<n>`**, n = 1 or 2 (honoured only together with `CUBIT_SYNC_CLASSES=1`; KNOWN_ISSUES A55): on

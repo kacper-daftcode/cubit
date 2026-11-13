@@ -92,6 +92,9 @@ producers that may have written its register (A50).
 `CUBIT_YIELD_HOLD=1` or `2` (with `CUBIT_SYNC_CLASSES=1`): outside the tensor loops a word of the fixed-latency
 datapath that sets no barrier gives up the yield flag at a stall of 1 (or 1 and 2) — measured on the served FC1
 and its r33 form as cubit schedules them, not ptxas's practice (opt-in, KNOWN_ISSUES A55).
+`CUBIT_YIELD_HOLD=1n` or `2n`: the same word gives the flag up only in the nests — the natural loops that hold no
+tensor word, where a card ranked the rule's whole gain (a ranking: one block in one load order on each form;
+opt-in, KNOWN_ISSUES A56).
 `CUBIT_SCHED2=1` selects the dependency-aware stall model (a stall is charged where a consumer needs it, not
 after every producer); with `CUBIT_SCHED2_LAT=sm120` the latencies come from the pair table
 `tables/dep_latency_sm120.json` (ptxas's practice, measured on sm_120 silicon) and hold on every control-flow
