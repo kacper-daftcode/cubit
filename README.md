@@ -100,13 +100,14 @@ KNOWN_ISSUES A56).
 where it came in with its own control word — the frame of a text that is scheduled in part. Under these two
 switches, in the recipe of the record text (the vendor's control words on every word outside the stage loop, cubit's
 schedule of that loop), FC2 reads 0.124 ± 0.018 % ahead of ptxas (the full form: both load orders, 4 096 rows; one
-Server card, free of its power limit); on the default path and in cubit's own frame FC2 stays behind ptxas (opt-in).
+Server card, free of its power limit); on the default path and in cubit's own frame FC2 stays behind ptxas (opt-in,
+KNOWN_ISSUES A58).
 `CUBIT_LOAD_COVER=1` (with `CUBIT_WAIT_POLICY=1`): the vendor's form of a shared-memory load — a load under the wait
 of a younger shared load carries no barrier, and loads that find no scoreboard free stand as one set in front of one
-wait, as his do. cubit is still behind ptxas on FC2: the stage loop under the switch inside the vendor's frame reads
-fc2 0.054 ± 0.017 % above ptxas's own build of the served FC2 at 4 096 rows, where the same frame with the loop
-under the policy alone and his load words carried over reads 0.190 ± 0.018 % above (both load orders; one card
-model, free of its power limit; opt-in, KNOWN_ISSUES A57).
+wait, as his do. Without `CUBIT_YIELD_HOLD_FRAME=1` cubit is still behind ptxas on FC2: the stage loop under the
+switch inside the vendor's frame — the record text — reads fc2 0.054 ± 0.017 % above ptxas's own build of the served
+FC2 at 4 096 rows, where the same frame with the loop under the policy alone and his load words carried over reads
+0.190 ± 0.018 % above (both load orders; one card model, free of its power limit; opt-in, KNOWN_ISSUES A57).
 `CUBIT_SCHED2=1` selects the dependency-aware stall model (a stall is charged where a consumer needs it, not
 after every producer); with `CUBIT_SCHED2_LAT=sm120` the latencies come from the pair table
 `tables/dep_latency_sm120.json` (ptxas's practice, measured on sm_120 silicon) and hold on every control-flow
