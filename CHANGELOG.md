@@ -23,10 +23,15 @@ decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `
 - **Nobody else pays — by trial**, as for `CUBIT_CONST_ALONE` (and behind it: the sets first, the numbers second).
   A use of another kind that has a scoreboard to itself without the variable and finds none under it sends back the
   uses of the two kinds that the clause moved onto its scoreboard across its flight; they are coloured as before
-  (but for the first sentence of (R)), and the trial runs again until no such use is left. One line a kernel:
-  `scoreboard by kind (wide): R read barrier(s) and G use(s) of global loads by the clause, M of them on another
-  scoreboard than without it; B went back for L use(s) of another kind that lost theirs: …`.
-- **Counts** (static; scoreboards 0 … 5). cubit's own frame of the served FC2 (`CUBIT_WAIT_POLICY=1
+  (but for the first sentence of (R)), and the trial runs again until it finds no use to send back. A use that was
+  pushed off by a use of another kind which was itself pushed off has nobody to send back: the trial names it and it
+  shares a scoreboard (one plain shared load in cubit's own frame of FC2 under either value, two in the record recipe
+  of FC1 under `wide`; without the variable 158 uses of that frame find no scoreboard free at their turn, under
+  `wide` 40). One line
+  a kernel: `scoreboard by kind (wide): R read barrier(s) and G use(s) of global loads by the clause, M of them on
+  another scoreboard than without it; B went back for L use(s) of another kind that lost theirs: …; S still without
+  a scoreboard of their own: …`.
+- **Counts** (static; scoreboards 0 … 5). cubit's own frame of FC2 without m-tile loops (`fc2_kernel_ws<4,1>`) (`CUBIT_WAIT_POLICY=1
   CUBIT_LOAD_COVER=1`): read barriers 80 36 17 13 12 37 and the write barriers of the global loads 7 3 4 0 1 26
   without the variable, ten words with the read barrier on their own write barrier's scoreboard; `narrow` 82 38 18
   11 26 20 and 1 0 2 6 7 25, no such word, one use sent back; `wide` 187 0 0 0 2 6 and 0 0 10 2 9 20, no such word,
@@ -34,7 +39,7 @@ decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `
   With `CUBIT_WAIT_DRAINED=paths` beside it: 509 wait bits under `narrow` and 478 under `wide`, where the rule alone
   leaves 510 and the vendor's schedule has 458; under `wide` the nine words of the pair region that he keeps on
   scoreboard 0 carry his read and write barriers field for field and the two words that rewrite their registers
-  carry no wait, as his. The record recipe of the served FC1: 22 such words and read barriers 16 56 33 16 52 3
+  carry no wait, as his. The record recipe of FC1 without m-tile loops (`fc1_kernel_wg<4,1>`): 22 such words and read barriers 16 56 33 16 52 3
   without the variable; `narrow` 15 40 41 16 56 8, `wide` 143 33 0 0 0 0, no such word (the vendor: 97 18 27 13 19
   0). On every one of these builds the audit names no read and no rewrite on a path.
 - **First read on a card on 2026-11-18, on one card model.** A read barrier's scoreboard is part

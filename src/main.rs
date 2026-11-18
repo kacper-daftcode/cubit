@@ -5582,9 +5582,12 @@ fn cmd_asm_directive_format(
             cubit::scheduling_pass::reallocate_barriers(&mut insns_with_ctrl, Some(table));
             // CUBIT_SB_KIND: what the trial of the clause found in this kernel
             if let Some((mode, r)) = cubit::scheduling_pass::take_kind_report() {
-                let lost: Vec<String> = r.lost.iter().take(8).map(|(rb, s)| format!("{}[{}]", if *rb { "rb" } else { "wb" }, s)).collect();
+                let names = |v: &[(bool, usize)]| -> String {
+                    let l: Vec<String> = v.iter().take(8).map(|(rb, s)| format!("{}[{}]", if *rb { "rb" } else { "wb" }, s)).collect();
+                    if l.is_empty() { String::new() } else { format!(": {}", l.join(" ")) }
+                };
                 println!(
-                    "  {}: scoreboard by kind ({}): {} read barrier(s) and {} use(s) of global loads by the clause, {} of them on another scoreboard than without it; {} went back for {} use(s) of another kind that lost theirs{}{}",
+                    "  {}: scoreboard by kind ({}): {} read barrier(s) and {} use(s) of global loads by the clause, {} of them on another scoreboard than without it; {} went back for {} use(s) of another kind that lost theirs{}; {} still without a scoreboard of their own{}",
                     def.name,
                     mode.name(),
                     r.read,
@@ -5592,8 +5595,9 @@ fn cmd_asm_directive_format(
                     r.moved,
                     r.back,
                     r.lost.len(),
-                    if lost.is_empty() { "" } else { ": " },
-                    lost.join(" ")
+                    names(&r.lost),
+                    r.still.len(),
+                    names(&r.still)
                 );
             }
             // CUBIT_WAIT_DRAINED: what the rule left unwritten in this kernel

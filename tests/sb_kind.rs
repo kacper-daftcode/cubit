@@ -159,7 +159,7 @@ fn under_wide_no_read_barrier_stands_where_a_global_load_flies() {
 fn the_line_of_the_clause_names_the_value_and_the_counts() {
     let (_, _, log) = build(&store_beside_a_global_load(), &[SYNC, POLICY, WIDE]);
     let l = kind_line(&log);
-    assert!(l.contains("scoreboard by kind (wide): 1 read barrier(s) and 1 use(s) of global loads by the clause, ") && l.contains("; 0 went back for 0 use(s) of another kind that lost theirs"), "{l}");
+    assert!(l.contains("scoreboard by kind (wide): 1 read barrier(s) and 1 use(s) of global loads by the clause, ") && l.contains("; 0 went back for 0 use(s) of another kind that lost theirs; 0 still without a scoreboard of their own"), "{l}");
     let (_, _, log) = build(&store_beside_a_global_load(), &[SYNC, POLICY, NARROW]);
     assert!(kind_line(&log).contains("scoreboard by kind (narrow): "), "{}", kind_line(&log));
 }

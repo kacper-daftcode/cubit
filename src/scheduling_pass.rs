@@ -590,8 +590,11 @@ fn is_const_load(op: &str) -> bool {
 /// barrier where a global load flies. No scoreboard is added. Whether a use of another kind pays
 /// is found by trial, as for [`const_alone`]: a use that has a scoreboard to itself without the
 /// switch and finds none under it sends the uses of the two kinds that moved across its flight
-/// back to the colouring without the switch, use by use, until no such use is left. One line a
-/// kernel says what the trial found ([`take_kind_report`]). Any other value is refused.
+/// back to the colouring without the switch, and the trial runs again until it finds no use to
+/// send back. A use of another kind can be left without a scoreboard of its own at that point:
+/// one that was pushed off by a use of another kind that was itself pushed off -- the trial
+/// names it and does not unwind the clause for it. One line a kernel says what the trial found
+/// ([`take_kind_report`]). Any other value is refused.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SbKind {
     Narrow,
@@ -658,6 +661,10 @@ pub struct KindReport {
     /// the uses of another kind that had lost a scoreboard to them: (a read barrier?, the first
     /// setter)
     pub lost: Vec<(bool, usize)>,
+    /// of those, the uses that are still without a scoreboard of their own when the trial ends:
+    /// no use of the two kinds that the clause moved stands across their flight -- they were
+    /// pushed off by a use of another kind that was itself pushed off
+    pub still: Vec<(bool, usize)>,
 }
 
 thread_local! {
@@ -4826,8 +4833,9 @@ pub fn reallocate_barriers(insns: &mut [Instruction], table: Option<&IsaTable>) 
 /// The trial of `CUBIT_SB_KIND` ([`SbKind`]), on copies: the uses of the two kinds that go back
 /// to the colouring without the switch -- (a read barrier?, the first setter). A use of another
 /// kind that has a scoreboard to itself without the switch and finds none under it sends back
-/// every use of the two kinds that the clause moved onto another scoreboard across its flight;
-/// the trial is run again until no such use is left. Its report goes to [`take_kind_report`].
+/// the uses of the two kinds that the clause moved onto its scoreboard across its flight (where
+/// there is none: every use the clause moved across its flight); the trial is run again until
+/// it finds no use to send back. Its report goes to [`take_kind_report`].
 fn kind_trial(insns: &[Instruction], table: Option<&IsaTable>, const_keep: Option<&[usize]>, mode: SbKind) -> Vec<(bool, usize)> {
     let base = reallocate_barriers_in(&mut insns.to_vec(), table, const_keep, None, true);
     let touch = |a: &[(usize, usize)], b: &[(usize, usize)]| a.iter().any(|&(a0, a1)| b.iter().any(|&(b0, b1)| a0 <= b1 && b0 <= a1));
@@ -4870,6 +4878,7 @@ fn kind_trial(insns: &[Instruction], table: Option<&IsaTable>, const_keep: Optio
         moved: run.coloured.iter().filter(|(k, b, _)| moved(&run, k, *b)).count(),
         back: back.len(),
         lost,
+        still: run.over.iter().map(|o| (o.0, o.1)).filter(|k| !run.by_kind.contains(k) && !base.over.iter().any(|o| (o.0, o.1) == *k)).collect(),
     };
     KIND_REPORT.with(|r| *r.borrow_mut() = Some((mode, report)));
     back
