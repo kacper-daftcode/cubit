@@ -5728,6 +5728,14 @@ fn cmd_asm_directive_format(
                     def.name, e.producer, e.consumer, e.producer_class, e.consumer_class, e.role, e.need, e.have, e.kind, e.defaulted
                 )?;
             }
+            // CUBIT_DEP_CELLS_GUARD=<1 | all> (read-only, a switch of this dump alone): the reads of a
+            // scoreboarded result by their cover -- `guard-settled` is the read that rests solely on a
+            // wait carried by a word under a guard (`guard_cells`); `all` adds the other covers.
+            if let Some(all) = cubit::guard_cells::mode().map_err(anyhow::Error::msg)? {
+                for c in cubit::guard_cells::barrier_reads(&insns_with_ctrl, Some(table), all) {
+                    writeln!(f, "{}", cubit::guard_cells::json_line(&def.name, &insns_with_ctrl, &c))?;
+                }
+            }
         }
 
         // Encode instructions (use insns_with_ctrl.len() which may be larger after stall gap insertion)

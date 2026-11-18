@@ -47,6 +47,43 @@ decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `
   `_b74` and in 246 of 246 of `_b75`. Each file's `conditions` carries the card's state (`memory_clock_offset_mhz`,
   `card_state`).
 
+## Unreleased — 2026-11-18 (`CUBIT_DEP_CELLS_GUARD=1|all`, a switch of the dump `CUBIT_DEP_CELLS` alone: the cell kind `guard-settled` — the read that rests solely on a wait carried by a word under a guard; without the switch the dump and every schedule are what they were)
+
+- **`CUBIT_DEP_CELLS_GUARD=1`** (with `CUBIT_DEP_CELLS=<file>`; read-only, on a schedule cubit builds and on a frozen
+  listing alike): one more line of the dump per read of a scoreboarded result that carries no bit of the producer's
+  write barrier in its own wait mask and stands behind waiters of that barrier that are ALL under a guard —
+  `"kind":"guard-settled"`, `"role":"guarded"`, `prod` the word that arms the barrier, `cons` the reader, `via` the
+  first guarded word that waits the barrier between them, `have` the tightest issue distance producer → reader over the
+  paths on which only guarded words wait between them, `need` 0 (no row of the table asks for a distance here). Such a
+  read is covered by the wait only if a wait carried by a word whose guard is false is honoured (ptxas's practice, the
+  ground of `CUBIT_GUARDED_READER_SETTLES`); otherwise it rests on the distance.
+- **`CUBIT_DEP_CELLS_GUARD=all`** adds every other read of such a result as `"kind":"barrier-read"` with its cover in
+  `role`: `own` (the reader waits the barrier itself), `unguarded` (a word under no guard waits it between them),
+  `none` (no word waits it between them), `bare` (the producer is a word the scheduler would scoreboard and the text
+  gives it no write barrier). One line per (producer, reader, cover), with the tightest distance of the paths that
+  give the reader that cover. Two schedules of one text arm different words; under `all` the dump of each names the
+  same pairs, so the distance the other schedule gives a pair is one lookup whatever its cover is there.
+- **What it is for:** a counter of the `guard-settled` reads of a schedule whose distance is below the distance
+  ptxas's schedule of the same text gives the pair. Until now the dump had a distance cell for a producer of a fixed
+  latency only; the readers of a load had none.
+- **What it reads** (static counts; the operand sets of `CUBIT_SYNC_CLASSES=1`; FC1 | FC2 | the r33 form of FC1 —
+  served are FC1 and FC2): the same 2 808 | 1 081 | 2 768 pairs in every schedule of a text; in ptxas's schedule
+  106 | 136 | 99 of them are `guard-settled` and 99 | 73 | 144 stand behind a load he leaves bare. In cubit's schedules
+  without the wait policy (the dependency-aware scheduler, also with the table's stalls behind memory words and with
+  the lowering pass) 5 | 2 | 5 reads are `guard-settled`, each of them `guard-settled` in ptxas's schedule too, and
+  none stands below his distance of the same pair. Under `CUBIT_WAIT_POLICY=1` 170 | 17 | 81 are, and 133 | 5 | 39 of
+  them stand below ptxas's distance of the same pair (59 | 5 | 34 of the 170 | 17 | 81 behind a load he leaves bare).
+  No card has ranked a schedule by this count.
+- **How it walks** (`src/guard_cells.rs`): behind every word that arms a write barrier and writes a register, the
+  paths of the flow graph the dump's other cells stand on, in order of distance, with the scheduler's operand sets. A
+  register is followed until a word under no guard rewrites it; a path ends back at the producer; a `DEPBAR` waits
+  its scoreboard; a waiter whose guard is the pending result itself counts as a word under no guard. A value that is
+  neither `1` nor `all` is refused; an empty value and `0` are no switch.
+- Tests: `tests/guard_settled_cells.rs` (9, through the binary: the cell behind a guarded waiter and none behind an
+  unguarded one, two paths, no waiter, a bare load, cubit's schedule under `CUBIT_GUARDED_READER_SETTLES=1`, cubit's
+  default behind a guarded overwriter — the reader behind it carries no wait —, the dump and the cubin without the
+  switch byte for byte, the refused value).
+
 ## Unreleased — 2026-11-13 (`CUBIT_LOAD_COVER=1`: the vendor's SHARING at the colouring — a shared load without a free scoreboard joins the load in front as ONE set with ONE wait; the read barrier of a `SYNCS.ARRIVE` in front of a backward branch is waited where its scoreboard is armed again; a card has read FC2's stage loop under the switch inside the vendor's frame — 0.054 ± 0.017 % behind ptxas's build where its base stands 0.190 ± 0.018 % behind: cubit is still behind on FC2; without the switch nothing changes)
 
 - **Why.** With its three clauses the switch gave FC2's stage loop the vendor's 17 bare loads, not his sets: his set

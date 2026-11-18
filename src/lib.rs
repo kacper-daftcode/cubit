@@ -32,6 +32,7 @@ pub mod eiattr;
 pub mod elf;
 pub mod elf_builder;
 pub mod encoder;
+pub mod guard_cells;
 pub mod ir;
 pub mod legality;
 pub mod mercury;
