@@ -5774,6 +5774,21 @@ fn cmd_asm_directive_format(
                     eprintln!("  WARN [{}] HAZ {}", def.name, h.msg);
                 }
             }
+            // the path-aware half of the audit (`report_hazards_on_paths`): the reads the text walk
+            // does not name. Under CUBIT_HAZ alone, frozen or not -- without the variable the log is
+            // the text walk's, as it was.
+            if haz_all {
+                let p = cubit::scheduling_pass::report_hazards_on_paths(&insns_with_ctrl);
+                for h in &p.added {
+                    eprintln!("  WARN [{}] HAZ {}", def.name, h.msg);
+                }
+                if p.on_paths > 0 || p.walk_only > 0 {
+                    eprintln!(
+                        "  WARN [{}] HAZ paths: {} read(s) of a result some path leaves unwaited ({} of them named by the text walk too); {} read(s) the text walk names stand behind a wait on every path",
+                        def.name, p.on_paths, p.both, p.walk_only
+                    );
+                }
+            }
         }
 
         // CUBIT_SYNC_CLASSES: an overwriter keeps the vendor's distance behind an MMA that reads

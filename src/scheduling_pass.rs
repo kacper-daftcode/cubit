@@ -2889,6 +2889,12 @@ pub struct HazardReport {
 /// Used to diff a broken cubit schedule against a known-
 /// good (frozen) one: hazards present only in the broken schedule are the bug.
 pub fn report_hazards(insns: &[Instruction]) -> Vec<HazardReport> {
+    hazards_in_text_order(insns).0
+}
+
+/// [`report_hazards`], and the reads its `NOT waited` findings name: (address, uniform register?,
+/// register).
+fn hazards_in_text_order(insns: &[Instruction]) -> (Vec<HazardReport>, std::collections::HashSet<(u32, bool, u16)>) {
     // Build the replay sequence: linear, plus one replay of the first conditional
     // backward-branch loop body (to surface loop-carried deps).
     let mut seq: Vec<usize> = (0..insns.len()).collect();
@@ -2923,6 +2929,8 @@ pub fn report_hazards(insns: &[Instruction]) -> Vec<HazardReport> {
     let mut armed: [Vec<usize>; NUM_BARRIERS] = std::array::from_fn(|_| Vec::new());
     let mut out: Vec<HazardReport> = Vec::new();
     let mut seen: std::collections::HashSet<(u32, bool, u16)> = std::collections::HashSet::new();
+    // the reads of the `NOT waited` findings alone (the path-aware scan speaks of these)
+    let mut unwaited: std::collections::HashSet<(u32, bool, u16)> = std::collections::HashSet::new();
     let mut clock: usize = 0;
     // Floor for barrier-less long-latency RAW: mirrors the LONG_LATENCY_ESTIMATE used
     // by the auto path when a consumer cannot encode a wait. A producer->consumer
@@ -2985,6 +2993,7 @@ pub fn report_hazards(insns: &[Instruction]) -> Vec<HazardReport> {
                         if armed[b as usize].contains(&pidx) {
                             let key = (insn.addr, is_u, reg);
                             if seen.insert(key) {
+                                unwaited.insert(key);
                                 out.push(HazardReport { frozen, msg: format!("RAW @0x{:04x} {:38} reads {}{} <- 0x{:04x} {} (wb{}, NOT waited)",
                                     insn.addr, insn.raw_text.split('/').next().unwrap_or(&insn.opcode).trim(),
                                     if is_u {"UR"} else {"R"}, reg,
@@ -3103,7 +3112,163 @@ pub fn report_hazards(insns: &[Instruction]) -> Vec<HazardReport> {
             armed[b as usize].push(i);
         }
     }
-    out
+    (out, unwaited)
+}
+
+/// What [`report_hazards_on_paths`] found.
+pub struct PathHazards {
+    /// the reads of an unwaited result that [`report_hazards`] does not name
+    pub added: Vec<HazardReport>,
+    /// reads of a result that some path leaves unwaited, in all
+    pub on_paths: usize,
+    /// of those, the reads the text walk names too
+    pub both: usize,
+    /// `NOT waited` reads of the text walk that no path of the flow graph shows
+    pub walk_only: usize,
+}
+
+/// The path-aware half of the RAW audit (`CUBIT_HAZ`). [`report_hazards`] walks the text in
+/// order and replays one loop body: the scoreboard state it holds at a word is what the TEXT in
+/// front of the word leaves, not what any path that reaches the word leaves. The out-of-line
+/// block of a `BRA.DIV` (it stands behind the last `EXIT`), the arm behind an unconditional
+/// `BRA`, the case blocks of a `BRX` and every loop but the first are entered there with waits
+/// their paths never issued, and a read of a result that no word waited was not named.
+///
+/// This scan runs on the control-flow graph ([`crate::cfg_flow::Cfg`]). The state at a word is
+/// the set of (register, producer) pairs for which SOME path from the producer to the word
+/// redefines the register nowhere and waits the producer's write barrier nowhere. Word by word
+/// it moves as the text walk's state does: a wait bit (and a `DEPBAR` of the barrier) takes the
+/// barrier's pairs out, a definition takes the register's pairs out and, with a write barrier,
+/// puts its own in; where paths meet the sets are united. A read of a register with a pair in
+/// the state is a finding.
+///
+/// `added` holds only the reads [`report_hazards`] does not name, so the two lists add; a
+/// finding here reads `NOT waited on a path`. The three counts say how the two walks stand to
+/// each other: the reads some path leaves unwaited, those of them the text walk names too, and
+/// the `NOT waited` reads of the text walk that no path shows (on every path that reaches them a
+/// word waits the producer's barrier; the text walk came to them by the text). All of it is
+/// printed under `CUBIT_HAZ` alone, frozen or not: without the variable the log is the text
+/// walk's, as it was.
+pub fn report_hazards_on_paths(insns: &[Instruction]) -> PathHazards {
+    let n = insns.len();
+    let (_, walk) = hazards_in_text_order(insns);
+    let none = |walk_only: usize| PathHazards { added: Vec::new(), on_paths: 0, both: 0, walk_only };
+    if n == 0 {
+        return none(walk.len());
+    }
+    let key = |is_u: bool, reg: u16| -> Option<usize> {
+        if reg >= PRED_KEY {
+            None
+        } else if is_u {
+            ((reg as usize) < 72).then_some(256 + reg as usize)
+        } else {
+            ((reg as usize) < 256).then_some(reg as usize)
+        }
+    };
+    // the pairs: one for every register a scoreboarded producer writes
+    let mut pairs: Vec<(usize, usize)> = Vec::new();
+    let mut of_key: Vec<Vec<usize>> = vec![Vec::new(); 256 + 72];
+    let mut of_bar: [Vec<usize>; NUM_BARRIERS] = std::array::from_fn(|_| Vec::new());
+    let mut of_word: Vec<Vec<usize>> = vec![Vec::new(); n];
+    for (i, x) in insns.iter().enumerate() {
+        if x.ctrl.write_bar >= NUM_BARRIERS as u8 {
+            continue;
+        }
+        for (is_u, reg) in dest_regs(x) {
+            if let Some(k) = key(is_u, reg) {
+                let id = pairs.len();
+                pairs.push((k, i));
+                of_key[k].push(id);
+                of_bar[x.ctrl.write_bar as usize].push(id);
+                of_word[i].push(id);
+            }
+        }
+    }
+    if pairs.is_empty() {
+        return none(walk.len());
+    }
+    let words = pairs.len().div_ceil(64);
+    let clear = |s: &mut [u64], ids: &[usize]| {
+        for &id in ids {
+            s[id / 64] &= !(1u64 << (id % 64));
+        }
+    };
+    // what the word's own wait does to the state that enters it (its wait mask, or the
+    // scoreboard a `DEPBAR` drains)
+    let waited = |s: &mut [u64], x: &Instruction| {
+        let mask = crate::store_paths::waits(x);
+        for (b, ids) in of_bar.iter().enumerate() {
+            if mask & (1 << b) != 0 {
+                clear(s, ids);
+            }
+        }
+    };
+    let c = crate::cfg_flow::Cfg::build(insns);
+    let mut state: Vec<Vec<u64>> = vec![vec![0u64; words]; n];
+    let mut reached = vec![false; n];
+    reached[0] = true;
+    let mut work: Vec<usize> = vec![0];
+    while let Some(j) = work.pop() {
+        let mut s = state[j].clone();
+        waited(&mut s, &insns[j]);
+        for (is_u, reg) in dest_regs(&insns[j]) {
+            if let Some(k) = key(is_u, reg) {
+                clear(&mut s, &of_key[k]);
+            }
+        }
+        for &id in &of_word[j] {
+            s[id / 64] |= 1u64 << (id % 64);
+        }
+        for &t in &c.succ[j] {
+            let mut grew = !reached[t];
+            for (a, b) in state[t].iter_mut().zip(&s) {
+                if *b & !*a != 0 {
+                    *a |= *b;
+                    grew = true;
+                }
+            }
+            if grew {
+                reached[t] = true;
+                work.push(t);
+            }
+        }
+    }
+    let mut found: std::collections::HashSet<(u32, bool, u16)> = std::collections::HashSet::new();
+    let mut added = Vec::new();
+    for (j, x) in insns.iter().enumerate() {
+        if !reached[j] {
+            continue;
+        }
+        let mut s = state[j].clone();
+        waited(&mut s, x);
+        for (is_u, reg) in src_regs(x) {
+            let Some(k) = key(is_u, reg) else { continue };
+            let pending: Vec<usize> = of_key[k].iter().copied().filter(|&id| (s[id / 64] >> (id % 64)) & 1 == 1).collect();
+            let Some(&first) = pending.first() else { continue };
+            let read = (x.addr, is_u, reg);
+            if !found.insert(read) || walk.contains(&read) {
+                continue;
+            }
+            let p = pairs[first].1;
+            let more = if pending.len() > 1 { format!(", and {} more producer(s)", pending.len() - 1) } else { String::new() };
+            added.push(HazardReport {
+                frozen: x.hand_sched || insns[p].hand_sched,
+                msg: format!(
+                    "RAW @0x{:04x} {:38} reads {}{} <- 0x{:04x} {} (wb{}, NOT waited on a path{})",
+                    x.addr,
+                    x.raw_text.split('/').next().unwrap_or(&x.opcode).trim(),
+                    if is_u { "UR" } else { "R" },
+                    reg,
+                    insns[p].addr,
+                    insns[p].opcode,
+                    insns[p].ctrl.write_bar,
+                    more
+                ),
+            });
+        }
+    }
+    let both = found.intersection(&walk).count();
+    PathHazards { added, on_paths: found.len(), both, walk_only: walk.len() - both }
 }
 
 fn record_defs(st: &mut SchedulerState, insn: &Instruction, idx: usize, barrier: Option<u8>, clock: usize) {

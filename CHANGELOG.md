@@ -4,6 +4,32 @@ User-visible changes, newest first. Table syncs name the blackwell-isa revision 
 (`tables/SOURCE.json` pins it byte for byte). Numbered `BUG-NNN` entries are the encoder /
 decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `docs/TESTS.md`).
 
+## Unreleased — 2026-11-18 (the scoreboard audit `CUBIT_HAZ` follows the paths of a kernel: a second, path-aware scan names the reads of an unwaited result that the text walk does not reach, and counts the text walk's false alarms)
+
+- **The path-aware scan of the audit** (`scheduling_pass::report_hazards_on_paths`, printed under `CUBIT_HAZ`;
+  KNOWN_ISSUES A62): the audit's RAW check (`report_hazards`) walks the text in order and replays the first loop —
+  at a word it holds the scoreboard state that the TEXT in front of the word leaves. A block that execution enters
+  from elsewhere — the out-of-line block of a `BRA.DIV` behind the last `EXIT`, the arm behind an unconditional
+  `BRA`, a case block of a `BRX`, the next round of every loop but the first — was read with waits its paths never
+  issue, and a read there of a result that no word waited was not named. The new scan runs on the control-flow graph
+  (`cfg_flow`): the state at a word is the set of (register, producer) pairs that SOME path leaves unwaited — a wait
+  bit or a `DEPBAR` takes the barrier's pairs out, a definition takes the register's pairs out and, with a write
+  barrier, puts its own in; where paths meet the sets unite. A read with a pair in the state is a finding.
+- **What is printed, and when:** under `CUBIT_HAZ` the text walk's lines as before, then the reads the scan alone
+  names (`HAZ RAW … (wbN, NOT waited on a path)`), then one line `HAZ paths: …` with three counts — the reads some
+  path leaves unwaited, those of them the text walk names too, and the reads the text walk names although a word
+  waits on every path that reaches them. The text walk's lines stay as they are. Without the variable nothing new is
+  printed, frozen or not: the log of a build is what it was. The audit writes no field: no schedule moves.
+- **What it reads on real texts:** on the vendor's own schedules of the served module (FC1, its r33 form, FC2, every
+  control word kept) the scan names nothing, and all 4 | 4 | 20 reads the text walk names there stand behind a wait
+  on every path; on cubit's schedules of FC1 and of its r33 form in the recipe of the record text — FC1 also under
+  `CUBIT_SCHED2_PACE=tensor` and with `CUBIT_TENSOR_YIELD=holds` beside it — and on cubit's own schedule of the
+  whole FC2 neither walk names a read; on the record text of FC2 (the vendor's control words outside one loop) the
+  scan names nothing and the text walk's 20 are the vendor's 20. On a hybrid text — the vendor's control words kept
+  on words that read a load cubit had moved to another scoreboard — three reads have no wait on some path: the text
+  walk named one, the scan names the other two, one of them in the out-of-line block of a `BRA.DIV`.
+- **Tests:** `tests/haz_paths.rs` (8; five fail without the scan, three are controls).
+
 ## Unreleased — 2026-11-18 (`tools/stallfloor/probe.py` 34, builds ten to twelve, and the row `barrier_arm` of the sm_120 dependency table: every row says on how many card models it stands — the prohibition binds behind three more setters, the yield flag on the first waiting word reads right behind twenty-one setters, five more forms of a set's waits; one card model each)
 
 - **`tables/dep_latency_sm120.json`, the row `barrier_arm`: `card_models` in every row of its members, the member
