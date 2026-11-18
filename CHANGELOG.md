@@ -4,6 +4,60 @@ User-visible changes, newest first. Table syncs name the blackwell-isa revision 
 (`tables/SOURCE.json` pins it byte for byte). Numbered `BUG-NNN` entries are the encoder /
 decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `docs/TESTS.md`).
 
+## Unreleased — 2026-11-13 (`CUBIT_LOAD_COVER=1`: the vendor's SHARING at the colouring — a shared load without a free scoreboard joins the load in front as ONE set with ONE wait; the read barrier of a `SYNCS.ARRIVE` in front of a backward branch is waited where its scoreboard is armed again; a card has read FC2's stage loop under the switch inside the vendor's frame — 0.054 ± 0.017 % behind ptxas's build where its base stands 0.190 ± 0.018 % behind: cubit is still behind on FC2; without the switch nothing changes)
+
+- **Why.** With its three clauses the switch gave FC2's stage loop the vendor's 17 bare loads, not his sets: his set
+  of five in the ninth stage (`[W4] LDS R89 ; [R5:W4] LDS.U16 R14 ; [W4] LDS.64 R48 ; [W4] LDS.64 R10 ; [W4] LDS R87
+  ... [B4] QMMA ... R89`) came out as one load alone and a set of four, so the bare `LDS.U16` in front of it stood
+  under another cover than his. Who kept a scoreboard from the first stage was the read barrier of the loop's last
+  `SYNCS.ARRIVE`: by paths it lives through the backward branch up to the load that rewrites its address register at
+  the loop's top, 88 words — a long use, coloured first, on scoreboard 0 over the whole first stage — and
+  `CUBIT_WAIT_POLICY=1` moves its wait onto the branch only behind the colouring.
+- **The set** (`scheduling_pass::load_cover`, at the colouring): a word's read barrier takes its scoreboard in front
+  of its write barrier; a shared load that then finds no scoreboard free joins the shared load in front of it that is
+  still in flight — one use, ONE wait on the first reader of any of its loads; the readers behind that word do not
+  wait again and the scoreboard is free behind it.
+- **The arrive** (`scheduling_pass::arrive_split`): the read barrier of a `SYNCS.ARRIVE` whose first branch behind it
+  jumps back is coloured over its part behind the arrive — it holds its scoreboard up to the overwriter behind the
+  branch, which waits it (`[B0] LDS.64 R68`). On each path through the branch the first word of the straight head
+  that arms that scoreboard again waits it first (`[B0:W0] S2R R75, SR_CgaCtaId`); a head that waits the scoreboard
+  before arming it needs nothing; a head that does neither keeps the policy's wait on the branch.
+- **What it gives (static).** FC2's stage loop inside the vendor's own frame: his wait bits, read barriers and write
+  barriers on 458 of its 460 words (the two that differ are the place of one wait — the read barrier of another
+  arrive, which he waits on a branch and cubit on the overwriter); 17 bare loads, 13 in his three sets, 42 alone; 58
+  wait bits as his 58. What still differs there is cubit's own: 90 stall counts (sum 1 192 against 1 175) and 45
+  yield flags. cubit's own schedules of the three served texts move 224 | 143 | 417 control words against
+  `CUBIT_WAIT_POLICY=1` alone (FC1 | its r33 form | FC2) — most of them scoreboard numbers, which follow the order of
+  the colouring; stall counts on 2 | 2 | 3 words, no yield flag. `CUBIT_VERIFY`'s plain view counts no more than
+  under the policy alone: broken WAR 8 | 2 | 0 (unchanged), recycle-stale 53 | 44 | 111 against 68 | 76 | 159. No
+  word that sets a write barrier with the yield flag has its first wait one issue cycle behind it.
+- **What a card says — cubit is still behind ptxas on FC2.** The text that ran: the served FC2 with the vendor's own
+  control codes on every word outside the stage loop, and the loop's 460 words, its 72 shared loads among them,
+  scheduled by cubit under `CUBIT_WAIT_POLICY=1 CUBIT_LOAD_COVER=1`. Its base: the same frame with the loop under
+  the policy alone and the vendor's 72 load words carried over by hand. **Numbers of record** (the full form: both
+  load orders, 1 200 pairs an order at 4 096 rows; one card model, free of its power limit; every call's result
+  compared and identical; each text against ptxas's own build): the text reads fc2 0.054 ± 0.017 % ABOVE ptxas's
+  build (0.31 ± 0.09 µs on his 571.15 µs) and the span of the call 0.025 ± 0.009 % above; its base 0.190 ± 0.018 %
+  and 0.076 ± 0.009 % above in the same block; the text minus its base −0.78 ± 0.11 µs a call. The loop as the
+  allocator writes it under the switch brings home 0.72 of the base's shortfall and is not level with ptxas. With
+  fewer rows the text is not told apart from ptxas's build (fc2 −0.040 ± 0.057 | −0.043 ± 0.133 | +0.008 ±
+  0.037 % at 2 048 | 1 024 | 256 rows): what is left stands in the per-row part between 2 048 and 4 096 rows. A
+  ranking in front of it (one block in one load order, a shorter form) had read the same: 0.053 ± 0.020 % above
+  ptxas on fc2, the text minus its base −0.83 ± 0.12 µs. cubit's own schedule of the WHOLE text under the switch
+  has gone to no card.
+- **Not known.** Why the loop is still behind: inside it cubit's stall counts and yield flags are its own (the 90
+  and 45 words above). Both sentences are the vendor's practice in this kernel: a set of five shared loads of three
+  widths with a read barrier on its second load, and an arrive's operand released by the wait of a word that arms
+  the scoreboard again, are not shapes a probe has measured — one text that holds them has read every result right
+  on one card model, which is no law. The power limit; another card model. The entry below counts the three
+  clauses alone (30 | 35 | 97 control words; 12 loads in three sets, 43 alone); a schedule under the three clauses
+  alone has gone to no card.
+- `tests/load_cover.rs` (7 tests; the two new ones fail on the switch with its three clauses alone): a row of four
+  loads behind four wide loads in flight is ONE set with ONE wait and the read barrier of its second load on the last
+  free scoreboard; in a loop that ends in an arrive and the backward branch, the special-register word at the loop's
+  top waits the arrive's read barrier and arms the scoreboard, the load behind the branch waits it, the branch does
+  not.
+
 ## Unreleased — 2026-11-13 (`CUBIT_LOAD_COVER=1`, opt-in: the vendor's form of a shared-memory load — a load under the wait of a younger load carries no barrier; static, no card has read a schedule under it; without the switch nothing changes)
 
 - **`CUBIT_LOAD_COVER=1`** (honoured only together with `CUBIT_WAIT_POLICY=1`; KNOWN_ISSUES A57): the memory pipe of a

@@ -384,12 +384,32 @@ pub fn wait_policy() -> bool {
 ///   carries the read barrier** (`LDS R86, [R12+0x2100] ... LDS R81, [R12+0x2120] [R4] ...
 ///   LOP3.LUT R12, ... [B4]`): when the youngest has read its address, the older ones have.
 ///
+/// And the vendor's SHARING, at the colouring itself (scoreboards count: one wait releases every
+/// result and every operand armed on the scoreboard):
+///
+/// * **a word's read barrier takes its scoreboard in front of its write barrier, and a shared
+///   load that finds no scoreboard free joins the shared load in front of it that is still in
+///   flight** -- ONE set in front of ONE wait, the first reader of any of its loads; the readers
+///   behind that word do not wait again and the scoreboard is free behind it (`[W4] LDS R89 ;
+///   [R5:W4] LDS.U16 R14 ; [W4] LDS.64 R48 ; [W4] LDS.64 R10 ; [W4] LDS R87 ... [B4] QMMA ...
+///   R89`: his set of five in the ninth stage of the served fc2 kernel, where five scoreboards
+///   are busy; in the first stage one more is free and the first load stands alone).
+/// * **the read barrier of a `SYNCS.ARRIVE` in front of a BACKWARD branch holds its scoreboard
+///   up to the overwriter behind the branch, which waits it; on the path through the branch the
+///   first word that arms that scoreboard again waits it first** (`[R0] @!P5 SYNCS.ARRIVE ... ;
+///   @!P6 BRA L_49f0 ; ... [B0] LDS.64 R68` and, behind `L_49f0`, `[B0:W0] S2R R75,
+///   SR_CgaCtaId`). [`wait_policy`] alone waits it on the branch: the use is then short, but it
+///   was coloured as the long use it is by paths -- through the branch it reaches the overwriter
+///   at the loop's top -- and kept scoreboard 0 off the whole first stage. Where a path through
+///   the branch neither arms nor waits the scoreboard on its straight head, the policy's wait on
+///   the branch stays (`arrive_split`).
+///
 /// Every load in question is unguarded and stands with its cover and its readers on one straight
 /// line of the text. What silicon has measured of this form is the first clause's simplest shape
 /// (ONE bare load under ONE younger load, the base not rewritten: `tools/probe_sm120`, the cover
 /// set); the shapes a served kernel has beyond it -- several bare loads under one cover, a bare
-/// `LDS.U16`, the second and third clause -- are the vendor's practice, not a measurement. The
-/// switch is for exploration.
+/// `LDS.U16`, the second and third clause, the two sentences of the sharing as this kernel has
+/// them -- are the vendor's practice, not a measurement. The switch is for exploration.
 pub fn load_cover() -> bool {
     std::env::var("CUBIT_LOAD_COVER").ok().as_deref() == Some("1") && wait_policy()
 }
@@ -400,6 +420,77 @@ pub(crate) fn plain_shared_load(insn: &Instruction) -> bool {
     matches!(insn.opcode_full.as_str(), "LDS" | "LDS.64" | "LDS.U16")
         && insn.guard.as_ref().is_none_or(|g| g.pred >= 7)
         && !insn.hand_sched
+}
+
+/// The word [`wait_policy`] lets wait the read barrier of the `SYNCS.ARRIVE` at `idx`: the first
+/// word behind it that does not simply fall through, when it is a `BRA` that can carry a wait
+/// and no overwriter stands in front of it.
+fn arrive_branch(c: &crate::cfg_flow::Cfg, use_: &BarUse, idx: usize, can_wait: &[bool], insns: &[Instruction]) -> Option<usize> {
+    let n = insns.len();
+    let mut k = idx + 1;
+    while k < n && !use_.waiters.contains(&k) && c.succ[k].len() == 1 && c.succ[k][0] == k + 1 {
+        k += 1;
+    }
+    (k < n && !use_.waiters.contains(&k) && insns[k].opcode == "BRA" && can_wait[k] && !insns[k].hand_sched).then_some(k)
+}
+
+/// The parts of a read-barrier use (see [`arrive_split`]): the runs it is live on behind its
+/// word, the overwriters that end them, and the heads `(target, overwriter)` of the paths
+/// through the backward branch.
+type ArriveParts = (Vec<(usize, usize)>, Vec<usize>, Vec<(usize, usize)>);
+
+/// A read-barrier use that was coloured over its part behind the arrive: (the use, the arrive,
+/// the backward branch, the heads of the paths through it).
+type ArriveBack = (usize, usize, usize, Vec<(usize, usize)>);
+
+/// [`load_cover`], the fourth clause: the read barrier of the `SYNCS.ARRIVE` at `idx` whose
+/// branch `k` ([`arrive_branch`]) jumps BACK. The use has two parts -- the words behind the
+/// arrive on the paths that do not take the branch, up to the overwriters there, and, for each
+/// path through the branch, the run from the branch's target to the overwriter in front of the
+/// arrive. `None` when the use does not have both parts or one of them is not of that shape (an
+/// overwriter behind the branch that cannot carry a wait; an overwriter in front that does not
+/// end the run of a target).
+fn arrive_split(c: &crate::cfg_flow::Cfg, use_: &BarUse, idx: usize, k: usize, can_wait: &[bool], insns: &[Instruction]) -> Option<ArriveParts> {
+    let back: Vec<usize> = c.succ[k].iter().copied().filter(|&t| t <= idx).collect();
+    if back.is_empty() {
+        return None;
+    }
+    let live = |j: usize| use_.segs.iter().any(|&(a, b)| a <= j && j <= b);
+    let mut seen = vec![false; c.succ.len()];
+    let mut stack = vec![idx];
+    let mut ahead: Vec<usize> = Vec::new();
+    while let Some(j) = stack.pop() {
+        if seen[j] || !live(j) {
+            continue;
+        }
+        seen[j] = true;
+        ahead.push(j);
+        if j != idx && use_.waiters.contains(&j) {
+            continue;
+        }
+        for &t in &c.succ[j] {
+            if !(j == k && t <= idx) {
+                stack.push(t);
+            }
+        }
+    }
+    ahead.sort_unstable();
+    let behind: Vec<usize> = use_.waiters.iter().copied().filter(|&w| seen[w]).collect();
+    let front: Vec<usize> = use_.waiters.iter().copied().filter(|&w| !seen[w]).collect();
+    if behind.is_empty() || front.is_empty() || !behind.iter().all(|&w| can_wait[w] && !insns[w].hand_sched) {
+        return None;
+    }
+    let mut heads: Vec<(usize, usize)> = Vec::new();
+    for &w in &front {
+        let run = use_.segs.iter().copied().find(|&(a, b)| a <= w && w <= b)?;
+        if run.1 != w || run.1 >= idx || !back.contains(&run.0) {
+            return None;
+        }
+        if !heads.contains(&run) {
+            heads.push(run);
+        }
+    }
+    Some((crate::cfg_flow::runs(&ahead), behind, heads))
 }
 
 /// `CUBIT_SB_SHARE=1`, or [`wait_policy`], which contains it.
@@ -4540,6 +4631,23 @@ pub fn reallocate_barriers(insns: &mut [Instruction], table: Option<&IsaTable>) 
         }
     }
 
+    // ---- CUBIT_LOAD_COVER, the sharing: the read barrier of a `SYNCS.ARRIVE` in front of a
+    // backward branch is coloured over its part BEHIND the arrive (see `load_cover`); whether
+    // the paths through the branch are covered is decided behind the colouring ----
+    let mut arrive_back: Vec<ArriveBack> = Vec::new();
+    if let (true, Some(c)) = (cover, &cfg) {
+        for &(u, idx) in &arrive_uses {
+            if !uses[u].waiters.iter().any(|&w| insns[w].ctrl.write_bar != 7 || insn_needs_write_bar(&insns[w], table, true)) {
+                continue;
+            }
+            let Some(k) = arrive_branch(c, &uses[u], idx, &can_wait, insns) else { continue };
+            let Some((segs, behind, heads)) = arrive_split(c, &uses[u], idx, k, &can_wait, insns) else { continue };
+            uses[u].waiters = behind;
+            uses[u].segs = segs;
+            arrive_back.push((u, idx, k, heads));
+        }
+    }
+
     // ---- colour the uses onto 6 scoreboards via per-instruction occupancy ----
     // `occ[i]` = bitmask of scoreboards live at instruction i. A use takes a barrier
     // free across ALL of its occupied indices (its 1-2 segments). Loop-carried uses
@@ -4578,6 +4686,12 @@ pub fn reallocate_barriers(insns: &mut [Instruction], table: Option<&IsaTable>) 
         // (CUBIT_SYNC_CLASSES, occupancy by execution paths: the long-lived uses first, then in text order)
         let span_of = |u: usize| -> usize { uses[u].segs.iter().map(|&(a, b)| b - a + 1).sum() };
         order.sort_by_key(|&u| (span_of(u) <= 64, uses[u].segs[0].0));
+        if cover {
+            // CUBIT_LOAD_COVER: a word's read barrier takes its scoreboard in front of its write
+            // barrier (the vendor: `[R5:W4] LDS.U16` -- the read barrier on the free scoreboard,
+            // the write barrier shared with the load in front)
+            order.sort_by_key(|&u| (span_of(u) <= 64, uses[u].segs[0].0, !uses[u].is_rb));
+        }
     }
     let mut occ = vec![0u8; n];
     let mut assigned: Vec<u8> = vec![7; uses.len()];
@@ -4631,6 +4745,44 @@ pub fn reallocate_barriers(insns: &mut [Instruction], table: Option<&IsaTable>) 
             if chosen.is_some() { break; }
             if sidx.iter().all(|&i| occ[i] & (1 << b) == 0) { chosen = Some(b); break; }
         }
+        // CUBIT_LOAD_COVER: a shared load that finds no scoreboard free joins the shared load in
+        // front of it that is still in flight -- ONE set in front of ONE wait, the first reader
+        // of any of its loads; the readers behind that word do not wait again and the scoreboard
+        // is free behind it (the vendor's sets of four and five loads: `[W4] LDS R89 ; [R5:W4]
+        // LDS.U16 R14 ; [W4] LDS.64 R48 ; [W4] LDS.64 R10 ; [W4] LDS R87 ... [B4] QMMA ... R89`)
+        let mut joined: Option<(usize, BarUse)> = None;
+        if chosen.is_none() && cover && !uses[u].is_rb && uses[u].setters.iter().all(|&s| plain_shared_load(&insns[s])) {
+            let first = uses[u].setters[0];
+            let front = (0..uses.len())
+                .filter(|&v| {
+                    v != u
+                        && assigned[v] < NUM_BARRIERS as u8
+                        && !uses[v].is_rb
+                        && pin_of[v].is_none()
+                        && !not_written.contains(&v)
+                        && uses[v].setters.iter().all(|&s| s < first && plain_shared_load(&insns[s]))
+                        && uses[v].segs.iter().any(|&(a, b)| a <= first && first <= b)
+                })
+                .max_by_key(|&v| *uses[v].setters.iter().max().unwrap());
+            if let (Some(v), Some(c)) = (front, &cfg) {
+                let mut set: Vec<usize> = uses[v].setters.clone();
+                set.extend(uses[u].setters.iter().copied());
+                set.sort_unstable();
+                set.dedup();
+                let last = *set.last().unwrap();
+                if uses[u].waiters.iter().chain(uses[v].waiters.iter()).all(|&w| w > last) {
+                    let mut gd: Vec<u16> = set.iter().flat_map(|&g| writes[g].clone()).collect();
+                    gd.sort_unstable();
+                    gd.dedup();
+                    let guarded_here: Vec<bool> = (0..n).map(|j| guarded[j] && !guard_key[j].is_some_and(|k| gd.contains(&k))).collect();
+                    let (waiters, on) = c.first_consumers(&reads, &writes, &guarded_here, &set, &gd, true);
+                    if !waiters.is_empty() && waiters.iter().all(|&w| w > last && can_wait[w]) {
+                        chosen = Some(assigned[v]);
+                        joined = Some((v, BarUse { setters: set, waiters, is_rb: false, segs: crate::cfg_flow::runs(&on) }));
+                    }
+                }
+            }
+        }
         if chosen.is_none() && sb_share {
             // share: the scoreboard already busiest over our segment (clustering)
             let mut best = first_colour;
@@ -4664,6 +4816,14 @@ pub fn reallocate_barriers(insns: &mut [Instruction], table: Option<&IsaTable>) 
                 best
             }
         };
+        if let Some((v, set_use)) = joined {
+            // (the loads stand in the set of `v`: that use carries them, this one is not written)
+            for i in idxset(&set_use.segs) { occ[i] |= 1 << b; }
+            uses[v] = set_use;
+            assigned[u] = b;
+            not_written.push(u);
+            continue;
+        }
         assigned[u] = b;
         for &i in &sidx { occ[i] |= 1 << b; }
         if is_long { for &i in &sidx { occ_long[i] |= 1 << b; } }
@@ -4675,6 +4835,11 @@ pub fn reallocate_barriers(insns: &mut [Instruction], table: Option<&IsaTable>) 
         // -- the first word behind it that does not simply fall through, when no overwriter
         // stands in front of that word and it can carry a wait
         for &(u, idx) in &arrive_uses {
+            // (CUBIT_LOAD_COVER: a use that was coloured over its part behind the arrive is
+            // decided behind the scale loads' clause)
+            if arrive_back.iter().any(|x| x.0 == u) {
+                continue;
+            }
             // (only where an overwriter is itself a scoreboarded producer: its wait would stand
             // behind every result armed on the scoreboard)
             if !uses[u].waiters.iter().any(|&w| insns[w].ctrl.write_bar != 7 || insn_needs_write_bar(&insns[w], table, true)) {
@@ -4770,6 +4935,55 @@ pub fn reallocate_barriers(insns: &mut [Instruction], table: Option<&IsaTable>) 
             uses[u] = BarUse { setters: set, waiters, is_rb: false, segs: crate::cfg_flow::runs(&on) };
             assigned[u] = colour;
             not_written.extend(mates);
+        }
+        // CUBIT_LOAD_COVER, the sharing: the read barrier of a `SYNCS.ARRIVE` in front of a
+        // backward branch stands as it was coloured -- the overwriter behind the branch waits it
+        // -- when every path through the branch releases it on its straight head, in front of
+        // the overwriter there: the first word of the head that touches ITS scoreboard either
+        // waits it already (scoreboards count: that wait releases the arrive's operand too) or
+        // arms it again -- then that word waits it first (the vendor: `[R0] @!P5 SYNCS.ARRIVE
+        // ... @!P6 BRA L_49f0` and, two words behind L_49f0, `[B0:W0] S2R R75, SR_CgaCtaId`).
+        // A head that does neither keeps the policy's wait on the branch.
+        for (u, idx, k, heads) in &arrive_back {
+            let (u, b) = (*u, assigned[*u]);
+            let straight = |a: usize, j: usize| (a..j).all(|x| c.succ[x].len() == 1 && c.succ[x][0] == x + 1 && c.pred[x + 1].len() == 1);
+            let on_b = |v: usize| v != u && assigned[v] == b && !covered.contains(&v) && !not_written.contains(&v);
+            let mut arms: Vec<(usize, usize)> = Vec::new(); // (the head's first word, the word that arms the scoreboard again)
+            let mut released = b < NUM_BARRIERS as u8;
+            for &(a, w) in heads {
+                if !released {
+                    break;
+                }
+                let first = (a..w).take_while(|&x| straight(a, x)).find_map(|x| {
+                    if (0..uses.len()).any(|v| on_b(v) && uses[v].waiters.contains(&x)) {
+                        Some((x, true))
+                    } else if (0..uses.len()).any(|v| on_b(v) && uses[v].setters.contains(&x)) {
+                        Some((x, false))
+                    } else {
+                        None
+                    }
+                });
+                match first {
+                    Some((x, waits)) if can_wait[x] && !insns[x].hand_sched => {
+                        if !waits {
+                            arms.push((a, x));
+                        }
+                    }
+                    _ => released = false,
+                }
+            }
+            if released {
+                for (a, x) in arms {
+                    if !uses[u].waiters.contains(&x) {
+                        uses[u].waiters.push(x);
+                        uses[u].segs.push((a, x));
+                    }
+                }
+                uses[u].segs.sort_unstable();
+                continue;
+            }
+            uses[u].waiters = vec![*k];
+            uses[u].segs = vec![(*idx, *k)];
         }
     }
 

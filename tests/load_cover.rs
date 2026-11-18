@@ -14,8 +14,20 @@
 //! 3. of the shared loads off one base register that the same word rewrites, the youngest carries the read
 //!    barrier.
 //!
-//! Four of the five tests fail on the allocator without the switch (the variable is then unknown and changes
-//! nothing); the fifth is their control — a load that keeps its barrier under the switch too.
+//! And the vendor's SHARING, at the colouring itself:
+//!
+//! 4. a word's read barrier takes its scoreboard in front of its write barrier, and a shared load that finds
+//!    no scoreboard free joins the shared load in front of it that is still in flight — ONE set in front of
+//!    ONE wait, the first reader of any of its loads; the readers behind that word do not wait again
+//!    (`[W4] LDS R89 ; [R5:W4] LDS.U16 R14 ; [W4] LDS.64 R48 ; [W4] LDS.64 R10 ; [W4] LDS R87 ... [B4] QMMA`);
+//! 5. the read barrier of a `SYNCS.ARRIVE` in front of a BACKWARD branch holds its scoreboard up to the
+//!    overwriter behind the branch, which waits it; on the path through the branch the first word that arms
+//!    that scoreboard again waits it first (`[R0] SYNCS.ARRIVE ... BRA L_49f0` and, behind `L_49f0`,
+//!    `[B0:W0] S2R R75, SR_CgaCtaId`) — the branch itself carries no wait.
+//!
+//! Four of the first five tests fail on the allocator without the switch (the variable is then unknown and
+//! changes nothing); the fifth is their control — a load that keeps its barrier under the switch too. The
+//! two tests of the sharing fail on the switch as it stood with its three clauses alone.
 
 use std::process::Command;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -211,6 +223,116 @@ fn of_the_loads_off_one_base_the_youngest_carries_the_read_barrier() {
     let (older, younger, rewrite) = (word(&k, "LDS R4,"), word(&k, "LDS R5,"), word(&k, "LOP3.LUT R8,"));
     assert_eq!(older.rb, None, "{k:#?}");
     assert_eq!(rewrite.wait, vec![younger.rb.expect("the youngest load off the base keeps the read barrier")], "{k:#?}");
+}
+
+/// Four wide loads read late, then four loads in a row: six scoreboards for nine uses. The second load of the
+/// row carries a read barrier (a fixed-latency word rewrites its base); every load of the row is read behind
+/// the load in front of it, so none of them is bare (the ninth stage of the served fc2 kernel:
+/// `LDS R89 ; LDS.U16 R14 ; LDS.64 R48 ; LDS.64 R10 ; LDS R87`).
+const ONE_SET: &str = "    S2R R2, SR_TID.X ;
+    SHF.L.U32 R8, R2, 0x4, RZ ;
+    MOV R9, R8 ;
+    MOV R10, R8 ;
+    LDS.64 R20, [R9+0x1000] ;
+    IADD3 R30, PT, PT, R2, 0x1, RZ ;
+    LDS.64 R22, [R9+0x1200] ;
+    IADD3 R31, PT, PT, R2, 0x2, RZ ;
+    LDS.64 R24, [R9+0x1400] ;
+    IADD3 R32, PT, PT, R2, 0x3, RZ ;
+    LDS.64 R26, [R9+0x1600] ;
+    IADD3 R33, PT, PT, R2, 0x4, RZ ;
+    LDS R4, [R10+0x2000] ;
+    LDS.U16 R5, [R8+0x2110] ;
+    LDS.64 R28, [R9+0x1800] ;
+    LDS R6, [R10+0x2040] ;
+    MOV R16, R20 ;
+    MOV R17, R22 ;
+    MOV R18, R24 ;
+    MOV R19, R26 ;
+    LOP3.LUT R8, R30, 0x3c3c3c3c, RZ, 0xc0, !PT ;
+    IADD3 R12, PT, PT, R4, R16, RZ ;
+    IADD3 R12, PT, PT, R12, R5, RZ ;
+    IADD3 R13, PT, PT, R28, R17, RZ ;
+    IADD3 R13, PT, PT, R13, R6, RZ ;
+    IADD3 R12, PT, PT, R12, R18, RZ ;
+    IADD3 R13, PT, PT, R13, R19, RZ ;
+    IADD3 R12, PT, PT, R12, R13, RZ ;
+    IADD3 R12, PT, PT, R12, R8, RZ ;
+    EXIT ;
+";
+
+/// A loop whose last words are a `SYNCS.ARRIVE` and the backward branch; a wide load rewrites the arrive's
+/// address register behind the branch and another one at the loop's top, behind a special-register word that
+/// arms a scoreboard (the stage loop of the served fc2 kernel: `@!P5 SYNCS.ARRIVE.TRANS64.A1T0 RZ, [R69+URZ],
+/// RZ ; @!P6 BRA L_49f0 ... LDS.64 R68, [R88+0x1c00]` and, at `L_49f0`, `S2R R75, SR_CgaCtaId ... LDS.64 R68,
+/// [R64+0x1c00]`).
+const ARRIVE_LOOP: &str = "    S2R R2, SR_TID.X ;
+    SHF.L.U32 R10, R2, 0x3, RZ ;
+    MOV R20, RZ ;
+    MOV R6, RZ ;
+L_top:
+    IADD3 R20, PT, PT, R20, 0x1, RZ ;
+    S2R R14, SR_CgaCtaId ;
+    ISETP.NE.AND P0, PT, R20, 0x4, PT ;
+    LEA R15, R14, R10, 0x18 ;
+    LDS.64 R8, [R10+0x1c00] ;
+    MOV R16, R8 ;
+    IADD3 R6, PT, PT, R6, R16, RZ ;
+    IADD3 R6, PT, PT, R6, R15, RZ ;
+    SYNCS.ARRIVE.TRANS64.A1T0 RZ, [R9+URZ], RZ ;
+    @P0 BRA L_top ;
+    LDS.64 R8, [R10+0x1e00] ;
+    MOV R17, R8 ;
+    IADD3 R6, PT, PT, R6, R17, RZ ;
+    EXIT ;
+";
+
+#[test]
+fn a_shared_load_that_finds_no_scoreboard_free_joins_the_load_in_front_one_set_one_wait() {
+    let (k, cubin) = build(ONE_SET, &[SYNC, POLICY, COVER]);
+    let row: Vec<&Word> = ["LDS R4,", "LDS.U16 R5,", "LDS.64 R28,", "LDS R6,"].iter().map(|s| word(&k, s)).collect();
+    // ONE scoreboard for the row; the read barrier of its second load took the last free one first
+    let sb = row[0].wb.expect("the load in front keeps its scoreboard");
+    assert!(row.iter().all(|w| w.wb == Some(sb)), "{k:#?}");
+    let rb = row[1].rb.expect("the load whose base is rewritten carries the read barrier");
+    assert_ne!(rb, sb, "{k:#?}");
+    assert!(row.iter().all(|w| w.wait.is_empty()), "no load waits: {k:#?}");
+    let mut all: Vec<u8> = ["LDS.64 R20,", "LDS.64 R22,", "LDS.64 R24,", "LDS.64 R26,"]
+        .iter()
+        .map(|s| word(&k, s).wb.expect("a wide load in front keeps a scoreboard of its own"))
+        .collect();
+    all.extend([sb, rb]);
+    all.sort_unstable();
+    all.dedup();
+    assert_eq!(all, vec![0, 1, 2, 3, 4, 5], "six scoreboards, none shared but the row's: {k:#?}");
+    // ONE wait: the first reader of any load of the row; the readers behind it do not wait again
+    assert_eq!(word(&k, "IADD3 R12, PT, PT, R4,").wait, vec![sb], "{k:#?}");
+    for reader in ["IADD3 R12, PT, PT, R12, R5,", "IADD3 R13, PT, PT, R28,", "IADD3 R13, PT, PT, R13, R6,"] {
+        assert!(word(&k, reader).wait.is_empty(), "{reader} {k:#?}");
+    }
+    assert_eq!(word(&k, "LOP3.LUT R8,").wait, vec![rb], "{k:#?}");
+    assert!(cubin != build(ONE_SET, &[SYNC, POLICY]).1);
+    assert!(build(ONE_SET, &[SYNC, COVER]).1 == build(ONE_SET, &[SYNC]).1);
+}
+
+#[test]
+fn the_read_barrier_of_an_arrive_in_front_of_a_backward_branch_is_waited_where_its_scoreboard_is_armed_again() {
+    // the policy alone: the branch waits the read barrier
+    let (k, policy_cubin) = build(ARRIVE_LOOP, &[SYNC, POLICY]);
+    let rb = word(&k, "SYNCS.ARRIVE").rb.expect("the word reads its address register late");
+    assert!(word(&k, "@P0 BRA").wait.contains(&rb), "{k:#?}");
+    assert!(word(&k, "S2R R14,").wait.is_empty(), "{k:#?}");
+    // the switch: the overwriter behind the branch waits it; on the path through the branch the word that
+    // arms the scoreboard again waits it first; the branch and the overwriter at the loop's top do not
+    let (k, cubin) = build(ARRIVE_LOOP, &[SYNC, POLICY, COVER]);
+    let rb = word(&k, "SYNCS.ARRIVE").rb.expect("the read barrier stays");
+    let top = word(&k, "S2R R14,");
+    assert_eq!((top.wb, top.wait.clone()), (Some(rb), vec![rb]), "{k:#?}");
+    assert!(word(&k, "@P0 BRA").wait.is_empty(), "{k:#?}");
+    assert!(word(&k, "LDS.64 R8, [R10+0x1e00]").wait.contains(&rb), "{k:#?}");
+    assert!(!word(&k, "LDS.64 R8, [R10+0x1c00]").wait.contains(&rb), "{k:#?}");
+    assert!(cubin != policy_cubin);
+    assert!(build(ARRIVE_LOOP, &[SYNC, COVER]).1 == build(ARRIVE_LOOP, &[SYNC]).1);
 }
 
 #[test]
