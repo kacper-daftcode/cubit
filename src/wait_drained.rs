@@ -47,6 +47,11 @@
 //! a wait whose own barrier — the release of a read barrier included — can still be armed. The
 //! rule stands in front of the allocator's two closing clauses (a second writer of a pending
 //! register, a reader of two guarded producers): they close the schedule on the waits that stand.
+//!
+//! A PARKED wait is a wait written for a use: for a reader that cannot carry a wait the allocator
+//! writes it on the latest word in front of the reader that can, and tells the rule so. The word
+//! that carries it may be a waiter of another use on the same scoreboard; a bit is judged by
+//! every use it was written for, and it goes only where all of them are drained.
 
 use crate::cfg_flow::Cfg;
 use crate::ir::Instruction;

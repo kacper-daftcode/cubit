@@ -5551,6 +5551,17 @@ fn reallocate_barriers_in(insns: &mut [Instruction], table: Option<&IsaTable>, c
                 let mut placed = false;
                 let mut k = w;
                 while k > lb + 1 { k -= 1; if can_wait[k] { inject_wait[k] |= 1 << b; placed = true; break; } }
+                if placed {
+                    // CUBIT_WAIT_DRAINED: the parked bit is written for this use like any other --
+                    // the word that carries it may be a waiter of another use on the same
+                    // scoreboard, and the rule judges a bit by every use it was written for
+                    if drained.is_some() {
+                        written_for.push(crate::wait_drained::Written { word: k, sb: b, setters: use_.setters.clone() });
+                    }
+                    if !trial && std::env::var("CUBIT_DUMP_USES").is_ok() {
+                        eprintln!("PARKED b={b} {} waiter={w} on={k} setters={:?}", if use_.is_rb { "rb" } else { "wb" }, use_.setters);
+                    }
+                }
                 if !placed {
                     // No waitable slot between producer and dependent: fall back to a
                     // producer-side latch stall (occupancy-blind, last resort).

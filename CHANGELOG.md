@@ -4,6 +4,31 @@ User-visible changes, newest first. Table syncs name the blackwell-isa revision 
 (`tables/SOURCE.json` pins it byte for byte). Numbered `BUG-NNN` entries are the encoder /
 decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `docs/TESTS.md`).
 
+## Unreleased — 2026-11-18 (`CUBIT_WAIT_DRAINED`: a wait parked for a reader that cannot wait is told to the rule — found in review; what `CUBIT_VERIFY` counts under the rule)
+
+- **The finding** (review of the rule; KNOWN_ISSUES A63). A reader that cannot carry a wait — `LDGSTS`, `FENCE`,
+  `SYNCS.ARRIVE`, the re-check `SYNCS.PHASECHK` under `CUBIT_SYNC_CLASSES` — has its wait PARKED by the allocator on
+  the latest word in front of it that can wait. The emit step did not tell the rule of that bit. Where the word that
+  carries it is a waiter of another use on the same scoreboard, the rule judged the bit by that use alone and took
+  it off: under `paths` on a straight line (two loads, their readers, a third load between the readers whose reader
+  is a `SYNCS.ARRIVE` — the wait of the word in front of it went, `CUBIT_VERIFY` counted one unprotected RAW and the
+  audit named the read with both walks), under `head` in a round (the word in front of the reader waits for a load of
+  the round before behind the first wait of its own round).
+- **The fix** (`scheduling_pass::reallocate_barriers_in`, the emit step): a parked bit is a bit written for the
+  reader's use and goes into the rule's list like any other; a bit is judged by every use it was written for and
+  goes only where all of them are drained. Under `CUBIT_DUMP_USES` the allocator prints one `PARKED` line a parked
+  wait (the scoreboard, the reader, the word that carries the bit, the setters).
+- **Counted on the recipes** (static): cubit's own frame of the served FC2, the record recipe of the served FC1 and
+  the two instances with m-tile loops hold no parked wait at all (0 of 544 | 550 | 756 | 829 uses), so neither value
+  could strike there, and every one of their builds under `head` and under `paths` is byte for byte what the rule
+  built before the fix. On the kernel of the finding the dump names one parked wait and both values keep it.
+- **`CUBIT_VERIFY` under the rule** (A63): its counts rise and are no statement about paths — on cubit's own frame of
+  FC2 0 | 0 | 111 without the rule, 0 | 7 | 119 under `head`, 1 | 7 | 131 under `paths` (unprotected RAW | broken WAR
+  | recycle-stale). The verifier walks the text and keeps the last armer of a scoreboard: the seven and the one stand
+  on text that is no path, the 8 | 20 are reads behind a wait that stands, of a result in a pair the guard allows.
+- `tests/wait_drained.rs`: 14 (the two new tests fail on the rule as it was first written; 12 as before). Without
+  the variable every schedule is byte for byte what it was.
+
 ## Unreleased — 2026-11-18 (`CUBIT_TENSOR_YIELD=holds`, `CUBIT_SCHED2_PACE=tensor`: what a card read on the served FC2 in the full form)
 
 - **KNOWN_ISSUES A60 | A61, one sentence each** (documents only; no schedule moves). In the recipe of the record

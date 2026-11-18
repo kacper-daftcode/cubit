@@ -12,7 +12,10 @@
 //! the allocator colours shares scoreboard 0 — the state of a served kernel in a dozen words.
 //!
 //! The first seven tests fail on the allocator without the rule (the variable is then unknown and changes
-//! nothing); the last five are controls that hold the rule in and pass on both.
+//! nothing); the next five are controls that hold the rule in and pass on both. The last two fail on the rule as
+//! it was first written: a wait the allocator PARKS for a reader that cannot carry one (`LDGSTS`, `FENCE`,
+//! `SYNCS.ARRIVE`, the re-check `SYNCS.PHASECHK` under `CUBIT_SYNC_CLASSES`) was not told to the rule, and where
+//! the word that carries it is a waiter of another use on the same scoreboard the rule took the bit off.
 
 use std::process::Command;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -327,5 +330,54 @@ fn without_the_switch_every_wait_stands_as_before() {
         let (_, alone, _) = build(&text, &[SYNC]);
         let (_, asked, _) = build(&text, &[SYNC, HEAD]);
         assert_eq!(asked, alone, "without the wait policy the variable changes nothing");
+    }
+}
+
+/// Two loads and their readers, a third load between the readers -- and the reader of the third load is a word that
+/// carries no wait under `CUBIT_SYNC_CLASSES` (`SYNCS.ARRIVE`): the allocator PARKS its wait on the latest word in
+/// front of it that can wait, the reader of the first load. That word's own read stands behind the wait of the
+/// word in front of it; the bit it carries is the wait of the reader behind it.
+fn parked() -> String {
+    format!(
+        "{PINS}    LDS R4, [R61+0x300] ;\n    LDS R5, [R62+0x400] ;\n    {READ_R5} ;\n    LDS R10, [R63+0x500] ;\n    {READ_R4} ;\n    SYNCS.ARRIVE.TRANS64.A1T0 RZ, [R10+URZ], RZ ;\n{SUM}"
+    )
+}
+
+#[test]
+fn a_wait_parked_for_a_reader_that_cannot_wait_stays() {
+    let text = parked();
+    let (plain, _, _) = build(&text, &[SYNC, POLICY]);
+    assert_eq!(word(&plain, "LDS R10").wb, Some(0), "the third load shares scoreboard 0");
+    assert!(word(&plain, "SYNCS.ARRIVE").wait.is_empty(), "the reader of the third load carries no wait");
+    assert_eq!(word(&plain, READ_R4).wait, vec![0], "the word in front of it carries it");
+    for mode in [PATHS, HEAD] {
+        // the audit of the built schedule (`CUBIT_HAZ`, both walks) is asked beside the build
+        let (k, _, log) = build(&text, &[SYNC, POLICY, mode, ("CUBIT_HAZ", "1")]);
+        assert_eq!(word(&k, READ_R5).wait, vec![0], "under {mode:?}");
+        assert_eq!(word(&k, READ_R4).wait, vec![0], "under {mode:?} the parked wait stands: {}", count_line(&log));
+        assert!(!log.contains("HAZ RAW"), "under {mode:?} no read of a result that no word waited:\n{log}");
+    }
+}
+
+/// The same reader in a round: the word in front of it reads the first load of the round BEFORE, behind the first
+/// wait of its own round -- the kind of bit `head` takes -- and carries the parked wait of the reader behind it.
+fn parked_in_a_round() -> String {
+    format!(
+        "{PINS}L_top:\n    {READ_R5} ;\n    LDS R10, [R63+0x500] ;\n    {READ_R4} ;\n    SYNCS.ARRIVE.TRANS64.A1T0 RZ, [R10+URZ], RZ ;\n{TAIL}{SUM}"
+    )
+}
+
+#[test]
+fn a_wait_parked_on_a_word_that_waits_for_the_round_before_stays() {
+    let text = parked_in_a_round();
+    let (plain, _, _) = build(&text, &[SYNC, POLICY]);
+    assert_eq!(word(&plain, "LDS R10").wb, Some(0));
+    assert!(word(&plain, "SYNCS.ARRIVE").wait.is_empty());
+    assert_eq!(word(&plain, READ_R4).wait, vec![0]);
+    for mode in [HEAD, PATHS] {
+        let (k, _, log) = build(&text, &[SYNC, POLICY, mode, ("CUBIT_HAZ", "1")]);
+        assert_eq!(word(&k, READ_R5).wait, vec![0], "under {mode:?} the round's first wait");
+        assert_eq!(word(&k, READ_R4).wait, vec![0], "under {mode:?} the parked wait stands: {}", count_line(&log));
+        assert!(!log.contains("HAZ RAW"), "under {mode:?} no read of a result that no word waited:\n{log}");
     }
 }
