@@ -498,6 +498,52 @@ fn sb_share_enabled() -> bool {
     std::env::var("CUBIT_SB_SHARE").ok().as_deref() == Some("1") || wait_policy()
 }
 
+/// `CUBIT_CONST_ALONE=1` (opt-in, 2026-11-18): **a constant load shares no barrier with another
+/// constant load while a scoreboard is free.**
+///
+/// The allocator batches consecutive loads of one opcode, one width and one line of the constant
+/// bank onto ONE write barrier (`[W1] LDC R11, c[0x0][0x3e8] ; [W1] LDC R73, c[0x0][0x3f8] ;
+/// [W1] LDC R78, c[0x0][0x3f8]`): the first reader of any of them waits the scoreboard and with
+/// it every load of the batch -- three producers are pending where one is read. The vendor's
+/// assembler gives each of these loads a scoreboard of its own (`[W0]` | `[W1]` | `[W2]` on the
+/// same three words of the served fc2 kernel), under two different guards too (`[W0] @!P0 LDC.64
+/// R18 ; [W1] @!P1 LDC.64 R20`): every reader waits the one producer it reads.
+///
+/// Under the switch a batch of constant loads ([`is_const_load`]: `LDC` and `LDCU` of any width,
+/// guarded or not) is taken apart in front of the colouring -- one use a load, each with its own
+/// first readers. THE EXCEPTION: loads of the batch that the same words read first stay on one
+/// barrier -- one wait settles them, and the vendor keeps two producers of one kind that ONE
+/// word reads first on one scoreboard whether scoreboards are free or not (`[W0] LDCU.64 UR4 ;
+/// [W0] LDC.64 R2 ; ... [B0]` on the word that reads both, five scoreboards free; ten of ten
+/// such sets in his schedules of the served kernels). "While a scoreboard is free" is decided
+/// by the colouring itself, by trial ([`reallocate_barriers`]):
+///
+/// * a load of such a batch that finds NO scoreboard free over its flight goes back onto the
+///   barrier of the nearest load of its batch that has one, when that scoreboard carries nothing
+///   else across the flight of the two: there the loads stand as the batch they were, one set in
+///   front of one wait (three loads and two free scoreboards: one alone, two together);
+/// * a batch stays WHOLE, as without the switch, when one of its loads finds no scoreboard and
+///   cannot go back, and when a use that has a scoreboard to itself without the switch would
+///   lose it to a load that stands alone across its flight -- no other use pays for the rule.
+///
+/// Loads that are not constant loads keep their batches (`LDG`, `LDS`, ...); two constant loads
+/// that are no batch (an `LDC.64` and an `LDCU.64`) and overflow onto one scoreboard stay
+/// there -- no scoreboard is free. The colouring counts a scoreboard as busy along every PATH:
+/// at the head of a loop the read barriers of the loop's own loads are pending from the round
+/// before. The switch is for exploration; nothing of the form has been measured on silicon
+/// beyond the vendor's practice. `CUBIT_DUMP_COLOUR=1` prints the colouring use by use (`COL`
+/// lines on stderr: the scoreboards busy over the use's flight, ` over` = none was free,
+/// ` const[<batch>]` = a load of a batch taken apart, ` joined[..]` = it went back).
+pub fn const_alone() -> bool {
+    std::env::var("CUBIT_CONST_ALONE").ok().as_deref() == Some("1")
+}
+
+/// A load from the constant bank -- `LDC`, `LDCU` (every width, with or without a guard): the
+/// loads [`const_alone`] speaks of.
+fn is_const_load(op: &str) -> bool {
+    matches!(op, "LDC" | "LDCU")
+}
+
 /// NEEDS 37 switch (T-11, 2026-11-06): with `CUBIT_GUARDED_READER_SETTLES=1` the FIRST reader of a
 /// load on an execution path settles its write barrier whether or not that reader is guarded --
 /// the readers behind it carry no wait of their own. The ptxas evidence (50 / 50 census sites,
@@ -4122,16 +4168,72 @@ mod yield_hold_tests {
     }
 }
 
+/// What one run of the barrier allocator tells [`reallocate_barriers`] under `CUBIT_CONST_ALONE`
+/// (see [`const_alone`]); a flight is the runs of words a use is pending on.
+#[derive(Default)]
+struct ColourReport {
+    /// the uses that found no scoreboard free at their turn of the colouring and did not go back
+    /// onto the barrier of their batch: (a read barrier?, the first setter, the flight)
+    over: Vec<(bool, usize, Flight)>,
+    /// the loads of the batches of constant loads that were taken apart: (the batch's first
+    /// load, the load, the flight of the use that carries it)
+    apart: Vec<(usize, usize, Flight)>,
+}
+
+/// The runs of words a use is pending on, first word to last.
+type Flight = Vec<(usize, usize)>;
+
 pub fn reallocate_barriers(insns: &mut [Instruction], table: Option<&IsaTable>) {
+    if !const_alone() {
+        reallocate_barriers_in(insns, table, None, false);
+        return;
+    }
+    // CUBIT_CONST_ALONE: which batches of constant loads stand apart is found by trial, on
+    // copies. A batch stays as it was when one of its loads finds no scoreboard free and cannot
+    // go back onto the barrier of its batch, and when a use that has a scoreboard to itself
+    // without the rule loses it to a load that stands alone across its flight -- the rule takes
+    // a scoreboard only while one is free.
+    let base = reallocate_barriers_in(&mut insns.to_vec(), table, None, true);
+    let touch = |a: &[(usize, usize)], b: &[(usize, usize)]| a.iter().any(|&(a0, a1)| b.iter().any(|&(b0, b1)| a0 <= b1 && b0 <= a1));
+    let mut keep: Vec<usize> = Vec::new();
+    loop {
+        let run = reallocate_barriers_in(&mut insns.to_vec(), table, Some(&keep), true);
+        let mut blame: Vec<usize> = Vec::new();
+        for (is_rb, first, flight) in &run.over {
+            if let Some(a) = run.apart.iter().find(|a| !*is_rb && a.1 == *first) {
+                blame.push(a.0);
+            } else if !base.over.iter().any(|b| b.0 == *is_rb && b.1 == *first) {
+                blame.extend(run.apart.iter().filter(|a| touch(&a.2, flight)).map(|a| a.0));
+            }
+        }
+        blame.retain(|b| !keep.contains(b));
+        blame.sort_unstable();
+        blame.dedup();
+        if blame.is_empty() {
+            break;
+        }
+        keep.extend(blame);
+    }
+    if std::env::var("CUBIT_DUMP_COLOUR").is_ok() {
+        keep.sort_unstable();
+        eprintln!("CONST_ALONE batches kept whole (by their first load): {keep:?}");
+    }
+    reallocate_barriers_in(insns, table, Some(&keep), false);
+}
+
+/// The barrier allocator. `const_keep`: `None` without `CUBIT_CONST_ALONE`; under it the batches
+/// of constant loads (by their first load) that stay as they are. `trial`: a run on a copy --
+/// no dump and no verifier line is printed.
+fn reallocate_barriers_in(insns: &mut [Instruction], table: Option<&IsaTable>, const_keep: Option<&[usize]>, trial: bool) -> ColourReport {
     let n = insns.len();
-    if n == 0 { return; }
+    if n == 0 { return ColourReport::default(); }
     // Preserve mode: a fully hand-scheduled kernel owns its schedule verbatim
     // (still run the read-only scoreboard verifier on it when requested).
     if insns.iter().all(|x| x.hand_sched) {
-        if std::env::var("CUBIT_VERIFY").is_ok() {
+        if !trial && std::env::var("CUBIT_VERIFY").is_ok() {
             verify_scoreboard(insns, table);
         }
-        return;
+        return ColourReport::default();
     }
 
     let rk = |u: bool, r: u16| -> u16 { ((u as u16) << 9) | r };
@@ -4220,6 +4322,27 @@ pub fn reallocate_barriers(insns: &mut [Instruction], table: Option<&IsaTable>) 
     // BUG-478: per load, its UNGUARDED RAW waiters — past them the load's address latch
     // is certainly released (see `war_overwriter::stop_at`).
     let mut raw_stop: Vec<Vec<usize>> = vec![Vec::new(); n];
+    // CUBIT_CONST_ALONE: per constant load of a batch that was taken apart, the first load of
+    // that batch (see `const_alone`), and the first load of the batch with the same first readers
+    // -- the load that leads its set (a load with readers of its own leads itself)
+    let mut const_batch: Vec<Option<usize>> = vec![None; n];
+    let mut const_lead: Vec<usize> = (0..n).collect();
+    // (the first readers of the results of `set`, found as the batching below finds a group's)
+    let first_readers = |set: &[usize]| -> Vec<usize> {
+        let last = *set.last().unwrap();
+        let mut gd: Vec<u16> = set.iter().flat_map(|&g| writes[g].clone()).collect();
+        gd.sort_unstable();
+        gd.dedup();
+        let mut w = match &cfg {
+            Some(c) => {
+                let guarded_here: Vec<bool> = (0..n).map(|j| guarded[j] && !guard_key[j].is_some_and(|k| gd.contains(&k))).collect();
+                c.first_consumers(&reads, &writes, &guarded_here, set, &gd, guarded_reader_settles()).0
+            }
+            None => raw_consumers(&reads, &writes, &guarded, &flow, last, &gd, ltop[last], lback[last], &edges, n).0,
+        };
+        w.sort_unstable();
+        w
+    };
 
     // ---- RAW: variable-latency producers (loads batched, MMA excluded) ----
     let mut i = 0usize;
@@ -4276,7 +4399,8 @@ pub fn reallocate_barriers(insns: &mut [Instruction], table: Option<&IsaTable>) 
         let w0 = width_of(insns[i].opcode_full.as_str());
         let key0 = load_addr_key(&insns[i]);
         let mut group = vec![i];
-        if batchable {
+        // (CUBIT_CONST_ALONE: a load of a batch that was taken apart stands alone)
+        if batchable && const_batch[i].is_none() {
             let mut gd: Vec<u16> = writes[i].clone();
             let mut j = i + 1;
             while j < n {
@@ -4319,6 +4443,28 @@ pub fn reallocate_barriers(insns: &mut [Instruction], table: Option<&IsaTable>) 
                 }
                 j += 1;
             }
+        }
+        // CUBIT_CONST_ALONE: a batch of constant loads is taken apart -- every load a use of its
+        // own, with its own first readers; the loads remember their batch (at the colouring a
+        // load that finds no scoreboard free goes back onto the barrier of a load of its batch)
+        // -- BUT FOR the loads of the batch that the same words read first: one wait settles them,
+        // and they stay on one barrier under the first of them (the vendor's practice, scoreboards
+        // free or not)
+        if group.len() > 1 && is_const_load(op) && const_keep.is_some_and(|keep| !keep.contains(&i)) {
+            let readers: Vec<Vec<usize>> = group.iter().map(|&g| first_readers(&[g])).collect();
+            for (a, &g) in group.iter().enumerate() {
+                const_batch[g] = Some(i);
+                let lead = (0..a).find(|&b| !readers[a].is_empty() && readers[b] == readers[a]).unwrap_or(a);
+                const_lead[g] = group[lead];
+            }
+        }
+        if const_batch[i].is_some() {
+            if const_lead[i] != i {
+                // (carried by the use of the load that leads its set)
+                i += 1;
+                continue;
+            }
+            group = (i..n).filter(|&g| const_batch[g] == const_batch[i] && const_lead[g] == i).collect();
         }
         let last = *group.last().unwrap();
         let mut gd: Vec<u16> = group.iter().flat_map(|&g| writes[g].clone()).collect();
@@ -4373,7 +4519,9 @@ pub fn reallocate_barriers(insns: &mut [Instruction], table: Option<&IsaTable>) 
             });
             pin_of.push(None);
         }
-        i = last + 1;
+        // (CUBIT_CONST_ALONE: through a batch that was taken apart word by word -- a set's loads
+        // need not stand side by side)
+        i = if const_batch[i].is_some() { i + 1 } else { last + 1 };
     }
 
     // ---- WAR: read-barriers on memory ops whose late operands are overwritten ----
@@ -4798,11 +4946,25 @@ pub fn reallocate_barriers(insns: &mut [Instruction], table: Option<&IsaTable>) 
     // Default (unset) keeps the drain-on-overflow behaviour.
     let sb_share = sb_share_enabled();
     let sb_long: usize = std::env::var("CUBIT_SB_LONG").ok().and_then(|s| s.parse().ok()).unwrap_or(256);
+    // CUBIT_DUMP_COLOUR (a look, stderr): one `COL` line a use, in the order of the colouring
+    let dump_colour = !trial && std::env::var("CUBIT_DUMP_COLOUR").is_ok();
+    let mut over_uses: Vec<(bool, usize, Flight)> = Vec::new();
     for &u in &order {
         let sidx = idxset(&uses[u].segs);
         if let Some(b) = pin_of[u] {
             // PINNED use: the colour is the author's, never reallocated; only
             // reserve it so auto uses stay off the in-flight window.
+            if dump_colour {
+                eprintln!(
+                    "COL b={} {} pin={} setters={:?} waiters={:?} segs={:?}",
+                    b,
+                    if uses[u].is_rb { "rb" } else { "wb" },
+                    b,
+                    uses[u].setters,
+                    uses[u].waiters,
+                    uses[u].segs
+                );
+            }
             assigned[u] = b;
             for &i in &sidx { occ[i] |= 1 << b; }
             continue;
@@ -4823,6 +4985,8 @@ pub fn reallocate_barriers(insns: &mut [Instruction], table: Option<&IsaTable>) 
             if chosen.is_some() { break; }
             if sidx.iter().all(|&i| occ[i] & (1 << b) == 0) { chosen = Some(b); break; }
         }
+        // (for CUBIT_DUMP_COLOUR: no scoreboard was free over the use's flight)
+        let over = chosen.is_none();
         // CUBIT_LOAD_COVER: a shared load that finds no scoreboard free joins the shared load in
         // front of it that is still in flight -- ONE set in front of ONE wait, the first reader
         // of any of its loads; the readers behind that word do not wait again and the scoreboard
@@ -4861,6 +5025,67 @@ pub fn reallocate_barriers(insns: &mut [Instruction], table: Option<&IsaTable>) 
                 }
             }
         }
+        // CUBIT_CONST_ALONE: a constant load of a batch that was taken apart finds no scoreboard
+        // free -- it goes back onto the barrier of the nearest load of its batch that has one:
+        // there the loads stand as the batch stood, ONE set in front of ONE wait (the first
+        // readers of the set, found as the batch's are)
+        let mut const_joined = false;
+        if chosen.is_none() && !uses[u].is_rb {
+            if let Some(batch) = uses[u].setters.first().and_then(|&s| const_batch[s]) {
+                let first = uses[u].setters[0];
+                let mate = (0..uses.len())
+                    .filter(|&v| {
+                        v != u
+                            && assigned[v] < NUM_BARRIERS as u8
+                            && !uses[v].is_rb
+                            && pin_of[v].is_none()
+                            && !covered.contains(&v)
+                            && !not_written.contains(&v)
+                            && uses[v].setters.iter().all(|&s| const_batch[s] == Some(batch))
+                    })
+                    .min_by_key(|&v| uses[v].setters.iter().map(|&s| s.abs_diff(first)).min().unwrap_or(usize::MAX));
+                if let Some(v) = mate {
+                    let mut set: Vec<usize> = uses[v].setters.clone();
+                    set.extend(uses[u].setters.iter().copied());
+                    set.sort_unstable();
+                    set.dedup();
+                    let last = *set.last().unwrap();
+                    let mut gd: Vec<u16> = set.iter().flat_map(|&g| writes[g].clone()).collect();
+                    gd.sort_unstable();
+                    gd.dedup();
+                    let (waiters, segs) = match &cfg {
+                        Some(c) => {
+                            let guarded_here: Vec<bool> =
+                                (0..n).map(|j| guarded[j] && !guard_key[j].is_some_and(|k| gd.contains(&k))).collect();
+                            let (w, on) = c.first_consumers(&reads, &writes, &guarded_here, &set, &gd, guarded_reader_settles());
+                            (w, crate::cfg_flow::runs(&on))
+                        }
+                        None => {
+                            let (w, _wrap) = raw_consumers(&reads, &writes, &guarded, &flow, last, &gd, ltop[last], lback[last], &edges, n);
+                            let segs = build_segs(set[0], &w, ltop[last], lback[last], &edges);
+                            (w, segs)
+                        }
+                    };
+                    // (the mate's scoreboard carries nothing else across the set's flight)
+                    let clear = !(0..uses.len()).any(|w| {
+                        w != v
+                            && w != u
+                            && assigned[w] == assigned[v]
+                            && uses[w].segs.iter().any(|&(a0, a1)| segs.iter().any(|&(b0, b1)| a0 <= b1 && b0 <= a1))
+                    });
+                    if !waiters.is_empty() && clear {
+                        chosen = Some(assigned[v]);
+                        joined = Some((v, BarUse { setters: set, waiters, is_rb: false, segs }));
+                        const_joined = true;
+                    }
+                }
+            }
+        }
+        // (for CUBIT_CONST_ALONE: the uses that found no scoreboard free, but for a constant
+        // load that went back onto the barrier of its batch)
+        if over && !const_joined && (trial || const_keep.is_some()) {
+            over_uses.push((uses[u].is_rb, uses[u].setters[0], uses[u].segs.clone()));
+        }
         if chosen.is_none() && sb_share {
             // share: the scoreboard already busiest over our segment (clustering)
             let mut best = first_colour;
@@ -4894,6 +5119,41 @@ pub fn reallocate_barriers(insns: &mut [Instruction], table: Option<&IsaTable>) 
                 best
             }
         };
+        if dump_colour {
+            // CUBIT_DUMP_COLOUR: the use at its turn of the colouring -- the scoreboards busy
+            // over its flight (sb0 first), one use that holds each, and what became of it
+            let busy: String = (0..NUM_BARRIERS as u8)
+                .map(|k| if sidx.iter().any(|&i| occ[i] & (1 << k) != 0) { '1' } else { '0' })
+                .collect();
+            let beside = |v: usize| uses[v].segs.iter().any(|&(a0, a1)| uses[u].segs.iter().any(|&(b0, b1)| a0 <= b1 && b0 <= a1));
+            let mut notes = String::new();
+            for k in 0..NUM_BARRIERS as u8 {
+                if let Some(&v) = order.iter().find(|&&v| v != u && assigned[v] == k && beside(v)) {
+                    notes.push_str(&format!(" sb{}<-{}[{}]", k, if uses[v].is_rb { "rb" } else { "wb" }, uses[v].setters[0]));
+                }
+            }
+            if over {
+                notes.push_str(" over");
+            }
+            if let Some(batch) = uses[u].setters.first().and_then(|&s| const_batch[s]).filter(|_| !uses[u].is_rb) {
+                notes.push_str(&format!(" const[{batch}]"));
+            }
+            if let Some((v, set_use)) = &joined {
+                notes.push_str(&format!(" joined[{}] set={:?} waiters={:?}", uses[*v].setters[0], set_use.setters, set_use.waiters));
+            }
+            eprintln!(
+                "COL b={} {} pin=- setters={:?} waiters={:?} segs={:?} busy={} lowest={} first_colour={}{}",
+                b,
+                if uses[u].is_rb { "rb" } else { "wb" },
+                uses[u].setters,
+                uses[u].waiters,
+                uses[u].segs,
+                busy,
+                lowest,
+                first_colour,
+                notes
+            );
+        }
         if let Some((v, set_use)) = joined {
             // (the loads stand in the set of `v`: that use carries them, this one is not written)
             for i in idxset(&set_use.segs) { occ[i] |= 1 << b; }
@@ -5065,7 +5325,7 @@ pub fn reallocate_barriers(insns: &mut [Instruction], table: Option<&IsaTable>) 
         }
     }
 
-    if std::env::var("CUBIT_DUMP_USES").is_ok() {
+    if !trial && std::env::var("CUBIT_DUMP_USES").is_ok() {
         for (u, use_) in uses.iter().enumerate() {
             eprintln!("USE b={} {} setters={:?} waiters={:?} segs={:?}{}",
                 assigned[u], if use_.is_rb {"rb"} else {"wb"}, use_.setters, use_.waiters, use_.segs,
@@ -5190,9 +5450,22 @@ pub fn reallocate_barriers(insns: &mut [Instruction], table: Option<&IsaTable>) 
         }
     }
 
-    if std::env::var("CUBIT_VERIFY").is_ok() {
+    if !trial && std::env::var("CUBIT_VERIFY").is_ok() {
         verify_scoreboard(insns, table);
     }
+    // CUBIT_CONST_ALONE: what the colouring did, for `reallocate_barriers`
+    let mut report = ColourReport { over: over_uses, apart: Vec::new() };
+    for (u, use_) in uses.iter().enumerate() {
+        if use_.is_rb || covered.contains(&u) || not_written.contains(&u) {
+            continue;
+        }
+        for &g in &use_.setters {
+            if let Some(batch) = const_batch[g] {
+                report.apart.push((batch, g, use_.segs.clone()));
+            }
+        }
+    }
+    report
 }
 
 /// Structured result of the read-only scoreboard verifier (BUG-347). The three

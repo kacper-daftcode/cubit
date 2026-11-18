@@ -4,6 +4,46 @@ User-visible changes, newest first. Table syncs name the blackwell-isa revision 
 (`tables/SOURCE.json` pins it byte for byte). Numbered `BUG-NNN` entries are the encoder /
 decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `docs/TESTS.md`).
 
+## Unreleased — 2026-11-18 (`CUBIT_CONST_ALONE=1`, opt-in: a constant load shares no barrier with another constant load while a scoreboard is free; `CUBIT_DUMP_COLOUR=1`, a look at the colouring; every schedule without the switch is what it was)
+
+- **`CUBIT_CONST_ALONE=1`** (KNOWN_ISSUES A59): the allocator batches consecutive loads of one opcode, one width and one
+  line of the constant bank onto ONE write barrier — the first reader of any of them waits the scoreboard and with it
+  every load of the batch. The vendor gives each of these loads a scoreboard of its own (`[W0]` | `[W1]` | `[W2]` on
+  the three `LDC` of the served FC2 that cubit arms on one), under two different guards too. Under the switch a batch
+  of constant loads (`LDC`, `LDCU`; every width, guarded or not) is taken apart in front of the colouring: one use a
+  load, each with its own first readers.
+- **The exception — one first reader, one barrier:** loads of the batch that the same words read first stay on one
+  barrier; one wait settles them. It is the vendor's practice for two producers of one kind that ONE word reads
+  first, whether scoreboards are free or not (`[W0] LDCU.64 … ; [W0] LDC.64 …` and `[B0]` on the word that reads both,
+  five scoreboards free; ten of ten such sets in his schedules of the served FC1, FC2 and the r33 form of FC1). No
+  batch of constant loads in those three kernels is of that kind.
+- **"While a scoreboard is free" is decided by the colouring itself, by trial** (`scheduling_pass::reallocate_barriers`
+  runs the allocator on copies): a load that finds no scoreboard free over its flight goes back onto the barrier of
+  the nearest load of its batch that has one, when that scoreboard carries nothing else across the flight of the two
+  (three loads and two free scoreboards: one alone, two together); a batch stays WHOLE, as without the switch, when
+  one of its loads finds no scoreboard and cannot go back, and when a use that has a scoreboard to itself without the
+  switch would lose it. Loads that are not constant loads keep their batches; two constant loads that are no batch
+  and overflow onto one scoreboard stay there.
+- **What it moves in the served kernels as cubit schedules them** (`CUBIT_WAIT_POLICY=1 CUBIT_LOAD_COVER=1`; no text,
+  stall count or yield flag moves but one stall count behind an arming distance in FC2): FC2 — six batches apart, one
+  kept whole, 23 control words; FC1 — two apart, one back together, one kept whole, 4 words; the r33 form of FC1 —
+  three apart, one back together, 6 words. Without the wait policy almost no scoreboard is free: FC1 and its r33 form
+  do not move, FC2 moves in 18 words.
+- **The count in cubit's own frame of FC2:** 47 reads wait a scoreboard on which more than one producer is pending
+  (nine sets); under the switch 19 of them wait their one producer — the two pairs of guarded `LDC.64` (7 + 6), the two
+  `LDCU` (2) and two pairs of `LDC.64` (2 + 2). The three `LDC` in front of the row loop stand as one alone and two
+  together (17 reads): the third finds no scoreboard free, because the colouring counts along every PATH and at the
+  loop's head the read barriers of the loop's own eight `LDG.E.128` are pending from the round before on five
+  scoreboards (the vendor holds one for all eight). An `LDC.64` and an `LDCU.64` there are no batch and overflow onto
+  one scoreboard (4 reads); the other 7 reads are of eight guarded `LDG.E.CONSTANT` on one barrier and of three scalar
+  producers, where the vendor shares too. No schedule under the switch has been on a card.
+- **`CUBIT_DUMP_COLOUR=1`** (stderr): one `COL` line a use in the order of the colouring — its scoreboard, setters,
+  waiters and flight, the scoreboards busy over the flight (`busy=`, scoreboard 0 first) with one use that holds each,
+  ` over` when none was free, ` const[<first load of the batch>]` on a load of a batch taken apart, ` joined[..]` when
+  it went back; under `CUBIT_CONST_ALONE` one more line names the batches kept whole.
+- **Tests:** `tests/const_alone.rs` (10; six fail without the switch; three are controls — texts the switch must leave
+  byte for byte; one is the exception's own, and with one of the six it failed on the rule before its exception).
+
 ## Unreleased — 2026-11-18 (`CUBIT_YIELD_HOLD_FRAME=1`, opt-in with `CUBIT_YIELD_HOLD=<n>n`: in the nests a word that came in with its own control word gives the yield flag up too — the frame of a text scheduled in part; every schedule without the variable is what it was)
 
 - **`CUBIT_YIELD_HOLD_FRAME=1`** (honoured only together with `CUBIT_YIELD_HOLD=1n` or `2n`): the nests' clause takes

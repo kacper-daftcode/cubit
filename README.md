@@ -108,6 +108,13 @@ wait, as his do. Without `CUBIT_YIELD_HOLD_FRAME=1` cubit is still behind ptxas 
 switch inside the vendor's frame — the record text — reads fc2 0.054 ± 0.017 % above ptxas's own build of the served
 FC2 at 4 096 rows, where the same frame with the loop under the policy alone and his load words carried over reads
 0.190 ± 0.018 % above (both load orders; one card model, free of its power limit; opt-in, KNOWN_ISSUES A57).
+`CUBIT_CONST_ALONE=1`: a constant load (`LDC`, `LDCU`; every width, guarded or not) shares no barrier with another
+constant load while a scoreboard is free — a batch of them is taken apart where each load finds a scoreboard (or
+goes back onto its neighbour's) and no other use loses its own, the vendor's form of these loads; loads that one
+word reads first stay together, as his do. In cubit's own frame of the served FC2 nineteen of the 47 reads that wait
+a scoreboard with more than one producer pending then wait their one producer; no schedule under it has been on a
+card (opt-in, KNOWN_ISSUES A59).
+`CUBIT_DUMP_COLOUR=1` prints the colouring of the scoreboards use by use (stderr, a look).
 `CUBIT_SCHED2=1` selects the dependency-aware stall model (a stall is charged where a consumer needs it, not
 after every producer); with `CUBIT_SCHED2_LAT=sm120` the latencies come from the pair table
 `tables/dep_latency_sm120.json` (ptxas's practice, measured on sm_120 silicon) and hold on every control-flow
