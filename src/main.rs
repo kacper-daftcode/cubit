@@ -5768,17 +5768,20 @@ fn cmd_asm_directive_format(
         // flag at a stall of 1 ..= n -- outside the tensor loops, whose words keep theirs. No stall, wait
         // or barrier moves; in front of the OPEX law.
         // `CUBIT_YIELD_HOLD=<n>n`: in the nests alone -- the natural loops that hold no tensor word.
+        // `CUBIT_YIELD_HOLD_FRAME=1` (with `<n>n`): there also a word that came in with its control word.
         if let Some(n) = cubit::scheduling_pass::yield_hold() {
             if !fully_frozen {
                 let nests = cubit::scheduling_pass::yield_hold_nests();
-                let cleared = cubit::scheduling_pass::apply_yield_hold_in(&mut insns_with_ctrl, n, nests);
+                let frame = cubit::scheduling_pass::yield_hold_frame();
+                let cleared = cubit::scheduling_pass::apply_yield_hold_framed(&mut insns_with_ctrl, n, nests, frame);
                 if cleared > 0 {
                     println!(
-                        "  {}: yield hold: {} word(s) give up the yield flag (stall 1 ..= {}{})",
+                        "  {}: yield hold: {} word(s) give up the yield flag (stall 1 ..= {}{}{})",
                         def.name,
                         cleared,
                         n,
-                        if nests { ", in the nests alone" } else { "" }
+                        if nests { ", in the nests alone" } else { "" },
+                        if frame { ", the frame's words too" } else { "" }
                     );
                 }
             }

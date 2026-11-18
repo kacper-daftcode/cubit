@@ -4,6 +4,26 @@ User-visible changes, newest first. Table syncs name the blackwell-isa revision 
 (`tables/SOURCE.json` pins it byte for byte). Numbered `BUG-NNN` entries are the encoder /
 decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `docs/TESTS.md`).
 
+## Unreleased — 2026-11-18 (`CUBIT_YIELD_HOLD_FRAME=1`, opt-in with `CUBIT_YIELD_HOLD=<n>n`: in the nests a word that came in with its own control word gives the yield flag up too — the frame of a text scheduled in part; every schedule without the variable is what it was)
+
+- **`CUBIT_YIELD_HOLD_FRAME=1`** (honoured only together with `CUBIT_YIELD_HOLD=1n` or `2n`): the nests' clause takes
+  the yield flag also off a hand-scheduled word — the same kind of word (the flag at a stall count of 1 ..= n, no
+  barrier set, no `.reuse` operand, an opcode of `HOLD_OPCODES`) in the same place (a natural loop that holds no tensor
+  word). No stall count, wait or barrier moves; nothing outside the nests; a text that is all frame is not touched;
+  without `<n>n` the variable is not honoured (`scheduling_pass::yield_hold_frame`, `apply_yield_hold_framed`).
+- **What it is for:** a text scheduled in part — control words kept on a frame, a range freed for cubit. The record
+  text of the served FC2 is one: the vendor's control words on the 2 116 words outside the stage loop, cubit's schedule
+  of the loop's 460 words under `CUBIT_WAIT_POLICY=1 CUBIT_LOAD_COVER=1`. The 216 words of the clause's kind in its
+  nest are all the frame's, so `CUBIT_YIELD_HOLD=2n` alone builds the record text byte for byte; with
+  `CUBIT_YIELD_HOLD_FRAME=1` beside it the build gives those 216 flags up and nothing else differs.
+- **Measured:** under these two switches, in the recipe of the record text, FC2 reads 0.124 ± 0.018 % ahead of ptxas
+  (the full form: both load orders, 4 096 rows; one Server card, free of its power limit; every call's result
+  compared) and 1.03 ± 0.10 µs a call below the record text; FC1 in the same calls is untouched. Nothing is known of
+  the state at the power limit, of production's card model or of a server. On the default path and in cubit's own
+  frame FC2 stays behind ptxas.
+- **Tests:** `tests/yield_hold_frame.rs` (4; the first two fail without the variable) and two unit tests in
+  `scheduling_pass::yield_hold_tests`.
+
 ## Unreleased — 2026-11-18 (the sm_120 dependency table's row `barrier_arm` names what was measured on two card models: the yield flag that matters stands on the SETTER — the next word may wait from stall count 2 with it and from 1 without it, behind fourteen setters; three forms of a set's reader words and waits; `tools/stallfloor/probe.py` 34 — no schedule changes)
 
 - **`tables/dep_latency_sm120.json`, the row `barrier_arm`: two new members, `setter_flag` and `wait_forms`; `cycles`

@@ -96,6 +96,11 @@ and its r33 form as cubit schedules them, not ptxas's practice (opt-in, KNOWN_IS
 tensor word, where the rule's whole gain stands: the schedule under `2n` reads fc1 0.287 ± 0.011 % below ptxas's own
 build of the served FC1 at 4 096 rows (both load orders; one card model, free of its power limit; opt-in,
 KNOWN_ISSUES A56).
+`CUBIT_YIELD_HOLD_FRAME=1` (with `CUBIT_YIELD_HOLD=1n` or `2n`): in the nests the same word gives the flag up also
+where it came in with its own control word — the frame of a text that is scheduled in part. Under these two
+switches, in the recipe of the record text (the vendor's control words on every word outside the stage loop, cubit's
+schedule of that loop), FC2 reads 0.124 ± 0.018 % ahead of ptxas (the full form: both load orders, 4 096 rows; one
+Server card, free of its power limit); on the default path and in cubit's own frame FC2 stays behind ptxas (opt-in).
 `CUBIT_LOAD_COVER=1` (with `CUBIT_WAIT_POLICY=1`): the vendor's form of a shared-memory load — a load under the wait
 of a younger shared load carries no barrier, and loads that find no scoreboard free stand as one set in front of one
 wait, as his do. cubit is still behind ptxas on FC2: the stage loop under the switch inside the vendor's frame reads

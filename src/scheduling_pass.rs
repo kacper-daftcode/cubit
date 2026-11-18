@@ -3685,6 +3685,22 @@ pub fn yield_hold_nests() -> bool {
     yield_hold_value().is_some_and(|(_, nests)| nests)
 }
 
+/// `CUBIT_YIELD_HOLD_FRAME=1` (opt-in; honoured only with `CUBIT_YIELD_HOLD=<n>n`): in the nests the rule of
+/// [`yield_hold`] takes the flag ALSO off a word that came in with its own control word -- the FRAME of a text
+/// that is scheduled in part (the vendor's control words kept on every word but those of a freed range, which
+/// cubit schedules). No stall, wait or barrier moves and nothing outside the nests; a text that is all frame is
+/// not touched.
+///
+/// Why: the record text of the served FC2 is such a text -- his frame, cubit's stage loop -- and all the words
+/// of its nest are the frame's, so [`yield_hold_nests`] alone finds no word there. Measured: under these two
+/// switches, in the recipe of the record text, FC2 reads 0.124 ± 0.018 % ahead of ptxas (the full form: both
+/// load orders, 4 096 rows; one Server card, free of its power limit) -- the flag is off the 216 words of the
+/// rule's kind in the nest AS HE SCHEDULED IT, and the text reads 1.03 ± 0.10 µs a call faster than the record
+/// text. On the default path and in cubit's own frame FC2 still stands behind ptxas.
+pub fn yield_hold_frame() -> bool {
+    yield_hold_nests() && std::env::var("CUBIT_YIELD_HOLD_FRAME").ok().as_deref() == Some("1")
+}
+
 fn yield_hold_value() -> Option<(u8, bool)> {
     if !crate::sync_class::enabled() {
         return None;
@@ -3888,10 +3904,18 @@ pub fn apply_yield_hold(insns: &mut [Instruction], max_stall: u8) -> usize {
 /// ([`nest_words`]) gives the flag up -- a word in no loop and a word of a loop that holds a tensor word keep
 /// theirs; without it every word outside the tensor loops does ([`tensor_loop_words`]).
 pub fn apply_yield_hold_in(insns: &mut [Instruction], max_stall: u8, nests_alone: bool) -> usize {
+    apply_yield_hold_framed(insns, max_stall, nests_alone, false)
+}
+
+/// [`apply_yield_hold_in`] with the frame named: with `frame` ([`yield_hold_frame`]) and `nests_alone` a
+/// hand-scheduled word of the nests gives the flag up like a word cubit scheduled -- the same kind of word, the
+/// same place, nothing else. Without `nests_alone` the frame is not touched.
+pub fn apply_yield_hold_framed(insns: &mut [Instruction], max_stall: u8, nests_alone: bool, frame: bool) -> usize {
     let inside: Vec<bool> = if nests_alone { nest_words(insns).iter().map(|x| !x).collect() } else { tensor_loop_words(insns) };
+    let frame = frame && nests_alone;
     let mut cleared = 0;
     for (i, w) in insns.iter_mut().enumerate() {
-        if w.hand_sched || inside[i] || !w.ctrl.yield_flag || !(1..=max_stall).contains(&w.ctrl.stall) {
+        if (w.hand_sched && !frame) || inside[i] || !w.ctrl.yield_flag || !(1..=max_stall).contains(&w.ctrl.stall) {
             continue;
         }
         let sets = (w.ctrl.write_bar as usize) < NUM_BARRIERS || (w.ctrl.read_bar as usize) < NUM_BARRIERS;
@@ -4041,6 +4065,60 @@ mod yield_hold_tests {
         assert_eq!(nest_words(&k), [false, true, true, true, false, false, false, false, true, true]);
         assert_eq!(apply_yield_hold_in(&mut k, 1, true), 2);
         assert_eq!(flags(&k), [true, false, true, true, true, true, true, true, false, true]);
+    }
+
+    /// A word that came in with its control word (the frame of a text scheduled in part).
+    fn framed(s: &str, addr: u32, stall: u8, wb: u8) -> Instruction {
+        let mut i = word(s, addr, stall, wb);
+        i.hand_sched = true;
+        i
+    }
+
+    /// All frame: a word in no loop, a nest [1 ..= 5] (two words of the rule's kind, a setter, a `.reuse`
+    /// word, its branch), a tensor loop [6 ..= 8].
+    fn framed_kernel() -> Vec<Instruction> {
+        vec![
+            framed("MOV R4, R5", 0x00, 1, NONE),
+            framed("MOV R6, R7", 0x10, 1, NONE),
+            framed("IADD3 R6, PT, PT, R6, 0x1, RZ", 0x20, 2, NONE),
+            framed("MOV R11, R6", 0x30, 1, 1),
+            framed("FMNMX R14, R14, R6.reuse, PT", 0x40, 1, NONE),
+            framed("@P1 BRA 0x10", 0x50, 5, NONE),
+            framed("MOV R9, R10", 0x60, 1, NONE),
+            framed("HMMA.16816.F32 R8, R12, R16, R8", 0x70, 1, NONE),
+            framed("@P0 BRA 0x60", 0x80, 5, NONE),
+            framed("EXIT", 0x90, 1, NONE),
+        ]
+    }
+
+    #[test]
+    fn a_framed_word_of_a_nest_gives_up_the_flag_only_with_the_frame_named() {
+        let mut k = framed_kernel();
+        assert_eq!(nest_words(&k), [false, true, true, true, true, true, false, false, false, false]);
+        assert_eq!(apply_yield_hold_in(&mut k, 2, true), 0, "the clause alone does not touch the frame");
+        assert!(flags(&k).iter().all(|&f| f));
+        assert_eq!(apply_yield_hold_framed(&mut k, 2, true, true), 2);
+        assert_eq!(flags(&k), [true, false, false, true, true, true, true, true, true, true]);
+        let before: Vec<(u8, u8, u8, u8)> = framed_kernel().iter().map(|x| (x.ctrl.stall, x.ctrl.write_bar, x.ctrl.read_bar, x.ctrl.wait_mask)).collect();
+        let after: Vec<(u8, u8, u8, u8)> = k.iter().map(|x| (x.ctrl.stall, x.ctrl.write_bar, x.ctrl.read_bar, x.ctrl.wait_mask)).collect();
+        assert_eq!(before, after, "no stall, wait or barrier moves");
+    }
+
+    #[test]
+    fn the_frame_follows_the_largest_stall_and_is_named_for_the_nests_alone() {
+        let mut k = framed_kernel();
+        assert_eq!(apply_yield_hold_framed(&mut k, 1, true, true), 1, "stall 1 alone");
+        assert_eq!(flags(&k), [true, false, true, true, true, true, true, true, true, true]);
+        // the whole rule (every word outside the tensor loops) does not take the frame
+        let mut k = framed_kernel();
+        assert_eq!(apply_yield_hold_framed(&mut k, 2, false, true), 0);
+        assert!(flags(&k).iter().all(|&f| f));
+        // a word cubit scheduled gives the flag up beside the frame as it does without it
+        let mut k = framed_kernel();
+        k[1].hand_sched = false;
+        assert_eq!(apply_yield_hold_in(&mut k, 2, true), 1);
+        assert_eq!(apply_yield_hold_framed(&mut k, 2, true, true), 1);
+        assert_eq!(flags(&k), [true, false, false, true, true, true, true, true, true, true]);
     }
 }
 
