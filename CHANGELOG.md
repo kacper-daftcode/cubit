@@ -27,10 +27,11 @@ decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `
   put back on the scoreboard they had —, and the trial runs again until it finds no use to send back. A use that is
   still without a scoreboard of its own at that point has nobody left to send back: the trial names it and it
   shares a scoreboard (one plain shared load in cubit's own frame of FC2 under either value, two in the record recipe
-  of FC1 under `wide` — under `wide` each behind a read barrier that went back and holds a scoreboard across the
-  load's flight; without the variable 158 uses of that frame find no scoreboard free at their turn, under
-  `wide` 40). On the instance of FC1 with m-tile loops (`fc1_kernel_wg<4,1,1,0,0>`) under `wide` 41 uses go back
-  for 18 and 17 are left, and 13 of its 207 read-barrier uses share their scoreboard with a global load in flight
+  of FC1 under `wide` — each behind a use that finds no scoreboard free without the variable and finds one under
+  it, under `wide` behind a read barrier that went back as well; without the variable 158 uses of that frame find
+  no scoreboard free at their turn, under `wide` 40). On the instance of FC1 with m-tile loops
+  (`fc1_kernel_wg<4,1,1,0,0>`) under `wide` 41 uses go back for 18 and 17 are left, and 13 of its 207
+  read-barrier uses share their scoreboard with a global load in flight
   (KNOWN_ISSUES A65, the limits). One line
   a kernel: `scoreboard by kind (wide): R read barrier(s) and G use(s) of global loads by the clause, M of them on
   another scoreboard than without it; B went back for L use(s) of another kind that lost theirs: …; S still without

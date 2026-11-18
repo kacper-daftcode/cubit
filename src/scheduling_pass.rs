@@ -592,9 +592,9 @@ fn is_const_load(op: &str) -> bool {
 /// switch and finds none under it sends the uses of the two kinds that moved across its flight
 /// back to the colouring without the switch, and the trial runs again until it finds no use to
 /// send back. A use of another kind can be left without a scoreboard of its own at that point:
-/// a use sent back is coloured by the allocator's rule on the scoreboards as the clause left
-/// them, not put back on its own -- the trial names the use left. One line a kernel says what
-/// it found ([`take_kind_report`]). Any other value is refused.
+/// a use that finds none free without the switch finds one under it and holds it, or a use that
+/// went back took it again (it is coloured by the allocator's rule on the scoreboards as the
+/// clause left them). A line a kernel names it ([`take_kind_report`]). Any other value is refused.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SbKind {
     Narrow,
@@ -662,8 +662,8 @@ pub struct KindReport {
     /// setter)
     pub lost: Vec<(bool, usize)>,
     /// of those, the uses that are still without a scoreboard of their own when the trial ends:
-    /// no use of the two kinds that the clause moved stands across their flight any more (a use
-    /// sent back is coloured by the allocator's rule, not put back on the scoreboard it had)
+    /// no use of the two kinds that the clause moved stands across their flight -- a use that finds
+    /// none free without the switch holds a scoreboard there now, or a use that went back
     pub still: Vec<(bool, usize)>,
 }
 
