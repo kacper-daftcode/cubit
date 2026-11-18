@@ -112,20 +112,22 @@ fn exact_row_fields_and_provenance_preserve_parent_geometry() {
             .contains("Five source observations"));
         assert_eq!(
             hex(&group["and_base"]),
-            0x000000000b8000000000000000000e46u128
+            0x00000000080000000000000000000e46u128
         );
         assert_eq!(
             hex(&group["variable_mask"]),
-            0x00000000040008ff000000fffffff000u128
+            0x08000000078008ff000000fffffff000u128
         );
         for (shift, bits, extraction, token) in [
+            (12, 4, "guard", 0),
             (16, 8, "reg", 1),
             (24, 8, "reg", 2),
             (64, 8, "reg", 3),
             (75, 1, "neg", 3),
             (32, 8, "ureg", 4),
+            (123, 1, "reuse", 3),
             (90, 1, "neg", 5),
-            (12, 4, "pred", 5),
+            (87, 3, "pred", 5),
         ] {
             assert!(
                 group["fields"].as_array().unwrap().iter().any(|field| {
@@ -137,11 +139,42 @@ fn exact_row_fields_and_provenance_preserve_parent_geometry() {
                 "{arch}: {extraction}@{shift}/{bits}"
             );
         }
-        assert_eq!(group["fields"].as_array().unwrap().len(), 7);
-        assert!(
-            group.get("claim_forbid").is_none(),
-            "{arch}: narrow repair adds no claim_forbid"
-        );
+        assert_eq!(group["fields"].as_array().unwrap().len(), 9);
+        assert_eq!(group["claim_forbid"], serde_json::json!([
+            {"bits": 1, "shift": 62, "values": [1]},
+            {"bits": 1, "shift": 63, "values": [1]},
+            {"bits": 1, "shift": 124, "values": [1]}
+        ]));
+    }
+}
+
+#[test]
+fn guard_and_reuse_controls_roundtrip_and_inert_neighbours_fail_closed() {
+    for (position, (arch, fixture)) in arches().iter().enumerate() {
+        let (table, index) = &tables()[position];
+        let (mut guards, mut valid_reuse, mut refused) = (0, 0, 0);
+        for row in rows(fixture) {
+            let word = hex(&row["word"]);
+            match (row["generation"].as_str().unwrap(), (word >> 122) & 7) {
+                ("guard", _) if row["role"] == "control" => {
+                    roundtrip(table, index, arch, &row);
+                    guards += 1;
+                }
+                ("reuse", 1..=3) => {
+                    roundtrip(table, index, arch, &row);
+                    valid_reuse += 1;
+                }
+                ("reuse", _) => {
+                    assert!(index.decode(word, 0, table).is_err(), "{arch}: {word:032x}");
+                    refused += 1;
+                }
+                _ => {}
+            }
+            if row["role"] == "unclaimed_text_inert" && word & (3u128 << 62) != 0 {
+                assert!(index.decode(word, 0, table).is_err(), "{arch}: {word:032x}");
+            }
+        }
+        assert_eq!((guards, valid_reuse, refused), (15, 3, 4), "{arch}");
     }
 }
 

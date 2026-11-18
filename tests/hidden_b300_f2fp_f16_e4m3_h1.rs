@@ -77,7 +77,11 @@ fn production_h1_and_h0_field_matrix_roundtrips() {
         let expected_mask = (0xfu128 << 12) | (0xffu128 << 16)
             | (0xffu128 << 32) | (1u128 << 88);
         assert_eq!(hex(&group["variable_mask"]), expected_mask);
-        assert_eq!(group["claim_forbid"], serde_json::json!([{"bits": 1, "shift": 74, "values": [0]}]));
+        assert_eq!(group["claim_forbid"], serde_json::json!([
+            {"bits": 1, "shift": 74, "values": [0]},
+            {"bits": 1, "shift": 122, "values": [1]},
+            {"bits": 1, "shift": 124, "values": [1]}
+        ]));
         let fields = group["fields"].as_array().unwrap();
         let expected = [(4, 12, 0, "guard"), (8, 16, 1, "reg"),
                         (8, 32, 2, "reg"), (1, 88, 2, "opmod:H1")];
@@ -94,6 +98,30 @@ fn production_h1_and_h0_field_matrix_roundtrips() {
         assert_eq!(alias["encode_only"], true);
         assert_eq!(alias["_src"], SOURCE);
         assert_eq!(alias["claim_forbid"], group["claim_forbid"]);
+    }
+}
+
+#[test]
+fn measured_source_reuse_survives_and_refused_reuse_masks_fail_closed() {
+    for (index, (arch, fixture)) in ARCHES.iter().enumerate() {
+        let (table, index) = &tables()[index];
+        let (mut valid, mut refused) = (0, 0);
+        for row in rows(fixture) {
+            if row["kind"] != "control_plane" { continue; }
+            let word = hex(&row["word"]);
+            match (word >> 122) & 7 {
+                0 => {}
+                2 => {
+                    roundtrip(table, index, arch, &row);
+                    valid += 1;
+                }
+                _ => {
+                    assert!(index.decode(word, 0, table).is_err(), "{arch}: {word:032x}");
+                    refused += 1;
+                }
+            }
+        }
+        assert_eq!((valid, refused), (1, 6), "{arch}");
     }
 }
 

@@ -157,6 +157,15 @@ fn exactly_one_reuse_field_and_provenance_are_added() {
 }
 
 #[test]
+fn stall_zero_control_refusal_does_not_remove_rb_reuse() {
+    for (position, (arch, _)) in arches().iter().enumerate() {
+        let (table, decoder) = &loaded()[position];
+        let word = 0x080fe000038000060000400005047446u128;
+        assert!(decoder.decode(word, 0, table).is_ok(), "{arch}");
+    }
+}
+
+#[test]
 fn vendor_refused_bit124_fails_closed() {
     for (position, (arch, fixture)) in arches().iter().enumerate() {
         let (table, decoder) = &loaded()[position];

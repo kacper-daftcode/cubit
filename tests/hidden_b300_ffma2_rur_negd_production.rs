@@ -173,7 +173,10 @@ fn only_neg75_is_added_to_the_existing_row_with_measured_provenance() {
         );
         assert_eq!(
             group["claim_forbid"],
-            serde_json::json!([{"bits": 1, "shift": 74, "values": [1]}]),
+            serde_json::json!([
+                {"bits": 1, "shift": 74, "values": [1]},
+                {"bits": 1, "shift": 123, "values": [1]}
+            ]),
             "{arch}"
         );
         assert_eq!(group["_srcc68"], SOURCE, "{arch}");
@@ -181,6 +184,20 @@ fn only_neg75_is_added_to_the_existing_row_with_measured_provenance() {
             .as_str()
             .unwrap()
             .contains("4 records per target"));
+        assert!(group["_notec68"]
+            .as_str()
+            .unwrap()
+            .contains("080fe200092008000000000434087c49"));
+    }
+}
+
+#[test]
+fn vendor_refused_y1_reuse_flag_123_fails_closed() {
+    for (position, (arch, _)) in arches().iter().enumerate() {
+        let (table, index) = &tables()[position];
+        let word = 0x080fe200092008000000000434087c49u128;
+        assert!((word >> 105) & 15 > 0 && (word >> 109) & 1 == 1);
+        assert!(index.decode(word, 0, table).is_err(), "{arch}: {word:032x}");
     }
 }
 
@@ -261,6 +278,6 @@ fn negative_adjacent_and_control_records_are_not_silently_adopted() {
         );
         assert_eq!(counts["negative"], 10, "{arch}");
         assert_eq!(counts["adopt"], 1108, "{arch}");
-        assert_eq!(counts.values().sum::<usize>(), 1201, "{arch}");
+        assert_eq!(counts.values().sum::<usize>(), 1202, "{arch}");
     }
 }

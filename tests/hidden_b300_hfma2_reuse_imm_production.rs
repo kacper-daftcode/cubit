@@ -94,6 +94,9 @@ fn exactly_two_repairs_and_only_token_three_reuse_fields() {
                 assert_eq!((field["shift"].as_u64(), field["bits"].as_u64(), field["token_idx"].as_u64()), (Some(123), Some(1), Some(3)));
                 assert_eq!(hex(&group.1["variable_mask"]) & (1u128 << 123), 1u128 << 123);
                 assert_eq!(hex(&group.1["and_base"]) & (1u128 << 123), 0);
+                assert_eq!(group.1["claim_forbid"], serde_json::json!([
+                    {"bits": 1, "shift": 124, "values": [1]}
+                ]));
             } else {
                 assert_eq!(old_reuse_last, 0, "{arch}: unlicensed sibling {}", group.0);
             }
@@ -101,6 +104,22 @@ fn exactly_two_repairs_and_only_token_three_reuse_fields() {
         assert!(entry["mod_groups"]["FMZ"]["_src"] != SOURCE);
         assert!(entry["mod_groups"]["F32"]["_src"] != SOURCE);
         assert!(entry["mod_groups"]["BF16_V2,RELU"]["_src"] != SOURCE);
+    }
+}
+
+#[test]
+fn vendor_refused_bit124_fails_closed_on_both_measured_groups() {
+    for (position, (arch, fixture)) in arches().iter().enumerate() {
+        let (table, index) = &tables()[position];
+        let mut refused = 0;
+        for row in rows(fixture) {
+            let word = hex(&row["word"]);
+            if row["role"] == "negative" && word & (1u128 << 124) != 0 {
+                assert!(index.decode(word, 0, table).is_err(), "{arch}: {word:032x}");
+                refused += 1;
+            }
+        }
+        assert_eq!(refused, 105, "{arch}");
     }
 }
 

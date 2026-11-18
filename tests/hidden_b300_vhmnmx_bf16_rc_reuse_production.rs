@@ -184,6 +184,11 @@ fn exactly_three_fields_and_three_forbids_are_repaired_on_one_existing_group() {
         for sibling in ["", "NAN", "BF16_V2,NAN"] {
             assert_ne!(entry["mod_groups"][sibling]["_src"], SOURCE, "{arch}: sibling changed");
         }
+        assert!(group["claim_forbid"].as_array().unwrap().iter().all(|claim| {
+            let shift = claim["shift"].as_u64().unwrap();
+            let bits = claim["bits"].as_u64().unwrap();
+            shift + bits <= 105 || shift > 121
+        }), "{arch}: control bits are not instruction authority");
     }
 }
 
@@ -214,6 +219,20 @@ fn every_production_word_has_independent_rc_reuse_ab() {
             let other = measured[&(word | (1u128 << shift))].clone();
             assert_eq!(other["rc"], 0);
             assert!(other["nvidia_sass"].as_str().unwrap().contains(".reuse"));
+        }
+    }
+}
+
+#[test]
+fn control_field_refusals_do_not_narrow_valid_reuse() {
+    for (position, (arch, _)) in arches().iter().enumerate() {
+        let (table, index) = &tables()[position];
+        for word in [
+            0x180fc40007a0000600000005040c7247u128,
+            0x1c0fc40007a0000600000005040c7247u128,
+            0x100fe00007a00013000000120f0f7247u128,
+        ] {
+            assert!(index.decode(word, 0, table).is_ok(), "{arch}: {word:032x}");
         }
     }
 }
