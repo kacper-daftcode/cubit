@@ -143,8 +143,9 @@ module one pass of the tensor loop goes from 1 399 / 826 / 1 326 to 1 319 / 805 
 whose opcode is `IADD3`, `LEA`, `LOP3`, `PRMT` or `SHF` stands at a stall of 2 at least in front of another word of the
 five — the vendor's pacing of that unit (507 of 507 places in his schedules of the served module, never 1). The
 legaliser then has less to hold in front of a reader: in the recipe of the record text 439 of the 443 stall counts of
-the served FC1's tensor loop are those of the vendor's schedule as far as cubit's table allows it, and no word outside
-the loop moves. No schedule under the switch has been on a card; a text with those stall counts and the vendor's flags
+the served FC1's tensor loop are those of the vendor's schedule as far as cubit's table allows it (a text made by hand
+that carries his own stall count on 388 of the 443 words; the build carries it on 384), and no word outside the loop
+moves. No schedule under the switch has been on a card; a text with those stall counts and the vendor's flags
 read 1.31 ± 0.12 µs a call below the record text (the short form: one load order, 4 096 rows; one Server card, free of
 its power limit; opt-in, KNOWN_ISSUES A61). All of these are opt-in and for
 sm_120, and the table is a `cubit asm` feature: `cubit::assemble` and the Python module do not honour

@@ -50,8 +50,12 @@ decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `
 - **What it writes:** in the recipe of the record text of the served FC1, 56 words of the tensor loop take the floor;
   behind the legaliser 50 of the loop's 443 words stand longer and 21 shorter than without the switch (one pass of the
   loop 1 312 → 1 332 static cycles), and 439 of the 443 stall counts are those of the vendor's schedule as far as
-  cubit's table allows it — the four others stand around one pair of synchronisation words, the same cycles on other
-  words. Two words that now stand at a stall count of 2 keep the `.reuse` operand of the source text. No word outside
+  cubit's table allows it — a text made by hand, which carries the vendor's own stall count on 388 of the loop's 443
+  words; the build carries it on 384. The four others keep the count they have without the switch — an `IMAD` at 2
+  (his 1), a `NOP` at 1 (2), a `SYNCS.ARRIVE` at 6 (5) and a `SYNCS.PHASECHK` at 2 (3) — around one pair of
+  synchronisation words, the same cycles on other words. With the stall counts 11 yield flags move — 10 set at a
+  stall count of 1 or 2, one cleared at 3 — by the flag rules behind the legaliser, not by the pass itself. Two words
+  that now stand at a stall count of 2 keep the `.reuse` operand of the source text. No word outside
   the loop moves; the dependency check reads 0 below a cell, a spacing, a default and the arming distance; the lowering
   pass is not withdrawn. Elsewhere: the r33 form of FC1 56 words (the pass 1 239 → 1 253); the record text of the
   served FC2 — the vendor's frame, cubit's stage loop — 26 words (1 192 → 1 198); cubit's own frame of FC2 41.
