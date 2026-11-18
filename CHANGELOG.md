@@ -4,6 +4,38 @@ User-visible changes, newest first. Table syncs name the blackwell-isa revision 
 (`tables/SOURCE.json` pins it byte for byte). Numbered `BUG-NNN` entries are the encoder /
 decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `docs/TESTS.md`).
 
+## Unreleased — 2026-11-18 (`CUBIT_WAIT_DRAINED`: the legality of taking a wait off beyond the uses — the jump tables, the wait `CUBIT_LOAD_COVER` shares, a guard on the fields)
+
+- **The closing check walks the jump tables** (`wait_drained`, KNOWN_ISSUES A67). The rule's flow graph reads no
+  table: a register-indirect branch gets the word behind it, every block no branch names and the join of its case
+  blocks. An entry of its table may name a word that a branch names too — in the vendor's own 55 kernels of the MoE
+  cubin 20 of the 522 entries of 113 dispatches, five in each of the four instances `fc1_kernel_wg<4,1,1,*,*>` —,
+  and on that path the rule had walked nothing. The check that every waiter of every use stands behind a wait on
+  every path now runs a second time with every entry of every dispatch's table as an edge: `cubit asm -T` hands
+  the rule the kernel's constant section of bank 2 as the template holds it, `wait_drained::jump_table` reads the
+  one form the vendor's compiler writes. A dispatch whose table cannot be read (no template, another form, an
+  entry that is no word of the kernel) keeps every wait written for a barrier that can still be armed where it
+  issues.
+- **The sharing tells the rule, and a guard on the fields stands behind it.** `CUBIT_LOAD_COVER`'s sharing leaves
+  the read barrier of a `SYNCS.ARRIVE` in front of a backward branch to a wait that a word of the loop's head
+  carries for another use, and told the rule nothing: under `paths` the wait went with the use it was written
+  for, and the word behind it rewrote the arrive's address register with the arrive in flight — one pair, in
+  every build of cubit's own frame of `fc2_kernel_ws<4,2,1,0>` under the rule, named by the path audit
+  (`CUBIT_HAZ`). Now that wait is written for the arrive's use too (`SHARED` in `CUBIT_DUMP_USES`). And whatever
+  else shares a wait without saying so is held by the fields: behind every other step the rule runs the
+  write-after-read half of the path audit on the schedule it leaves, and while it names a rewrite that the
+  allocator's schedule did not have, the wait that ended the reader's flight comes back. Each of the two alone
+  holds the pair.
+- **What moves.** Without the variable nothing: the production sources build byte for byte under the default path
+  and under every view. Under `paths`, the builds of `fc1_kernel_wg<4,1,1,0,0>` (four recipes) and of
+  `fc2_kernel_ws<4,2,1,0>` in the vendor's frame (four) are byte for byte what they were; the three builds of
+  cubit's own frame of `fc2_kernel_ws<4,2,1,0>` carry one wait bit more, scoreboard 0 on the `SHF.L.U32` that
+  rewrites the arrive's register, and the audit names no rewrite on them. The rule's count line names the waits
+  it keeps for a jump table and in front of a rewrite where there are any.
+- `tests/wait_legality.rs` (6: five fail on the rule as it was — the pair as the sharing leaves it; the pair on
+  the fields, in the library and with a read barrier of the author's that no use names; a table entry that names
+  a word a branch names; a dispatch without a readable table — and one is a control).
+
 ## Unreleased — 2026-11-18 (`CUBIT_SB_KIND`: the trial sends back only the uses the clause moved onto a use's own scoreboard — its fallback left uses without one)
 
 - **The trial's fallback is gone** (`scheduling_pass::SbKind`, KNOWN_ISSUES A65). A use of another kind that lost

@@ -52,9 +52,33 @@
 //! writes it on the latest word in front of the reader that can, and tells the rule so. The word
 //! that carries it may be a waiter of another use on the same scoreboard; a bit is judged by
 //! every use it was written for, and it goes only where all of them are drained.
+//!
+//! THE LEGALITY OF TAKING A WAIT OFF, beyond the uses. A bit is judged by the uses it was written
+//! for, on the paths of the flow graph. Two things stand outside that statement, and the rule
+//! holds both:
+//!
+//! * **The jump tables.** The flow graph reads no table: it gives a register-indirect branch the
+//!   word behind it, every block no branch names and (here) the join of its case blocks. A table
+//!   entry may name any word -- one a branch names too --, and that is a path the graph does not
+//!   have. The closing check of [`apply`] therefore walks, beside the graph, every entry of
+//!   every dispatch's table ([`put_constants`]: the kernel's constant section of bank 2 as the
+//!   template of the build holds it; [`jump_table`]: the one form the vendor's compiler
+//!   writes). A dispatch whose table cannot be read -- no template, another form, an entry that
+//!   is no word of the kernel -- keeps every bit written for a barrier that can still be armed
+//!   where it issues.
+//! * **The fields.** A wait releases every barrier armed on its scoreboard, also the read
+//!   barrier of a word that no use of the bit names: a wait written for one use can be the wait
+//!   that another word's late operand rests on. Where the allocator shares a wait on purpose it
+//!   tells the rule (`CUBIT_LOAD_COVER`'s sharing leaves the read barrier of an arrive to the
+//!   first wait of the loop's head: that bit is written for the arrive's use too). Whatever
+//!   else shares a wait without saying so is held by the guard on the fields: no wait comes off
+//!   where the waiting word, or a word behind it in front of the next wait of the scoreboard,
+//!   rewrites a source of a word whose read barrier that wait released. Its oracle is the
+//!   write-after-read half of the path audit (`scheduling_pass::report_war_on_paths`): the
+//!   schedule the rule leaves names no rewrite that the fields it started from do not name.
 
 use crate::cfg_flow::Cfg;
-use crate::ir::Instruction;
+use crate::ir::{Instruction, Operand};
 use crate::scheduling_pass as sp;
 use std::collections::{BTreeMap, BinaryHeap, HashMap, HashSet};
 
@@ -113,10 +137,32 @@ pub struct Report {
     /// wait bits of the rule's kind that stay: without them two results would fly together in a
     /// set that is not measured
     pub kept: usize,
+    /// wait bits of the rule's kind that stay for a jump table: an entry of a dispatch's table
+    /// is a path the flow graph does not have, or the table cannot be read
+    pub tables: usize,
+    /// wait bits of the rule's kind that stay for the fields: without them a word would rewrite
+    /// a source of a word whose read barrier no wait has released
+    pub fields: usize,
 }
 
 thread_local! {
     static LAST: std::cell::Cell<Option<(Drained, Report)>> = const { std::cell::Cell::new(None) };
+    static CONSTANTS: std::cell::RefCell<Option<Vec<u8>>> = const { std::cell::RefCell::new(None) };
+}
+
+/// The constant section of bank 2 of the kernel the allocator runs next, as the template of the
+/// build holds it (`cubit asm -T`: the output keeps the template's bytes) -- the jump tables of
+/// its register-indirect branches. `None`: there is no template, or it has no such section;
+/// every dispatch of the kernel is then one whose table cannot be read. It stays until the next
+/// call; [`apply`] alone reads it.
+pub fn put_constants(bytes: Option<Vec<u8>>) {
+    CONSTANTS.with(|s| *s.borrow_mut() = bytes);
+}
+
+/// The section `.nv.constant2.<kernel>` of a cubin, for [`put_constants`].
+pub fn constants_of(cubin: &crate::elf::CubinFile, kernel: &str) -> Option<Vec<u8>> {
+    let section = cubin.find_section(&format!(".nv.constant2.{kernel}"))?;
+    cubin.section_bytes(section).map(<[u8]>::to_vec)
 }
 
 /// The report of the last kernel the allocator ran the rule on (once).
@@ -347,7 +393,12 @@ fn with_joins(c: &Cfg, insns: &[Instruction]) -> Cfg {
         }
         succ[d].sort_unstable();
     }
-    let mut pred: Vec<Vec<usize>> = vec![Vec::new(); n];
+    graph_of(succ, c)
+}
+
+/// The graph of the edges `succ`, with the tail and the unnamed blocks of `c`.
+fn graph_of(succ: Vec<Vec<usize>>, c: &Cfg) -> Cfg {
+    let mut pred: Vec<Vec<usize>> = vec![Vec::new(); succ.len()];
     for (i, ss) in succ.iter().enumerate() {
         for &t in ss {
             if !pred[t].contains(&i) {
@@ -356,6 +407,116 @@ fn with_joins(c: &Cfg, insns: &[Instruction]) -> Cfg {
         }
     }
     Cfg { succ, pred, tail: c.tail, indirect_targets: c.indirect_targets.clone() }
+}
+
+/// The graph `c` with one more kind of edge: from a register-indirect branch to every word an
+/// entry of its table names (`tables`: a dispatch and the words of its table, `None` where the
+/// table cannot be read). An entry may name a word that a branch names too; the graph, which
+/// reads no table, has no edge to it from the dispatch.
+fn with_tables(c: &Cfg, tables: &[(usize, Option<Vec<usize>>)]) -> Cfg {
+    let mut succ = c.succ.clone();
+    for (d, table) in tables {
+        for &t in table.iter().flatten() {
+            if !succ[*d].contains(&t) {
+                succ[*d].push(t);
+            }
+        }
+        succ[*d].sort_unstable();
+    }
+    graph_of(succ, c)
+}
+
+/// The table of the register-indirect branch at word `d`, read from the kernel's constant
+/// section of bank 2 (`constants`): the words its entries name, in text order, each once.
+/// `None` where the words in front of the dispatch are not the form the vendor's compiler
+/// writes, or an entry is not the address of a word of the kernel in front of its dead tail.
+///
+/// The form -- every dispatch of the vendor's own MoE kernels has it, 113 in 55 kernels:
+///
+/// ```text
+/// VIMNMX.U32 Rk, Rk, K, PT            the clamp: K + 1 entries
+/// IMAD.SHL.U32 Ry, Rk, 0x4, RZ        four bytes an entry
+/// LDC R, c[0x2][Ry+off]               an entry: the address of its target in the kernel
+/// ...
+/// BRX R -<the address of the word behind the dispatch>
+/// ```
+///
+/// Each of the three words is the nearest one in front that writes its register, none of the
+/// four stands under a guard, all stand within nine words in front of the dispatch, and
+/// nothing enters between the clamp and the dispatch on the graph `c`.
+pub fn jump_table(insns: &[Instruction], c: &Cfg, d: usize, constants: &[u8]) -> Option<Vec<usize>> {
+    let addr = |i: usize| -> u32 {
+        if insns[i].addr > 0 || i == 0 {
+            insns[i].addr
+        } else {
+            (i * 16) as u32
+        }
+    };
+    let x = insns.get(d)?;
+    if x.opcode != "BRX" || x.guard.is_some() {
+        return None;
+    }
+    let reg = match x.operands.first() {
+        Some(Operand::Reg { num, .. }) if *num < 255 => *num,
+        _ => return None,
+    };
+    // the entries are addresses in the kernel: the offset of the dispatch takes its own place back
+    let offset = x.operands.iter().rev().find_map(|o| match o {
+        Operand::Imm32(v) => Some(*v),
+        _ => None,
+    })?;
+    if offset != -(addr(d) as i64 + 16) {
+        return None;
+    }
+    let plain = |j: usize, form: &str| insns[j].opcode_full == form && insns[j].guard.is_none();
+    let floor = d.saturating_sub(9);
+    // the nearest word in front of `from` that writes the general register `r`
+    let writer = |r: u8, from: usize| (floor..from).rev().find(|&j| sp::dest_regs(&insns[j]).contains(&(false, r as u16)));
+    let load = writer(reg, d)?;
+    let (index, at) = match insns[load].operands.as_slice() {
+        [Operand::Reg { num, .. }, Operand::ConstMem { bank: 2, base_reg: Some(b), ur_reg: None, offset }]
+            if plain(load, "LDC") && *num == reg && *offset >= 0 =>
+        {
+            (*b, *offset as usize)
+        }
+        _ => return None,
+    };
+    let scale = writer(index, load)?;
+    let clamped = match insns[scale].operands.as_slice() {
+        [Operand::Reg { num, .. }, Operand::Reg { num: k, .. }, Operand::Imm32(4), Operand::Reg { num: 255, .. }]
+            if plain(scale, "IMAD.SHL.U32") && *num == index =>
+        {
+            *k
+        }
+        _ => return None,
+    };
+    let clamp = writer(clamped, scale)?;
+    let last = match insns[clamp].operands.as_slice() {
+        [Operand::Reg { num, .. }, Operand::Reg { num: k, .. }, Operand::Imm32(v), Operand::Pred { num: 7, neg: false }]
+            if plain(clamp, "VIMNMX.U32") && *num == clamped && *k == clamped && (0..4096).contains(v) =>
+        {
+            *v as usize
+        }
+        _ => return None,
+    };
+    if !(clamp + 1..=d).all(|j| c.pred[j].len() == 1 && c.pred[j][0] == j - 1) {
+        return None;
+    }
+    let mut word_at: HashMap<u32, usize> = HashMap::new();
+    for i in 0..c.tail.min(insns.len()) {
+        word_at.entry(addr(i)).or_insert(i);
+    }
+    let mut targets: Vec<usize> = Vec::new();
+    for e in 0..=last {
+        let p = at + 4 * e;
+        let entry: [u8; 4] = constants.get(p..p + 4)?.try_into().ok()?;
+        let t = *word_at.get(&u32::from_le_bytes(entry))?;
+        if !targets.contains(&t) {
+            targets.push(t);
+        }
+    }
+    targets.sort_unstable();
+    Some(targets)
 }
 
 impl Rounds {
@@ -677,10 +838,43 @@ fn nearest(c: &Cfg, arm: &Armers, st: &Pending, cur: &[u8], off: &HashSet<(usize
 }
 
 /// What [`apply`] returns: the bits it took off as (word, scoreboard, behind a landed result?),
-/// and how many bits of the rule's kind stay for an unmeasured set.
+/// and how many bits of the rule's kind stay -- for an unmeasured set, for a jump table, for
+/// the fields (see [`Report`]).
 pub struct Outcome {
     pub off: Vec<(usize, u8, bool)>,
     pub kept: usize,
+    pub tables: usize,
+    pub fields: usize,
+}
+
+/// The closing check: every waiter of every use behind a wait of the use's scoreboard on every
+/// path of `g` from its setters (its own wait counts) -- a candidate whose word is not, stays.
+/// `blind` = the dispatches whose table cannot be read: nobody knows where they lead, so a
+/// candidate stays when a barrier it was written for can still be armed where one of them
+/// issues, and when the graph does not reach its word at all.
+fn close(arm: &Armers, g: &Cfg, waits: &[u8], bits: &Bits, cands: &mut Vec<(usize, u8)>, blind: &[usize]) {
+    loop {
+        let mut cur = waits.to_vec();
+        for &(w, sb) in cands.iter() {
+            cur[w] &= !(1 << sb);
+        }
+        let st = arm.scan(g, &cur);
+        let crosses = |id: usize| blind.iter().any(|&d| st.reached[d] && st.has(d, id) && cur[d] & (1 << arm.who[id].1) == 0);
+        let open: Vec<(usize, u8)> = cands
+            .iter()
+            .copied()
+            .filter(|k| {
+                if !st.reached[k.0] {
+                    return !blind.is_empty();
+                }
+                bits.get(k).is_some_and(|ids| ids.iter().any(|&id| st.has(k.0, id) || crosses(id)))
+            })
+            .collect();
+        if open.is_empty() {
+            break;
+        }
+        cands.retain(|k| !open.contains(k));
+    }
 }
 
 /// The rule, on the barrier fields as the allocator emitted them. `written` = the wait bits it
@@ -690,6 +884,14 @@ pub fn apply(insns: &mut [Instruction], c: &Cfg, written: &[Written], mode: Drai
     // (the rule's own graph: the allocator's, and from every dispatch the join of its case blocks)
     let wide = with_joins(c, insns);
     let c = &wide;
+    // the jump tables: every dispatch with the words its table names, `None` where it cannot be read
+    let constants = CONSTANTS.with(|s| s.borrow().clone());
+    let tables: Vec<(usize, Option<Vec<usize>>)> = (0..n)
+        .filter(|&i| is_dispatch(&insns[i]))
+        .map(|d| (d, constants.as_deref().and_then(|bytes| jump_table(insns, c, d, bytes))))
+        .collect();
+    // the rewrites of an operand in flight that the path audit names on the fields as emitted
+    let named: HashSet<(usize, usize, usize)> = sp::report_war_on_paths(insns).pairs.into_iter().collect();
     let arm = Armers::of(insns);
     let waits: Vec<u8> = insns.iter().map(crate::store_paths::waits).collect();
     // the bits the rule judges: written for a use on a word cubit schedules, every setter of the
@@ -722,21 +924,15 @@ pub fn apply(insns: &mut [Instruction], c: &Cfg, written: &[Written], mode: Drai
     cands.retain(|&(w, _)| !ordered_event(&insns[w]));
     // on the whole graph: every waiter of every use behind a wait of the use's scoreboard on
     // every path from its setters (its own wait counts) -- a bit whose word is not, stays
-    loop {
-        let mut cur = waits.clone();
-        for &(w, sb) in &cands {
-            cur[w] &= !(1 << sb);
-        }
-        let st = arm.scan(c, &cur);
-        let open: Vec<(usize, u8)> = cands
-            .iter()
-            .copied()
-            .filter(|k| st.reached[k.0] && bits.get(k).is_some_and(|ids| ids.iter().any(|&id| st.has(k.0, id))))
-            .collect();
-        if open.is_empty() {
-            break;
-        }
-        cands.retain(|k| !open.contains(k));
+    close(&arm, c, &waits, &bits, &mut cands, &[]);
+    // ... and on the jump tables, which the graph does not read: the same check with every entry
+    // of every dispatch's table as an edge, and with the dispatches whose table cannot be read
+    let mut for_tables = 0usize;
+    if !tables.is_empty() {
+        let on_graph = cands.len();
+        let blind: Vec<usize> = tables.iter().filter(|t| t.1.is_none()).map(|t| t.0).collect();
+        close(&arm, &with_tables(c, &tables), &waits, &bits, &mut cands, &blind);
+        for_tables = on_graph - cands.len();
     }
     // the guard: no two results fly together that the allocator's waits kept apart, but in the
     // two measured shapes -- the nearest wait in front of the place where they would meet stays
@@ -803,15 +999,58 @@ pub fn apply(insns: &mut [Instruction], c: &Cfg, written: &[Written], mode: Drai
         }
         kept += restored;
     }
+    for &(w, sb) in &off {
+        insns[w].ctrl.wait_mask &= !(1 << sb);
+    }
+    // the guard on the fields: a wait releases every barrier armed on its scoreboard, also the
+    // read barrier of a word that no use of the bit names. The path audit says where that was
+    // so: while the schedule names a rewrite of an operand in flight that the fields as emitted
+    // do not name, the wait that ended the reader's flight comes back -- the rewriting word's
+    // own where the rule took it off, else the nearest waits it took off in front of the
+    // rewriting word on the paths one of the reader's barriers comes down to it (else every bit
+    // it took off in front of which such a barrier can still be armed)
+    let mut for_fields = 0usize;
+    while !off.is_empty() {
+        let fresh = sp::report_war_on_paths(insns).pairs.into_iter().find(|p| !named.contains(p));
+        let Some((rewriter, reader, _)) = fresh else { break };
+        let ends = &arm.of_word[reader];
+        let ends_on = |sb: u8| ends.iter().any(|&id| arm.who[id].1 == sb);
+        let mut back: Vec<(usize, u8)> = off.iter().copied().filter(|&(w, sb)| w == rewriter && ends_on(sb)).collect();
+        if back.is_empty() {
+            let st = arm.scan(c, &cur);
+            for &id in ends {
+                let (found, _) = nearest(c, &arm, &st, &cur, &off, rewriter, id, None);
+                back.extend(found.into_iter().map(|w| (w, arm.who[id].1)));
+            }
+            if back.is_empty() {
+                back = off
+                    .iter()
+                    .copied()
+                    .filter(|&(w, sb)| st.reached[w] && ends.iter().any(|&id| arm.who[id].1 == sb && st.has(w, id)))
+                    .collect();
+            }
+        }
+        if back.is_empty() {
+            back = off.iter().copied().filter(|&(_, sb)| ends_on(sb)).collect();
+        }
+        if back.is_empty() {
+            // (cannot happen: with every bit back the fields are the allocator's)
+            back = off.iter().copied().collect();
+        }
+        for (w, sb) in back {
+            if off.remove(&(w, sb)) {
+                cur[w] |= 1 << sb;
+                insns[w].ctrl.wait_mask |= 1 << sb;
+                for_fields += 1;
+            }
+        }
+    }
     let mut out: Vec<(usize, u8, bool)> = off
         .iter()
         .map(|&(w, sb)| (w, sb, before.reached[w] && !arm.on(before.at(w), sb, false).is_empty()))
         .collect();
     out.sort_unstable();
-    for &(w, sb, _) in &out {
-        insns[w].ctrl.wait_mask &= !(1 << sb);
-    }
-    Outcome { off: out, kept }
+    Outcome { off: out, kept, tables: for_tables, fields: for_fields }
 }
 
 #[cfg(test)]
@@ -885,6 +1124,48 @@ mod tests {
         assert_eq!(pending(&k, 3), vec![0], "the first case block: scoreboard 1 was waited by the dispatch, 0 was not");
         assert_eq!(pending(&k, 5), vec![0], "the second case block is reached from the dispatch too");
         assert_eq!(pending(&k, 7), vec![0], "the join: the second block did not wait");
+    }
+
+    /// A dispatch of the vendor's form at word 4 (its table at `c[0x2][R21+0x8]`, two entries), two case
+    /// blocks and the word a branch names. `clamp` = the word that bounds the index.
+    fn dispatch(clamp: &str) -> Vec<Instruction> {
+        kernel(&format!(
+            "{LOAD}    [B------:R-:W-:-:S01] {clamp} ;\n    [B------:R-:W-:-:S01] IMAD.SHL.U32 R21, R20, 0x4, RZ ;\n    [B------:R-:W1:-:S02] LDC R22, c[0x2][R21+0x8] ;\n    [B-1----:R-:W-:-:S05] BRX R22 -0x50 ;\n    [B------:R-:W-:-:S01] MOV R1, R4 ;\n    [B------:R-:W-:-:S05] BRA L_x ;\n    [B------:R-:W-:-:S01] MOV R2, R4 ;\nL_x:\n    [B------:R-:W-:-:S05] EXIT ;\n"
+        ))
+    }
+
+    fn table(entries: &[u32]) -> Vec<u8> {
+        let mut bytes = vec![0xffu8; 8];
+        bytes.extend(entries.iter().flat_map(|a| a.to_le_bytes()));
+        bytes
+    }
+
+    #[test]
+    fn the_table_of_a_dispatch_is_read_from_the_constant_section() {
+        let k = dispatch("VIMNMX.U32 R20, R20, 0x1, PT");
+        let c = Cfg::build(&k);
+        // the word behind the dispatch and the word the branch names (the flow graph has no edge to that one)
+        assert_eq!(jump_table(&k, &c, 4, &table(&[0x50, 0x80])), Some(vec![5, 8]));
+        assert!(!c.succ[4].contains(&8) && with_tables(&c, &[(4, Some(vec![5, 8]))]).succ[4].contains(&8));
+        // an entry twice is one word
+        assert_eq!(jump_table(&k, &c, 4, &table(&[0x70, 0x70])), Some(vec![7]));
+    }
+
+    #[test]
+    fn a_table_that_is_not_of_the_one_form_is_not_read() {
+        let k = dispatch("VIMNMX.U32 R20, R20, 0x1, PT");
+        let c = Cfg::build(&k);
+        assert_eq!(jump_table(&k, &c, 4, &table(&[0x50])), None, "a table shorter than the clamp says");
+        assert_eq!(jump_table(&k, &c, 4, &table(&[0x50, 0x84])), None, "an entry inside a word");
+        assert_eq!(jump_table(&k, &c, 4, &table(&[0x50, 0x900])), None, "an entry behind the kernel");
+        assert_eq!(jump_table(&k, &c, 3, &table(&[0x50, 0x80])), None, "no dispatch");
+        // no clamp in front of the scale: nothing says how many entries the table has
+        let k = dispatch("MOV R20, R4");
+        assert_eq!(jump_table(&k, &Cfg::build(&k), 4, &table(&[0x50, 0x80])), None);
+        // another offset than the address behind the dispatch: the entries are no addresses of the kernel
+        let mut k = dispatch("VIMNMX.U32 R20, R20, 0x1, PT");
+        k[4].operands[1] = Operand::Imm32(-0x40);
+        assert_eq!(jump_table(&k, &Cfg::build(&k), 4, &table(&[0x50, 0x80])), None);
     }
 
     #[test]

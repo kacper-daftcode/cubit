@@ -5579,6 +5579,18 @@ fn cmd_asm_directive_format(
         // are final. The MMA writeback drains remain (their stalls give the cooperative-MMA
         // distance); reallocate just fixes the load/store barriers. Legacy path keeps its own.
         if !fully_frozen {
+            // CUBIT_WAIT_DRAINED: the rule's closing check walks the jump tables of the kernel's
+            // register-indirect branches -- its constant section of bank 2 as the template (or the
+            // reference) holds it under the kernel's name, which is what the output keeps. Read
+            // under the switch alone; without a template every dispatch is one whose table cannot
+            // be read, and the rule keeps the waits of what crosses it.
+            if matches!(cubit::wait_drained::request(), Ok(Some(_))) {
+                let constants = rename_check
+                    .as_ref()
+                    .and_then(|(bytes, _)| cubit::elf::CubinFile::from_bytes(bytes.clone()).ok())
+                    .and_then(|cubin| cubit::wait_drained::constants_of(&cubin, &def.name));
+                cubit::wait_drained::put_constants(constants);
+            }
             cubit::scheduling_pass::reallocate_barriers(&mut insns_with_ctrl, Some(table));
             // CUBIT_SB_KIND: what the trial of the clause found in this kernel
             if let Some((mode, r)) = cubit::scheduling_pass::take_kind_report() {
@@ -5602,14 +5614,23 @@ fn cmd_asm_directive_format(
             }
             // CUBIT_WAIT_DRAINED: what the rule left unwritten in this kernel
             if let Some((mode, r)) = cubit::wait_drained::take_report() {
+                // (the two counts of the rule's legality are named where they are not 0)
+                let mut legality = String::new();
+                if r.tables > 0 {
+                    legality.push_str(&format!("; {} kept for a jump table", r.tables));
+                }
+                if r.fields > 0 {
+                    legality.push_str(&format!("; {} kept in front of a rewrite of an operand in flight", r.fields));
+                }
                 println!(
-                    "  {}: wait rule ({}): {} wait bit(s) not written: {} on an empty scoreboard | {} behind a result the word does not need; {} kept for an unmeasured set",
+                    "  {}: wait rule ({}): {} wait bit(s) not written: {} on an empty scoreboard | {} behind a result the word does not need; {} kept for an unmeasured set{}",
                     def.name,
                     mode.name(),
                     r.empty + r.landed,
                     r.empty,
                     r.landed,
-                    r.kept
+                    r.kept,
+                    legality
                 );
             }
             // CUBIT_SCHED2_MEMSTALL=table: the retirement stall of the first pass's recycle drain, judged

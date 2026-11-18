@@ -127,7 +127,10 @@ switch and without it (opt-in, KNOWN_ISSUES A59).
 that another wait has drained — `head`: no wait for a barrier of the round before behind the first wait of its own
 round; `paths`: a wait on the first word of every path that needs it and nowhere behind it. A bit whose going would
 let two results fly together that are no measured set stays; a hand-scheduled word and the word of an ordered
-event are not touched. In cubit's own frame of FC2 without m-tile loops (`fc2_kernel_ws<4,1>`), 748 wait bits, `head` leaves 132 unwritten and
+event are not touched. The rule's closing check walks the jump tables of the kernel's register-indirect branches
+(`cubit asm -T`: the template's constant section; a dispatch whose table cannot be read keeps the waits of what
+crosses it), and the rule leaves no rewrite of an operand in flight that the allocator's schedule did not have —
+the path audit (`CUBIT_HAZ`) is its oracle (KNOWN_ISSUES A67). In cubit's own frame of FC2 without m-tile loops (`fc2_kernel_ws<4,1>`), 748 wait bits, `head` leaves 132 unwritten and
 `paths` 238. First read on a card on 2026-11-18, on one card model (opt-in, KNOWN_ISSUES A63).
 `CUBIT_SB_KIND=narrow | wide` (with `CUBIT_WAIT_POLICY=1`): a use takes its scoreboard by its kind — a read barrier
 never the scoreboard of its own word's write barrier, the global loads from the top with loads of one form together;

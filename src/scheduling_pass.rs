@@ -3458,6 +3458,12 @@ pub struct PathWar {
     /// rewrites that are counted and not named: by a producer of the reader's own completion
     /// class; of a uniform register of a reader that is no synchronisation word
     pub not_named: [usize; 2],
+    /// the named rewrites reader by reader, as (the rewriting word, the reader in flight, the
+    /// register: a general register by its number, a uniform register by 256 + its number).
+    /// `found` holds one line for a word and a register and counts the readers behind the
+    /// first; here every reader stands. For `wait_drained::apply`, which compares the list of a
+    /// schedule with the list of the fields it started from.
+    pub pairs: Vec<(usize, usize, usize)>,
 }
 
 /// The write-after-read half of the path audit (`CUBIT_HAZ`).
@@ -3501,7 +3507,7 @@ pub struct PathWar {
 /// the colouring that built the text (its waiters against its waits), not a hazard of the text.
 pub fn report_war_on_paths(insns: &[Instruction]) -> PathWar {
     let n = insns.len();
-    let mut out = PathWar { found: Vec::new(), read_barriers: 0, by_reader: [0; 4], not_named: [0; 2] };
+    let mut out = PathWar { found: Vec::new(), read_barriers: 0, by_reader: [0; 4], not_named: [0; 2], pairs: Vec::new() };
     if n == 0 {
         return out;
     }
@@ -3657,6 +3663,7 @@ pub fn report_war_on_paths(insns: &[Instruction]) -> PathWar {
                 continue;
             };
             let pending = named;
+            out.pairs.extend(pending.iter().map(|&id| (j, pairs[id].1, k)));
             let p = pairs[first].1;
             let r = &insns[p];
             let mut mask = 1u8 << r.ctrl.read_bar;
@@ -5926,6 +5933,11 @@ fn reallocate_barriers_in(
         }
     }
 
+    // CUBIT_LOAD_COVER, the sharing: (the word, the overwriter behind it, the use) where the wait
+    // a word carries for another use stands in for the overwriter's wait of this use -- nothing
+    // is written there, and the rule that takes waits off (`wait_drained`) has to be told
+    let mut shared_waits: Vec<(usize, usize, usize)> = Vec::new();
+
     // ---- CUBIT_WAIT_POLICY: where the waits stand, on the coloured uses (see `wait_policy`) ----
     if let (true, Some(c)) = (policy, &cfg) {
         // the read barrier of a `SYNCS.ARRIVE`: waited by the branch in front of its overwriters
@@ -6046,6 +6058,7 @@ fn reallocate_barriers_in(
             let straight = |a: usize, j: usize| (a..j).all(|x| c.succ[x].len() == 1 && c.succ[x][0] == x + 1 && c.pred[x + 1].len() == 1);
             let on_b = |v: usize| v != u && assigned[v] == b && !covered.contains(&v) && !not_written.contains(&v);
             let mut arms: Vec<(usize, usize)> = Vec::new(); // (the head's first word, the word that arms the scoreboard again)
+            let mut stands_in: Vec<(usize, usize)> = Vec::new(); // (the word whose wait for another use releases the arrive's operand, the overwriter)
             let mut released = b < NUM_BARRIERS as u8;
             for &(a, w) in heads {
                 if !released {
@@ -6062,7 +6075,9 @@ fn reallocate_barriers_in(
                 });
                 match first {
                     Some((x, waits)) if can_wait[x] && !insns[x].hand_sched => {
-                        if !waits {
+                        if waits {
+                            stands_in.push((x, w));
+                        } else {
                             arms.push((a, x));
                         }
                     }
@@ -6070,6 +6085,9 @@ fn reallocate_barriers_in(
                 }
             }
             if released {
+                // (the wait of such a word is written for another use; it is the wait of this
+                // read barrier too, and CUBIT_WAIT_DRAINED is told so behind the emit step)
+                shared_waits.extend(stands_in.into_iter().map(|(x, w)| (x, w, u)));
                 for (a, x) in arms {
                     if !uses[u].waiters.contains(&x) {
                         uses[u].waiters.push(x);
@@ -6155,6 +6173,27 @@ fn reallocate_barriers_in(
             }
         }
     }
+    // CUBIT_WAIT_DRAINED: a wait that stands in for the wait of another use (CUBIT_LOAD_COVER, the
+    // sharing: a word of the loop's head waits the scoreboard for a use of its own, and that wait
+    // releases the arrive's operand in front of the overwriter there) is written for that use
+    // too -- as the parked wait is: the rule judges a bit by every use it was written for. The
+    // bit that is told is the overwriter's own where the overwriter waits the scoreboard itself
+    // (the wait at the rewrite: every wait in front of it may then go with its own uses), else
+    // the bit of the word that stands in for it
+    for &(x, w, u) in &shared_waits {
+        let b = assigned[u];
+        let carries = |j: usize| inject_wait[j] & (1 << b) != 0 && can_wait[j] && !insns[j].hand_sched;
+        if b >= NUM_BARRIERS as u8 || not_written.contains(&u) {
+            continue;
+        }
+        let Some(on) = [w, x].into_iter().find(|&j| carries(j)) else { continue };
+        if drained.is_some() {
+            written_for.push(crate::wait_drained::Written { word: on, sb: b, setters: uses[u].setters.clone() });
+        }
+        if !trial && std::env::var("CUBIT_DUMP_USES").is_ok() {
+            eprintln!("SHARED b={b} {} for={w} on={on} setters={:?}", if uses[u].is_rb { "rb" } else { "wb" }, uses[u].setters);
+        }
+    }
     for j in 0..n {
         if inject_wait[j] != 0 && !insns[j].hand_sched && can_wait[j] {
             insns[j].ctrl.wait_mask |= inject_wait[j];
@@ -6176,11 +6215,11 @@ fn reallocate_barriers_in(
     // Behind the emit step, on the fields as they stand, and in front of the two closing clauses
     // below: they close the schedule on the waits that are left.
     let mut drained_off: Vec<(usize, u8, bool)> = Vec::new();
-    let mut drained_kept = 0usize;
+    let mut drained_kept = [0usize; 3]; // for an unmeasured set, for a jump table, for the fields
     if let (Some(mode), Some(c)) = (drained, &cfg) {
         let out = crate::wait_drained::apply(insns, c, &written_for, mode);
         drained_off = out.off;
-        drained_kept = out.kept;
+        drained_kept = [out.kept, out.tables, out.fields];
     }
 
     // ---- BUG-489: write after write the scans above do not see ----
@@ -6248,7 +6287,8 @@ fn reallocate_barriers_in(
         let still = |x: &&(usize, u8, bool)| insns[x.0].ctrl.wait_mask & (1 << x.1) == 0;
         let landed = drained_off.iter().filter(still).filter(|x| x.2).count();
         let empty = drained_off.iter().filter(still).count() - landed;
-        crate::wait_drained::put_report(mode, crate::wait_drained::Report { empty, landed, kept: drained_kept });
+        let [kept, tables, fields] = drained_kept;
+        crate::wait_drained::put_report(mode, crate::wait_drained::Report { empty, landed, kept, tables, fields });
     }
 
     if !trial && std::env::var("CUBIT_VERIFY").is_ok() {
