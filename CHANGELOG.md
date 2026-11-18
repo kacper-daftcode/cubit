@@ -59,12 +59,17 @@ decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `
   the loop moves; the dependency check reads 0 below a cell, a spacing, a default and the arming distance; the lowering
   pass is not withdrawn. Elsewhere: the r33 form of FC1 56 words (the pass 1 239 → 1 253); the record text of the
   served FC2 — the vendor's frame, cubit's stage loop — 26 words (1 192 → 1 198); cubit's own frame of FC2 41.
-- **Measured:** no schedule under the switch has been on a card. A text of the served FC1 made by hand — the record
-  text with the vendor's stall count and yield flag on the words of the tensor loop where cubit's table allows his —
-  read 1.31 ± 0.12 µs a call below the record text (the short form: one load order, 4 096 rows; one Server card, free
-  of its power limit); the build under the switch has that text's stall counts on 439 of the loop's 443 words and
-  cubit's own flags. One cycle between two words of the unit is legal by every probe and is what cubit's schedules
-  carry on cards; the pacing says where cycles stand.
+- **Measured:** the served FC1 under the switch, in the recipe of the record text, reads 5.24 ± 0.12 µs a call below
+  the schedule without it and 0.873 ± 0.014 % ahead of ptxas (the short form: one load order, 4 096 rows; one Server
+  card, free of its power limit; every call's result compared) — a ranking: the full form has not read the switch
+  alone. With `CUBIT_TENSOR_YIELD=holds` beside it the build reads 12.26 ± 0.10 µs a call and 1.375 ± 0.011 % ahead
+  of ptxas in the full form (both load orders, 4 096 rows; the same card), 5.00 ± 0.10 µs below the build under that
+  switch alone. A text of the served FC1 made by hand — the record text with the vendor's stall count and yield flag
+  on the words of the tensor loop where cubit's table allows his — had read 1.31 ± 0.12 µs a call below the record
+  text (the short form); the build has that text's stall counts on 439 of the loop's 443 words and cubit's own
+  flags, and which of the two differences carries what the build reads beyond it is not measured. One cycle between
+  two words of the unit is legal by every probe and is what cubit's schedules carry on cards; the pacing says where
+  cycles stand.
 - **Tests:** `tests/sched2_pace.rs` (6; the first five fail without the variable) and five unit tests in
   `sched2_pace::tests`.
 
@@ -90,8 +95,12 @@ decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `
   vendor's frame, cubit's stage loop); 80 in cubit's own frame of FC2.
 - **Measured:** the served FC1 under the switch, in the recipe of the record text, reads 4.52 ± 0.12 µs a call below
   the schedule without it and 0.801 ± 0.014 % ahead of ptxas (the short form: one load order, 4 096 rows; one Server
-  card, free of its power limit; every call's result compared) — a ranking: the full form has not read it. Nothing is
-  known of FC2 under it, of the state at the power limit, of production's card model or of a server.
+  card, free of its power limit; every call's result compared) — a ranking. In the full form (both load orders,
+  4 096 rows; the same card) it reads 7.26 ± 0.10 µs a call and 0.815 ± 0.011 % ahead of ptxas, where the schedule
+  without the switch reads 0.306 ± 0.012 %. A flag on a hold moves no floor of a fixed-latency distance, neither
+  where the producer holds the stall itself nor where the hold stands between producer and reader (probes on one
+  card model). Nothing is known of FC2 under it, of the state at the power limit, of production's card model or of
+  a server.
 - **Not in it:** a word at a stall count of 1 or 2 in front of a hold keeps its flag — with those flags taken off
   beside the holds' the same card read the kernel 1.73 ± 0.14 µs a call slower (the short form, as above); the tensor
   words' own flags; an exception for a hold that carries a requirement that is exactly met — the clause takes a list
