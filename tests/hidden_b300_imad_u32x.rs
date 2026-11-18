@@ -76,7 +76,7 @@ fn production_and_measured_fields_roundtrip() {
                 roundtrip(table, index, arch, &row);
             }
         }
-        assert_eq!((production, positive), (76, 911), "{arch}: positive census");
+        assert_eq!((production, positive), (76, 913), "{arch}: positive census");
     }
 }
 
@@ -106,8 +106,62 @@ fn exact_row_fields_and_provenance() {
         assert_eq!(group["and_base"], "0x00000000000e04000000000000000824");
         assert_eq!(group["variable_mask"], "0x14000000078000fffffffffffffff000");
         assert_eq!(group["fields"], expected_fields);
-        assert!(group.get("claim_forbid").is_none());
+        assert_eq!(group["claim_forbid"], serde_json::json!([
+            {"bits": 1, "shift": 123, "values": [1]}
+        ]));
         assert!(group["count"].is_null());
+    }
+}
+
+#[test]
+fn adopted_y1_records_decide_reuse_122_and_123() {
+    for (position, (arch, fixture)) in arches().iter().enumerate() {
+        let (table, index) = &tables()[position];
+        let fixture_rows: Vec<Value> = rows(fixture).collect();
+        let base = fixture_rows.iter().find(|row| {
+            row["generation"] == "production"
+                && row["word"] == "000fe200028e04050010000000094824"
+        }).unwrap();
+        roundtrip(table, index, arch, base);
+
+        // The former y0 record remains evidence about the control plane, not
+        // about the operand flag. With the restored field it stays readable.
+        let y0 = fixture_rows.iter().find(|row| {
+            row["generation"] == "control_plane" && (hex(&row["word"]) >> 122) & 7 == 1
+        }).unwrap();
+        let y0_word = hex(&y0["word"]);
+        assert_eq!((y0_word >> 109) & 1, 0);
+        let decoded = index.decode(y0_word, 0, table).unwrap();
+        assert_eq!(cubit::printer::to_sass(&decoded), y0["nvidia_sass"]);
+        let lossless = cubit::printer::to_sass_lossless(&decoded);
+        let control = cubit::scheduling::format_control_code(
+            &cubit::scheduling::decode_sched_upper32((y0_word >> 96) as u32),
+        );
+        let parsed = cubit::parse_cuasm_line(&format!("[{control}] {lossless} ;"), 0).unwrap();
+        assert_eq!(
+            cubit::encoder::encode_instruction(&parsed, table).unwrap(),
+            y0_word & !(7u128 << 125),
+            "{arch}: y0 control record loses bits"
+        );
+
+        let measured: Vec<&Value> = fixture_rows.iter()
+            .filter(|row| row["generation"] == "production_y1_isolation")
+            .collect();
+        assert_eq!(measured.len(), 3, "{arch}: new y1 records");
+        for row in measured {
+            let word = hex(&row["word"]);
+            assert!((word >> 105) & 15 > 0 && (word >> 109) & 1 == 1);
+            assert_eq!(row["base_word"], base["word"]);
+            if row["state"] == "reuse122" || row["state"] == "reuse124" {
+                let operand = if row["state"] == "reuse122" { "R0.reuse" } else { "R5.reuse" };
+                assert!(row["nvidia_sass"].as_str().unwrap().contains(operand));
+                roundtrip(table, index, arch, row);
+            } else {
+                assert_eq!(row["state"], "reuse123");
+                assert_eq!(row["rc"], 1);
+                assert!(index.decode(word, 0, table).is_err(), "{arch}: {word:032x}");
+            }
+        }
     }
 }
 
@@ -138,7 +192,7 @@ fn unlicensed_inert_and_adjacent_words_stay_out_of_u32x() {
         }
         assert_eq!(
             (negative, adjacent, other, control),
-            (25, 4, 3, 32),
+            (26, 4, 3, 32),
             "{arch}: negative census"
         );
     }

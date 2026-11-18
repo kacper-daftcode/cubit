@@ -129,7 +129,7 @@ fn exact_row_fields_and_provenance_preserve_parent_geometry() {
         for (shift, bits, extraction, token) in [
             (12, 4, "guard", 0),
             (16, 8, "ureg_ff", 1),
-            (81, 6, "pred", 2),
+            (81, 3, "pred", 2),
             (24, 8, "ureg", 3),
             (72, 1, "neg", 3),
             (32, 8, "ureg_ff", 4),
@@ -147,10 +147,39 @@ fn exact_row_fields_and_provenance_preserve_parent_geometry() {
             );
         }
         assert_eq!(group["fields"].as_array().unwrap().len(), 8);
-        assert!(
-            group.get("claim_forbid").is_none(),
-            "{arch}: scope added no claim_forbid"
-        );
+        assert_eq!(group["claim_forbid"], serde_json::json!([
+            {"bits": 1, "shift": 62, "values": [1]},
+            {"bits": 3, "shift": 84, "values": [1, 2, 3, 4, 5, 6, 7]},
+            {"bits": 1, "shift": 122, "values": [1]},
+            {"bits": 1, "shift": 123, "values": [1]},
+            {"bits": 1, "shift": 124, "values": [1]}
+        ]));
+    }
+}
+
+#[test]
+fn text_inert_neighbours_and_every_reuse_mask_fail_closed() {
+    for (position, (arch, fixture)) in arches().iter().enumerate() {
+        let (table, index) = &tables()[position];
+        let (mut inert, mut upper_pred, mut reuse) = (0, 0, 0);
+        for row in rows(fixture) {
+            let word = hex(&row["word"]);
+            if row["role"] == "text_inert" && word & (1u128 << 62) != 0 {
+                assert!(index.decode(word, 0, table).is_err(), "{arch}: {word:032x}");
+                inert += 1;
+            }
+            if row["role"] == "text_inert" && ((word >> 12) & 15) == 7
+                && word & (1u128 << 62) == 0 && word & (7u128 << 84) != 0
+            {
+                assert!(index.decode(word, 0, table).is_err(), "{arch}: {word:032x}");
+                upper_pred += 1;
+            }
+            if row["role"] == "control" && word & (7u128 << 122) != 0 {
+                assert!(index.decode(word, 0, table).is_err(), "{arch}: {word:032x}");
+                reuse += 1;
+            }
+        }
+        assert_eq!((inert, upper_pred, reuse), (1, 3, 21), "{arch}");
     }
 }
 

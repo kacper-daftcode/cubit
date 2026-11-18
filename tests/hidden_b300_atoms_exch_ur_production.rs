@@ -84,7 +84,11 @@ fn measured_production_and_field_words_roundtrip() {
         assert_eq!(group["and_base"], "0x000000000c00000000000000ff00098c");
         assert_eq!(group["variable_mask"], "0x00000000000000ffffffffff00fff000");
         assert_eq!(hex(&group["and_base"]) >> 96, 0);
-        assert_eq!(group.get("claim_forbid"), None);
+        assert_eq!(group["claim_forbid"], serde_json::json!([
+            {"bits": 1, "shift": 122, "values": [1]},
+            {"bits": 1, "shift": 123, "values": [1]},
+            {"bits": 1, "shift": 124, "values": [1]}
+        ]));
         let fields = group["fields"].as_array().unwrap();
         let expected = [(4, 12, 0, "guard"), (8, 16, 1, "reg"),
                         (24, 40, 2, "sub_imm1"), (8, 64, 2, "sub_ur0"),
@@ -96,6 +100,22 @@ fn measured_production_and_field_words_roundtrip() {
             assert_eq!(field["token_idx"], token);
             assert_eq!(field["extraction"], extraction);
         }
+    }
+}
+
+#[test]
+fn every_reuse_mask_is_refused_without_an_atoms_reuse_field() {
+    for (index, (arch, fixture)) in ARCHES.iter().enumerate() {
+        let (table, index) = &tables()[index];
+        let mut refused = 0;
+        for row in rows(fixture) {
+            let word = hex(&row["word"]);
+            if row["kind"] == "control_plane" && word & (7u128 << 122) != 0 {
+                assert!(index.decode(word, 0, table).is_err(), "{arch}: {word:032x}");
+                refused += 1;
+            }
+        }
+        assert_eq!(refused, 7, "{arch}");
     }
 }
 
