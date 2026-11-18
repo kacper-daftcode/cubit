@@ -144,7 +144,7 @@ scoreboard of its own. First read on a card on 2026-11-18, on one card model (op
 loop that holds the load — on the branch that ends the block of the loop's header, where every path into the next
 pass goes through — and not at the reader a few words behind it; a reader that a path reaches without that branch
 keeps its wait, and behind the colouring such a load takes the scoreboard on which no word waits for something else
-while it is in flight. Loads that wait at one top may then fly together on one write barrier in front of one wait: the
+while it is in flight, where there is one. Loads that wait at one top may then fly together on one write barrier in front of one wait: the
 vendor's practice at such words, measured on one card model for two global loads of different forms — no law, and
 this allocator's own batching rule says the opposite for loads of different address streams; a build under the
 switch is no candidate before a second card model (opt-in, KNOWN_ISSUES A68).

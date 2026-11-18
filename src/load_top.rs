@@ -56,9 +56,9 @@
 //! global loads of different address streams ("a write barrier is last-only", with an observed
 //! stale read behind the sentence), while `CUBIT_SB_SHARE` ("scoreboards are counters") and the
 //! vendor's schedule at such words say the other. The rule shares a barrier between the loads
-//! it puts in front of one top ONLY under its switch; it keeps every other result off that
-//! flight (`scoreboards` bars a scoreboard on which another write-barrier use flies beside
-//! the loads), and the rule that takes waits off (`wait_drained::may_fly_together`) learns
+//! it puts in front of one top ONLY under its switch; it moves a use onto no scoreboard on
+//! which another write-barrier use flies beside the loads (`scoreboards`: such a scoreboard is
+//! barred), and the rule that takes waits off (`wait_drained::may_fly_together`) learns
 //! nothing from it. `CUBIT_VERIFY` names the readers of the older load of such a pair
 //! (`RECYCLE-STALE`). It is the vendor's practice at such words and no law: measured on one card
 //! model, for two global loads of different forms and not for two of one form. A build under
