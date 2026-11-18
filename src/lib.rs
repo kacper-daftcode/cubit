@@ -35,6 +35,7 @@ pub mod encoder;
 pub mod guard_cells;
 pub mod ir;
 pub mod legality;
+pub mod load_top;
 pub mod mercury;
 pub mod parser;
 pub mod pred_liveness;

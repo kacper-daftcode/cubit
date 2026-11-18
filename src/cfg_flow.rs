@@ -164,8 +164,12 @@ impl Cfg {
     /// registers `dsts`: an instruction that reads one — or overwrites one without reading it
     /// (the producer's writeback is asynchronous) — waits. A path ends at an unguarded waiter
     /// (`settles`: at any waiter), when every register was redefined, or back at a setter.
+    /// `stops` (`CUBIT_LOAD_TOP`; empty for every other caller): words at which a path ends as
+    /// it ends at a reader — a wait put on such a word stands for the consumers behind it, and
+    /// the word is returned among the waiters when a path reaches it.
     /// Returns the waiters and the instructions the barrier is live on (setters and waiters
     /// included).
+    #[allow(clippy::too_many_arguments)]
     pub fn first_consumers(
         &self,
         reads: &[Vec<u16>],
@@ -174,6 +178,7 @@ impl Cfg {
         setters: &[usize],
         dsts: &[u16],
         settles: bool,
+        stops: &[usize],
     ) -> (Vec<usize>, Vec<usize>) {
         let n = self.succ.len();
         let mut waiters: Vec<usize> = Vec::new();
@@ -197,6 +202,12 @@ impl Cfg {
             }
             seen[j].push(live.clone());
             live_on[j] = true;
+            if stops.contains(&j) {
+                if !waiters.contains(&j) {
+                    waiters.push(j);
+                }
+                continue;
+            }
             let reads_live = reads[j].iter().any(|r| live.contains(r));
             let overwrites_live = writes[j].iter().any(|w| live.contains(w));
             if reads_live || overwrites_live {
@@ -402,9 +413,34 @@ mod tests {
         let reads: Vec<Vec<u16>> = k.iter().map(|x| sp::src_regs(x).into_iter().map(|(u, r)| rk(u, r)).collect()).collect();
         let writes: Vec<Vec<u16>> = k.iter().map(|x| sp::dest_regs(x).into_iter().map(|(u, r)| rk(u, r)).collect()).collect();
         let guarded = vec![false; k.len()];
-        let (w, on) = c.first_consumers(&reads, &writes, &guarded, &[0], &[4], false);
+        let (w, on) = c.first_consumers(&reads, &writes, &guarded, &[0], &[4], false, &[]);
         assert_eq!(w, vec![3, 6]);
         assert_eq!(on, vec![0, 1, 2, 3, 6]);
         assert_eq!(runs(&on), vec![(0, 3), (6, 6)]);
+    }
+
+    #[test]
+    fn first_consumers_end_at_a_stop_word() {
+        // R4 is produced at 0; the fast path reads it at 3, the slow path at 6 (as above). With
+        // the branch at 2 as a stop every path ends there: it is the one waiter, and the readers
+        // behind it are not reached. A stop no path reaches with the register pending (the EXIT
+        // at 5 stands behind both readers) is no waiter.
+        let k = kernel("    LDG.E R4, desc[UR8][R2.64] ;\n    UMOV UR4, 0xffffffff ;\n    BRA.DIV UR4, L_slow ;\n    SHFL.IDX PT, R8, R4, RZ, 0x1f ;\nL_join:\n    MOV R9, R8 ;\n    EXIT ;\nL_slow:\n    MOV R8, R4 ;\n    BRA L_join ;\n");
+        let c = Cfg::build(&k);
+        let rk = |u: bool, r: u16| -> u16 { ((u as u16) << 9) | r };
+        let reads: Vec<Vec<u16>> = k.iter().map(|x| sp::src_regs(x).into_iter().map(|(u, r)| rk(u, r)).collect()).collect();
+        let writes: Vec<Vec<u16>> = k.iter().map(|x| sp::dest_regs(x).into_iter().map(|(u, r)| rk(u, r)).collect()).collect();
+        let guarded = vec![false; k.len()];
+        let (w, on) = c.first_consumers(&reads, &writes, &guarded, &[0], &[4], false, &[2]);
+        assert_eq!(w, vec![2], "the stop is the waiter; no reader behind it is reached");
+        assert_eq!(on, vec![0, 1, 2], "the barrier is live up to the stop");
+        let (w, _) = c.first_consumers(&reads, &writes, &guarded, &[0], &[4], false, &[5]);
+        assert_eq!(w, vec![3, 6], "a stop no path reaches with a pending register is no waiter");
+        let (w, on) = c.first_consumers(&reads, &writes, &guarded, &[0], &[4], false, &[1]);
+        assert_eq!((w, on), (vec![1], vec![0, 1]), "a stop in front of the fork ends both paths");
+        // a guarded stop ends the path too (the wait of a word is honoured under any guard)
+        let guarded_all = vec![true; k.len()];
+        let (w, _) = c.first_consumers(&reads, &writes, &guarded_all, &[0], &[4], false, &[2]);
+        assert_eq!(w, vec![2]);
     }
 }

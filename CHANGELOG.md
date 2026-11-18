@@ -4,6 +4,43 @@ User-visible changes, newest first. Table syncs name the blackwell-isa revision 
 (`tables/SOURCE.json` pins it byte for byte). Numbered `BUG-NNN` entries are the encoder /
 decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `docs/TESTS.md`).
 
+## Unreleased — 2026-11-18 (`CUBIT_LOAD_TOP=1`, opt-in with `CUBIT_WAIT_POLICY=1`: the wait for a global load stands at the top of the loop that holds it, not at the reader)
+
+- **The walk for the first consumers ends at the tops** (`load_top::covers`, KNOWN_ISSUES A68). The allocator
+  writes the wait for a load on the first word that reads or rewrites the pending register on every path behind
+  it. Where the next pass of a loop reads the load, that word stands a few words behind the loop's top, and every
+  word that waits the load's scoreboard for something else on the way round holds for the load too. Under the
+  switch, for a use whose setters are `LDG` words in a natural loop, the walk ends at the `BRA` that ends the
+  header's block of every natural loop that holds the load: the use's waiters are the tops a path reaches and the
+  first consumers a path reaches without a top. A reader — or a rewriter of the register — loses its wait only
+  where every path from the load to it passes a top; a top is taken only if it takes a reader.
+- **Behind the colouring the use takes the scoreboard on which no word waits for another use while its loads are
+  in flight** (`load_top::scoreboards`), and on which none of its own readers that keep their wait stands behind
+  the result of another use: none inside the loops that hold the loads, then the fewest outside, then the lowest
+  number. If no scoreboard is clean it keeps the allocator's. `CUBIT_DUMP_USES` prints one `TOP` line a use.
+- **What the rule does not do**, each with a test: no wait comes off a word of an ordered event; no read-barrier
+  use is touched (the wait that releases the read barrier of a word whose source the waiting word rewrites stays
+  on that word, and the load's own read barrier is waited where it was: a top is a cover of the write barrier
+  alone); a reader that a path reaches without a top keeps its wait; no top in a header block that holds a
+  word with a write barrier; a flight that crosses a register-indirect branch is not covered (the flow graph reads
+  no jump table, A67); nothing for a hand-scheduled load, in a text without a loop, or without
+  `CUBIT_WAIT_POLICY=1`.
+- **Two loads in flight on one write barrier — named, no law.** Loads that wait at one top may take one
+  scoreboard; the younger is then issued while the older is in flight. That is the vendor's practice at such words;
+  it is measured on one card model for two global loads of different forms, not for two of one form, and this
+  allocator's batching rule ("a write barrier is last-only") says the opposite for global loads of different
+  address streams. The rule shares a barrier between the loads it covers only under its switch; the rule that
+  takes waits off (`wait_drained::may_fly_together`) learns nothing from it; `CUBIT_VERIFY` names the readers of
+  the older load of such a pair (`RECYCLE-STALE`).
+  A build under the switch is no candidate before a second card model.
+- What moves: nothing without the variable — the default path and every recipe that does not name it build byte
+  for byte as before. In cubit's own frame of `fc2_kernel_ws<4,2,1,0>` under the recipe with both rules ten
+  global loads of the producer warp's two loops wait at three branches, and 45 words carry another control field
+  (14 wait bits fewer).
+- Inside: `cfg_flow::Cfg::first_consumers` takes the words at which a path ends (`stops`; empty for every other
+  caller); `scheduling_pass::natural_loops` is the loops `nest_words` built, taken out; the rule is
+  `src/load_top.rs`. Tests: `tests/load_top.rs` (15), `cfg_flow::tests::first_consumers_end_at_a_stop_word`.
+
 ## Unreleased — 2026-11-18 (`CUBIT_WAIT_DRAINED`: the legality of taking a wait off beyond the uses — the jump tables, the wait `CUBIT_LOAD_COVER` shares, a guard on the fields)
 
 - **The closing check walks the jump tables** (`wait_drained`, KNOWN_ISSUES A67). The rule's flow graph reads no

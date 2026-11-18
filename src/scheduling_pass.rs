@@ -414,6 +414,38 @@ pub fn load_cover() -> bool {
     std::env::var("CUBIT_LOAD_COVER").ok().as_deref() == Some("1") && wait_policy()
 }
 
+/// `CUBIT_LOAD_TOP=1` (opt-in, default off; honoured only together with [`wait_policy`]): the
+/// wait for the result of a global load stands at the top of the loop that holds the load, not
+/// at the reader (`crate::load_top`, KNOWN_ISSUES A68).
+///
+/// The allocator fixes the place of a wait before a scoreboard exists -- the first word that
+/// reads or rewrites the pending register on every path behind the load -- and what else holds
+/// for the load is decided by the colouring: every waiter of another use on its scoreboard.
+/// Where the NEXT pass of a loop reads the load, both stand a few cycles behind a result that
+/// is still in flight. The vendor's assembler waits for such loads once, on the branch that
+/// ends the block of the loop's header. Two clauses:
+///
+/// * **in front of the colouring, the walk for the first consumers of an `LDG` in a natural
+///   loop ends at the tops** -- the `BRA` that ends the header's block of every natural loop
+///   that holds the load. The use's waiters are the tops a path reaches and the first consumers
+///   a path reaches without a top: a reader loses its wait only where EVERY path from the load
+///   to it passes a top, and a top is taken only if it takes a reader.
+/// * **behind the colouring, such a use moves to the scoreboard on which no word waits for
+///   another use while its loads are in flight** (none inside the loops that hold them; then
+///   the fewest outside, then the lowest number). If there is none it keeps the allocator's.
+///
+/// No wait comes off a word of an ordered event, no read-barrier use is touched, a flight that
+/// crosses a register-indirect branch is not covered, and nothing moves for a hand-scheduled
+/// producer or in a text without a loop. Loads that wait at one top may then fly TOGETHER on
+/// one write barrier in front of one wait. That is the vendor's practice at such words and no
+/// law: it is measured on one card model, for two global loads of different forms and not for
+/// two of one form, and the batching rule of this allocator (`reallocate_barriers`: "a write
+/// barrier is last-only") says the opposite for global loads of different address streams.
+/// The switch is for exploration; a build under it is no candidate before a second card model.
+pub fn load_top() -> bool {
+    std::env::var("CUBIT_LOAD_TOP").ok().as_deref() == Some("1") && wait_policy()
+}
+
 /// A shared-memory load of the forms [`load_cover`] speaks of: `LDS`, `LDS.64`, `LDS.U16`, with
 /// no guard, scheduled by cubit.
 pub(crate) fn plain_shared_load(insn: &Instruction) -> bool {
@@ -4401,8 +4433,29 @@ pub fn tensor_loop_words(insns: &[Instruction]) -> Vec<bool> {
 pub fn nest_words(insns: &[Instruction]) -> Vec<bool> {
     let n = insns.len();
     let mut nest = vec![false; n];
+    let mut holds_tensor = vec![false; n];
+    for body in natural_loops(insns).values() {
+        let tensor = (0..n).any(|i| body[i] && is_warp_mma(insns[i].opcode.as_str()));
+        for i in (0..n).filter(|&i| body[i]) {
+            if tensor {
+                holds_tensor[i] = true;
+            } else {
+                nest[i] = true;
+            }
+        }
+    }
+    for (x, &h) in nest.iter_mut().zip(&holds_tensor) {
+        *x = *x && !h;
+    }
+    nest
+}
+
+/// The natural loops of a kernel's text on the flow graph [`nest_words`] describes, each by its
+/// header: the words it holds (the header among them).
+pub(crate) fn natural_loops(insns: &[Instruction]) -> std::collections::BTreeMap<usize, Vec<bool>> {
+    let n = insns.len();
     if n == 0 {
-        return nest;
+        return std::collections::BTreeMap::new();
     }
     let at: std::collections::HashMap<u32, usize> = insns.iter().enumerate().map(|(i, w)| (w.addr, i)).collect();
     let mut succ: Vec<Vec<usize>> = vec![Vec::new(); n];
@@ -4515,21 +4568,7 @@ pub fn nest_words(insns: &[Instruction]) -> Vec<bool> {
             }
         }
     }
-    let mut holds_tensor = vec![false; n];
-    for body in loops.values() {
-        let tensor = (0..n).any(|i| body[i] && is_warp_mma(insns[i].opcode.as_str()));
-        for i in (0..n).filter(|&i| body[i]) {
-            if tensor {
-                holds_tensor[i] = true;
-            } else {
-                nest[i] = true;
-            }
-        }
-    }
-    for (x, &h) in nest.iter_mut().zip(&holds_tensor) {
-        *x = *x && !h;
-    }
-    nest
+    loops
 }
 
 /// [`yield_hold`] on a finished schedule: a word that carries the yield flag at a stall of
@@ -5009,13 +5048,24 @@ fn reallocate_barriers_in(
         let mut w = match &cfg {
             Some(c) => {
                 let guarded_here: Vec<bool> = (0..n).map(|j| guarded[j] && !guard_key[j].is_some_and(|k| gd.contains(&k))).collect();
-                c.first_consumers(&reads, &writes, &guarded_here, set, &gd, guarded_reader_settles()).0
+                c.first_consumers(&reads, &writes, &guarded_here, set, &gd, guarded_reader_settles(), &[]).0
             }
             None => raw_consumers(&reads, &writes, &guarded, &flow, last, &gd, ltop[last], lback[last], &edges, n).0,
         };
         w.sort_unstable();
         w
     };
+
+    // CUBIT_LOAD_TOP (see `load_top`): the natural loops that have a top -- the `BRA` that ends
+    // the block of the header --, and the uses that wait there with what the rule made of them
+    let top_loops: Option<Vec<crate::load_top::Loop>> = match &cfg {
+        Some(c) if load_top() => {
+            let arms: Vec<bool> = insns.iter().map(|x| insn_needs_write_bar(x, table, true)).collect();
+            Some(crate::load_top::tops(insns, c, &can_wait, &arms))
+        }
+        _ => None,
+    };
+    let mut topped: Vec<(usize, crate::load_top::Cover)> = Vec::new();
 
     // ---- RAW: variable-latency producers (loads batched, MMA excluded) ----
     let mut i = 0usize;
@@ -5153,8 +5203,22 @@ fn reallocate_barriers_in(
         };
         let (waiters, live_on) = match &cfg {
             Some(c) => {
-                let (w, on) = c.first_consumers(&reads, &writes, &guarded_here, &group, &gd, guarded_reader_settles());
-                (w, Some(on))
+                // CUBIT_LOAD_TOP: the wait for a global load stands at the tops of the loops that
+                // hold it -- the walk ends there, and a top is taken only if it takes a reader
+                let top = top_loops.as_ref().and_then(|loops| {
+                    crate::load_top::covers(c, loops, insns, &reads, &writes, &guarded_here, &group, &gd, guarded_reader_settles())
+                });
+                match top {
+                    Some(t) => {
+                        let w = (t.waiters.clone(), Some(t.on.clone()));
+                        topped.push((uses.len(), t));
+                        w
+                    }
+                    None => {
+                        let (w, on) = c.first_consumers(&reads, &writes, &guarded_here, &group, &gd, guarded_reader_settles(), &[]);
+                        (w, Some(on))
+                    }
+                }
             }
             None => {
                 let (w, _wrap) = raw_consumers(
@@ -5176,7 +5240,13 @@ fn reallocate_barriers_in(
             // the waiters after which the load has certainly issued: the unguarded ones -- every
             // waiter under the NEEDS 37 switch (a guarded waiter's wait is honoured too)
             let settles = guarded_reader_settles();
-            let stops: Vec<usize> = waiters.iter().copied()
+            // (CUBIT_LOAD_TOP: the load's own read barrier keeps the words it had -- a top is a
+            // cover of the write barrier, and no read-barrier use gets one)
+            let stop_at: &[usize] = match topped.last() {
+                Some((u, t)) if *u == uses.len() => &t.plain,
+                _ => &waiters,
+            };
+            let stops: Vec<usize> = stop_at.iter().copied()
                 .filter(|&w| settles || !(if cfg.is_some() { guarded_here[w] } else { guarded[w] }))
                 .collect();
             for &g in &group { raw_stop[g] = stops.clone(); }
@@ -5420,7 +5490,7 @@ fn reallocate_barriers_in(
         let (waiters, live_on) = match &cfg {
             Some(c) => {
                 let guarded_here: Vec<bool> = (0..n).map(|j| guarded[j] && !guard_key[j].is_some_and(|k| gd.contains(&k))).collect();
-                let (w, on) = c.first_consumers(&reads, &writes, &guarded_here, &[i], &gd, guarded_reader_settles());
+                let (w, on) = c.first_consumers(&reads, &writes, &guarded_here, &[i], &gd, guarded_reader_settles(), &[]);
                 (w, Some(on))
             }
             None => {
@@ -5741,7 +5811,7 @@ fn reallocate_barriers_in(
                     gd.sort_unstable();
                     gd.dedup();
                     let guarded_here: Vec<bool> = (0..n).map(|j| guarded[j] && !guard_key[j].is_some_and(|k| gd.contains(&k))).collect();
-                    let (waiters, on) = c.first_consumers(&reads, &writes, &guarded_here, &set, &gd, true);
+                    let (waiters, on) = c.first_consumers(&reads, &writes, &guarded_here, &set, &gd, true, &[]);
                     if !waiters.is_empty() && waiters.iter().all(|&w| w > last && can_wait[w]) {
                         chosen = Some(assigned[v]);
                         joined = Some((v, BarUse { setters: set, waiters, is_rb: false, segs: crate::cfg_flow::runs(&on) }));
@@ -5781,7 +5851,7 @@ fn reallocate_barriers_in(
                         Some(c) => {
                             let guarded_here: Vec<bool> =
                                 (0..n).map(|j| guarded[j] && !guard_key[j].is_some_and(|k| gd.contains(&k))).collect();
-                            let (w, on) = c.first_consumers(&reads, &writes, &guarded_here, &set, &gd, guarded_reader_settles());
+                            let (w, on) = c.first_consumers(&reads, &writes, &guarded_here, &set, &gd, guarded_reader_settles(), &[]);
                             (w, crate::cfg_flow::runs(&on))
                         }
                         None => {
@@ -5933,6 +6003,25 @@ fn reallocate_barriers_in(
         }
     }
 
+    // ---- CUBIT_LOAD_TOP: the uses that wait at the tops of their loops take the scoreboard on
+    // which no word waits for another use while their loads are in flight (see `load_top`) ----
+    if let (false, Some(c)) = (trial || topped.is_empty(), &cfg) {
+        let view: Vec<crate::load_top::UseView> = (0..uses.len())
+            .map(|v| crate::load_top::UseView {
+                setters: uses[v].setters.clone(),
+                waiters: uses[v].waiters.clone(),
+                segs: uses[v].segs.clone(),
+                is_rb: uses[v].is_rb,
+                colour: if covered.contains(&v) || not_written.contains(&v) { 7 } else { assigned[v] },
+                pinned: pin_of[v].is_some(),
+            })
+            .collect();
+        let waits: Vec<u8> = (0..n).map(|j| insns[j].ctrl.wait_mask | inject_wait[j]).collect();
+        for (u, b) in crate::load_top::scoreboards(c, &view, &topped, &waits, if sb0_reserved { 1 } else { 0 }) {
+            assigned[u] = b;
+        }
+    }
+
     // CUBIT_LOAD_COVER, the sharing: (the word, the overwriter behind it, the use) where the wait
     // a word carries for another use stands in for the overwriter's wait of this use -- nothing
     // is written there, and the rule that takes waits off (`wait_drained`) has to be told
@@ -6037,7 +6126,7 @@ fn reallocate_barriers_in(
             gd.sort_unstable();
             gd.dedup();
             let guarded_here: Vec<bool> = (0..n).map(|j| guarded[j] && !guard_key[j].is_some_and(|k| gd.contains(&k))).collect();
-            let (waiters, on) = c.first_consumers(&reads, &writes, &guarded_here, &set, &gd, true);
+            let (waiters, on) = c.first_consumers(&reads, &writes, &guarded_here, &set, &gd, true, &[]);
             if waiters.is_empty() {
                 continue;
             }
