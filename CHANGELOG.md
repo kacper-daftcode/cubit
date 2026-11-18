@@ -22,12 +22,16 @@ decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `
   value is refused by `cubit asm`; without `CUBIT_WAIT_POLICY=1` the variable changes nothing.
 - **Nobody else pays — by trial**, as for `CUBIT_CONST_ALONE` (and behind it: the sets first, the numbers second).
   A use of another kind that has a scoreboard to itself without the variable and finds none under it sends back the
-  uses of the two kinds that the clause moved onto its scoreboard across its flight; they are coloured as before
-  (but for the first sentence of (R)), and the trial runs again until it finds no use to send back. A use that was
-  pushed off by a use of another kind which was itself pushed off has nobody to send back: the trial names it and it
+  uses of the two kinds that the clause moved onto its scoreboard across its flight; they are coloured by the
+  allocator's rule as before (but for the first sentence of (R)) — on the scoreboards as the clause left them, not
+  put back on the scoreboard they had —, and the trial runs again until it finds no use to send back. A use that is
+  still without a scoreboard of its own at that point has nobody left to send back: the trial names it and it
   shares a scoreboard (one plain shared load in cubit's own frame of FC2 under either value, two in the record recipe
-  of FC1 under `wide`; without the variable 158 uses of that frame find no scoreboard free at their turn, under
-  `wide` 40). One line
+  of FC1 under `wide` — under `wide` each behind a read barrier that went back and holds a scoreboard across the
+  load's flight; without the variable 158 uses of that frame find no scoreboard free at their turn, under
+  `wide` 40). On the instance of FC1 with m-tile loops (`fc1_kernel_wg<4,1,1,0,0>`) under `wide` 41 uses go back
+  for 18 and 17 are left, and 13 of its 207 read-barrier uses share their scoreboard with a global load in flight
+  (KNOWN_ISSUES A65, the limits). One line
   a kernel: `scoreboard by kind (wide): R read barrier(s) and G use(s) of global loads by the clause, M of them on
   another scoreboard than without it; B went back for L use(s) of another kind that lost theirs: …; S still without
   a scoreboard of their own: …`.
@@ -44,8 +48,9 @@ decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `
   0). On every one of these builds the audit names no read and no rewrite on a path.
 - **First read on a card on 2026-11-18, on one card model.** A read barrier's scoreboard is part
   of a measured shape: a text under the clause is first silicon of its barrier numbers.
-- `tests/sb_kind.rs` (7: five fail on the allocator without the clause, two controls). Without the variable every
-  schedule is byte for byte what it was.
+- `tests/sb_kind.rs` (12: ten fail on the allocator without the clause, two controls; five of the ten reach the
+  trial and the ladder — a word with both barriers, a load that finds no scoreboard free, a use that goes back, the
+  same beside `CUBIT_CONST_ALONE`, a use the trial leaves). Without the variable every schedule is byte for byte what it was.
 
 ## Unreleased — 2026-11-18 (the scoreboard audit `CUBIT_HAZ` reads read barriers: a word that rewrites an operand of a word in flight is named, on the paths of the kernel)
 
@@ -70,6 +75,12 @@ decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `
   on that frame as cubit builds it — without `CUBIT_WAIT_DRAINED`, under `head` and under `paths` —, on the record
   builds of FC1 and FC2 and on the vendor's four schedules. It reads the hazard, not a colouring's bookkeeping: a
   schedule that lost six waits which only ended a flight, with no rewriter in front of the next wait, draws no line.
+- **On vLLM-Moet's production sources, on the default path** (101 sources, each under its own environment; the
+  report alone, no cubin moves): 14 lines in four kernels — `sparse_mla_prefill_v42` 2 and `sparse_mla_prefill_v43`
+  4, `sparse_mla_prefill_v41` 4, `mla_prefill_state2` 4 —, none in the other 97 and none in any of the 101 under
+  `CUBIT_WAIT_POLICY=1`; on the committed `sparse_mla_prefill_v43c.cubin`, assembled as written, none. What each
+  line is against vLLM-Moet's record of the stores rewritten without a wait, and the limit the lines of `v41` show
+  (the audit holds no predicate): KNOWN_ISSUES A64.
 - `tests/haz_war_paths.rs` (11: eight fail on the audit without the scan, three controls). Printed under `CUBIT_HAZ`
   alone; the audit writes no field and without the variable the log of a build is what it was.
 

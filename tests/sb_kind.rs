@@ -7,8 +7,12 @@
 //! word's write barrier, the global loads take theirs from the top; `wide`: a read barrier joins the lowest
 //! scoreboard on which no global load flies, free or not.
 //!
-//! The first five tests fail on the allocator without the clause (the variable is then unknown and changes
-//! nothing); the last two are controls that pass on both.
+//! The first ten tests fail on the allocator without the clause (the variable is then unknown and changes
+//! nothing); the last two are controls that pass on both. Five of the ten reach the trial and what stands behind
+//! "nobody else pays": a word with both barriers, a load that finds no scoreboard free (the ladder), a use that
+//! loses its scoreboard and has it again when the trial sends the taker back, the same beside `CUBIT_CONST_ALONE`,
+//! and a use the trial leaves without one -- under `wide` a use sent back is coloured by the allocator's rule and
+//! can take the scoreboard a joined read barrier keeps free.
 
 use std::process::Command;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -19,6 +23,7 @@ const SYNC: (&str, &str) = ("CUBIT_SYNC_CLASSES", "1");
 const POLICY: (&str, &str) = ("CUBIT_WAIT_POLICY", "1");
 const NARROW: (&str, &str) = ("CUBIT_SB_KIND", "narrow");
 const WIDE: (&str, &str) = ("CUBIT_SB_KIND", "wide");
+const ALONE: (&str, &str) = ("CUBIT_CONST_ALONE", "1");
 
 /// One instruction of the schedule cubit wrote: (wait bits, read barrier, write barrier, the word).
 #[derive(Debug, Clone, PartialEq)]
@@ -172,6 +177,160 @@ fn a_value_that_is_neither_is_refused() {
     assert!(log.contains("CUBIT_SB_KIND=both: the values are `narrow`") && log.contains("`wide`"), "{log}");
 }
 
+/// Two stores that read the descriptor and both bases: the scoreboards of the head's constants are free behind them.
+const USED: &str = "    STG.E desc[UR8][R20.64+0x8], R60 ;\n    STG.E desc[UR8][R22.64+0x8], R60 ;\n";
+
+/// `n` shared loads off lines that make no batch (`LDS R30` ...): each is a use of its own.
+fn shared_loads(n: usize) -> String {
+    (0..n).map(|i| format!("    LDS R{}, [R60+0x{:x}] ;\n", 30 + i, 0x100 * (i + 1))).collect()
+}
+
+/// One reader a register of `regs`, in that order: `IADD3 R<r - 22>, PT, PT, R<r>, R<r - 22>, RZ`.
+fn readers(regs: &[u8]) -> String {
+    regs.iter().map(|r| format!("    IADD3 R{0}, PT, PT, R{r}, R{0}, RZ ;\n", r - 22)).collect()
+}
+
+/// Three shared loads and the head's two constant uses are in flight when a global load is issued: its result
+/// takes the sixth scoreboard and is read last; its address is written again inside that flight, behind the
+/// readers of the shared loads -- the load's read barrier finds no scoreboard free at its turn.
+fn load_with_both_barriers() -> String {
+    format!("{HEAD}{}    LDG.E R36, desc[UR8][R22.64] ;\n{}    MOV R22, R60 ;\n{}", shared_loads(3), readers(&[30, 31, 32]), readers(&[36]))
+}
+
+#[test]
+fn a_read_barrier_never_takes_the_scoreboard_of_its_own_words_write_barrier() {
+    let text = load_with_both_barriers();
+    let (plain, _, _) = build(&text, &[SYNC, POLICY]);
+    let w = word(&plain, "LDG.E R36");
+    assert_eq!((w.rb, w.wb), (Some(5), Some(5)), "without the switch the read barrier shares the busiest scoreboard: the one of the load's own result");
+    // `narrow`: the busiest of the others; `wide`: the lowest without a global load in flight
+    for (mode, rb) in [(NARROW, 4), (WIDE, 0)] {
+        let (k, _, log) = build(&text, &[SYNC, POLICY, mode]);
+        let w = word(&k, "LDG.E R36");
+        assert_eq!(w.wb, Some(5), "under {mode:?}");
+        assert_eq!(w.rb, Some(rb), "under {mode:?}: {}", kind_line(&log));
+        assert_eq!(word(&k, "MOV R22").wait, vec![rb], "the word that rewrites the address waits the read barrier, under {mode:?}");
+        assert_eq!(word(&k, "IADD3 R14").wait, vec![5], "the reader waits the result, under {mode:?}");
+    }
+}
+
+/// Four shared loads in flight, then four global loads of two forms, every result read behind the last load: the
+/// third and the fourth global load find no scoreboard free.
+fn loads_of_two_forms() -> String {
+    format!(
+        "{HEAD}{USED}{}    LDG.E.CONSTANT R36, desc[UR8][R20.64] ;\n    LDG.E R37, desc[UR8][R22.64] ;\n    LDG.E R38, desc[UR8][R22.64+0x100] ;\n    LDG.E.CONSTANT R39, desc[UR8][R20.64+0x100] ;\n{}",
+        shared_loads(4),
+        readers(&[30, 31, 32, 33, 36, 37, 38, 39])
+    )
+}
+
+#[test]
+fn a_global_load_that_finds_no_scoreboard_free_joins_the_loads_of_its_own_form() {
+    let text = loads_of_two_forms();
+    let wbs = |k: &[Word]| ["LDG.E.CONSTANT R36", "LDG.E R37", "LDG.E R38", "LDG.E.CONSTANT R39"].map(|w| word(k, w).wb.unwrap_or_else(|| panic!("no write barrier on `{w}`")));
+    let (plain, _, _) = build(&text, &[SYNC, POLICY]);
+    // without the switch: the lowest free, then the busiest -- three loads of two forms on one scoreboard
+    assert_eq!(wbs(&plain), [4, 5, 5, 5]);
+    for mode in [NARROW, WIDE] {
+        let (k, _, log) = build(&text, &[SYNC, POLICY, mode]);
+        let l = kind_line(&log);
+        // from the top; a load that finds none free joins the load of its own form
+        assert_eq!(wbs(&k), [5, 4, 4, 5], "under {mode:?}: {l}");
+        assert!(l.contains("0 read barrier(s) and 4 use(s) of global loads by the clause, 3 of them on another scoreboard than without it; 0 went back for 0 use(s)"), "under {mode:?}: {l}");
+        // no shared load moves, and the readers wait where their loads stand
+        for r in 30..34 {
+            assert_eq!(word(&k, &format!("LDS R{r}")).wb, word(&plain, &format!("LDS R{r}")).wb, "under {mode:?}");
+        }
+        assert_eq!((word(&k, "IADD3 R16").wait.clone(), word(&k, "IADD3 R17").wait.clone()), (vec![4], vec![5]), "under {mode:?}");
+    }
+}
+
+/// Five shared loads in flight, then two global loads of one form; the first is read at once, and behind its
+/// reader a sixth shared load is issued that is read last. Without the switch the second global load finds no
+/// scoreboard free and shares the busiest; the sixth shared load takes the scoreboard the first global load left.
+fn taker_and_loser() -> String {
+    format!(
+        "{HEAD}{USED}{}    LDG.E R36, desc[UR8][R20.64] ;\n    LDG.E R37, desc[UR8][R22.64] ;\n{}    LDS R35, [R60+0x600] ;\n{}",
+        shared_loads(5),
+        readers(&[36]),
+        readers(&[30, 31, 32, 33, 34, 37, 35])
+    )
+}
+
+#[test]
+fn a_use_that_lost_its_scoreboard_has_it_again_when_the_trial_sends_the_taker_back() {
+    let text = taker_and_loser();
+    let (plain, _, _) = build(&text, &[SYNC, POLICY]);
+    assert_eq!((word(&plain, "LDG.E R36").wb, word(&plain, "LDG.E R37").wb, word(&plain, "LDS R35").wb), (Some(5), Some(4), Some(5)));
+    for mode in [NARROW, WIDE] {
+        // by the clause the second global load joins the first on 5 (its own form) and flies there across the
+        // flight of `LDS R35`, which finds none free: the trial sends the global load back
+        let (k, _, log) = build(&text, &[SYNC, POLICY, mode]);
+        let l = kind_line(&log);
+        assert!(
+            l.contains("0 read barrier(s) and 1 use(s) of global loads by the clause, 0 of them on another scoreboard than without it; 1 went back for 1 use(s) of another kind that lost theirs: wb[15]; 0 still without a scoreboard of their own"),
+            "under {mode:?}: {l}"
+        );
+        assert_eq!(word(&k, "LDS R35").wb, Some(5), "the shared load has its scoreboard again, under {mode:?}");
+        assert_eq!(word(&k, "LDG.E R37").wb, Some(4), "the global load that went back stands as without the switch, under {mode:?}");
+        assert_eq!(k, plain, "under {mode:?} every control field is the allocator's");
+    }
+}
+
+#[test]
+fn beside_const_alone_the_trial_runs_on_the_batches_taken_apart() {
+    let text = taker_and_loser();
+    // the two constant loads of the head are one batch on one scoreboard; `CUBIT_CONST_ALONE` takes them apart
+    let (batch, _, _) = build(&text, &[SYNC, POLICY]);
+    assert_eq!(word(&batch, "LDC.64 R20").wb, word(&batch, "LDC.64 R22").wb);
+    let (alone, _, _) = build(&text, &[SYNC, POLICY, ALONE]);
+    assert_ne!(word(&alone, "LDC.64 R20").wb, word(&alone, "LDC.64 R22").wb);
+    for mode in [NARROW, WIDE] {
+        let (k, _, log) = build(&text, &[SYNC, POLICY, ALONE, mode]);
+        let l = kind_line(&log);
+        assert!(l.contains("1 went back for 1 use(s) of another kind that lost theirs: wb[15]; 0 still without a scoreboard of their own"), "under {mode:?}: {l}");
+        assert_eq!(k, alone, "under {mode:?} beside CUBIT_CONST_ALONE every control field is the one of CUBIT_CONST_ALONE alone");
+    }
+}
+
+/// A global store whose data is written again (its read barrier flies up to that word), five shared loads, a
+/// global load that is read first, and behind the word that rewrites the store's data a sixth shared load.
+/// Without the switch the read barrier holds a scoreboard, the global load finds none free and shares, and the
+/// sixth shared load takes the scoreboard the read barrier left.
+fn load_beside_a_joined_read_barrier() -> String {
+    format!(
+        "{HEAD}    STG.E desc[UR8][R20.64+0x8], R60 ;\n    MOV R6, R60 ;\n    STG.E desc[UR8][R22.64], R6 ;\n{}    LDG.E R36, desc[UR8][R20.64] ;\n    MOV R6, R2 ;\n    LDS R35, [R60+0x600] ;\n{}",
+        shared_loads(5),
+        readers(&[36, 30, 31, 32, 33, 34, 35])
+    )
+}
+
+/// The trial's limit (KNOWN_ISSUES A65): a use the trial sends back is coloured by the allocator's rule on the
+/// scoreboards as the clause left them -- it is not put back on the scoreboard it has without the switch.
+#[test]
+fn under_wide_a_use_sent_back_takes_the_scoreboard_a_joined_read_barrier_keeps_free() {
+    let text = load_beside_a_joined_read_barrier();
+    let (plain, _, _) = build(&text, &[SYNC, POLICY]);
+    assert_eq!((word(&plain, "STG.E desc[UR8][R22.64], R6").rb, word(&plain, "LDG.E R36").wb, word(&plain, "LDS R35").wb), (Some(0), Some(1), Some(0)));
+    // `wide`: the read barrier joins scoreboard 0 and keeps nothing busy, the five shared loads take 0 .. 4, the
+    // global load takes 5 -- and `LDS R35` finds none free. The trial sends the global load back; by the
+    // allocator's rule it finds 5 free again (the read barrier that made it share holds nothing now), so the
+    // shared load is left without a scoreboard of its own and the line names it.
+    let (k, _, log) = build(&text, &[SYNC, POLICY, WIDE]);
+    let l = kind_line(&log);
+    assert!(
+        l.contains("1 read barrier(s) and 0 use(s) of global loads by the clause, 0 of them on another scoreboard than without it; 1 went back for 1 use(s) of another kind that lost theirs: wb[15]; 1 still without a scoreboard of their own: wb[15]"),
+        "{l}"
+    );
+    assert_eq!(word(&k, "LDG.E R36").wb, Some(5));
+    assert_eq!(word(&k, "LDS R35").wb, word(&k, "LDS R34").wb, "it shares the scoreboard of the shared load in front of it");
+    assert_eq!(word(&k, "IADD3 R13").wait, word(&k, "IADD3 R12").wait, "and its reader waits there");
+    // `narrow`: the read barrier holds its scoreboard as without the switch -- nothing is lost
+    let (n, _, log) = build(&text, &[SYNC, POLICY, NARROW]);
+    assert!(kind_line(&log).contains("0 went back for 0 use(s) of another kind that lost theirs; 0 still without a scoreboard of their own"), "{}", kind_line(&log));
+    assert_eq!(n, plain, "under `narrow` every control field is the allocator's");
+}
+
 #[test]
 fn without_the_switch_every_scoreboard_stands_as_before() {
     for text in [load(), store_beside_a_shared_load(), store_beside_a_global_load()] {
@@ -192,7 +351,14 @@ fn without_the_switch_every_scoreboard_stands_as_before() {
 #[test]
 fn the_audit_names_no_rewrite_under_either_value() {
     for mode in [NARROW, WIDE] {
-        for text in [store_beside_a_shared_load(), store_beside_a_global_load()] {
+        for text in [
+            store_beside_a_shared_load(),
+            store_beside_a_global_load(),
+            load_with_both_barriers(),
+            loads_of_two_forms(),
+            taker_and_loser(),
+            load_beside_a_joined_read_barrier(),
+        ] {
             let (_, _, log) = build(&text, &[SYNC, POLICY, mode, ("CUBIT_HAZ", "1")]);
             assert!(!log.contains("HAZ WAR") && !log.contains("HAZ RAW"), "under {mode:?}:\n{log}");
         }

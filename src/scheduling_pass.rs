@@ -592,9 +592,9 @@ fn is_const_load(op: &str) -> bool {
 /// switch and finds none under it sends the uses of the two kinds that moved across its flight
 /// back to the colouring without the switch, and the trial runs again until it finds no use to
 /// send back. A use of another kind can be left without a scoreboard of its own at that point:
-/// one that was pushed off by a use of another kind that was itself pushed off -- the trial
-/// names it and does not unwind the clause for it. One line a kernel says what the trial found
-/// ([`take_kind_report`]). Any other value is refused.
+/// a use sent back is coloured by the allocator's rule on the scoreboards as the clause left
+/// them, not put back on its own -- the trial names the use left. One line a kernel says what
+/// it found ([`take_kind_report`]). Any other value is refused.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SbKind {
     Narrow,
@@ -662,8 +662,8 @@ pub struct KindReport {
     /// setter)
     pub lost: Vec<(bool, usize)>,
     /// of those, the uses that are still without a scoreboard of their own when the trial ends:
-    /// no use of the two kinds that the clause moved stands across their flight -- they were
-    /// pushed off by a use of another kind that was itself pushed off
+    /// no use of the two kinds that the clause moved stands across their flight any more (a use
+    /// sent back is coloured by the allocator's rule, not put back on the scoreboard it had)
     pub still: Vec<(bool, usize)>,
 }
 
@@ -4854,8 +4854,8 @@ fn kind_trial(insns: &[Instruction], table: Option<&IsaTable>, const_keep: Optio
                 lost.push(key);
             }
             // who took it: the uses of the two kinds that the clause moved onto the scoreboard this
-            // use has without the switch, across its flight -- where there is none (the use was
-            // pushed off by a use that was pushed off), every use the clause moved across its flight
+            // use has without the switch, across its flight -- where there is none (another use
+            // holds that scoreboard now), every use the clause moved across its flight
             let home = base.coloured.iter().find(|(k, _, _)| *k == key).map(|(_, b, _)| *b);
             let across: Vec<&((bool, usize), u8, Flight)> = run.coloured.iter().filter(|(k, b, f)| moved(&run, k, *b) && touch(f, flight)).collect();
             if across.iter().any(|(_, b, _)| Some(*b) == home) {
