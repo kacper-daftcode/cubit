@@ -112,8 +112,10 @@ FC2 at 4 096 rows, where the same frame with the loop under the policy alone and
 constant load while a scoreboard is free — a batch of them is taken apart where each load finds a scoreboard (or
 goes back onto its neighbour's) and no other use loses its own, the vendor's form of these loads; loads that one
 word reads first stay together, as his do. In cubit's own frame of the served FC2 nineteen of the 47 reads that wait
-a scoreboard with more than one producer pending then wait their one producer; no schedule under it has been on a
-card (opt-in, KNOWN_ISSUES A59).
+a scoreboard with more than one producer pending then wait their one producer. A card read that frame under the
+switch: no difference in time against the same frame without it (−0.04 ± 0.16 µs a call at 4 096 rows; the short
+form, one load order; one Server card, free of its power limit); the frame stands 4.6 % of FC2 behind ptxas with the
+switch and without it (opt-in, KNOWN_ISSUES A59).
 `CUBIT_DUMP_COLOUR=1` prints the colouring of the scoreboards use by use (stderr, a look).
 `CUBIT_SCHED2=1` selects the dependency-aware stall model (a stall is charged where a consumer needs it, not
 after every producer); with `CUBIT_SCHED2_LAT=sm120` the latencies come from the pair table

@@ -36,7 +36,10 @@ decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `
   loop's head the read barriers of the loop's own eight `LDG.E.128` are pending from the round before on five
   scoreboards (the vendor holds one for all eight). An `LDC.64` and an `LDCU.64` there are no batch and overflow onto
   one scoreboard (4 reads); the other 7 reads are of eight guarded `LDG.E.CONSTANT` on one barrier and of three scalar
-  producers, where the vendor shares too. No schedule under the switch has been on a card.
+  producers, where the vendor shares too. A card read cubit's own frame of the served FC2 under the switch: no
+  difference in time against the same frame without it (−0.04 ± 0.16 µs a call at 4 096 rows; the short form, one
+  load order; one Server card, free of its power limit); that frame stands 4.6 % of FC2 behind ptxas with the switch
+  and without it — the rule changes what a read waits for, not the kernel's time.
 - **`CUBIT_DUMP_COLOUR=1`** (stderr): one `COL` line a use in the order of the colouring — its scoreboard, setters,
   waiters and flight, the scoreboards busy over the flight (`busy=`, scoreboard 0 first) with one use that holds each,
   ` over` when none was free, ` const[<first load of the batch>]` on a load of a batch taken apart, ` joined[..]` when
