@@ -361,9 +361,11 @@ fn a_wait_parked_for_a_reader_that_cannot_wait_stays() {
 
 /// The same reader in a round: the word in front of it reads the first load of the round BEFORE, behind the first
 /// wait of its own round -- the kind of bit `head` takes -- and carries the parked wait of the reader behind it.
+/// A fourth load and its reader stand behind: without the bit the third load would fly with the fourth in front
+/// of that reader's wait, two plain shared loads, a measured set -- the rule's guard does not hold the bit.
 fn parked_in_a_round() -> String {
     format!(
-        "{PINS}L_top:\n    {READ_R5} ;\n    LDS R10, [R63+0x500] ;\n    {READ_R4} ;\n    SYNCS.ARRIVE.TRANS64.A1T0 RZ, [R10+URZ], RZ ;\n{TAIL}{SUM}"
+        "{PINS}L_top:\n    {READ_R5} ;\n    LDS R10, [R63+0x500] ;\n    {READ_R4} ;\n    SYNCS.ARRIVE.TRANS64.A1T0 RZ, [R10+URZ], RZ ;\n    LDS R12, [R60+0x600] ;\n    IADD3 R13, PT, PT, R12, R13, RZ ;\n{TAIL}{SUM}"
     )
 }
 
