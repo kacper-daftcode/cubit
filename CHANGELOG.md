@@ -10,8 +10,9 @@ decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `
   text of the served FC2 the build under `CUBIT_TENSOR_YIELD=holds` reads 0.787 ± 0.017 % ahead of ptxas and the span
   of the call 0.307 ± 0.009 %, where the record text reads 0.134 ± 0.016 % and 0.051 ± 0.009 %; with
   `CUBIT_SCHED2_PACE=tensor` beside it the build reads 0.800 ± 0.018 % and 0.314 ± 0.011 % — the pacing adds nothing
-  a card can see there (0.078 ± 0.106 µs a call apart), where on the served FC1 it carries about a third of the
-  build's lead. The full form: both load orders, 4 096 rows; one Server card, free of its power limit.
+  a card can see there (0.078 ± 0.106 µs a call apart), where on the served FC1 the build under both reads
+  1.375 ± 0.011 % and under the clause alone 0.815 ± 0.011 %. The full form: both load orders, 4 096 rows; one
+  Server card, free of its power limit.
 
 ## Unreleased — 2026-11-18 (`CUBIT_WAIT_DRAINED=head | paths`, opt-in with `CUBIT_WAIT_POLICY=1`: the barrier allocator writes no wait on a scoreboard that another wait has drained)
 
