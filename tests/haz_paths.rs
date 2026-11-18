@@ -7,7 +7,8 @@
 //! but the first — was entered with waits its paths never issued, and a read there of a load that no word waited
 //! was not named. The path-aware scan runs on the control-flow graph and names those reads (`NOT waited on a
 //! path`); it prints under `CUBIT_HAZ` alone and adds to the text walk's list. One summary line says how the two
-//! walks stand to each other — among it the reads the text walk names although a wait stands on every path.
+//! walks stand to each other — among it the reads the text walk names that no path of the flow graph shows (a
+//! wait stands on every path that reaches them, or the register is rewritten first, or no path reaches the word).
 //!
 //! The first three tests and the two of the summary line fail on the audit without the scan; the other three are
 //! controls that pass on both.
@@ -217,7 +218,7 @@ fn a_read_the_text_walk_names_behind_a_wait_on_every_path_is_counted_and_stays_n
     assert_eq!(named.len(), 1, "{log}");
     assert!(named[0].contains("NOT waited)"), "{}", named[0]);
     let s = summary(&log);
-    assert!(s.starts_with("HAZ paths: 0 read(s) of a result some path leaves unwaited (0 of them named by the text walk too); 1 read(s) the text walk names stand behind a wait on every path"), "{s:?}");
+    assert!(s.starts_with("HAZ paths: 0 read(s) of a result some path leaves unwaited (0 of them named by the text walk too); 1 read(s) the text walk names that no path of the flow graph shows"), "{s:?}");
 }
 
 #[test]

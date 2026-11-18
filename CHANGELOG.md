@@ -93,12 +93,15 @@ decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `
   barrier, puts its own in; where paths meet the sets unite. A read with a pair in the state is a finding.
 - **What is printed, and when:** under `CUBIT_HAZ` the text walk's lines as before, then the reads the scan alone
   names (`HAZ RAW … (wbN, NOT waited on a path)`), then one line `HAZ paths: …` with three counts — the reads some
-  path leaves unwaited, those of them the text walk names too, and the reads the text walk names although a word
-  waits on every path that reaches them. The text walk's lines stay as they are. Without the variable nothing new is
-  printed, frozen or not: the log of a build is what it was. The audit writes no field: no schedule moves.
-- **What it reads on real texts:** on the vendor's own schedules of the served module (FC1, its r33 form, FC2, every
-  control word kept) the scan names nothing, and all 4 | 4 | 20 reads the text walk names there stand behind a wait
-  on every path; on cubit's schedules of FC1 and of its r33 form in the recipe of the record text — FC1 also under
+  path leaves unwaited, those of them the text walk names too, and the reads the text walk names that no path of the
+  flow graph shows (a word waits on every path that reaches them; the count also holds a read whose register every
+  path rewrites first and a read in a word the graph does not reach). The text walk's lines stay as they are.
+  Without the variable nothing new is printed, frozen or not: the log of a build is what it was. The audit writes no
+  field: no schedule moves. **What it does not read:** a read barrier — neither walk names a word that rewrites an
+  operand of a word in flight.
+- **What it reads on real texts:** on the vendor's own schedules of FC1, of its r33 form and of FC2 — the instances
+  without m-tile loops, every control word kept — the scan names nothing, and all 4 | 4 | 20 reads the text walk
+  names there are reads no path of the flow graph shows; on cubit's schedules of FC1 and of its r33 form in the recipe of the record text — FC1 also under
   `CUBIT_SCHED2_PACE=tensor` and with `CUBIT_TENSOR_YIELD=holds` beside it — and on cubit's own schedule of the
   whole FC2 neither walk names a read; on the record text of FC2 (the vendor's control words outside one loop) the
   scan names nothing and the text walk's 20 are the vendor's 20. On a hybrid text — the vendor's control words kept

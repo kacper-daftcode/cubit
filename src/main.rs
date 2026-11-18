@@ -5802,7 +5802,7 @@ fn cmd_asm_directive_format(
                 }
                 if p.on_paths > 0 || p.walk_only > 0 {
                     eprintln!(
-                        "  WARN [{}] HAZ paths: {} read(s) of a result some path leaves unwaited ({} of them named by the text walk too); {} read(s) the text walk names stand behind a wait on every path",
+                        "  WARN [{}] HAZ paths: {} read(s) of a result some path leaves unwaited ({} of them named by the text walk too); {} read(s) the text walk names that no path of the flow graph shows",
                         def.name, p.on_paths, p.both, p.walk_only
                     );
                 }

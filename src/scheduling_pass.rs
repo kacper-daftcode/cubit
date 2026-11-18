@@ -3156,8 +3156,9 @@ pub struct PathHazards {
 /// `added` holds only the reads [`report_hazards`] does not name, so the two lists add; a
 /// finding here reads `NOT waited on a path`. The three counts say how the two walks stand to
 /// each other: the reads some path leaves unwaited, those of them the text walk names too, and
-/// the `NOT waited` reads of the text walk that no path shows (on every path that reaches them a
-/// word waits the producer's barrier; the text walk came to them by the text). All of it is
+/// the `NOT waited` reads of the text walk that no path shows -- on every path that reaches the
+/// read a word waits the producer's barrier or rewrites the register first, or the graph does not
+/// reach the read's word at all; the text walk came to them by the text. All of it is
 /// printed under `CUBIT_HAZ` alone, frozen or not: without the variable the log is the text
 /// walk's, as it was.
 pub fn report_hazards_on_paths(insns: &[Instruction]) -> PathHazards {
