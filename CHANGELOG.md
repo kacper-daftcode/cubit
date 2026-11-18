@@ -32,6 +32,37 @@ decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `
   model's files come in a commit of their own): `probe_sm120_20261118_b76.json`, `_b73.json`, `_b77.json`,
   `_b79.json` — `tools/stallfloor/README.md`: one kind row, four result rows.
 
+## Unreleased — 2026-11-18 (`CUBIT_TENSOR_YIELD=holds`, opt-in: in a tensor loop every hold of the fixed-latency datapath takes the yield flag; every schedule without the variable is what it was)
+
+- **`CUBIT_TENSOR_YIELD=holds`** (honoured only together with `CUBIT_SYNC_CLASSES=1`; KNOWN_ISSUES A60): one clause of
+  the flag pass, behind `CUBIT_YIELD_HOLD` and in front of the OPEX law. In the text range of a tensor loop (the
+  innermost loop around a warp tensor word, first word to backward branch) a HOLD takes the yield flag: a word cubit
+  scheduled, of an opcode of `HOLD_OPCODES`, at a stall count of 3 ..= 11, that carries no flag, sets no barrier,
+  waits on none and is on no path the first word behind a wait on a write barrier that reads a register a setter of
+  that barrier wrote (`tensor_yield::holds`, `first_readers_behind_a_wait`). No stall count, wait or barrier moves; no
+  flag is taken off; a word at a stall count of 12 ..= 15 never takes the flag (a reserved code); the tensor words, a
+  hand-scheduled word and every word outside the tensor loops stay as they are. Any other value of the variable is
+  refused by name.
+- **Why:** the legaliser takes the flag off a stall that carries a dependency, and ptxas's tensor loops look the
+  same — a word that holds at a stall count of 4 or more right in front of a tensor word never carries it. A search
+  on a card (the flag moved on groups of words of one schedule of the served FC1, each text read against its start)
+  read the opposite faster in both load orders, and read the holds as one gain: the holds of the loop's two halves
+  together read like those of one half alone.
+- **What it writes:** in the recipe of the record text of the served FC1 (`CUBIT_WAIT_POLICY=1 CUBIT_YIELD_HOLD=2n`)
+  45 of the tensor loop's 443 words take the flag (17 at a stall count of 3, 7 at 4, 2 at 5, 7 at 6, 10 at 7, one
+  each at 8 and 11) and nothing else differs; 37 in its r33 form; 30 in the record text of the served FC2 (the
+  vendor's frame, cubit's stage loop); 80 in cubit's own frame of FC2.
+- **Measured:** the served FC1 under the switch, in the recipe of the record text, reads 4.52 ± 0.12 µs a call below
+  the schedule without it and 0.801 ± 0.014 % ahead of ptxas (the short form: one load order, 4 096 rows; one Server
+  card, free of its power limit; every call's result compared) — a ranking: the full form has not read it. Nothing is
+  known of FC2 under it, of the state at the power limit, of production's card model or of a server.
+- **Not in it:** a word at a stall count of 1 or 2 in front of a hold keeps its flag — with those flags taken off
+  beside the holds' the same card read the kernel 1.73 ± 0.14 µs a call slower (the short form, as above); the tensor
+  words' own flags; an exception for a hold that carries a requirement that is exactly met — the clause takes a list
+  of words that keep their flag as it stands, empty today, and has no value for it.
+- **Tests:** `tests/tensor_yield.rs` (5; the first four fail without the variable) and seven unit tests in
+  `tensor_yield::tests`.
+
 ## Unreleased — 2026-11-18 (`CUBIT_CONST_ALONE=1`, opt-in: a constant load shares no barrier with another constant load while a scoreboard is free; `CUBIT_DUMP_COLOUR=1`, a look at the colouring; every schedule without the switch is what it was)
 
 - **`CUBIT_CONST_ALONE=1`** (KNOWN_ISSUES A59): the allocator batches consecutive loads of one opcode, one width and one

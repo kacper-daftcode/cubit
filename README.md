@@ -102,6 +102,12 @@ switches, in the recipe of the record text (the vendor's control words on every 
 schedule of that loop), FC2 reads 0.124 ± 0.018 % ahead of ptxas (the full form: both load orders, 4 096 rows; one
 Server card, free of its power limit); on the default path and in cubit's own frame FC2 stays behind ptxas (opt-in,
 KNOWN_ISSUES A58).
+`CUBIT_TENSOR_YIELD=holds` (with `CUBIT_SYNC_CLASSES=1`): in a tensor loop every hold of the fixed-latency datapath
+yields — a word at a stall of 3 to 11 that carries no flag, sets no barrier, waits on none and is not the first
+reader behind a wait takes the yield flag; no stall, wait or barrier moves and no flag is taken off. Neither cubit's
+scheduler nor ptxas writes it; a search on a card found it. In the recipe of the record text the served FC1 under
+the switch reads 4.52 ± 0.12 µs a call below the schedule without it and 0.801 ± 0.014 % ahead of ptxas (the short
+form: one load order, 4 096 rows; one Server card, free of its power limit — a ranking; opt-in, KNOWN_ISSUES A60).
 `CUBIT_LOAD_COVER=1` (with `CUBIT_WAIT_POLICY=1`): the vendor's form of a shared-memory load — a load under the wait
 of a younger shared load carries no barrier, and loads that find no scoreboard free stand as one set in front of one
 wait, as his do. Without `CUBIT_YIELD_HOLD_FRAME=1` cubit is still behind ptxas on FC2: the stage loop under the

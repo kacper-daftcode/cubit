@@ -62,6 +62,7 @@ pub mod sync_class;
 pub mod scheduling;
 pub mod scheduling_pass;
 pub mod table;
+pub mod tensor_yield;
 
 pub use ir::{ControlCode, Instruction};
 pub use parser::{

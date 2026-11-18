@@ -5787,6 +5787,19 @@ fn cmd_asm_directive_format(
             }
         }
 
+        // CUBIT_TENSOR_YIELD=holds: in the text range of a tensor loop a datapath word that holds (a stall
+        // of 3 ..= 11 without the flag) takes the yield flag (`tensor_yield`). No stall, wait or barrier
+        // moves and no flag is taken off; behind the clause above (its words stand outside the tensor
+        // loops), in front of the OPEX law.
+        if cubit::tensor_yield::request().map_err(anyhow::Error::msg)? && !fully_frozen {
+            // the place of an exception to the clause: the words that keep their flag as it stands
+            let keep: Vec<bool> = Vec::new();
+            let set = cubit::tensor_yield::apply(&mut insns_with_ctrl, &keep);
+            if set > 0 {
+                println!("  {}: tensor yield: {} hold(s) of the tensor loops take the yield flag (stall 3 ..= 11)", def.name, set);
+            }
+        }
+
         // Post-pass stall bumps (MMA / back-edge settle) run after schedule()
         // and can re-pair a long stall with yield. Reapply the native SM120
         // OPEX law, or the earlier BUG-170 LOP3-only rule on other targets.
