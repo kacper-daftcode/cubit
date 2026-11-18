@@ -12,9 +12,18 @@ reference kernel is blind when the reference itself is affected: docs/KNOWN_ISSU
     probe.py gen  <requests.json> --out <batch dir> [--cubit BIN] [--table sm120.json.gz] [--dep-table dep_latency_sm120.json]
                   CPU: kernels (.sass + .cubin), family.json (index + provenance), model.npz (the host-computed
                   checksums of every thread for each failure hypothesis), per request in <batch dir>/<id>/
-    probe.py run  <batch dir> [--reps N] [--limit-s S]
+    probe.py run  <batch dir> [--reps N] [--limit-s S] [--kernel-limit-s N] [--after-hang end|next]
                   GPU (device 0 of the container): launches + classification -> <batch dir>/<id>/result.json,
                   <batch dir>/floors.json; prints SUMMARY lines
+                  THE TIME LIMIT PER SINGLE KERNEL (run code 15): every request runs in a child process that keeps a
+                  progress record (<id>/progress.txt: the kernel in flight and its launch counter). A child whose
+                  record does not change for N seconds (--kernel-limit-s, default 20; --kernel-first-s, default 90,
+                  while no kernel is named in it) has a launch that does not return: the child is killed, the kernel
+                  is NAMED (a FAIL line, <id>/HUNG.json, the request's row in floors.json: request, kernel, distance,
+                  grid, front, launch), ONE fresh context is made on the card in a process of its own, and then
+                  --after-hang end (the default: a hang ends a block) starts no further request, --after-hang next
+                  (a diagnostic whose START line says that a launch may hang) starts the next one - unless the fresh
+                  context failed. The exit code is then 3. --kernel-limit-s 0 = no limit, no record (runner 14).
     probe.py floor <batch dir | result.json ...>
                   the result as log lines: `floor: <pair> = N (conditions) ...`
     probe.py adapt <gate json | dir ...> --out req.json
@@ -219,6 +228,146 @@ iteration, the same in every lane of a warp (f: the reader never executes - one 
 the relative pair under `@P2`.
     {"id": "tg_cs2r_r3_c", "kind": "raw", "producer": "CS2R", "consumer": "QMMA.r3", "rguard": "c", "front": ["none", "mmax1@7"]}
     {"id": "tg_umov_u6_t", "kind": "raw", "producer": "UMOV", "consumer": "QMMA.u6", "rguard": "t", "upguard": "set"}
+
+Version 33 - the three forms of the uniform-branch diagnostic (a uniform branch behind the producer of its predicate; the rule since
+2026-11-13: never closer than 9 cycles - `gen` refuses a batch with such a kernel unless PROBE_BRAU_BELOW9=diagnostic):
+`UISETP.NE -> BRA.back` = THE VENDOR'S OWN WORDS (his attention kernel, words 361 - 364): the back edge of a uniform loop,
+`L: <one word>; [S04] UIADD3 UR9, UPT, UPT, UR9, 0x1, URZ; [S<d>] UISETP.NE.AND UP0, UPT, UR9, URZ, UPT; [S15, no flag]
+BRA.U UP0, L` - three passes per iteration (UR9 = -3), the body's word adds 1 to R8: `good` = the second input + 3, `stale`
+(the branch read UP0's previous content, false) = + 1. On `UISETP -> BRA.gc`: "bctl": "y5" writes the branch with the yield
+flag at stall 5 (the form of the MoE texts), "bskip": 2 .. 20 makes it skip that many words instead of one.
+    {"id": "v17_loop", "kind": "raw", "producer": "UISETP.NE", "consumer": "BRA.back", "distances": "9,30"}
+    {"id": "m17_y5", "kind": "raw", "producer": "UISETP", "consumer": "BRA.gc", "bctl": "y5", "distances": "9,30"}
+
+Version 34 - kind `ord`, THE SETS OF PRODUCERS ON ONE WRITE BARRIER in cubit's own builds: four more letters of the SET of version 23 -
+L (`LDCU.64 UR<6|8|10>, c[0x0][0x380]`: the constant of the prologue's LDC.64 into a UNIFORM pair; its two registers hold
+markers until it lands - `UMOV`, 15 cycles or more in front of the producers; ONE reader word `IADD.64 R<t>, -R2, UR<a>` = the
+pair minus the prologue's copy: 0 : 0 when the load has landed), i (`SHFL.IDX PT, R, R73, 0x1, 0x1f`: every lane takes lane 1's
+source; not beside h), N (`LDG.E.CONSTANT`: G's line and model; guards g | k | j as on G; in a set under predicates an
+UNGUARDED N or i may stand beside the guarded loads), Y (`SYNCS.CCTL.IVALL`: an opaque word on the set's barrier - no register,
+no reader). A set whose registers are ALL read relative to a reference (`C,C`, `m,m,m`, `L,L`, `Y,L`) is a request now: the
+first relative reader carries the wait and the iteration's first input is added to the checksum. "rbar": "same" = every
+producer also sets the READ barrier of the set's number (the vendor's `[R4:W4] SHFL.IDX` / `LDG.E.CONSTANT`; shuffles and global
+loads only); "preader": "set" = the reader into a PREDICATE: the first reader word, on the ONE wait, is `ISETP.GE.AND P3, PT,
+R<the first register read>, RZ, PT`, and `SEL R<t>, R4, R5, P3` joins the fold 15 cycles or more behind it; "first": "older" =
+the reader words take the producers OLDEST first (absent: the youngest first). The positive control of a plain set is its twin
+with "barrier": "none", of a set under predicates "wait": "end".
+    {"id": "g_ll", "kind": "ord", "forms": "L,L", "barrier": "all", "yield": "set", "first": "older", "distances": "1,5,6"}
+    {"id": "g_ll_n", "kind": "ord", "forms": "L,L", "barrier": "none", "yield": "set", "first": "older", "distances": "1,5,6"}
+    {"id": "g_ngk_p", "kind": "ord", "forms": "N,gN,kN", "barrier": "all", "yield": "set", "pguard": "ff", "pneg": "set", "rbar": "same", "preader": "set", "distances": "1,4"}
+
+Version 34, second build - kind `ord`, the SET, two additions. (1) The letter z = `S2UR UR12, SR_CgaCtaId` on the set's
+barrier: a 32-bit UNIFORM producer whose value the host does not know. UR12 holds the marker 0x5a5a0157 from the top of the
+iteration (no CTA has this number); the reader word is `MOV R<t>, UR12` (on the ONE wait when it is the first reader word), and
+the word behind it takes the reference away (`IADD3 R<t>, PT, PT, R<t>, -R31, RZ`; R31 = `S2R R31, SR_CgaCtaId` at the top of
+every iteration, on write barrier 0 with a wait of its own): 0 when the S2UR had landed. One z in a plain set; never under
+predicates. (2) ONE PREDICATE WRITTEN AGAIN BETWEEN TWO GUARDED LOADS: the forms `...,gN,gN` (the prefix g twice, no k) - both
+`LDG.E.CONSTANT` stand under P0, and P0 is written again by `ISETP.GE.AND` right behind the first of them, 13 cycles in front of
+the second (letter c: from the next lower bit of the counter's hash - the two loads execute under DIFFERENT values of the one
+predicate; the model evaluates every guard where its word stands).
+    {"id": "h_cz_o", "kind": "ord", "forms": "c,z", "barrier": "all", "yield": "set", "first": "older", "distances": "1,4,11"}
+    {"id": "h_ngg_cc", "kind": "ord", "forms": "N,gN,gN", "barrier": "all", "yield": "set", "pguard": "cc", "pneg": "set", "rbar": "same", "distances": "1,4"}
+
+Version 34, third build - the shapes of the sets in cubit's own builds (kind `ord`, the SET). (1) "wait": "front" = THE ONE WAIT STANDS ON A
+WORD THAT READS NO MEMBER (`IADD3 R15, PT, PT, R15, 0x1, RZ`, the filler's word, one cycle in front of the first reader word);
+the reader words stand behind it and carry no wait - in those builds an `UIADD3`, a `MOV`, an `IMAD.SHL.U32`. On a plain set
+(barrier all; its positive control is the twin with "barrier": "none" and no wait field) and on a set under predicates (its
+control: "wait": "end"). With ONE predicate written again between two guarded loads P0 is written a THIRD time one cycle in front
+of the waiting word, while both loads fly (in those builds an `ISETP.NE.AND`). (2) THE READ BARRIERS AS THOSE BUILDS HAVE THEM:
+"rbar": "same" now sets the read barrier only on the producers that can carry one (shuffles and global loads) - a set may hold
+other producers beside them (e.g. `SYNCS.CCTL.IVALL` + `[R1:W1] SHFL.IDX` + `LDCU.64`); "rbar": "split" = the global loads
+carry the read barrier of the set's number and a SHUFFLE read barrier 2, ANOTHER number than its write barrier (e.g.
+`[R2:W4] SHFL.IDX` beside `[R4:W4] LDG.E.CONSTANT`); the last word of the body waits read barrier 2.
+    {"id": "t_ngg_cc", "kind": "ord", "forms": "N,gN,gN", "barrier": "all", "yield": "set", "pguard": "cc", "pneg": "set", "rbar": "same", "wait": "front", "distances": "1,4"}
+    {"id": "t_yil", "kind": "ord", "forms": "Y,i,L", "barrier": "all", "yield": "set", "rbar": "same", "wait": "front", "distances": "1,4"}
+
+Version 34, fourth build - "reader": "gsts" on the plain set `i,i`: THE ONE READER WORD IS A GUARDED STORE, `@!P0 STS.128
+[R9+0x20], R32` (in cubit's own builds an `@!P5 STS.128` behind `SHFL.IDX` + `SHFL.IDX`): the quad R32:R35 = the two shuffles' registers and the
+iteration's two inputs; P0 is written false at the top of every iteration (the store executes in every lane and iteration); the
+store sets read barrier 3, `LDS.128 R24, [R9+0x20]` waits it and sets write barrier 2, the fold waits that and takes the four
+registers read back. With the set's wait on the store itself (absent) or on a word that reads no member in front of it ("wait":
+"front"); the positive control is the twin with "barrier": "none".
+    {"id": "u_ii_gs_f", "kind": "ord", "forms": "i,i", "barrier": "all", "yield": "set", "rbar": "same", "reader": "gsts", "wait": "front", "distances": "1,4,11"}
+
+Version 34, fifth build - kind `ord`, two additions (the reference word of the letter z, `S2R R31,
+SR_CgaCtaId` waited two cycles behind its issue, had not landed 39 cycles later on dense grids: z measures nothing and stays only
+so that its batch regenerates byte for byte). (1) The letters x = `S2UR UR12, SR_CgaCtaId` and r = `S2R R32, SR_CgaCtaId`, each
+READ TWICE and with NO reference word: the destination holds a marker from the top of every iteration; the first read stands
+among the reader words, the second 30 cycles or more behind them; (first == second) and (second != marker) each choose between
+the prologue's constant R21 and zero, so no term of the fold depends on the special register's value. x stands in a plain set
+(`c,x` = LDC + S2UR on one write barrier). (2) THE DIAGNOSTIC OF THE WAIT BEHIND SUCH A WORD: forms "x" | "r" alone - a set of
+ONE producer; the swept distance stands between the producer and the word that reads it; barrier all (the wait on the reader
+word) | none (the control: how long the word takes by itself); hypotheses good | stale (the first read took the marker) | drop1
+(the word had not landed at the second read either); a mixture is decoded into the number of stale iterations (the first read of
+a thread is one of 256).
+    {"id": "q_x_y", "kind": "ord", "forms": "x", "barrier": "all", "yield": "set", "distances": "1-9,11,13,15,20,30,45,60"}
+    {"id": "n_cx_o", "kind": "ord", "forms": "c,x", "barrier": "all", "yield": "set", "first": "older", "distances": "1,4,11"}
+
+Version 34, sixth build - kind `ord`, two additions (the wait behind `S2R` | `S2UR ... SR_CgaCtaId` on
+a write barrier holds from one cycle without the yield flag and only from two with it - on two card models; an earlier batch had read
+the same for `LDS` with the flag). (1) THE DIAGNOSTIC WITH A LOAD AS THE PRODUCER - the floor's reach: forms "e" = `LDC R32,
+c[0x0][0x388]` | "f" = `LDS R32, [R9+0x20]` | "o" = `LDG.E R32, desc[UR4][R18.64]`, each ALONE, in the body of the letter r (R32
+holds the marker from the top of every iteration, the reader word `MOV R24, R32` d cycles behind the load carries the wait of
+write barrier 1, the second read stands 31 cycles later; barrier none = the control). What the loads bring (the seed; R20 out of
+the thread's own line; R20 out of the thread's word B) is never the marker and joins no term of the fold. (2) THE REPLAY OF an earlier batch's
+REFERENCE WORD: forms "t" = the top of the iteration of an earlier batch's reference kernels word for word (`S2R R31, SR_CgaCtaId` on write
+barrier 0 at stall 2 without the yield flag, the wait on the filler behind it, `MOV R32, R5`, [the front], `LDC R32` and `S2UR
+UR12` with the yield flag on barrier 0 with their waits), R31 holding the marker from the top of every iteration and read twice -
+`MOV R24, R31` 39 cycles behind the S2R (an earlier batch's place of `IADD3 R24, R24, -R31`) and `MOV R25, R31` 31 cycles later; "v" = the
+same with the S2R on write barrier 1 and the filler waiting barrier 1; "w" = the S2R on write barrier 1, NO wait on the filler,
+the first reader of R31 carries the wait. One distance (1); the fold and the hypotheses are the diagnostic's.
+    {"id": "f_e_y", "kind": "ord", "forms": "e", "barrier": "all", "yield": "set", "distances": "1-9,11,13,15,20,30,45,60"}
+    {"id": "p_t", "kind": "ord", "forms": "t", "barrier": "all", "distances": "1"}
+
+Version 34, seventh build - kind `ord`, three additions (behind a 32-bit `LDC` | `LDG.E` | `LDS` on a write
+barrier the reader's wait holds from one cycle without the yield flag and only from two with it - on two card models).
+(1) FOUR SHAPES OF cubit's OWN BUILDS that no request had: "pthird": "lane" - the third write of the ONE predicate is another
+word from another condition, `ISETP.NE.AND P0, PT, R31, RZ, PT` with R31 = SR_TID.X & 0x1f (written at the top of the iteration),
+one cycle in front of the word that carries the wait, while both guarded loads fly; "sguard": "lane" - the guarded store of
+"reader": "gsts" stands under P0 = (lane != 0): `@!P0 STS.128` executes in ONE lane of 32 and is nullified in the others (the line
+keeps the prologue's quad there: only lane 0 can show a stale store); "waitword": "bar" - the word that carries the ONE wait of
+"wait": "front" is those builds' event word `BAR.SYNC.DEFER_BLOCKING 0x0` (the wait, Y, stall 6) behind `WARPSYNC.ALL` (Y, stall 5)
+- a named-barrier word: every thread of the block arrives once per iteration (barrier none + "wait": "front": the control with the
+pair in the same place and no wait); "sreader": "set" - the FIRST READER behind the wait is `SHFL.IDX PT, R30, R<the unguarded N's
+register>, RZ, 0x1f` (every lane takes lane 0's), it waits the set's barrier itself and carries the read and the write barrier of
+the set's number with the yield flag at stall 4; the first plain reader word behind it waits that barrier; R30 joins the fold.
+(2) THE REPLAY OF an earlier batch's REFERENCE WORD WITHOUT ANY MARKER: forms "a" = an earlier batch's top of the iteration word for word, R31 NEVER written
+by the kernel but by the S2R itself, read twice, ONE question (first == second): only a thread's FIRST iteration can show a word
+that had not landed (stale = good minus ONE iteration's term); "b" = the same with a THIRD read in front of the S2R (`MOV R26,
+R31`) compared with the second read: equal in 255 of 256 iterations when the leftover differs from the register's value - equal
+in all 256 (drop1) = the leftover IS the value, or the word never landed: that thread could not have shown the failure.
+(3) TWELVE MORE PRODUCERS IN THE DIAGNOSTIC of the letter r (ONE producer alone on write barrier 1, the wait on its first reader, with
+the yield flag or without): the forms E | R | I | J | F | H | K | U | W | X | P | O (single letters) = `MUFU.EX2` | `MUFU.RCP` |
+`I2F.RP` | `F2I.FTZ.U32.TRUNC.NTZ` | `F2F.BF16.F32` (each of R21) | `SHFL.IDX PT, R32, R21, RZ, 0x1f` (it also sets read barrier 2;
+the last word of the body waits it) | `S2R R32, SR_LTMASK` | `LDCU UR12, c[0x0][0x388]` | `LDC.64 R32, c[0x0][0x380]` | `LDC R32,
+c[0x0][R13+0x388]` (R13 = 0: the register-indexed form on bank 0 - a probe kernel has no bank 2) | `@P0 LDG.E.CONSTANT R32,
+desc[UR4][R18.64]` (P0 true in every lane) | `LDG.E R32, desc[UR4][R18.64]` WAITED BY A WORD THAT IS NOT ITS READER (the wait d
+cycles behind the load on `IADD3 R15`, the reader one cycle behind that word). What a producer brings is never the marker.
+    {"id": "t_ngg_cc_l", "kind": "ord", "forms": "N,gN,gN", "barrier": "all", "yield": "set", "pguard": "cc", "pneg": "set", "rbar": "same", "wait": "front", "pthird": "lane", "distances": "1,4"}
+    {"id": "u_ii_gs_f_l", "kind": "ord", "forms": "i,i", "barrier": "all", "yield": "set", "rbar": "same", "reader": "gsts", "wait": "front", "sguard": "lane", "distances": "1,4,11"}
+    {"id": "t_yil_b", "kind": "ord", "forms": "Y,i,L", "barrier": "all", "yield": "set", "rbar": "same", "wait": "front", "waitword": "bar", "distances": "1,4"}
+    {"id": "p_a", "kind": "ord", "forms": "a", "barrier": "all", "distances": "1"}
+    {"id": "f_mex", "kind": "ord", "forms": "E", "barrier": "all", "distances": "1-8"}
+
+Version 34, eighth build - kind `ord`, TWO MORE PRODUCERS of the diagnostic:
+the form Z = `LDS.128 R32, [R9+0x20]` WAITED BY A READER OF ITS THIRD REGISTER (the marker stands in R34 from the top of every
+iteration; `MOV R24, R34` d cycles behind the load carries the wait, `MOV R25, R34` stands 31 cycles later; the load brings R22 of
+the prologue's quad there - never the marker) and the form V = `LDCU.64 UR12, c[0x0][0x380]` (a 64-bit load into a uniform pair,
+the low word read twice). Nothing else differs from the seventh build.
+    {"id": "f_l128", "kind": "ord", "forms": "Z", "barrier": "all", "distances": "1-8"}
+
+Version 34, ninth build - kind `ord`, TWO SHAPES of cubit's own builds that no request had:
+(1) "preader": "own" - the flights' reader into a predicate takes THE SHUFFLE's REGISTER and writes THE SET's OWN PREDICATE:
+the first reader word, on the ONE wait, is `ISETP.GE.AND P0, PT, R<the i's register>, RZ, PT` (those builds' `[B----4-:R-:W-:Y:S01]
+ISETP.GE.AND P5, PT, R25, R0, PT`); `SEL R, R4, R5, P0` joins the fold; a set under ONE predicate with exactly one i.
+(2) "waitword": "both" - TWO WAITING WORDS on one set: the word that reads no member carries the wait first ("wait": "front"),
+the first reader word stands behind it, THEN the event pair `WARPSYNC.ALL` (Y, stall 5) + `BAR.SYNC.DEFER_BLOCKING 0x0` (Y,
+stall 6) waits the SAME barrier again and the second reader word stands behind the pair; a plain set with exactly two reader
+words (Y,i,L: the load's word first, the shuffle's second - those builds' order); "wdist": N = the event word stands N cycles
+behind the first waiting word (7 without it; those builds' place is 101); barrier none + "wait": "front" = the control with
+both words in the same place and no wait on either. Nothing else differs from the eighth build.
+    {"id": "s_nigg_o_cc_l", "kind": "ord", "forms": "N,i,gN,gN", "barrier": "all", "yield": "set", "pguard": "cc", "pneg": "set", "rbar": "split", "wait": "front", "pthird": "lane", "preader": "own", "distances": "1,4"}
+    {"id": "w_yil_d", "kind": "ord", "forms": "Y,i,L", "barrier": "all", "yield": "set", "rbar": "same", "wait": "front", "waitword": "both", "distances": "1,4"}
 """
 from __future__ import annotations
 
@@ -235,8 +384,9 @@ import subprocess
 import sys
 import time
 
-TOOL = "probe.py 32 (2026-11-13)"
+TOOL = "probe.py 34, ninth build (2026-11-18)"
 HERE = pathlib.Path(__file__).resolve().parent
+RUN_CODE = "run code 15 (2026-11-13): the time limit per single kernel"
 SEED = 0x12345
 PTR_STANDIN = [0, 0]      # version 28: the scalar interpreter's stand-in for the output pointer R2:R3 (the selftest sets it nonzero: no fold may depend on it)
 REPEAT = 256
@@ -404,6 +554,7 @@ U32_PRODUCERS = ("ULEA", "ULEA.addr", "USHF", "ULOP3", "VOTEU")
 U32_PAIRS = {"ULEA.u2": ("UIADD3", "UMOV"), "ULEA.u2.s3": ("ULEA",), "LEA.u2": ("ULEA",), "IADD3.u2": ("ULEA",), "STS.u0": ("ULEA.addr",), "STS128.u0": ("ULEA.addr",),
              "FLO.u1": ("VOTEU",), "POPC.u1": ("VOTEU",), "USHF.u1": ("UMOV",), "USHF.L.u1": ("ULOP3",), "ULOP3.u3": ("USHF",), "ULOP3.u1": ("UMOV",),
              "UIADD3.u1i": ("UMOV",), "BRA.gc": ("UISETP",)}
+U33_PAIRS = {"BRA.back": ("UISETP.NE",)}      # version 33: the vendor's loop
 
 
 def upred_producer(name):
@@ -414,10 +565,12 @@ def upred_producer(name):
         return ([Ins("UIADD3 UR8, UPT, UPT, UR8, 0x1, URZ ;", ("add", "UR8", "UR8", 1)),
                  Ins("UISETP.LT.AND UP0, UPT, UR8, 0x80, UPT ;", ("ltu", "UP0", "UR8", 0x80))],
                 "UISETP.GE.AND UP0, UPT, UR8, 0x80, UPT ;", ("ltu", "UP0", 0x7f, "UR8"), "UISETP")
+    if name == "UISETP.NE":      # version 33: the vendor's own word (attention, word 363): UP0 = the counter of a uniform loop has not reached zero
+        return ([], "UISETP.NE.AND UP0, UPT, UR9, URZ, UPT ;", ("ltu", "UP0", 0, "UR9"), "UISETP")
     raise SystemExit(f"unknown uniform predicate producer {name!r} (probe.py list)")
 
 
-UPRED_PRODUCERS = ["UISETP"]
+UPRED_PRODUCERS = ["UISETP", "UISETP.NE"]
 
 
 def pred_producer(name):
@@ -552,6 +705,7 @@ RAW_CONSUMERS = {
     "ULOP3.u3": ("udata", 6, "ULOP3", "u3", "the THIRD source of ULOP3.LUT UR7, UR7, 0xf, UR6, 0xf8, !UPT = UR7 | (0xf & UR6) (UR7 = 0x120, set long before); the result through MOV R8, UR7 (version 32)"),
     "ULOP3.u1": ("udata", 6, "ULOP3", "u1", "the FIRST source of ULOP3.LUT UR6, UR6, 0xf, UR10, 0xf8, !UPT = UR6 | (0xf & UR10) - IN PLACE (UR10 = 0xf); the result through MOV R8, UR6 (version 32)"),
     "UIADD3.u1i": ("udata", 6, "UIADD3", "u1", "the uniform addend of UIADD3 UR6, UPT, UPT, UR6, 0x650, URZ - IN PLACE (the vendor's form); the result through MOV R8, UR6 (version 32)"),
+    "BRA.back": ("updata", 0, "BRA", "gc", "the uniform predicate of BRA.U UP0, L - THE VENDOR'S OWN WORDS (attention, words 361 - 364): the back edge of a uniform loop of three passes, stall 15 without the flag, behind UISETP.NE.AND; R8 = the iteration's second input + 3 (taken twice) | + 1 (not taken at the first pass) reaches the checksum (version 33)"),
     "BRA.gc": ("updata", 0, "BRA", "gc", "the uniform predicate of BRA.U !UP0, L (producer UISETP): the branch skips MOV R8, R4, so R8 = UP0 ? the iteration's first input : its second reaches the checksum (version 32)"),
 }
 RR_CONSUMERS = ("IADD.64rr.r1", "IADD.64rr.r1h", "IADD.64rr.r2", "IADD.64rr.r2h")      # version 25
@@ -566,6 +720,8 @@ R6_TOKEN = r"(?<![A-Za-z0-9])R6(?![0-9])"
 
 
 def raw_pair_ok(prod, cons):
+    if cons in U33_PAIRS or prod == "UISETP.NE":      # version 33
+        return prod in U33_PAIRS.get(cons, ())
     if cons in U32_PAIRS or prod in U32_PRODUCERS:      # version 32: a new uniform consumer takes the producers of its pair classes; a new uniform producer stands in front of its own consumers and of MOV.u1
         return prod in U32_PAIRS.get(cons, ()) or (prod in U32_PRODUCERS and prod != "ULEA.addr" and cons == "MOV.u1")
     if cons in ("IADD.64.u2", "IADD.64.u2h") or prod in ("CS2UR", "CS2UR.32"):      # version 27, third build
@@ -623,6 +779,10 @@ def shfl_of(req):
         return "bfly"
     if req.get("kind") == "ord" and req.get("forms") and any(t.strip() == "h" for t in str(req["forms"]).split(",")):
         return "bfly"      # version 23: a SHFL.BFLY among the producers of a set
+    if req.get("kind") == "ord" and req.get("forms") and any(t.strip() == "i" for t in str(req["forms"]).split(",")):
+        return "idx"       # version 34: a SHFL.IDX among the producers of a set (every lane takes lane 1's source)
+    if req.get("kind") == "ord" and req.get("sreader") == "set":
+        return "idx"       # version 34, seventh build: a SHFL.IDX as the first reader (every lane takes lane 0's member register)
     return None
 LATE_CONST = 0x9e3779b1      # odd: (checksum - good) / LATE_CONST = the number of iterations in which the store took the rewritten data
 FRONT_RE = re.compile(r"(sts128|sts|stg)x(\d+)@(\d+)")
@@ -991,6 +1151,12 @@ def body_raw(req, d, front):
                      Ins("ISETP.NE.U32.AND P0, PT, RZ, RZ, PT ;", ("mov", "P0", 0))]
     elif cons == "BRA.gc":      # what R8 holds where the branch is taken
         pre = pre + [Ins("MOV R8, R5 ;", ("mov", "R8", "R5"))]
+    elif cons == "BRA.back":      # version 33: the vendor's loop - the counter (three passes), what R8 holds behind three passes (R26) and behind one (R27), UP0 false
+        # (what it is where the loop was left), R8 = the second input; then the label, the body's one word and the vendor's UIADD3 at his stall 4 - the producer follows
+        pre = pre + [Ins("UMOV UR9, 0xfffffffd ;", ("mov", "UR9", 0xfffffffd)), Ins("IADD3 R26, PT, PT, R5, 0x3, RZ ;", ("add", "R26", "R5", 3)),
+                     Ins("IADD3 R27, PT, PT, R5, 0x1, RZ ;", ("add", "R27", "R5", 1)), Ins("UISETP.NE.AND UP0, UPT, URZ, URZ, UPT ;", ("mov", "UP0", 0)),
+                     Ins("MOV R8, R5 ;", ("mov", "R8", "R5")), Lbl("L_u32"), Ins("IADD3 R8, PT, PT, R8, 0x1, RZ ;", ("nop",)),
+                     Ins("UIADD3 UR9, UPT, UPT, UR9, 0x1, URZ ;", ("add", "UR9", "UR9", 1), ctl=C(4))]
     b += pre
     b += front_ins(front, what == "gaddr")
     dst = ["UP0"] if what == "updata" else ["P2"] if what == "pdata" else (["UR6", "UR7"] if prod == "CS2UR" else ["UR6"]) if what == "udata" else ["R6", "R7"] if what == "gaddr" else [f"R{rd}", f"R{rd + 1}"] if prod in PAIR_PRODUCERS else [f"R{rd}"]
@@ -1121,7 +1287,11 @@ def body_raw(req, d, front):
         b += [Ins("UIADD3 UR6, UPT, UPT, UR6, 0x650, URZ ;", ("add", "UR6", "UR6", 0x650), tag="C", dst=["UR6"]),
               Ins("MOV R8, UR6 ;", ("mov", "R8", "UR6")), ADD10()]
     elif cons == "BRA.gc":      # version 32: a uniform branch (the whole warp goes one way): taken, R8 keeps the iteration's second input; not taken, it takes the first
-        b += [Ins("BRA.U !UP0, L_u32 ;", ("sel", "R8", "R4", "R5", "UP0"), tag="C"), Ins("MOV R8, R4 ;", ("nop",)), Lbl("L_u32"), ADD10()]
+        # (version 33: "bctl": "y5" - the yield flag at stall 5; "bskip": n - the branch skips n words: the MOV and n - 1 fillers)
+        b += [Ins("BRA.U !UP0, L_u32 ;", ("sel", "R8", "R4", "R5", "UP0"), tag="C", ctl=C(5, y=True) if req.get("bctl") == "y5" else None), Ins("MOV R8, R4 ;", ("nop",))] \
+            + [PAD() for _ in range(int(req.get("bskip") or 1) - 1)] + [Lbl("L_u32"), ADD10()]
+    elif cons == "BRA.back":      # version 33: the back edge of the vendor's loop - the model has the whole loop's effect on this word: taken (UP0 true behind the first pass), three passes
+        b += [Ins("BRA.U UP0, L_u32 ;", ("sel", "R8", "R26", "R27", "UP0"), tag="C"), ADD10()]
     else:
         raise SystemExit(f"unknown raw consumer {cons!r} (probe.py list)")
     if req.get("salt") == "set":      # version 22: the iteration's input goes into the checksum too (behind the consumer: no distance moves) -
@@ -1192,6 +1362,97 @@ SET_NAMES = {"s": "LDS", "u": "LDS.U16", "d": "LDS.64", "q": "LDS.128", "G": "LD
              "M": "LDSM.16.M88.4 [the A fragment of the reader HMMA.16816.F32.BF16; the two LDS behind it are its B fragment]",
              "S": "LDS [into a block-scale register of the reader QMMA.SF words]",
              "D": "LDS.64 [its pair read by MOV words]"}
+# version 34 - the sets of cubit's own builds: L = LDCU.64 of c[0x0][0x380] into a UNIFORM pair (no general register: 0
+# here; the pairs are UR6:UR7, UR8:UR9, UR10:UR11 in the order of the L's), i = SHFL.IDX, N = LDG.E.CONSTANT (G's line and
+# model), Y = SYNCS.CCTL.IVALL (an opaque word on the set's barrier: no register)
+SET_FORM.update({"L": ("LDCU.64", 0), "i": ("SHFL.IDX", 1), "N": ("LDG.E.CONSTANT", 1), "Y": ("SYNCS.CCTL.IVALL", 0)})
+SET_NAMES.update({"L": "LDCU.64", "i": "SHFL.IDX", "N": "LDG.E.CONSTANT", "Y": "SYNCS.CCTL.IVALL"})
+# version 34, second build - z = S2UR UR12, SR_CgaCtaId (a 32-bit uniform producer the host does not know: read as (MOV R, UR12)
+# minus the reference R31 = S2R R31, SR_CgaCtaId of the same iteration; no general register)
+SET_FORM.update({"z": ("S2UR", 0)})
+SET_NAMES.update({"z": "S2UR SR_CgaCtaId [read by MOV R, UR12 minus the reference S2R R31, SR_CgaCtaId]"})
+SET_ZUR, SET_ZREF = 12, 31      # the z's uniform register; its reference (the last temporary of the relative readers: a set with a z has seven)
+Z_STANDIN = [0x2a]              # the host's stand-in for SR_CgaCtaId (no term of a fold may depend on it)
+
+
+def set_onepred(req):
+    """version 34, second build: the set's two guarded loads are LDG.E.CONSTANT under ONE predicate (the prefix g twice, no k and
+    no j; beside them only unguarded N and i) - P0 is written again between them"""
+    toks = [t.strip() for t in str(req.get("forms", "")).split(",")]
+    return toks.count("gN") == 2 and all(t in ("gN", "N", "i") for t in toks)
+
+
+# version 34, fifth build - x = S2UR UR12, SR_CgaCtaId and r = S2R R32, SR_CgaCtaId, each READ TWICE and with NO reference word
+# (measured: the z's reference `S2R R31, SR_CgaCtaId`, waited two cycles behind its issue, had not landed 39 cycles later on dense
+# grids - the letter z stays as it generated its batch and measures nothing). The destination holds a marker from the top of every
+# iteration; the first read stands among the reader words, the second 30 cycles or more behind them; (first == second) and
+# (second != marker) each choose between two constants - no term of the fold depends on the special register's value.
+SET_FORM.update({"x": ("S2UR", 0), "r": ("S2R", 1)})
+SET_NAMES.update({"x": "S2UR SR_CgaCtaId [read twice by MOV R, UR12: among the reader words and 30 cycles or more behind them; no reference word]",
+                  "r": "S2R SR_CgaCtaId [read twice by MOV R, R32; no reference word]"})
+# version 34, sixth build - e | f | o = THE DIAGNOSTIC WITH A LOAD AS THE PRODUCER (the floor's reach), each alone, in the body of
+# the letter r: `LDC R32, c[0x0][0x388]` (the seed) | `LDS R32, [R9+0x20]` (the thread's own line: R20 since the prologue; the
+# front's STS.128 store the same registers) | `LDG.E R32, desc[UR4][R18.64]` (the thread's word B: R20 since the prologue).
+# t | v | w = THE REPLAY OF an earlier batch's REFERENCE WORD `S2R R31, SR_CgaCtaId` (stall 2, no yield flag): t on write barrier 0 with the
+# wait on the filler behind it (an earlier batch's text), v on write barrier 1 with the filler waiting barrier 1, w on write barrier 1 with
+# NO wait on the filler - the first reader of R31 carries the wait. No general register of the plan (R31 is the body's own).
+SET_FORM.update({"e": ("LDC", 1), "f": ("LDS", 1), "o": ("LDG.E", 1), "t": ("S2R", 0), "v": ("S2R", 0), "w": ("S2R", 0)})
+SET_NAMES.update({"e": "LDC c[0x0][0x388] [the diagnostic's producer: R32 read twice by MOV R, R32; no reference word]",
+                  "f": "LDS [R9+0x20] [the diagnostic's producer: R32 read twice by MOV R, R32; no reference word]",
+                  "o": "LDG.E desc[UR4][R18.64] [the diagnostic's producer: R32 read twice by MOV R, R32; no reference word]",
+                  "t": "S2R R31, SR_CgaCtaId [the replay of an earlier batch's reference word: write barrier 0, the wait on the filler behind it]",
+                  "v": "S2R R31, SR_CgaCtaId [the replay of an earlier batch's reference word on write barrier 1, the wait on the filler behind it]",
+                  "w": "S2R R31, SR_CgaCtaId [the replay of an earlier batch's reference word on write barrier 1, the wait on the first reader of R31]"})
+SRD_LOADS = {"e": "LDC R32, c[0x0][0x388] ;", "f": "LDS R32, [R9+0x20] ;", "o": "LDG.E R32, desc[UR4][R18.64] ;"}
+# version 34, seventh build - a | b = THE REPLAY OF an earlier batch's REFERENCE WORD WITHOUT ANY MARKER (an earlier batch's text: write barrier 0, the wait on
+# the filler): R31 is never written by the kernel but by the S2R itself; a = two reads, ONE question (first == second); b = a third
+# read in front of the S2R (`MOV R26, R31`), compared with the second read. SRD_LEFT = the host's stand-in for what R31 holds
+# before a thread's first S2R (a leftover the kernel never wrote; both interpreters start with it).
+SRD_NOMARK = ("a", "b")
+SRD_LEFT = 0x1ef70031
+SRD_REPLAY = ("t", "v", "w") + SRD_NOMARK
+SET_FORM.update({"a": ("S2R", 0), "b": ("S2R", 0)})
+SET_NAMES.update({"a": "S2R R31, SR_CgaCtaId [the replay of an earlier batch's reference word WITHOUT a marker: two reads of R31, one question]",
+                  "b": "S2R R31, SR_CgaCtaId [the replay of an earlier batch's reference word WITHOUT a marker: a pre-read and two reads of R31]"})
+# version 34, seventh build - TWELVE MORE PRODUCERS in the diagnostic of the letter r: letter -> (the producer's
+# text, its destination, the words in front of the marker's word, the read barrier it sets beside write barrier 1).
+SRD_PROD = {"E": ("MUFU.EX2 R32, R21 ;", "R32", (), "-"),
+            "R": ("MUFU.RCP R32, R21 ;", "R32", (), "-"),
+            "I": ("I2F.RP R32, R21 ;", "R32", (), "-"),
+            "J": ("F2I.FTZ.U32.TRUNC.NTZ R32, R21 ;", "R32", (), "-"),
+            "F": ("F2F.BF16.F32 R32, R21 ;", "R32", (), "-"),
+            "H": ("SHFL.IDX PT, R32, R21, RZ, 0x1f ;", "R32", (), "2"),
+            "K": ("S2R R32, SR_LTMASK ;", "R32", (), "-"),
+            "U": (f"LDCU UR{SET_ZUR}, c[0x0][0x388] ;", f"UR{SET_ZUR}", (), "-"),
+            "W": ("LDC.64 R32, c[0x0][0x380] ;", "R32", (), "-"),
+            "X": ("LDC R32, c[0x0][R13+0x388] ;", "R32", (("MOV R13, RZ ;", ("mov", "R13", 0)),), "-"),
+            "P": ("@P0 LDG.E.CONSTANT R32, desc[UR4][R18.64] ;", "R32", (("MOV R7, RZ ;", ("mov", "R7", 0)), ("ISETP.GE.AND P0, PT, R7, RZ, PT ;", ("sge0", "P0", "R7"))), "-"),
+            "O": ("LDG.E R32, desc[UR4][R18.64] ;", "R32", (), "-"),
+            "Z": ("LDS.128 R32, [R9+0x20] ;", "R34", (), "-"),      # version 34, eighth build: the marker and both reads on the load's THIRD register
+            "V": (f"LDCU.64 UR{SET_ZUR}, c[0x0][0x380] ;", f"UR{SET_ZUR}", (), "-")}      # version 34, eighth build: the uniform pair UR12:UR13, the low word read twice
+SRD_PROD_NOTE = {"H": "; version 34, seventh build: the shuffle also sets READ barrier 2 (both barriers set, the write barrier waited); the last word of the body waits barrier 2",
+                 "W": "; version 34, seventh build: a 64-BIT load - the pair R32:R33, the low word read twice",
+                 "X": "; version 34, seventh build: the load's address is REGISTER-INDEXED (R13 = 0 from the top of the iteration) - those builds' `LDC R, c[0x2][R]` on bank 0 (a probe kernel has no bank 2)",
+                 "P": "; version 34, seventh build: the load stands under P0, written TRUE at the top of every iteration (`MOV R7, RZ` + `ISETP.GE.AND P0, PT, R7, RZ, PT`): it executes in every lane",
+                 "U": "; version 34, seventh build: a 32-bit load into a UNIFORM register",
+                 "Z": "; version 34, eighth build: a 128-BIT load (the quad R32:R35 out of the thread's own line) WAITED BY A READER OF ITS THIRD REGISTER - the marker and both reads stand on R34",
+                 "V": "; version 34, eighth build: a 64-BIT load into a UNIFORM pair (UR12:UR13), the low word read twice"}
+assert all(len(k_) == 1 for k_ in SRD_PROD) and not (set(SRD_PROD) & (set(SET_FORM) | set(ORDN_FORM) | {"g", "k", "j", "n"})), "a letter of SRD_PROD is taken"      # (is_set reads the LAST character of a token: single letters only)
+SET_FORM.update({k_: (v_[0].split()[1] if v_[0].startswith("@") else v_[0].split()[0], 0 if v_[1].startswith("UR") else 2 if k_ == "W" else 4 if k_ == "Z" else 1) for k_, v_ in SRD_PROD.items()})
+SET_NAMES.update({k_: f"{v_[0][:-2]} [the diagnostic's producer (seventh build): {v_[1]} read twice; no reference word]" for k_, v_ in SRD_PROD.items()})
+SRD_LETTERS = ("x", "r") + tuple(SRD_LOADS) + SRD_REPLAY + tuple(SRD_PROD)
+SRD_UMARK, SRD_RMARK = 0x5a5a0157, 0x5a5a0158      # what UR12 | R32 hold until the word lands (no CTA has such a number)
+SRD_K = 0x0f0f0f0f                                # R21 since the prologue: the constant the two SEL words choose against zero
+
+
+def is_srd(req):
+    """version 34, fifth build: THE DIAGNOSTIC of the wait behind a special-register word - a request of kind ord whose forms are
+    ONE letter, x or r (a set of one producer: the swept distance stands between the producer and the word that reads it)"""
+    return bool(req.get("kind") == "ord" and str(req.get("forms", "")).strip() in SRD_LETTERS)      # (sixth build: e | f | o and t | v | w)
+
+
+SET_UR = (6, 8, 10)      # the uniform pairs of the L's of a set, oldest first
+SET_RBAR = ("i", "h", "N", "G", "Q", "B", "T")      # "rbar": the producers that may also set a READ barrier (shuffles and global loads)
 SET_REGS = 80            # R0-R79; .regcount SET_REGS + 8
 SET_HSRC = 73            # the shuffle's source (written every iteration)
 SET_MSRC, SET_MREF = 74, 75      # the MUFU's source and the reference of its result (prologue)
@@ -1227,11 +1488,27 @@ def set_plan(req):
             raise SystemExit(f"{req.get('id')}: forms token {t!r}: s | u | d | q | G | Q | B | c | C | m | h with an optional prefix g on a load")
         if g in ("k", "j") and not req.get("pguard"):
             raise SystemExit(f"{req.get('id')}: forms token {t!r}: the prefix k (under the second predicate, @P2) needs the field pguard (version 28)")
-        if g and let in ("c", "C", "m", "h", "M"):
+        if g and let in ("c", "C", "m", "h", "M", "L", "i", "Y", "z", "x", "r") + SRD_LETTERS:
             raise SystemExit(f"{req.get('id')}: forms token {t!r}: the guard is for a load (s u d q G Q B)")
         toks.append((g, let))
     if any(let == "M" for _g, let in toks) and toks != [("", "M"), ("", "s"), ("", "s")]:
         raise SystemExit(f"{req.get('id')}: LDSM stands only in the tensor set M,s,s (LDSM + LDS + LDS, the reader an HMMA)")
+    if any(let == "z" for _g, let in toks):      # version 34, second build
+        lz_ = [let for _g, let in toks]
+        if lz_.count("z") > 1 or len(lz_) < 2 or req.get("pguard") or any(x in ("S", "D", "M") for x in lz_):
+            raise SystemExit(f"{req.get('id')}: version 34, second build - ONE z (S2UR UR12, SR_CgaCtaId) in a plain set of two or more producers: no pguard, not in a scale or tensor set")
+    if any(let in ("x", "r") for _g, let in toks):      # version 34, fifth build
+        lx_ = [let for _g, let in toks]
+        if len(lx_) > 1 and ("r" in lx_ or lx_.count("x") > 1 or "z" in lx_ or any(req.get(k_) for k_ in ("pguard", "preader", "reader", "rbar", "wait", "cold"))
+                             or any(x in ("S", "D", "M", "L", "Y") for x in lx_)):
+            raise SystemExit(f"{req.get('id')}: version 34, fifth build - ONE x (S2UR UR12, SR_CgaCtaId, read twice) in a plain set (no pguard / preader / reader / rbar / wait / cold; "
+                             "not beside z, L, Y, S, D, M); r (S2R R32, SR_CgaCtaId) stands only alone - the diagnostic")
+    if len(toks) > 1 and any(let in SRD_LETTERS[2:] for _g, let in toks):      # version 34, sixth build
+        raise SystemExit(f"{req.get('id')}: version 34, sixth build - the letters e | f | o (the diagnostic with a load as the producer) and t | v | w (the replay of an earlier batch's reference word) stand only ALONE")
+    if any(let in ("L", "i", "N", "Y") for _g, let in toks):      # version 34
+        l34 = [let for _g, let in toks]
+        if l34.count("L") > len(SET_UR) or ("i" in l34 and "h" in l34) or any(x in ("S", "D", "M") for x in l34) or all(x == "Y" for x in l34):
+            raise SystemExit(f"{req.get('id')}: version 34 - at most {len(SET_UR)} L in a set, i not beside h, no L | i | N | Y in a scale or tensor set, not Y alone")
     sd_ = [let for _g, let in toks if let in ("S", "D")]      # version 29 (second build: D)
     if sd_ and (len(sd_) != len(toks) or any(g for g, _l in toks) or not (2 <= len(toks) <= 7) or not (1 <= sd_.count("S") <= 4) or sd_.count("D") > 3):
         raise SystemExit(f"{req.get('id')}: the letters S (an LDS into a block-scale register of the QMMA.SF readers) and D (an LDS.64 read by MOV words) stand only in a scale set: 2 .. 7 loads of S and D alone, 1 .. 4 S, at most 3 D, no guard")
@@ -1243,7 +1520,7 @@ def set_plan(req):
                 reg += width
     if reg > SET_HSRC:
         raise SystemExit(f"{req.get('id')}: the destinations of the set do not fit R32..R{SET_HSRC - 1}")
-    plan, off, nq, nb = [], 0, 0, 0
+    plan, off, nq, nb, nu = [], 0, 0, 0, 0
     for k, (g, let) in enumerate(toks):
         aux = None
         if let in ORDN_FORM:
@@ -1256,7 +1533,11 @@ def set_plan(req):
             aux, nq = nq % 8, nq + 1
         elif let == "B":
             aux, nb = (17 * nb + 5) % 128, nb + 1
-        plan.append((g, let, regof[k], aux))
+        elif let == "L":      # version 34: the uniform pair of this L
+            aux, nu = SET_UR[nu], nu + 1
+        elif let in ("z", "x"):      # version 34, second build: its uniform register (fifth build: x takes the same one)
+            aux = SET_ZUR
+        plan.append((g, let, regof.get(k), aux))      # (version 34: L and Y have no general register)
     return plan
 
 
@@ -1364,7 +1645,7 @@ def set_pg_text(r):
             + ("; all three" if len(pg) == 3 else "; both") + " are written at the top of every iteration by ISETP.GE.AND, P0 again 13 cycles in front of every further `@P0 LDG.E.128`"
             + f"; the first reader word stands {r['rdist'] if r.get('rdist') else r.get('younger_stall', 2)} cycles behind the last arming"
             + ("; POSITIVE CONTROL (wait end): the same text with the reader's wait bit moved to the first word BEHIND the reader words - expect not good wherever a producer executes"
-               if r.get("wait") == "end" else "; the first reader word carries the ONE wait")
+               if r.get("wait") == "end" else "; THE ONE WAIT STANDS ON A WORD THAT READS NO MEMBER, one cycle in front of the first reader word (third build)" if r.get("wait") == "front" else "; the first reader word carries the ONE wait")
             + ("; THE FIRST BUILD'S TEXT (pshift 1): the shift of P0's source stands ONE cycle in front of the ISETP that reads it - NOT RIGHT BY CONSTRUCTION; the hypothesis "
                "p0old = every such ISETP read the source's old content (the previous pair's bit)" if r.get("pshift") == 1
                else "; the next pair's bit is shifted into P0's source right behind the previous ISETP, 13 cycles or more in front of the ISETP that reads it, and that ISETP "
@@ -1906,6 +2187,146 @@ def body_set_cov(req, d, front, variant):
     return b
 
 
+def srd_second(t1, t2, src, mark):
+    """version 34, fifth build: the SECOND read of a special-register word's destination and the two questions as constants of the
+    fold - t1 := R21 where the first read (in t1) equals the second, else 0; t2 := 0 where the second read is still the marker,
+    else R21. Every word stands 15 cycles behind the word in front of it (the first of them is a pad)."""
+    return [PAD(),
+            Ins(f"MOV {t2}, {src} ;", ("mov", t2, src)),
+            Ins(f"LOP3.LUT {t1}, {t1}, {t2}, RZ, 0x3c, !PT ;", ("xor", t1, t1, t2)),
+            Ins(f"LOP3.LUT {t2}, {t2}, 0x{mark:x}, RZ, 0x3c, !PT ;", ("xor", t2, t2, mark)),
+            Ins(f"ISETP.LT.U32.AND P3, PT, {t1}, 0x1, PT ;", ("ltu", "P3", t1, 1)),
+            Ins(f"ISETP.LT.U32.AND P2, PT, {t2}, 0x1, PT ;", ("ltu", "P2", t2, 1)),
+            Ins(f"SEL {t1}, R21, RZ, P3 ;", ("sel", t1, "R21", "RZ", "P3")),
+            Ins(f"SEL {t2}, RZ, R21, P2 ;", ("sel", t2, "RZ", "R21", "P2"))]
+
+
+def srd_text(r):
+    let = str(r["forms"]).strip()
+    if let in SRD_REPLAY:      # version 34, sixth build
+        return rpl_text(r)
+    word, dst = ("`S2UR UR12, SR_CgaCtaId`", "UR12") if let == "x" else ("`S2R R32, SR_CgaCtaId`", "R32") if let == "r" else (f"`{SRD_PROD[let][0][:-2]}`", SRD_PROD[let][1]) if let in SRD_PROD else (f"`{SRD_LOADS[let][:-2]}`", "R32")
+    return (f"THE DIAGNOSTIC OF THE WAIT BEHIND {'A FURTHER PRODUCER WORD (version 34, seventh build)' if let in SRD_PROD else 'A LOAD (version 34, sixth build)' if let in SRD_LOADS else 'A SPECIAL-REGISTER WORD (version 34, fifth build)'}: {word}, its destination holding a marker from the top of every iteration; "
+            + (f"the word sets write barrier 1 and A WORD THAT IS NOT ITS READER (`IADD3 R15, PT, PT, R15, 0x1, RZ`) d cycles behind it carries the wait; the reader word `MOV R24, {dst}` stands one cycle behind that word" if (r["barrier"] == "all" and let == "O")
+               else f"the word sets write barrier 1 and the reader word `MOV R24, {dst}` d cycles behind it carries the wait" if r["barrier"] == "all"
+               else f"THE CONTROL: no barrier and no wait - the reader word `MOV R24, {dst}` stands d cycles behind the word (how long the word takes by itself)")
+            + f"; the SECOND read `MOV R25, {dst}` stands 31 cycles behind the first; (first == second) and (second != the marker) each choose between the constant R21 and zero: good = both hold, "
+              "stale = the first read took the marker, drop1 = the word had not landed at the second read either; a mixture is decoded into the number of stale iterations of 256 "
+              "(the FIRST read of a thread is one of them)" + SRD_PROD_NOTE.get(let, ""))
+
+
+def nomark_text(r):
+    let = str(r["forms"]).strip()
+    return ("THE REPLAY OF an earlier batch's REFERENCE WORD WITHOUT ANY MARKER (version 34, seventh build): the top of the iteration of an earlier batch's reference kernels word for word - `S2R R31, SR_CgaCtaId` at stall 2 "
+            "without the yield flag on write barrier 0, the wait on the filler behind it; `MOV R32, R5`, [the front], `LDC R32` and `S2UR UR12` with the yield flag on write barrier 0 with their waits - "
+            "and R31 is NEVER written by the kernel but by the S2R itself: before a thread's first S2R it holds a leftover. R31 is read twice - `MOV R24, R31` 39 cycles behind the S2R (99 with the "
+            "front) and `MOV R25, R31` 31 cycles later; ONE question, (first == second), chooses between the constant R21 and zero: only a thread's FIRST iteration can show a word that had not landed "
+            "(stale = the first read of the first iteration took the leftover: good minus ONE iteration's term)"
+            + ("; a word that never landed, or a leftover that IS the register's value, cannot be told from good by this request" if let == "a" else
+               "; A THIRD READ in front of the S2R (`MOV R26, R31` at the top of the iteration) is compared with the second read: equal in 255 of 256 iterations where the leftover differs from "
+               "the register's value; drop1 = equal in all 256 - the leftover IS the value, or the word never landed: that thread could not have shown the failure"))
+
+
+def rpl_text(r):
+    let = str(r["forms"]).strip()
+    if let in SRD_NOMARK:      # version 34, seventh build
+        return nomark_text(r)
+    return ("THE REPLAY OF an earlier batch's REFERENCE WORD (version 34, sixth build): the top of the iteration of an earlier batch's reference kernels word for word - `S2R R31, SR_CgaCtaId` at stall 2 "
+            "without the yield flag, " + {"t": "on write barrier 0, the wait on the filler behind it (an earlier batch's own text)",
+                                          "v": "on write barrier 1, the wait of barrier 1 on the filler behind it",
+                                          "w": "on write barrier 1, NO wait on the filler: the first reader of R31 carries the wait"}[let]
+            + "; behind it `MOV R32, R5`, [the front], `LDC R32` and `S2UR UR12` with the yield flag on write barrier 0 with their waits, as in the earlier batch; R31 holds a marker from the top "
+              "of every iteration and is read twice - `MOV R24, R31` 39 cycles behind the S2R (an earlier batch's place of `IADD3 R24, R24, -R31`; 99 with the front) and `MOV R25, R31` 31 cycles "
+              "later; (first == second) and (second != the marker) each choose between the constant R21 and zero: good = both hold, stale = the first read took the marker, drop1 = "
+              "the word had not landed at the second read either; a mixture is decoded into the number of stale iterations of 256")
+
+
+def body_set_rpl(req, d, front, variant):
+    """version 34, sixth build - THE REPLAY OF an earlier batch's REFERENCE WORD (measured: in an earlier batch's reference kernels `S2R R31, SR_CgaCtaId` -
+    write barrier 0, stall 2, no yield flag, the wait on the filler behind it - had not landed 39 cycles later in whole warps of
+    dense grids; a later diagnostic does not reproduce it with the word on barrier 1 and the wait on its reader). t = an earlier batch's
+    top of the iteration word for word; v = the S2R on write barrier 1, the filler waits barrier 1; w = the S2R on write barrier
+    1, no wait on the filler, the first reader of R31 carries the wait. R31 holds the marker from the top of EVERY iteration (the earlier batch
+    left it unwritten: only a thread's first read could show a word that had not landed) and is read twice; the fold is the
+    diagnostic's. One distance (1: nothing is swept)."""
+    let = str(req["forms"]).strip()
+    if variant != "bare" or req["barrier"] != "all" or req.get("yield") or req.get("distance_list") != [1] or let not in SRD_REPLAY:      # (d itself is not used: the model asks every body of kind ord at 15)
+        raise SystemExit(f"{req.get('id')}: the replay of an earlier batch's reference word (forms t | v | w) has barrier all, no yield field, the ONE distance 1 and no ctl variant")
+    wb, ur = ("0" if let in ("t",) + SRD_NOMARK else "1"), f"UR{SET_ZUR}"
+    nm_ = let in SRD_NOMARK      # version 34, seventh build: NO marker - R31 is written by the S2R alone (b: the pre-read of R31 stands in the marker's place)
+    b = ([Ins("MOV R26, R31 ;", ("mov", "R26", "R31"))] if let == "b" else []) if nm_ else [Ins(f"MOV R31, 0x{SRD_RMARK:x} ;", ("mov", "R31", SRD_RMARK))]
+    b += [Ins(f"UMOV {ur}, 0x{SRD_UMARK:x} ;", ("mov", ur, SRD_UMARK)),
+         Ins("S2R R31, SR_CgaCtaId ;", ("mov", "R31", Z_STANDIN[0]), ctl=C(2, wb=wb), tag="P", dst=["R31"]),
+         Ins("IADD3 R15, PT, PT, R15, 0x1, RZ ;", ("nop",), ctl=C(15, wait="" if let == "w" else wb)),
+         Ins("MOV R32, R5 ;", ("mov", "R32", "R5"))]
+    b += front_ins(front, False)
+    b += [Ins("LDC R32, c[0x0][0x388] ;", ("mov", "R32", SEED), ctl=C(1, wb="0", y=True)),
+          Ins("IADD3 R15, PT, PT, R15, 0x1, RZ ;", ("nop",), ctl=C(1, wait="0")),
+          Ins(f"S2UR {ur}, SR_CgaCtaId ;", ("mov", ur, Z_STANDIN[0]), ctl=C(1, wb="0", y=True)),
+          Ins("IADD3 R15, PT, PT, R15, 0x1, RZ ;", ("nop",), ctl=C(2, wait="0")),
+          Ins("MOV R6, R32 ;", ("mov", "R6", "R32"), ctl=C(1, wait="0")),
+          Ins(f"MOV R24, {ur} ;", ("mov", "R24", ur), ctl=C(1)),
+          Ins("MOV R24, R31 ;", ("mov", "R24", "R31"), ctl=C(1, wait=wb if let == "w" else ""), tag="C"),
+          PAD()]
+    if nm_:      # version 34, seventh build: the second read and ONE question - R24 := R21 where the first read equals the second, else 0 (b: R26 := R21 where the pre-read equals the second read)
+        b += [PAD(), Ins("MOV R25, R31 ;", ("mov", "R25", "R31")),
+              Ins("LOP3.LUT R24, R24, R25, RZ, 0x3c, !PT ;", ("xor", "R24", "R24", "R25")),
+              Ins("ISETP.LT.U32.AND P3, PT, R24, 0x1, PT ;", ("ltu", "P3", "R24", 1)),
+              Ins("SEL R24, R21, RZ, P3 ;", ("sel", "R24", "R21", "RZ", "P3"))]
+        if let == "b":
+            b += [Ins("LOP3.LUT R26, R26, R25, RZ, 0x3c, !PT ;", ("xor", "R26", "R26", "R25")),
+                  Ins("ISETP.LT.U32.AND P2, PT, R26, 0x1, PT ;", ("ltu", "P2", "R26", 1)),
+                  Ins("SEL R26, R21, RZ, P2 ;", ("sel", "R26", "R21", "RZ", "P2"))]
+        b += [Ins("IMAD R6, R24, 0x3, RZ ;", ("mad", "R6", "R24", 3, "RZ"))] + ([Ins("IMAD R6, R26, 0x7, R6 ;", ("mad", "R6", "R26", 7, "R6"))] if let == "b" else [])
+        b += [Ins("IADD3 R10, PT, PT, R10, R6, RZ ;", ("add", "R10", "R10", "R6")), Ins("IADD3 R10, PT, PT, R10, R4, RZ ;", ("add", "R10", "R10", "R4"))]
+        return b
+    b += srd_second("R24", "R25", "R31", SRD_RMARK)
+    b += [Ins("IMAD R6, R24, 0x3, RZ ;", ("mad", "R6", "R24", 3, "RZ")), Ins("IMAD R6, R25, 0x5, R6 ;", ("mad", "R6", "R25", 5, "R6")),
+          Ins("IADD3 R10, PT, PT, R10, R6, RZ ;", ("add", "R10", "R10", "R6")), Ins("IADD3 R10, PT, PT, R10, R4, RZ ;", ("add", "R10", "R10", "R4"))]
+    return b
+
+
+def body_set_srd(req, d, front, variant):
+    """version 34, fifth build - THE DIAGNOSTIC of the wait behind a special-register word: ONE producer (x = `S2UR UR12,
+    SR_CgaCtaId`, r = `S2R R32, SR_CgaCtaId`), its destination holding a marker from the top of every iteration; the reader word
+    `MOV R24, <dst>` stands d issue cycles behind the producer (barrier all: the producer sets write barrier 1 and the reader word
+    waits it; barrier none = the control: no barrier and no wait - how long the word takes by itself); the SECOND read stands 31
+    cycles behind the first. Nothing of the fold depends on the special register's value."""
+    let = str(req["forms"]).strip()
+    bar, y = req["barrier"], req.get("yield") == "set"
+    if variant != "bare" or bar not in ("all", "none") or let not in SRD_LETTERS:
+        raise SystemExit(f"{req.get('id')}: the diagnostic of a special-register word has forms x | r (sixth build: e | f | o, t | v | w), barrier all | none and no ctl variant")
+    if let in SRD_REPLAY:      # version 34, sixth build
+        return body_set_rpl(req, d, front, variant)
+    pr_ = SRD_PROD.get(let)      # version 34, seventh build: the further producers - (text, destination, the words in front of the marker's word, read barrier)
+    if let == "O" and bar != "all":
+        raise SystemExit(f"{req.get('id')}: version 34, seventh build - the letter O (an LDG.E waited by a word that is not its reader) has barrier all (its control is the letter o with barrier none)")
+    dst, mark = (f"UR{SET_ZUR}", SRD_UMARK) if (let == "x" or (pr_ and pr_[1].startswith("UR"))) else (pr_[1] if pr_ else "R32", SRD_RMARK)      # (eighth build: a producer's marker and reads stand on the register it names - Z: the load's third)
+    b = [Ins(t_, s_) for t_, s_ in (pr_[2] if pr_ else ())] + [Ins(f"{'UMOV' if dst.startswith('UR') else 'MOV'} {dst}, 0x{mark:x} ;", ("mov", dst, mark))]
+    b += front_ins(front, False)
+    smax = 11 if y else 15
+    if d <= smax:
+        s0, fill = d, []
+    else:
+        k, rest = divmod(d - smax, 15)
+        s0, fill = smax, [15] * k + ([rest] if rest else [])
+    b.append(Ins(pr_[0] if pr_ else SRD_LOADS[let] if let in SRD_LOADS else f"{'S2UR' if let == 'x' else 'S2R'} {dst}, SR_CgaCtaId ;", ("mov", dst, Z_STANDIN[0]),
+                 ctl=C(s0, rb=(pr_[3] if (pr_ and bar == "all") else "-"), wb="1" if bar == "all" else "-", y=y), tag="P", dst=[dst]))
+    b += [Ins("IADD3 R15, PT, PT, R15, 0x1, RZ ;", ("nop",), ctl=C(st)) for st in fill]
+    if let == "O":      # version 34, seventh build: the wait stands on a word that reads nothing of the load, d cycles behind it; the reader one cycle behind that word
+        b.append(Ins("IADD3 R15, PT, PT, R15, 0x1, RZ ;", ("nop",), ctl=C(1, wait="1"), tag="W"))
+        b.append(Ins(f"MOV R24, {dst} ;", ("mov", "R24", dst), ctl=C(1), tag="C"))
+    else:
+        b.append(Ins(f"MOV R24, {dst} ;", ("mov", "R24", dst), ctl=C(1, wait="1" if bar == "all" else ""), tag="C"))
+    b.append(PAD())
+    b += srd_second("R24", "R25", dst, mark)
+    b += [Ins("IMAD R6, R24, 0x3, RZ ;", ("mad", "R6", "R24", 3, "RZ")), Ins("IMAD R6, R25, 0x5, R6 ;", ("mad", "R6", "R25", 5, "R6")),
+          Ins("IADD3 R10, PT, PT, R10, R6, RZ ;", ("add", "R10", "R10", "R6")), Ins("IADD3 R10, PT, PT, R10, R4, RZ ;", ("add", "R10", "R10", "R4"))]
+    if pr_ and pr_[3] != "-" and bar == "all":      # version 34, seventh build: the producer's READ barrier is waited by the last word of the body
+        b.append(Ins("IADD3 R15, PT, PT, R15, 0x1, RZ ;", ("nop",), ctl=C(wait=pr_[3])))
+    return b
+
+
 def body_set(req, d, front, variant):
     """version 23 - a SET of producers of one thread in flight, d issue cycles apart, ONE wait of the reader (`barrier`
     all = every producer sets the SAME write barrier, none = the positive control: no barrier and no wait, last = only
@@ -1919,6 +2340,8 @@ def body_set(req, d, front, variant):
         return body_set_cov(req, d, front, variant)
     if any(let == "M" for _g, let, _r, _a in plan):
         return body_set_mma(req, d, front, variant)
+    if is_srd(req):      # version 34, fifth build: the diagnostic of the wait behind a special-register word
+        return body_set_srd(req, d, front, variant)
     if any(let in ("S", "D") for _g, let, _r, _a in plan):      # version 29
         return body_set_sf(req, d, front, variant)
     n, bar = len(plan), req["barrier"]
@@ -1926,6 +2349,24 @@ def body_set(req, d, front, variant):
     ctl = variant == "ctl"
     y = req.get("yield") == "set"
     b = [Ins(f"MOV R{reg + j}, R5 ;", ("mov", f"R{reg + j}", "R5")) for _g, let, reg, _a in plan for j in range(set_nreg(let))]
+    zin = any(let == "z" for _g, let, _r, _a in plan)      # version 34, second build: UR12 holds a marker until the S2UR lands; R31 = the reference of this iteration (an S2R of the same special register on write barrier 0, waited by the word behind it)
+    if zin:
+        b = [Ins(f"UMOV UR{SET_ZUR}, 0x{ORD_UMARK + 2:x} ;", ("mov", f"UR{SET_ZUR}", ORD_UMARK + 2)),
+             Ins(f"S2R R{SET_ZREF}, SR_CgaCtaId ;", ("mov", f"R{SET_ZREF}", Z_STANDIN[0]), ctl=C(2, wb="0")),
+             Ins("IADD3 R15, PT, PT, R15, 0x1, RZ ;", ("nop",), ctl=C(wait="0"))] + b
+    if any(let == "x" for _g, let, _r, _a in plan):      # version 34, fifth build: UR12 holds a marker until the S2UR lands - no reference word
+        b = [Ins(f"UMOV UR{SET_ZUR}, 0x{SRD_UMARK:x} ;", ("mov", f"UR{SET_ZUR}", SRD_UMARK))] + b
+    gsts_ = req.get("reader") == "gsts"      # version 34, fourth build: a GUARDED STORE as the ONE reader of the set
+    if req.get("reader") is not None and (not gsts_ or [l_ for _g, l_, _r, _a in plan] != ["i", "i"] or req.get("pguard") or req.get("preader") or req.get("first")):
+        raise SystemExit(f"{req.get('id')}: reader is \"gsts\" (version 34, fourth build: a guarded STS.128 as the ONE reader word) on the plain set i,i, or absent")
+    glane_ = gsts_ and req.get("sguard") == "lane"      # version 34, seventh build: the store's guard is those builds' own - P0 := (SR_TID.X & 0x1f) != 0: `@!P0` executes in ONE lane of 32 (lane 0)
+    if gsts_:      # the quad R32:R35 = the two shuffles' registers + the iteration's two inputs; P0 := false (`@!P0` executes in every lane and iteration)
+        b += [Ins("MOV R34, R4 ;", ("mov", "R34", "R4")), Ins("MOV R35, R5 ;", ("mov", "R35", "R5"))]
+        b += ([Ins("LOP3.LUT R31, R0, 0x1f, RZ, 0xc0, !PT ;", ("and", "R31", "R0", 0x1f)), Ins("ISETP.NE.AND P0, PT, R31, RZ, PT ;", ("ltu", "P0", "RZ", "R31"))] if glane_ else
+              [Ins(f"MOV {SET_PSRC[0]}, 0x80000000 ;", ("mov", SET_PSRC[0], 0x80000000)), Ins(f"ISETP.GE.AND P0, PT, {SET_PSRC[0]}, RZ, PT ;", ("sge0", "P0", SET_PSRC[0]))])
+    urs = [aux for _g, let, _r, aux in plan if let == "L"]      # version 34: the uniform pair of every L holds two markers until its LDCU.64 lands (each marker word has the stall 15: the producers stand 15 cycles or more behind them)
+    if urs:
+        b = [Ins(f"UMOV UR{u + j}, 0x{ORD_UMARK + j:x} ;", ("mov", f"UR{u + j}", ORD_UMARK + j)) for u in urs for j in (0, 1)] + b
     cold = req.get("cold") == "set"
     if cold:
         # (third build) the lines of this iteration: the tail (behind the threads' words) of block (b & 0xff) of the output
@@ -1936,11 +2377,13 @@ def body_set(req, d, front, variant):
               Ins("SHF.L.U32 R13, R13, 0xc, RZ ;", ("shl", "R13", "R13", 12)),
               Ins(f"IADD3 R{SET_CBASE}, PT, PT, R13, R{SET_ABASE}, RZ ;", ("nop",))]
     nbyte = 0
-    if any(let == "h" for _g, let, _r, _a in plan):
+    if any(let in ("h", "i") for _g, let, _r, _a in plan):      # (version 34: i)
         b.append(Ins(f"IMAD R{SET_HSRC}, R5, 0x3, R4 ;", ("mad", f"R{SET_HSRC}", "R5", 3, "R4")))
     pg = req.get("pguard")      # version 28
     psh = req.get("pshift")     # (second build) 1 = the first build's text for letter c
-    again = [k_ for k_, (g_, l_, _r, _a) in enumerate(plan) if g_ == "g" and l_ == "Q" and any(x_[0] == "g" for x_ in plan[:k_])] if pg else []
+    again = [k_ for k_, (g_, l_, _r, _a) in enumerate(plan) if g_ == "g" and (l_ == "Q" or (l_ == "N" and set_onepred(req))) and any(x_[0] == "g" for x_ in plan[:k_])] if pg else []      # (version 34, second build: the second gN of a set under ONE predicate)
+    if req.get("pthird") == "lane":      # version 34, seventh build: R31 := the thread's lane (SR_TID.X & 0x1f; those builds' `LOP3.LUT R128, R19, 0x1f, RZ, 0xc0, !PT`) - the source of the third write of P0
+        b.append(Ins("LOP3.LUT R31, R0, 0x1f, RZ, 0xc0, !PT ;", ("and", "R31", "R0", 0x1f)))
     if pg:
         b += set_pguard_top(pg, shift_first=(pg[0] == "c" and bool(again) and not psh))
     slast, rfill = set_rdist(req, y, ys)
@@ -1975,9 +2418,21 @@ def body_set(req, d, front, variant):
             text, sem = f"LDC.64 R{reg}, c[0x0][0x380] ;", ("mov2", f"R{reg}", "R2")
         elif let == "m":
             text, sem = f"MUFU.EX2 R{reg}, R{SET_MSRC} ;", ("mov", f"R{reg}", f"R{SET_MREF}")
+        elif let == "L":      # version 34: the constant of the prologue's LDC.64 into a uniform pair
+            text, sem = f"LDCU.64 UR{aux}, c[0x0][0x380] ;", ("mov2u", f"UR{aux}", f"UR{aux + 1}", "R2")
+        elif let == "i":      # version 34: every lane takes lane 1's source
+            text, sem = f"SHFL.IDX PT, R{reg}, R{SET_HSRC}, 0x1, 0x1f ;", ("shfl", f"R{reg}", f"R{SET_HSRC}", "idx", 1)
+        elif let == "N":      # version 34: G's line with the modifier .CONSTANT
+            text, sem = f"{gp}LDG.E.CONSTANT R{reg}, desc[UR4][R18.64] ;", ("ldg", f"R{reg}", "R18")
+        elif let == "z":      # version 34, second build: the special register into a uniform register (the model: the stand-in the reference holds)
+            text, sem = f"S2UR UR{aux}, SR_CgaCtaId ;", ("mov", f"UR{aux}", f"R{SET_ZREF}")
+        elif let == "x":      # version 34, fifth build: the special register into a uniform register (the model: a stand-in - no term of a fold may depend on it)
+            text, sem = f"S2UR UR{aux}, SR_CgaCtaId ;", ("mov", f"UR{aux}", Z_STANDIN[0])
+        elif let == "Y":      # version 34: an opaque word on the set's barrier - no register
+            text, sem = "SYNCS.CCTL.IVALL ;", ("nop",)
         else:
             text, sem = f"SHFL.BFLY PT, R{reg}, R{SET_HSRC}, 0x1, 0x1f ;", ("shfl", f"R{reg}", f"R{SET_HSRC}", "bfly", 1)
-        dst = [f"R{reg + j}" for j in range(nreg)]
+        dst = [f"UR{aux}", f"UR{aux + 1}"] if let == "L" else [f"UR{aux}"] if let in ("z", "x") else [f"R{reg + j}" for j in range(nreg)]      # (version 34: L)
         if pg and g:      # version 28: the model's word under its guard (where it is nullified its destinations keep their markers)
             sem = ("g", {"g": "P0", "k": "P2", "j": "P4"}[g], 0 if req.get("pneg") == "set" else 1, tuple(dst), sem)      # (version 31: P4; a negated guard executes where the predicate is false)
         if ctl:
@@ -1985,7 +2440,8 @@ def body_set(req, d, front, variant):
             b.append(Ins("IADD3 R15, PT, PT, R15, 0x1, RZ ;", ("nop",), ctl=C(ys if last else d, wait="0")))
         else:
             wb = "1" if (bar != "none" and (last or bar == "all")) else "-"
-            b.append(Ins(text, sem, ctl=C(slast if last else d, wb=wb, y=y), tag="P", dst=dst))
+            rb = ("2" if (req.get("rbar") == "split" and let in ("i", "h")) else "1") if (wb == "1" and req.get("rbar") in ("same", "split") and let in SET_RBAR) else "-"      # (third build: only on a producer that can carry one; "split": a shuffle carries read barrier 2)      # version 34: the vendor's [R4:W4] - the producer also sets the READ barrier of the set's number
+            b.append(Ins(text, sem, ctl=C(slast if last else d, rb=rb, wb=wb, y=y), tag="P", dst=dst))
     b += [Ins("IADD3 R15, PT, PT, R15, 0x1, RZ ;", ("nop",), ctl=C(st)) for st in rfill]      # version 28: rdist
     endw = req.get("wait") == "end"      # version 28: the positive control - the reader's wait bit stands on the first word BEHIND the reader words
     cw = "0" if ctl else "" if (bar == "none" or endw) else "1"
@@ -1993,27 +2449,107 @@ def body_set(req, d, front, variant):
     def ref(let, j):
         return (2 + j) if let == "C" else SET_MREF if let == "m" else None
 
-    items = [(reg, ref(let, 0)) for _g, let, reg, _a in reversed(plan)]
-    items += [(reg + j, ref(let, j)) for _g, let, reg, _a in reversed(plan) for j in range(1, set_nreg(let))]
+    order = list(plan) if req.get("first") == "older" else list(reversed(plan))      # version 34: "first": "older" - the reader words take the producers oldest first
+    items = [(("U", aux) if let == "L" else ("Z", aux) if let == "z" else ("X", aux) if let == "x" else reg, ref(let, 0)) for _g, let, reg, aux in order if let != "Y"]      # (version 34: an L is read by ONE word; a Y has no register)
+    items += [(reg + j, ref(let, j)) for _g, let, reg, _a in order for j in range(1, set_nreg(let))]
     tmp = ["R6", "R8", "R12", "R13"]
-    words, i, pw, rw = [], 0, 0, 0
+    words, i, pw, rw, relreg = [], 0, 0, 0, []
+    xtmp = None      # version 34, fifth build: (first temporary, second temporary, uniform register) of an x
     while i < len(items):
+        if isinstance(items[i][0], tuple) or items[i][1] is not None:      # (version 34: the temporaries of the relative readers are eight)
+            if ((rw + 2) if (isinstance(items[i][0], tuple) and items[i][0][0] == "X") else (rw + rw % 2 + 2) if (isinstance(items[i][0], tuple) and items[i][0][0] != "Z") else (rw + 1)) > len(SET_REL) - (1 if zin else 0):
+                raise SystemExit(f"{req.get('id')}: more registers read relative to a reference than the {len(SET_REL)} temporaries hold")
+        if isinstance(items[i][0], tuple) and items[i][0][0] == "X":      # version 34, fifth build: an x - TWO temporaries (the first read stands here among the reader words, the second 30 cycles or more behind them)
+            words.append((f"R{SET_REL[rw]}", "X", [items[i]]))
+            relreg += [f"R{SET_REL[rw]}", f"R{SET_REL[rw + 1]}"]
+            xtmp = (f"R{SET_REL[rw]}", f"R{SET_REL[rw + 1]}", f"UR{items[i][0][1]}")
+            rw += 2
+            i += 1
+            continue
+        if isinstance(items[i][0], tuple) and items[i][0][0] == "Z":      # version 34, second build: a z - its own temporary (MOV R<t>, UR12; the word behind it takes the reference away)
+            words.append((f"R{SET_REL[rw]}", "Z", [items[i]]))
+            relreg.append(f"R{SET_REL[rw]}")
+            rw += 1
+            i += 1
+            continue
+        if isinstance(items[i][0], tuple):      # version 34: an L - the pair (UR - R2:R3) into two temporaries of the relative readers (an even register first)
+            rw += rw % 2
+            words.append((f"R{SET_REL[rw]}", "U", [items[i]]))
+            relreg += [f"R{SET_REL[rw]}", f"R{SET_REL[rw + 1]}"]
+            rw += 2
+            i += 1
+            continue
         if items[i][1] is not None:      # a relative reader: its own temporary
             words.append((f"R{SET_REL[rw]}", None, [items[i]]))
+            relreg.append(f"R{SET_REL[rw]}")
             rw += 1
             i += 1
             continue
         acc = None if pw < 4 else tmp[pw % 4]
         grp = []
-        while i < len(items) and items[i][1] is None and len(grp) < (2 if acc else 3):
+        while i < len(items) and items[i][1] is None and not isinstance(items[i][0], tuple) and len(grp) < (2 if acc else 3):      # (version 34, second build: an L or a z is never taken into a plain reader word - tool 34's first build wrote `R('U', 6)` for an L behind a plain register, e.g. i,L with "first": "older"; no batch holds such a request)
             grp.append(items[i])
             i += 1
         words.append((tmp[pw % 4], acc, grp))
         pw += 1
-    if not pw:
-        raise SystemExit(f"{req.get('id')}: a set needs one producer whose content the host knows")
+    cw2_ = None      # (version 34, ninth build: the wait mask of the event pair as a SECOND waiting word)
+    if req.get("wdist") is not None and req.get("waitword") != "both":
+        raise SystemExit(f"{req.get('id')}: wdist (ninth build) belongs to waitword both")
+    if req.get("wait") == "front":      # version 34, third build: THE ONE WAIT ON A WORD THAT READS NO MEMBER, one cycle in front of the first reader word; the reader words carry none
+        if pg and set_onepred(req) and req.get("pthird") == "lane":      # version 34, seventh build: those builds' OWN third write - another word from another condition (`ISETP.NE.AND P5, PT, R128, RZ, PT`, R128 = SR_TID.X & 0x1f)
+            b.append(Ins("ISETP.NE.AND P0, PT, R31, RZ, PT ;", ("ltu", "P0", "RZ", "R31"), ctl=C(1)))
+        elif pg and set_onepred(req):      # a third write of the one predicate, while both guarded loads fly
+            b.append(Ins(f"ISETP.GE.AND P0, PT, {SET_PSRC[0]}, RZ, PT ;", ("sge0", "P0", SET_PSRC[0]), ctl=C(1)))
+        if req.get("waitword") == "bar":      # version 34, seventh build: THE WORD THAT CARRIES THE ONE WAIT IS AN EVENT WORD - those builds' pair `WARPSYNC.ALL` + `BAR.SYNC.DEFER_BLOCKING 0x0` with its own control codes
+            b.append(Ins("WARPSYNC.ALL ;", ("nop",), ctl=C(5, y=True)))
+            b.append(Ins("BAR.SYNC.DEFER_BLOCKING 0x0 ;", ("nop",), ctl=C(6, wait=cw, y=True), tag="W"))
+        else:
+            b.append(Ins("IADD3 R15, PT, PT, R15, 0x1, RZ ;", ("nop",), ctl=C(1, wait=cw), tag="W"))
+        if req.get("waitword") == "both":      # version 34, ninth build: the event pair waits the SAME barrier again behind the first reader word
+            cw2_ = cw
+        cw = ""
+        if req.get("sreader") == "set":      # version 34, seventh build: THE FIRST READER IS A SHFL.IDX WHOSE SOURCE IS A MEMBER (the unguarded N's register; those builds' `[B----4-:R4:W4:Y:S04] SHFL.IDX PT, R4, R19, RZ, 0x1f`): it waits the set's barrier itself and sets both barriers of that number
+            b.append(Ins(f"SHFL.IDX PT, R30, R{plan[0][2]}, RZ, 0x1f ;", ("shfl", "R30", f"R{plan[0][2]}", "idx", 0), ctl=C(4, wait="1", rb="1", wb="1", y=True), tag="C"))
+            cw = "1"      # (the first plain reader word behind the shuffle waits the shuffle's barrier)
+    pre34 = req.get("preader") in ("set", "own")      # version 34: the reader into a predicate - ISETP.GE.AND P3 of the first register read, on the ONE wait
+    if pre34:
+        if not items or isinstance(items[0][0], tuple) or items[0][1] is not None:
+            raise SystemExit(f"{req.get('id')}: preader needs the first register read to be one whose content the host knows (not of L, C, m)")
+        pdst_, psrc_ = "P3", items[0][0]
+        if req.get("preader") == "own":      # version 34, ninth build: the flights' reader on THE SHUFFLE's REGISTER INTO THE SET's OWN PREDICATE
+            if not (pg and set_onepred(req)) or [l_ for _g, l_, _r, _a in plan].count("i") != 1:
+                raise SystemExit(f"{req.get('id')}: preader own (ninth build) needs a set under ONE predicate with exactly one i")
+            pdst_, psrc_ = "P0", next(r_ for _g, l_, r_, _a in plan if l_ == "i")
+        b.append(Ins(f"ISETP.GE.AND {pdst_}, PT, R{psrc_}, RZ, PT ;", ("sge0", pdst_, f"R{psrc_}"), ctl=C(1, wait=cw), tag="C"))
+    if gsts_:      # version 34, fourth build: the ONE reader word is the guarded store of the quad; the line is read back behind the store's read barrier
+        b.append(Ins("@!P0 STS.128 [R9+0x20], R32 ;", (("gsts", "P0", 0, "R9", 0x20, "R32", 4) if glane_ else ("sts", "R9", 0x20, "R32", 4)), ctl=C(2, wait=cw, rb="3"), tag="C"))      # (stall 2: the load that waits the store's read barrier stands two cycles behind the word that arms it)
+        b.append(Ins("LDS.128 R24, [R9+0x20] ;", ("lds", "R24", "R9", 0x20, 4), ctl=C(2, wait="3", wb="2")))
+        words = []
+    if cw2_ is not None and len(words) != 2:
+        raise SystemExit(f"{req.get('id')}: waitword both (ninth build) needs a set with exactly two reader words (e.g. Y,i,L)")
     for k, (t, acc, grp) in enumerate(words):
-        ct = C(1, wait=cw) if k == 0 else C(1)
+        ct = C(1, wait=cw) if (k == 0 and not pre34) else C(1)
+        if k == 1 and cw2_ is not None:      # version 34, ninth build: THE EVENT PAIR AS A SECOND WAITING WORD - behind the first reader word, in front of the second
+            fill_ = int(req.get("wdist", 7)) - 7      # ("wdist": the event word stands that many cycles behind the first waiting word = 1 + 1 + the fillers + the 5 of WARPSYNC.ALL; 7 = no filler)
+            if not 0 <= fill_ <= 300:
+                raise SystemExit(f"{req.get('id')}: wdist (ninth build) is 7 ... 307 cycles")
+            b.extend(PAD() for _ in range(fill_ // 15))
+            if fill_ % 15:
+                b.append(Ins("IADD3 R15, PT, PT, R15, 0x1, RZ ;", ("nop",), ctl=C(fill_ % 15)))
+            b.append(Ins("WARPSYNC.ALL ;", ("nop",), ctl=C(5, y=True)))
+            b.append(Ins("BAR.SYNC.DEFER_BLOCKING 0x0 ;", ("nop",), ctl=C(6, wait=cw2_, y=True)))
+        if acc == "X":      # version 34, fifth build: an x - the reader word is the FIRST read; the second stands behind all reader words
+            b.append(Ins(f"MOV {t}, {xtmp[2]} ;", ("mov", t, xtmp[2]), ctl=ct, tag="C"))
+            continue
+        if acc == "Z":      # version 34, second build: a z - the reader word, then the reference taken away (0 when the S2UR had landed)
+            u = grp[0][0][1]
+            b.append(Ins(f"MOV {t}, UR{u} ;", ("mov", t, f"UR{u}"), ctl=ct, tag="C"))
+            b.append(Ins(f"IADD3 {t}, PT, PT, {t}, -R{SET_ZREF}, RZ ;", ("rsub", t, f"R{SET_ZREF}", t), ctl=C(1)))
+            continue
+        if acc == "U":      # version 34: an L - the uniform pair minus the prologue's copy of the same constant
+            u = grp[0][0][1]
+            b.append(Ins(f"IADD.64 {t}, -R2, UR{u} ;", ("sub64u", t, f"UR{u}", f"UR{u + 1}", "R2"), ctl=ct, tag="C"))
+            continue
         if grp[0][1] is not None:
             r, rf = grp[0]
             b.append(Ins(f"IADD3 {t}, PT, PT, R{r}, -R{rf}, RZ ;", ("rsub", t, f"R{rf}", f"R{r}"), ctl=ct, tag="C"))
@@ -2026,13 +2562,27 @@ def body_set(req, d, front, variant):
         else:
             b.append(Ins(f"MOV {t}, {srcs[0]} ;", ("mov", t, srcs[0]), ctl=ct, tag="C"))
     b.append(Ins("IADD3 R15, PT, PT, R15, 0x1, RZ ;", ("nop",), ctl=C(wait="1")) if endw else PAD())
-    ut = [t for t in tmp if any(w[0] == t for w in words)] + [f"R{SET_REL[j]}" for j in range(rw)]
-    b.append(Ins("IMAD R6, R6, 0x3, RZ ;", ("mad", "R6", "R6", 3, "RZ")))
+    if xtmp:      # version 34, fifth build: the SECOND read of the x's register and the two questions (first == second, second != the marker) as constants of the fold
+        b += srd_second(xtmp[0], xtmp[1], xtmp[2], SRD_UMARK)
+    ut = [t for t in tmp if any(w[0] == t for w in words)] + relreg      # (version 34: the temporaries that were written - an L takes an even pair)
+    if gsts_:      # version 34, fourth build: the four registers read back join the fold behind the load's own barrier
+        b.append(Ins("IADD3 R15, PT, PT, R15, 0x1, RZ ;", ("nop",), ctl=C(wait="2")))
+        ut, pw = ["R24", "R25", "R26", "R27"], 1
+    if req.get("sreader") == "set":      # version 34, seventh build: the reader shuffle's register joins the fold (the first plain reader word waited its barrier)
+        ut.append("R30")
+    if pre34:      # version 34: the predicate reaches the checksum 15 cycles or more behind its ISETP
+        if rw >= len(SET_REL) - 1:
+            raise SystemExit(f"{req.get('id')}: preader: no temporary left for the SEL")
+        b.append(Ins(f"SEL R{SET_REL[rw]}, R4, R5, {pdst_} ;", ("sel", f"R{SET_REL[rw]}", "R4", "R5", pdst_)))
+        ut.append(f"R{SET_REL[rw]}")
+    b.append(Ins(f"IMAD R6, {ut[0]}, 0x3, RZ ;", ("mad", "R6", ut[0], 3, "RZ")))      # (version 34: a set of relative readers alone starts the fold with its first temporary)
     for j, t in enumerate(ut[1:], 1):
         b.append(Ins(f"IMAD R6, {t}, 0x{2 * j + 3:x}, R6 ;", ("mad", "R6", t, 2 * j + 3, "R6")))
     b.append(Ins("IADD3 R10, PT, PT, R10, R6, RZ ;", ("add", "R10", "R10", "R6")))
-    if cold:      # (third build) every load brings zeros: the iteration's input keeps the checksum of a kernel that ran away from 0
+    if cold or not pw:      # (third build) every load brings zeros: the iteration's input keeps the checksum of a kernel that ran away from 0 (version 34: a set of relative readers alone folds zeros too)
         b.append(Ins("IADD3 R10, PT, PT, R10, R4, RZ ;", ("add", "R10", "R10", "R4")))
+    if req.get("rbar") == "split":      # version 34, third build: the shuffle's read barrier (another number than the set's write barrier) is waited by the last word of the body
+        b.append(Ins("IADD3 R15, PT, PT, R15, 0x1, RZ ;", ("nop",), ctl=C(wait="2")))
     return b
 
 
@@ -3696,6 +4246,8 @@ def model(req, mode, gids=None, scalar=False):
     if shfl_of(req) and not scalar:      # (version 18: also write-after-write with a shuffle, and an older shuffle of kind ord)
         gids = np.asarray(gids, dtype=np.int64)
         need = np.union1d(gids, (gids ^ 1) if shfl_of(req) == "bfly" else ((gids & ~31) | 1))
+        if req.get("sreader") == "set":      # version 34, seventh build: the reader shuffle takes lane 0's register
+            need = np.union1d(need, need & ~31)
         if len(need) != len(gids):      # a shuffle reads another lane: model the closed set, return the threads asked for
             return model(req, mode, gids=need)[np.searchsorted(need, gids)]
     if req["kind"] == "war":
@@ -3738,7 +4290,7 @@ def model(req, mode, gids=None, scalar=False):
     U = np.uint32
     R = {"R0": (gids % 1024).astype(U), "R1": (gids // 1024).astype(U), "R4": np.full(n, SEED, U),
          "R17": np.zeros(n, U), "R19": np.zeros(n, U), "RZ": np.zeros(n, U),
-         "R2": np.zeros(n, U), "R3": np.zeros(n, U)}      # (version 23: the model's stand-in for the output pointer)
+         "R2": np.zeros(n, U), "R3": np.zeros(n, U), "R31": np.full(n, SRD_LEFT, U)}      # (version 23: the model's stand-in for the output pointer)
     mem = np.zeros((n, 16), U)
     farmem = np.zeros((n, 16), U)
     G = np.zeros((n, 2), U)
@@ -3807,6 +4359,8 @@ def model(req, mode, gids=None, scalar=False):
             R[sem[1]] = np.where((get(sem[5]) != 0) == bool(sem[6]), out.astype(U), get(sem[1])).astype(U)
         elif op == "zero2u":        # version 27, third build: two uniform registers := 0 (a 64-bit CS2UR of SRZ)
             R[sem[1]], R[sem[2]] = np.zeros(n, U), np.zeros(n, U)
+        elif op == "mov2u":         # version 34: two uniform registers := a register pair (LDCU.64 of the constant the prologue's LDC.64 put into that pair)
+            R[sem[1]], R[sem[2]] = get(sem[3]), get(reg(sem[3], 1))
         elif op == "sub64u":        # version 27, third build: the pair R(d+1):Rd = (UR hi : UR lo) - R(c+1):Rc (mod 2^64)
             v = ((get(sem[2]).astype(np.uint64) | (get(sem[3]).astype(np.uint64) << np.uint64(32)))
                  - (get(sem[4]).astype(np.uint64) | (get(reg(sem[4], 1)).astype(np.uint64) << np.uint64(32))))
@@ -3928,6 +4482,14 @@ def model(req, mode, gids=None, scalar=False):
             w = (a >> U(2)).astype(np.int64)
             for k in range(sem[4]):
                 mem[rows, w + k] = get(reg(sem[3], k))
+        elif op == "gsts":          # version 34, seventh build: a shared store under a guard - done where (predicate != 0) == sem[2]; elsewhere the thread's line keeps its content
+            m = (get(sem[1]) != 0) == bool(sem[2])
+            a = get(sem[3]) + U(sem[4])
+            if (a & U(3)).any() or (a > U(64 - 4 * sem[6])).any():
+                raise RuntimeError(f"model: a shared store outside the thread's 64 bytes ({sem})")
+            w = (a >> U(2)).astype(np.int64)
+            for k in range(sem[6]):
+                mem[rows, w + k] = np.where(m, get(reg(sem[5], k)), mem[rows, w + k]).astype(U)
         elif op == "lds":
             a = get(sem[2]) + U(sem[3])
             if (a & U(3)).any() or (a > U(64 - 4 * sem[4])).any():
@@ -4008,7 +4570,7 @@ def model(req, mode, gids=None, scalar=False):
 def _machine(gid):
     """one thread on Python integers -> (its registers, get, ex)"""
     M = 0xFFFFFFFF
-    R = {"R0": gid % 1024, "R1": gid // 1024, "R4": SEED, "R17": 0, "R19": 0, "RZ": 0, "R2": PTR_STANDIN[0], "R3": PTR_STANDIN[1]}
+    R = {"R0": gid % 1024, "R1": gid // 1024, "R4": SEED, "R17": 0, "R19": 0, "RZ": 0, "R2": PTR_STANDIN[0], "R3": PTR_STANDIN[1], "R31": SRD_LEFT}
     mem, farmem, G = [0] * 16, [0] * 16, [0, 0]
 
     def get(x):
@@ -4066,6 +4628,8 @@ def _machine(gid):
                 R[sem[1]] = int.from_bytes(bytes(pool[(sem[3] >> (4 * k)) & 7] for k in range(4)), "little")
         elif op == "zero2u":        # version 27, third build
             R[sem[1]], R[sem[2]] = 0, 0
+        elif op == "mov2u":         # version 34
+            R[sem[1]], R[sem[2]] = get(sem[3]), get(reg(sem[3], 1))
         elif op == "sub64u":        # version 27, third build
             v = ((get(sem[2]) | (get(sem[3]) << 32)) - (get(sem[4]) | (get(reg(sem[4], 1)) << 32))) & 0xFFFFFFFFFFFFFFFF
             R[sem[1]], R[reg(sem[1], 1)] = v & M, v >> 32
@@ -4174,6 +4738,12 @@ def _machine(gid):
             assert a % 4 == 0 and a + 4 * sem[4] <= 64, sem
             for k in range(sem[4]):
                 mem[a // 4 + k] = get(reg(sem[3], k))
+        elif op == "gsts":          # version 34, seventh build
+            if bool(get(sem[1])) == bool(sem[2]):
+                a = (get(sem[3]) + sem[4]) & M
+                assert a % 4 == 0 and a + 4 * sem[6] <= 64, sem
+                for k in range(sem[6]):
+                    mem[a // 4 + k] = get(reg(sem[5], k))
         elif op == "lds":
             a = (get(sem[2]) + sem[3]) & M
             assert a % 4 == 0 and a + 4 * sem[4] <= 64, sem
@@ -4213,36 +4783,47 @@ def _scalar(gid, pro, body, mode, tail=None, post=()):
     two interpreters in step)"""
     sh = [i.sem for i in body if i.sem[0] == "shfl"]
     if sh:
-        if len({x[3:] for x in sh}) != 1:      # (version 18: mode stale too - the older shuffle of kind ord)
+        kinds_ = sorted({x[3:] for x in sh})
+        if len(kinds_) != 1 and {k_[0] for k_ in kinds_} != {"idx"}:      # (version 18: mode stale too - the older shuffle of kind ord; seventh build: idx shuffles of several lanes in one body)
             raise RuntimeError("scalar model: one kind of shuffle per body")
-        other = (gid ^ sh[0][4]) if sh[0][3] == "bfly" else ((gid & ~31) | sh[0][4])
-        ms = [_machine(g) for g in dict.fromkeys([gid, other])]      # (the source lane last)
+        gs_ = list(dict.fromkeys([gid] + ([gid ^ sh[0][4]] if sh[0][3] == "bfly" else [(gid & ~31) | k_[1] for k_ in kinds_])))      # (the thread first, then the lanes its shuffles read)
+        ms = [_machine(g) for g in gs_]
 
         def ex(sem):
             if sem[0] == "shfl":      # all lanes at once: read every source first, then write
                 vals = [m[1](sem[2]) for m in ms]
                 for k, m in enumerate(ms):
-                    m[0][sem[1]] = vals[-1] if sem[3] == "idx" else vals[len(ms) - 1 - k]
+                    m[0][sem[1]] = vals[gs_.index((gs_[k] & ~31) | sem[4])] if sem[3] == "idx" else vals[len(ms) - 1 - k]
             else:
                 for m in ms:
                     m[2](sem)
         R = ms[0][0]
+        xs_ = [m[0] for m in ms[1:]]      # (seventh build: the registers of the other lanes' machines - stale together with the thread's, as in the vectorised model)
     else:
         R, _get, ex = _machine(gid)
+        xs_ = []
     for i in pro:
         ex(i.sem)
     last_b = max((k for k, i in enumerate(body) if i.tag == "B"), default=-1)
     for _ in range(REPEAT):
         old, deferred = {}, None
+        olds_ = [{} for _x in xs_]
         for k, i in enumerate(body):
             if mode in ("stale", "stale1", "stale2", "stale3") and i.tag == "P":      # (version 29: stale1 / stale2 / stale3)
                 old.update({r: R[r] for r in i.dst if r in R})
+                for o_, x_ in zip(olds_, xs_):
+                    o_.update({r: x_[r] for r in i.dst if r in x_})
                 ex(i.sem)
             elif (mode == "stale" and i.tag in ("C", "C2", "C3")) or (mode == "stale1" and i.tag == "C") or (mode == "stale2" and i.tag == "C2") or (mode == "stale3" and i.tag == "C3"):      # (version 29: the scale set's second tensor reader has the tag C2, its MOV readers C3)
                 cur = {r: R[r] for r in old}
+                curs_ = [{r: x_[r] for r in o_} for o_, x_ in zip(olds_, xs_)]
                 R.update(old)
+                for o_, x_ in zip(olds_, xs_):
+                    x_.update(o_)
                 ex(i.sem)
                 R.update({r: v for r, v in cur.items() if r not in i.dst})
+                for c_, x_ in zip(curs_, xs_):
+                    x_.update({r: v for r, v in c_.items() if r not in i.dst})
             elif mode in ("late", "overtake") and i.tag == "S":
                 deferred = i
             elif mode == "late" and i.tag == "O":
@@ -4298,6 +4879,8 @@ def modes_of(req):
         return (["good", "stale"] + (["p0old"] if req.get("pshift") == 1 else [])) if set_exec(req, np.arange(64)).any() else ["good"]
     if req["kind"] == "ord" and req.get("read") == "younger":      # version 31: stale1 = only the reader of the YOUNGER (S2UR) result took its marker, stale2 = only the reader of the older (LDC) register, stale = both
         return ["good", "stale", "stale1", "stale2"]
+    if is_srd(req):      # version 34, fifth build: stale = the first read took the marker in every iteration; drop1 = the word never landed (both reads took the marker in every iteration)
+        return ["good", "stale"] if str(req["forms"]).strip() == "a" else ["good", "stale", "drop1"]      # (seventh build, a: no marker and no pre-read - a word that never landed reads as good)
     return ["good", "stale"] if req["kind"] in ("raw", "ord") else ["good", "late", "overtake"]
 
 
@@ -4334,6 +4917,8 @@ def normalise(req):
             raise SystemExit(f"{r['id']}: producer {r.get('producer')!r} not in the catalogue for {r['consumer']} (probe.py list)")
         if what == "gaddr" and (r.get("result") is not None or r.get("salt") is not None or any(str(f).startswith("stg") for f in r.get("front", []))):
             raise SystemExit(f"{r['id']}: {r['consumer']} has no result / salt field and no stg front (word B is the target of a store through a stale address)")
+        if (r["consumer"] in U33_PAIRS or r["producer"] == "UISETP.NE") and not raw_pair_ok(r["producer"], r["consumer"]):      # version 33
+            raise SystemExit(f"{r['id']}: version 33 - BRA.back (the vendor's loop) takes the producer UISETP.NE, and UISETP.NE stands in front of BRA.back only")
         if (r["consumer"] in U32_PAIRS or r["producer"] in U32_PRODUCERS) and not raw_pair_ok(r["producer"], r["consumer"]):      # version 32
             raise SystemExit(f"{r['id']}: version 32 - " + (f"{r['consumer']} takes the producer(s) {', '.join(U32_PAIRS[r['consumer']])}" if r["consumer"] in U32_PAIRS
                              else f"the uniform producer {r['producer']} stands in front of its own consumers and of MOV.u1 (ULEA.addr: of the two stores)")
@@ -4351,6 +4936,15 @@ def normalise(req):
             raise SystemExit(f"{r['id']}: control is \"stale\" (the positive control: the producer's word behind the consumer and its checksum) or absent")
         if r.get("control") and r.get("via") not in (None, "stall"):
             raise SystemExit(f"{r['id']}: a control request is swept via stall")
+        if r.get("bctl") not in (None, "y5") or (r.get("bctl") and r["consumer"] != "BRA.gc"):      # version 33
+            raise SystemExit(f"{r['id']}: bctl is \"y5\" (the uniform branch of BRA.gc carries the yield flag at stall 5 - the form of the MoE texts) or absent")
+        if not (r.get("bskip") is None or (isinstance(r["bskip"], int) and not isinstance(r["bskip"], bool) and 2 <= r["bskip"] <= 20 and r["consumer"] == "BRA.gc")):
+            raise SystemExit(f"{r['id']}: bskip is 2 .. 20 (the uniform branch of BRA.gc skips that many words instead of one) or absent")
+        if r["consumer"] == "BRA.back" and (any(f_ not in ("none", "", None) for f_ in r.get("front", ["none"])) or r.get("via") not in (None, "stall")
+                                            or r.get("yield") or r.get("salt") or r.get("result") or r.get("pbar")):
+            raise SystemExit(f"{r['id']}: BRA.back (the vendor's loop) has no front, no fill sweep and no yield / salt / result / pbar field")
+        if r["consumer"] == "BRA.back":
+            r.setdefault("distances", "9,30")
         r.setdefault("distances", "2,7" if r.get("control") else "1-15,20,30")
         r.setdefault("via", "stall")
     elif r.get("kind") == "war":
@@ -4378,16 +4972,28 @@ def normalise(req):
             r.setdefault("place", "near")
             r.setdefault("barrier", "last")
             r.setdefault("distances", "1-4,8,11" if r.get("yield") else "1-4,8,15")
-            if not (isinstance(r["nload"], int) and 2 <= r["nload"] <= (17 if is_set(r) else 13 if r.get("forms") else 8)) or (r["older"], r["younger"]) != ("LDS", "LDS") \
+            if not (isinstance(r["nload"], int) and (1 if is_srd(r) else 2) <= r["nload"] <= (17 if is_set(r) else 13 if r.get("forms") else 8)) or (r["older"], r["younger"]) != ("LDS", "LDS") \
                     or r["place"] not in ("near", "far", "base2") or r["barrier"] not in ("last", "all", "none") or r.get("far") \
                     or r.get("older_barrier"):
                 raise SystemExit(f"{r['id']}: an N-load request is older = younger = LDS, nload 2..8, place near | far | base2, barrier last | all | none")
             if r.get("forms"):
-                if r["place"] == "far" or r["nload"] < 2:
+                if r["place"] == "far" or (r["nload"] < 2 and not is_srd(r)):
                     raise SystemExit(f"{r['id']}: a mixed N-load request has 2..13 loads, place near | base2")
                 if is_set(r):      # version 23
                     set_plan(r)
                     r.setdefault("occupancy", ["w8", "w16"])
+                    if is_srd(r):      # version 34, fifth build: the diagnostic of the wait behind a special-register word
+                        if r["barrier"] not in ("all", "none") or r.get("controls") or any(k_ in r for k_ in ("wait", "rdist", "rbar", "preader", "first", "pguard", "cold", "reader", "pshift", "noload")):
+                            raise SystemExit(f"{r['id']}: the diagnostic of a special-register word (version 34, fifth build: forms \"x\" | \"r\") has barrier all (the producer sets write barrier 1, "
+                                             "the reader word waits it) | none (the control: no barrier, no wait), no ctl variant and none of wait / rdist / rbar / preader / first / pguard / cold / reader")
+                        r["controls"] = False
+                    if r.get("rbar") is not None or r.get("preader") is not None or r.get("first") is not None:      # version 34
+                        l34_ = [t_.strip()[-1:] for t_ in str(r["forms"]).split(",")]
+                        if r.get("rbar") not in (None, "same", "split") or r.get("preader") not in (None, "set", "own") or r.get("first") not in (None, "older") \
+                                or is_cov(r) or is_sf(r) or "M" in l34_ or (r.get("rbar") and (r["barrier"] != "all" or not any(x_ in SET_RBAR for x_ in l34_) or (r["rbar"] == "split" and not (any(x_ in ("i", "h") for x_ in l34_) and any(x_ in ("N", "G", "Q", "B", "T") for x_ in l34_))))):      # (third build: at least one producer that can carry a read barrier; split: a shuffle AND a global load)
+                            raise SystemExit(f"{r['id']}: version 34 - rbar is \"same\" (every producer also sets the READ barrier of the set's number: barrier all, shuffles and "
+                                             "global loads only), preader is \"set\" (the first reader word, on the ONE wait, is ISETP.GE.AND P3 of the first register read), first is "
+                                             "\"older\" (the reader words take the producers oldest first) - on a plain set or a set under predicates, or absent")
                     if r.get("noload") is not None and (r["noload"] is not True or is_cov(r) or not is_sf(r) or any(t_.strip() != "S" for t_ in str(r["forms"]).split(","))
                                                          or r.get("wait", "reader") != "reader"):
                         raise SystemExit(f"{r['id']}: noload is true (version 30: a scale set of S alone with NO load at all - a filler in the place of every load, the scale "
@@ -4425,8 +5031,8 @@ def normalise(req):
                         pl_ = set_plan(r)
                         if (not (isinstance(r["pguard"], str) and len(r["pguard"]) == (3 if any(g_ == "j" for g_, _l, _r, _a in pl_) else 2) and all(c_ in SET_PG for c_ in r["pguard"]))      # (version 31: three letters with the prefix j)
                                 or r.get("pneg") not in (None, "set")
-                                or not {"g", "k"} <= {g_ for g_, _l, _r, _a in pl_} or any(l_ not in ("G", "Q", "B", "T") or not g_ for g_, l_, _r, _a in pl_)
-                                or r["barrier"] != "all" or r.get("wait", "reader") not in ("reader", "end") or r.get("controls")
+                                or not ({"g", "k"} <= {g_ for g_, _l, _r, _a in pl_} or set_onepred(r)) or any((l_ not in ("G", "Q", "B", "T", "N") or not g_) and not (l_ in ("N", "i") and not g_) for g_, l_, _r, _a in pl_)      # (version 34: N as G; an UNGUARDED N or i beside the guarded loads)
+                                or r["barrier"] != "all" or r.get("wait", "reader") not in ("reader", "end", "front") or r.get("controls")
                                 or any(f_ not in ("none", "", None) for f_ in r.get("front", ["none"]))
                                 or not (r.get("rdist") is None or (isinstance(r["rdist"], int) and not isinstance(r["rdist"], bool) and 1 <= r["rdist"] <= 300))):
                             raise SystemExit(f"{r['id']}: pguard (version 28) is two letters of t | f | l | c (P0 for the producers with prefix g, P2 for those with prefix k; both "
@@ -4438,8 +5044,18 @@ def normalise(req):
                                              "front of the ISETP that reads it, not right by construction; it carries the hypothesis p0old) or absent")
                         r.setdefault("wait", "reader")
                         r["controls"] = False
-                    elif any(k_ in r for k_ in ("wait", "rdist")):
+                    elif any(k_ in r for k_ in ("wait", "rdist")) and not (r.get("wait") == "front" and "rdist" not in r and (r["barrier"] == "all" or r.get("waitword") in ("bar", "both"))):      # (third build: a plain set with the ONE wait on a word that reads no member)
                         raise SystemExit(f"{r['id']}: wait / rdist belong to a set request with pguard (version 28)")
+                    if any(r.get(k_) is not None for k_ in ("pthird", "sreader", "sguard", "waitword")):      # version 34, seventh build - the shapes of cubit's own builds
+                        if r.get("pthird") not in (None, "lane") or (r.get("pthird") and not (r.get("pguard") and set_onepred(r) and r.get("wait") == "front")):
+                            raise SystemExit(f"{r['id']}: pthird is \"lane\" (seventh build: the third write of the ONE predicate is `ISETP.NE.AND P0, PT, R31, RZ, PT`, R31 = SR_TID.X & 0x1f) on a set under one predicate with wait front, or absent")
+                        if r.get("sreader") not in (None, "set") or (r.get("sreader") and not (r.get("pguard") and set_onepred(r) and r.get("wait") == "front" and not r.get("preader")
+                                                                                              and list(set_plan(r)[0][:2]) == ["", "N"])):
+                            raise SystemExit(f"{r['id']}: sreader is \"set\" (seventh build: the first reader behind the wait is a SHFL.IDX of the unguarded N's register) on a set under one predicate whose oldest producer is an unguarded N, with wait front and no preader, or absent")
+                        if r.get("sguard") not in (None, "lane") or (r.get("sguard") and r.get("reader") != "gsts"):
+                            raise SystemExit(f"{r['id']}: sguard is \"lane\" (seventh build: the guarded store of reader gsts stands under P0 = lane != 0) with reader gsts, or absent")
+                        if r.get("waitword") not in (None, "bar", "both") or (r.get("waitword") and not (r.get("wait") == "front" and not r.get("pguard") and r.get("reader") is None)):
+                            raise SystemExit(f"{r['id']}: waitword is \"bar\" (seventh build: `WARPSYNC.ALL` + `BAR.SYNC.DEFER_BLOCKING 0x0` carry the ONE wait) on a plain set with wait front, or absent")
                     if r.get("cold") not in (None, "set"):
                         raise SystemExit(f"{r['id']}: cold is \"set\" (third build: every global load of the set reads another never-written line of the output buffer) or absent")
                     if r.get("cold"):
@@ -4452,7 +5068,7 @@ def normalise(req):
                     ordn_plan(r)
                 if ordn_no_gaddr(r) and any(str(f).startswith("stg") for f in r.get("front", [])):
                     raise SystemExit(f"{r['id']}: front stg... needs the global addresses, which this request's loads overwrite (R16..R19)")
-            if r.get("yield") and not is_cov(r) and max(parse_distances(r["distances"])) > 11:      # (version 30: a cover set sweeps the distance with fillers)
+            if r.get("yield") and not is_cov(r) and not is_srd(r) and max(parse_distances(r["distances"])) > 11:      # (version 30: a cover set sweeps the distance with fillers)
                 raise SystemExit(f"{r['id']}: with the yield flag the loads are at most 11 cycles apart")
         if r.get("older_barrier") not in (None, "same", "recycle"):
             raise SystemExit(f"{r['id']}: older_barrier is \"same\", \"recycle\" (version 21) or absent")
@@ -4673,6 +5289,8 @@ def pair_text(r):
                 + ("first MMA + a NOP of one cycle + fillers" if r["via"] == "nop" else "the first MMA's stall + fillers") + ")")
     if r["kind"] == "ord" and is_cov(r):      # version 30
         return cov_text(r)
+    if r["kind"] == "ord" and is_srd(r):      # version 34, fifth build
+        return srd_text(r)
     if r["kind"] == "ord" and r.get("forms"):
         names = SET_NAMES
         toks = [x.strip() for x in str(r["forms"]).split(",")]
@@ -4685,7 +5303,30 @@ def pair_text(r):
                 + ("the thread's own line, one base register" if r["place"] == "near" else "the thread's own line, every second load through another base register") + "; "
                 + {"last": "only the youngest load carries the write barrier", "all": "every load on the SAME write barrier",
                    "none": "POSITIVE CONTROL: no barrier and no wait - expect 0 % good"}[r["barrier"]] + ")"
-                + (sf_text(r) if is_sf(r) else set_pg_text(r) if pgd else ""))
+                + (sf_text(r) if is_sf(r) else set_pg_text(r) if pgd else "")
+                + ("; version 34: every producer also sets the READ barrier of the set's number" if r.get("rbar") else "")
+                + ("; version 34: the first reader word, on the ONE wait, is `ISETP.GE.AND P3` of the first register read - a member into a PREDICATE; `SEL R, R4, R5, P3` joins the fold" if r.get("preader") == "set" else "; version 34, ninth build: THE FIRST READER WORD, on the ONE wait, IS `ISETP.GE.AND P0` OF THE SHUFFLE's REGISTER - the flights' reader INTO THE SET's OWN PREDICATE; `SEL R, R4, R5, P0` joins the fold" if r.get("preader") == "own" else "")
+                + ("; version 34: the reader words take the producers OLDEST first" if r.get("first") else "")
+                + (("; version 34, second build: BOTH guarded `LDG.E.CONSTANT` stand under ONE predicate - P0 is written AGAIN between them (`ISETP.GE.AND P0` right behind the first, 13 cycles in front of the second; "
+                    + ("letter c: from the next lower bit of the counter's hash - the two loads execute under different values of P0" if pgd[0] == "c" else "from the same source") + ")") if (pgd and set_onepred(r)) else "")
+                + ("; version 34, third build: THE ONE WAIT STANDS ON A WORD THAT READS NO MEMBER (`IADD3 R15, PT, PT, R15, 0x1, RZ`), one cycle in front of the first reader word; the reader words carry no wait" if (r.get("wait") == "front" and not pgd and not r.get("waitword")) else "")
+                + ("; version 34, fourth build: THE ONE READER WORD IS A GUARDED STORE - `@!P0 STS.128 [R9+0x20], R32` (" + ("P0 = (lane != 0), those builds' guard: it executes in lane 0 ALONE - version 34, seventh build" if r.get("sguard") == "lane" else "P0 false: it executes in every lane and iteration") + "; the quad = the two "
+                   "shuffles' registers and the iteration's two inputs), read back by `LDS.128 R24, [R9+0x20]` behind the store's read barrier" if r.get("reader") == "gsts" else "")
+                + ("; version 34, seventh build: THE STORE's GUARD IS WRITTEN FROM THE LANE REGISTER - `LOP3.LUT R31, R0, 0x1f, RZ, 0xc0, !PT` + `ISETP.NE.AND P0, PT, R31, RZ, PT`: the store is NULLIFIED IN 31 LANES OF 32 "
+                   "(the line keeps the prologue's quad there); only lane 0 can show a stale store" if r.get("sguard") == "lane" else "")
+                + ("; version 34, seventh build: THE THIRD WRITE OF THE ONE PREDICATE IS ANOTHER WORD FROM ANOTHER CONDITION - `ISETP.NE.AND P0, PT, R31, RZ, PT` (R31 = SR_TID.X & 0x1f, written at the top of the "
+                   "iteration by `LOP3.LUT R31, R0, 0x1f, RZ, 0xc0, !PT`), one cycle in front of the word that carries the wait, while both guarded loads fly" if r.get("pthird") == "lane" else "")
+                + ("; version 34, seventh build: THE FIRST READER behind the wait IS A `SHFL.IDX` WHOSE SOURCE IS A MEMBER - `SHFL.IDX PT, R30, R<the unguarded N's register>, RZ, 0x1f` (every lane takes lane 0's); "
+                   "it waits the set's barrier itself and sets the read and the write barrier of that number with the yield flag at stall 4 (those builds' `[B----4-:R4:W4:Y:S04]`); the first plain reader word "
+                   "behind it waits that barrier; R30 joins the fold" if r.get("sreader") == "set" else "")
+                + ("; version 34, seventh build: THE WORD THAT CARRIES THE ONE WAIT IS AN EVENT WORD - those builds' `WARPSYNC.ALL` (Y, stall 5) + `BAR.SYNC.DEFER_BLOCKING 0x0` (the wait, Y, stall 6) in the place of the "
+                   "`IADD3`; the first reader word stands 6 cycles behind it; A NAMED-BARRIER WORD: every thread of the block arrives once per iteration - A LAUNCH OF SUCH A KERNEL MAY NOT RETURN"
+                   + (" [barrier none: THE CONTROL - the pair in the same place, no barrier and no wait]" if r["barrier"] == "none" else "") if r.get("waitword") == "bar" else "; version 34, ninth build: TWO WAITING WORDS - the `IADD3` carries the wait first, the first reader word stands one cycle behind it, then the event pair `WARPSYNC.ALL` (Y, stall 5) + `BAR.SYNC.DEFER_BLOCKING 0x0` (Y, stall 6) waits the SAME barrier again, " + str(r.get("wdist", 7)) + " cycles behind the first waiting word, and the second reader word stands 6 cycles behind it; A NAMED-BARRIER WORD: every thread of the block arrives once per iteration - A LAUNCH OF SUCH A KERNEL MAY NOT RETURN" + (" [barrier none: THE CONTROL - both words in the same place, no barrier and no wait]" if r["barrier"] == "none" else "") if r.get("waitword") == "both" else "")
+                + ("; version 34, third build: the global loads carry the read barrier of the set's number, the shuffle READ BARRIER 2 (another number than its write barrier); the last word of the body waits it" if r.get("rbar") == "split" else "")
+                + ("; version 34, fifth build: the x's uniform register UR12 holds a marker from the top of the iteration and is READ TWICE - by `MOV R, UR12` among the reader words and once more 30 cycles or "
+                   "more behind them; (first == second) and (second != the marker) each choose between two constants of the fold - NO reference word" if "x" in toks else "")
+                + ("; version 34, second build: the z's uniform register UR12 holds a marker from the top of the iteration; its reader is `MOV R, UR12`, and the word behind it takes away the reference R31 "
+                   "(`S2R R31, SR_CgaCtaId` on write barrier 0 at the top of every iteration, waited)" if "z" in toks else ""))
     if r["kind"] == "ord" and r.get("nload"):
         where = {"near": "words of the thread's own line, one base register", "base2": "words of the thread's own line, every second load through another base register",
                  "far": "words >= 1 KB apart in the CTA's shared memory"}[r["place"]]
@@ -4804,6 +5445,11 @@ def cmd_gen(args):
     if isinstance(reqs, dict):
         reqs = [reqs]
     reqs = [normalise(r) for r in reqs]
+    for r in reqs:      # version 33 - the rule since 2026-11-13: a BRA.U whose uniform predicate stands closer than 9 cycles behind its producer goes to no card
+        if r["kind"] == "raw" and r.get("consumer") in ("BRA.gc", "BRA.back") and (min(r["distance_list"]) < 9 or r.get("control")) \
+                and os.environ.get("PROBE_BRAU_BELOW9") != "diagnostic":
+            raise SystemExit(f"{r['id']}: refusing to write a batch with a uniform branch closer than 9 cycles behind the producer of its predicate (or with the "
+                             "producer behind the branch: a control) - the vendor's census never goes closer, and why a launch of such a text did not return is not known")
     if len({r["id"] for r in reqs}) != len(reqs):
         raise SystemExit("request ids must be unique in a batch")
     out = pathlib.Path(args.out)
@@ -4858,6 +5504,8 @@ def cmd_gen(args):
                                     and r["store"] in ("STS.data", "STG.data", "LDS.dst", "LDG.dst", "LDC.dst", "S2R.dst") + SHFL_STORES) else None
         if r["kind"] == "reuse":      # a stale reader of a linear form: the number of stale iterations is decoded from a mixture
             late_delta = reuse_late_delta(r)
+        if is_srd(r):      # version 34, fifth build: a stale first read costs the fold 3 x R21 in its iteration - the runner decodes the number of such iterations from a mixture
+            late_delta = (-3 * SRD_K) & 0xFFFFFFFF
         fam = {"request": r, "pair": pair_text(r) + (" [the swept instruction carries the YIELD flag]" if r.get("yield") else "")
                                  + (" [COLD: every load reads another line of the never-written tail of another CTA's block of the output buffer, chosen by lane and iteration]" if r.get("cold") else ""),
                "provenance": prov, "kernels": kernels, "modes": modes_of(r), "late_delta": late_delta,
@@ -5003,7 +5651,17 @@ class FakeCuda:
         pass
 
     def synchronize(self):
-        pass
+        hang = os.environ.get("PROBE_FAKE_HANG", "")      # run code 15: the kernel stub that never returns - "<regex of the kernel's name>"; "<regex>@<seconds>" = a slow launch that does return; "<regex>@die" = the process ends as behind a trap
+        if hang and self.now is not None:
+            pat, _, secs = hang.partition("@")
+            if re.search(pat, self.now[0]["name"]):
+                if secs == "die":
+                    os._exit(134)
+                if secs:
+                    time.sleep(float(secs))
+                else:
+                    while True:
+                        time.sleep(3600)
 
     def from_device(self, _d, nbytes, dtype=None):
         import numpy as np
@@ -5017,6 +5675,148 @@ class FakeCuda:
 
     def close(self):
         pass
+
+
+# ---- run code 15: the time limit per SINGLE kernel - a launch that does not return is killed and NAMED
+KL_DEFAULT_S = 20.0      # a child whose progress record does not change for this long has a launch that does not return
+KL_FIRST_S = 90.0        # the same while no kernel is named in the record: the interpreter, the model file, the context; the result file
+KL_POLL_S = 0.25         # the parent looks four times a second
+
+
+class Progress:
+    """the CHILD's side: one small record at the head of <request>/progress.txt, rewritten in place - the kernel's entry once
+    per kernel, the launch counter (7 digits) in front of every launch - and one line per finished kernel in done.jsonl.
+    No fsync: the parent reads the page cache; the record is for a process that gets killed, not for a host that falls."""
+
+    def __init__(self, rdir):
+        self.fd = os.open(str(rdir / "progress.txt"), os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o644)
+        self.done = open(rdir / "done.jsonl", "w")
+        self.put({"phase": "request start"})
+
+    def put(self, rec):
+        b = b"      0 " + json.dumps(rec).encode() + b"\n"
+        os.pwrite(self.fd, b, 0)
+        os.ftruncate(self.fd, len(b))
+
+    def kernel(self, e, nrep, isref):
+        self.put({"kernel": e["name"], "variant": e["variant"], "occupancy": e["occupancy"], "front": e["front"],
+                  "distance": e["distance"], "launches": nrep, "reference_launch": bool(isref)})
+
+    def launch(self, k):
+        os.pwrite(self.fd, b"%7d" % k, 0)
+
+    def finished(self, e, nrep, isref, tot):
+        self.done.write(json.dumps({"kernel": e["name"], "variant": e["variant"], "occupancy": e["occupancy"], "front": e["front"],
+                                    "distance": e["distance"], "launches": nrep, "reference_launch": bool(isref), "classes": tot}) + "\n")
+        self.done.flush()
+        self.put({"phase": "between kernels", "after": e["name"]})
+
+    def close(self, phase):
+        self.put({"phase": phase})
+        self.done.close()
+        os.close(self.fd)
+
+
+def read_progress(p):
+    """-> (the record's bytes | None, the launch counter, the record); (.., 0, {}) when there is none or it is being rewritten"""
+    try:
+        cur = p.read_bytes()
+    except OSError:
+        return None, 0, {}
+    try:
+        k, rec = int(cur[:7]), json.loads(cur[8:])
+    except ValueError:
+        return cur, 0, {}
+    return cur, k, rec if isinstance(rec, dict) else {}
+
+
+def in_flight(p):
+    """what a child's record says when its process ended without a result (a trap kills the context, not the record)"""
+    cur, k, rec = read_progress(p)
+    if cur is None:
+        return ""
+    if rec.get("kernel"):
+        return (f"; in flight when the process ended: kernel {rec['kernel']} (distance {rec.get('distance')}, grid {rec.get('occupancy')}, "
+                f"front {rec.get('front')}), launch {k} of {rec.get('launches')}")
+    return f"; the child's record when the process ended: {rec.get('phase', 'unreadable')}"
+
+
+def hung_text(h):
+    if h.get("kernel"):
+        what = (f"kernel {h['kernel']} (distance {h.get('distance')}, grid {h.get('occupancy')}, front {h.get('front')}, variant {h.get('variant')}), "
+                f"launch {h.get('launch')} of {h.get('launches')}{' - the reference launch of its condition' if h.get('reference_launch') else ''}")
+    else:
+        what = f"no kernel in flight (the child's record: {h.get('phase', 'none yet')})"
+    return (f"{what}; no progress for {h.get('seconds_without_progress')} s (limit {h.get('limit_s'):g} s): the child was killed"
+            f"{' AND DID NOT EXIT' if h.get('child_exit') is None else ''}; {h.get('kernels_done_before')} of {h.get('kernels_of_request')} kernels of the request "
+            f"were done before; fresh context: {h.get('fresh_context')}; the card behind it: {h.get('card_after')}")
+
+
+def run_child(cmd, env, prog_p, klimit, kfirst):
+    """ONE request's child, watched. -> (exit code, None) when the child ended by itself; (exit code | None, hung) when its
+    progress record did not change for the limit - `klimit` seconds while a kernel is named in it, `kfirst` seconds
+    otherwise: the child is killed (SIGKILL; its context goes with its process) and `hung` is the record - the kernel's
+    entry and the launch that did not return. The child stays in the runner's process group: the block's own kill of
+    that group (its timeout, its power watch) reaches it as it reached runner 14's."""
+    p = subprocess.Popen(cmd, env=env)
+    if not klimit:
+        return p.wait(), None
+    last, t_last = None, time.monotonic()
+    while True:
+        try:
+            return p.wait(timeout=KL_POLL_S), None
+        except subprocess.TimeoutExpired:
+            pass
+        cur, k, rec = read_progress(prog_p)
+        now = time.monotonic()
+        if cur != last:
+            last, t_last = cur, now
+            continue
+        lim = klimit if rec.get("kernel") else kfirst
+        if now - t_last <= lim:
+            continue
+        p.kill()
+        try:
+            rc = p.wait(timeout=30)
+        except subprocess.TimeoutExpired:
+            rc = None      # a process that does not exit behind SIGKILL stands inside the driver
+        return rc, dict(rec, launch=k, seconds_without_progress=round(now - t_last, 1), limit_s=lim)
+
+
+def fresh_context(fake2):
+    """behind a killed child: ONE fresh context on the card, in a process of its own (`run - --ctx-check`), itself under a
+    limit. -> (ok, one line)"""
+    cmd = [sys.executable, os.path.abspath(__file__), "run", "-", "--ctx-check"]
+    try:
+        r = subprocess.run(cmd, env=dict(os.environ, PROBE_FAKE="1") if fake2 else None, capture_output=True, text=True, timeout=KL_FIRST_S)
+    except subprocess.TimeoutExpired:
+        return False, f"FAILED: the fresh context did not return in {KL_FIRST_S:g} s (its process was killed)"
+    line = ([x for x in r.stdout.splitlines() if x.startswith("CTXCHECK")]
+            or [f"FAILED: no CTXCHECK line (exit {r.returncode}): {(r.stderr or r.stdout).strip()[-160:]}"])[-1]
+    return r.returncode == 0 and line.startswith("CTXCHECK ok"), line[:240]
+
+
+def ctx_check(Cuda):
+    """`run - --ctx-check`: ONE fresh CUDA context on device 0 - created, 1 024 words written and read back, destroyed.
+    Cuda is None under PROBE_FAKE (no card; PROBE_FAKE_CTXFAIL=1 makes the fake fail)."""
+    if Cuda is None:
+        bad = os.environ.get("PROBE_FAKE_CTXFAIL") == "1"
+        print("CTXCHECK FAILED: FAKE (PROBE_FAKE_CTXFAIL=1)" if bad else "CTXCHECK ok: FAKE (no card)", flush=True)
+        return 1 if bad else 0
+    import numpy as np
+    try:
+        cu = Cuda(0)
+        d = cu.alloc(4096)
+        cu.memset32(d, 0x5A5A1234, 1024)
+        o = cu.from_device(d, 4096, dtype=np.uint32)
+        cu.free(d)
+        cu.close()
+    except Exception as ex:      # noqa: BLE001
+        print(f"CTXCHECK FAILED: {str(ex)[:160]}", flush=True)
+        return 1
+    good = int(np.count_nonzero(o == 0x5A5A1234))
+    print(f"CTXCHECK {'ok' if good == 1024 else 'FAILED'}: a fresh context, {good} of 1 024 words written and read back", flush=True)
+    return 0 if good == 1024 else 1
 
 
 def cmd_run(args):
@@ -5033,6 +5833,8 @@ def cmd_run(args):
             assert not rc, what
     else:
         from culaunch import Cuda, CK
+    if getattr(args, "ctx_check", False):      # run code 15: one fresh context on the card, in a process of its own (behind the container guard above)
+        return ctx_check(None if fake else Cuda)
     batch = pathlib.Path(args.batch)
     ids = json.load(open(batch / "batch.json"))["requests"]
     if args.only:
@@ -5052,7 +5854,7 @@ def cmd_run(args):
     q = (lambda _x: "FAKE (no card)") if fake else smi
     cond = {"gpu": q("name"), "driver": q("driver_version"), "clocks_max_sm": q("clocks.max.sm"), "power_limit": q("power.limit"),
             "host": socket.gethostname(), "image": os.environ.get("PROBE_IMAGE", ""), "block": os.environ.get("PROBE_BLOCK", ""),
-            "runner_sha256": sha256(__file__), "in_container": os.path.exists("/.dockerenv"),
+            "runner_sha256": sha256(__file__), "run_code": RUN_CODE, "in_container": os.path.exists("/.dockerenv"),
             "start_utc": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")}
     print(f"[probe] start {cond['start_utc']} {cond['gpu']} max {cond['clocks_max_sm']} limit {cond['power_limit']}; {len(ids)} requests", flush=True)
     cu = FakeCuda() if fake else Cuda(0)
@@ -5086,8 +5888,9 @@ def cmd_run(args):
         results, errors, skipped = {}, [], 0
         eqfar, far_raw, ref_name, ltime = {}, {}, {}, {}
         tr = time.time()
+        prog = Progress(batch / rid) if getattr(args, "progress", False) else None      # run code 15: the record the parent watches
 
-        def run_kernel(e, nrep, far=None):
+        def run_kernel(e, nrep, far=None, isref=False):
             """-> (classes per thread-launch, thread-launches equal to the reference kernel's output, the first output)"""
             ctas, threads = e["ctas"], e["threads"]
             n = 1024 * ctas
@@ -5098,11 +5901,15 @@ def cmd_run(args):
             if fake:
                 cu.now = (e, cand, order)
             mod = ctypes.c_void_p()
+            if prog is not None:
+                prog.kernel(e, nrep, isref)
             try:
                 CK(cu.cu.cuModuleLoad(ctypes.byref(mod), str(batch / rid / "k" / f"{e['name']}.cubin").encode()), "cuModuleLoad")
                 fn = ctypes.c_void_p()
                 CK(cu.cu.cuModuleGetFunction(ctypes.byref(fn), mod, e["name"].encode()), "cuModuleGetFunction")
-                for _ in range(nrep):
+                for k_ in range(nrep):
+                    if prog is not None:
+                        prog.launch(k_ + 1)
                     cu.memset32(d_out, 0, 2 * n)
                     t1 = time.perf_counter()
                     cu.launch(fn, grid=(ctas, 1, 1), block=(threads, 1, 1), args=[d_out, ctypes.c_uint32(SEED)])
@@ -5142,6 +5949,8 @@ def cmd_run(args):
                     cu.cu.cuModuleUnload(mod)
             if lt and nrep > 1:      # launch -> synchronize on the host's clock, the median over the launches (microseconds)
                 ltime.setdefault((e["variant"], e["occupancy"], e["front"]), {})[e["distance"]] = round(1e6 * sorted(lt)[len(lt) // 2], 1)
+            if prog is not None:
+                prog.finished(e, nrep, isref, tot)
             return tot, eq, first
 
         # the kernels of a request by condition (occupancy, front); the reference kernel of a condition runs first, once:
@@ -5158,7 +5967,7 @@ def cmd_run(args):
             if refs and not (time.time() - t0 > args.limit_s or dead >= 3):
                 ref = max(refs, key=lambda e: e["distance"])
                 try:
-                    _t, _e, far = run_kernel(ref, 1)
+                    _t, _e, far = run_kernel(ref, 1, isref=True)
                     far_raw[gkey], ref_name[gkey] = far, ref["name"]
                 except Exception as ex:      # noqa: BLE001
                     errors.append(f"{ref['name']} (reference): {str(ex)[:120]}")
@@ -5254,6 +6063,8 @@ def cmd_run(args):
                                                               "verdict": verdict, "oracle_failures": oracle_bad},
                "errors": errors, "skipped_kernels": skipped, "seconds": round(time.time() - tr, 1)}
         (batch / rid / "result.json").write_text(json.dumps(res, indent=1) + "\n")
+        if prog is not None:
+            prog.close("request done: the result is written")
         if bad_groups:      # what the reference kernels really produced, for the repair of the model on the CPU
             np.savez_compressed(batch / rid / "reference_raw.npz", **{f"{o}__{front_id(f)}": far_raw[(o, f)] for o, f in bad_groups if (o, f) in far_raw})
         floors.append({"id": rid, "pair": fam["pair"], "kind": req["kind"], "binding": binding, "per_condition": per_cond,
@@ -5293,29 +6104,64 @@ def run_isolated(args, batch, ids):
     q = (lambda _x: "FAKE (no card)") if fake2 else smi
     cond = {"gpu": q("name"), "driver": q("driver_version"), "clocks_max_sm": q("clocks.max.sm"), "power_limit": q("power.limit"),
             "host": socket.gethostname(), "image": os.environ.get("PROBE_IMAGE", ""), "block": os.environ.get("PROBE_BLOCK", ""),
-            "runner_sha256": sha256(__file__), "one_process_per_request": True,
+            "runner_sha256": sha256(__file__), "run_code": RUN_CODE, "one_process_per_request": True,
             "start_utc": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")}
     print(f"[probe] start {cond['start_utc']} {cond['gpu']} max {cond['clocks_max_sm']} limit {cond['power_limit']}; {len(ids)} requests, one process each", flush=True)
+    klimit = max(0.0, float(getattr(args, "kernel_limit_s", 0) or 0))      # run code 15: the time limit per SINGLE kernel (0 = none: runner 14's path)
+    kfirst = max(float(getattr(args, "kernel_first_s", 0) or 0), klimit)
+    after_hang = getattr(args, "after_hang", "end")
+    cond.update({"kernel_limit_s": klimit, "kernel_first_s": kfirst, "after_hang": after_hang})
+    print("[probe] the time limit per single kernel: "
+          + (f"{klimit:g} s without progress ({kfirst:g} s while no kernel is in flight) - then the child is killed, the kernel named, one fresh context made; "
+             f"behind a hang {'no further request starts' if after_hang == 'end' else 'the NEXT request starts'}" if klimit else "NONE (--kernel-limit-s 0)"), flush=True)
     floors, nkern, skipped_total = [], 0, 0
+    stop_why = None      # set when a launch did not return (--after-hang end) or the fresh context behind it failed: no further request starts
     for rid in ids:
         fam = json.load(open(batch / rid / "family.json"))
         row_p = batch / rid / "floor_row.json"
-        if row_p.exists():
-            row_p.unlink()
+        prog_p, done_p, hung_p = batch / rid / "progress.txt", batch / rid / "done.jsonl", batch / rid / "HUNG.json"
+        for p_ in (row_p, prog_p, done_p, hung_p):
+            if p_.exists():
+                p_.unlink()
         left = args.limit_s - (time.time() - t0)
-        rc = None
-        if left > 5:
+        rc, hung = None, None
+        if left > 5 and stop_why is None:
             cmd = [sys.executable, os.path.abspath(__file__), "run", str(batch), "--only", f"^{re.escape(rid)}$", "--child", "--limit-s", str(left)]
-            rc = subprocess.run(cmd + (["--reps", str(args.reps)] if args.reps else []),
-                                env=dict(os.environ, PROBE_FAKE="1") if fake2 else None).returncode
-        if row_p.exists():
+            rc, hung = run_child(cmd + (["--reps", str(args.reps)] if args.reps else []) + (["--progress"] if klimit else []),
+                                 dict(os.environ, PROBE_FAKE="1") if fake2 else None, prog_p, klimit, kfirst)
+        if hung is not None:      # the child's record stood still for the limit and the child was killed: name the kernel, one fresh context, mark the request
+            done = []
+            try:
+                done = [json.loads(x) for x in open(done_p) if x.strip()]
+            except (OSError, ValueError):
+                pass
+            ndone = sum(1 for x in done if not x.get("reference_launch"))
+            ok, ctx = fresh_context(fake2)
+            hung.update({"request": rid, "pair": fam["pair"], "child_exit": rc, "kernels_done_before": ndone, "kernels_of_request": len(fam["kernels"]),
+                         "fresh_context_ok": ok, "fresh_context": ctx, "card_after": q("utilization.gpu,memory.used"),
+                         "utc": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")})
+            hung_p.write_text(json.dumps(dict(hung, done=done), indent=1) + "\n")
+            why = "A LAUNCH DID NOT RETURN: " + hung_text(hung)
+            print(f"FAIL {rid}: {why}", flush=True)
+            nkern += ndone
+            skipped_total += len(fam["kernels"]) - ndone
+            floors.append({"id": rid, "pair": fam["pair"], "kind": fam["request"]["kind"], "binding": None, "per_condition": {}, "verdict": "",
+                           "oracle_failures": [why], "errors": 1, "skipped": len(fam["kernels"]) - ndone, "hung": hung})
+            if not ok or rc is None:
+                stop_why = f"NOT RUN: behind the hung launch of request {rid} the fresh context FAILED or the child did not exit - nothing further is started"
+            elif after_hang == "end":
+                stop_why = f"NOT RUN: a launch of request {rid} did not return - a hang ends the batch (--after-hang end)"
+        elif row_p.exists():
             row = json.load(open(row_p))
             nkern += row.pop("nkern", 0)
             row.pop("dead", None)
             skipped_total += row.get("skipped", 0)
             floors.append(row)
+            for p_ in (prog_p, done_p):      # a request that ended by itself leaves no record
+                if p_.exists():
+                    p_.unlink()
         else:
-            why = "NOT RUN: the block's time limit" if rc is None else f"PROCESS FAILED (exit {rc}): no result"
+            why = (stop_why or "NOT RUN: the block's time limit") if rc is None else f"PROCESS FAILED (exit {rc}): no result" + in_flight(prog_p)
             print(f"FAIL {rid}: {why}", flush=True)
             skipped_total += len(fam["kernels"])
             floors.append({"id": rid, "pair": fam["pair"], "kind": fam["request"]["kind"], "binding": None, "per_condition": {}, "verdict": "",
@@ -5367,9 +6213,12 @@ def finish(batch, ids, floors, cond, t0, nkern, skipped_total, dead, clock_csv, 
     if ordl:
         print(f"SUMMARY ord floors (older load without a barrier -> younger load whose barrier the reader waits on; smallest distance from which the reader was always right): {ordl}"[:290], flush=True)
     print(f"SUMMARY table cells too low: {len(low)} {' '.join(low)}"[:290], flush=True)
+    hung = [f for f in floors if f.get("hung")]      # run code 15: a launch that did not return is named in the summary and in the exit code
+    for f in hung:
+        print(f"SUMMARY A LAUNCH DID NOT RETURN in request {f['id']}: {hung_text(f['hung'])}"[:900], flush=True)
     if cu is not None:
         cu.close()
-    return 0
+    return 3 if hung else 0
 
 
 def cmd_floor(args):
@@ -5891,7 +6740,7 @@ def cmd_selftest(_args):
                     assert max(int(x) for x in re.findall(r"(?<![UA-Za-z])R(\d+)", text.split(".shared")[1])) <= SET_REGS - 1, forms
                 n += 2
     for bad in ({"forms": "Q,Q", "occupancy": ["w32"]}, {"forms": "Q,Q", "occupancy": ["c4w8"]}, {"forms": "Q,Q", "place": "base2"}, {"forms": "gc,Q"},
-                {"forms": "Q,Q,Q,Q,Q,Q,Q,Q,Q,Q,Q"}, {"forms": "m,C"}, {"forms": "Q,Q", "front": ["stgx4@4"]}):
+                {"forms": "Q,Q,Q,Q,Q,Q,Q,Q,Q,Q,Q"}, {"forms": "Q,Q", "front": ["stgx4@4"]}):      # (version 34: {"forms": "m,C"} left this list - a set of relative readers alone is a request now)
         try:
             rb = normalise(dict({"id": "selftest", "kind": "ord", "barrier": "all"}, **bad))
             body_ord(rb, 4, "none", "bare")
@@ -7244,6 +8093,559 @@ def cmd_selftest(_args):
     bu_ = body_raw(ru0_, 4, "none")
     assert [a.text for a in bu_ if "QMMA" in a.text] == ["QMMA.SF.16832.F32.E4M3.E2M1.E8 R28, R16, R12, R28, R14, R14, UR6 ;", "QMMA.SF.16832.F32.E4M3.E2M1.E8 R24, R16, R12, R24, R14, R14, UR6 ;"] \
         and not any("P2" in a.text or "UP0" in a.text for a in bu_), "the unguarded request of the pair is as it was"
+    # ---- version 33: the three forms of the uniform-branch diagnostic
+    r33_ = normalise({"id": "selftest", "kind": "raw", "producer": "UISETP.NE", "consumer": "BRA.back", "distances": "9,30"})
+    assert r33_["distance_list"] == [9, 30] and modes_of(r33_) == ["good", "stale"] and raw_pair_ok("UISETP.NE", "BRA.back")
+    assert not raw_pair_ok("UISETP", "BRA.back") and not raw_pair_ok("UISETP.NE", "BRA.gc") and not raw_pair_ok("UISETP.NE", "MOV.u1") and raw_pair_ok("UISETP", "BRA.gc")
+    assert [i.line() for i in body_raw(r33_, 9, "none")[-6:]] == [
+        "L_u32:", "[B------:R-:W-:-:S15] IADD3 R8, PT, PT, R8, 0x1, RZ ;", "[B------:R-:W-:-:S04] UIADD3 UR9, UPT, UPT, UR9, 0x1, URZ ;",
+        "[B------:R-:W-:-:S09] UISETP.NE.AND UP0, UPT, UR9, URZ, UPT ;", "[B------:R-:W-:-:S15] BRA.U UP0, L_u32 ;", "[B------:R-:W-:-:S15] IADD3 R10, PT, PT, R10, R8, RZ ;"]
+    assert [i.line() for i in body_raw(r33_, 30, "none")[-4:]] == [
+        "[B------:R-:W-:-:S15] UISETP.NE.AND UP0, UPT, UR9, URZ, UPT ;", "[B------:R-:W-:-:S15] IADD3 R15, PT, PT, R15, 0x1, RZ ;", "[B------:R-:W-:-:S15] BRA.U UP0, L_u32 ;",
+        "[B------:R-:W-:-:S15] IADD3 R10, PT, PT, R10, R8, RZ ;"]
+    assert [int(x) for x in model(r33_, "good", gids=gids)] == [sum(jb_(b_, j_) + 3 for j_ in range(REPEAT)) & M32 for b_ in b32]      # three passes: the second input + 3
+    assert [int(x) for x in model(r33_, "stale", gids=gids)] == [sum(jb_(b_, j_) + 1 for j_ in range(REPEAT)) & M32 for b_ in b32]     # the branch not taken at the first pass
+    rh_ = normalise({"id": "selftest", "kind": "raw", "producer": "UISETP", "consumer": "BRA.gc", "distances": "9,30"})
+    rm_ = normalise(dict(rh_, bctl="y5"))
+    rs_ = normalise(dict(rh_, bskip=9))
+    hl_, ml_, sl_ = ([i.line() for i in body_raw(q_, 9, "none")] for q_ in (rh_, rm_, rs_))
+    assert len(hl_) == len(ml_) and [k_ for k_ in range(len(hl_)) if hl_[k_] != ml_[k_]] == [len(hl_) - 4] and ml_[-4] == "[B------:R-:W-:Y:S05] BRA.U !UP0, L_u32 ;" \
+        and hl_[-4] == "[B------:R-:W-:-:S15] BRA.U !UP0, L_u32 ;", "bctl y5 changes the control code of the branch and nothing else"
+    assert len(sl_) == len(hl_) + 8 and sl_[:-2] == hl_[:-2] + ["[B------:R-:W-:-:S15] IADD3 R15, PT, PT, R15, 0x1, RZ ;"] * 8 and sl_[-2:] == hl_[-2:], "bskip 9: eight fillers behind the MOV, in front of the label"
+    for q_ in (rm_, rs_):
+        for m_ in ("good", "stale"):
+            assert np.array_equal(model(q_, m_, gids=gids), model(rh_, m_, gids=gids)) and [int(x) for x in model(q_, m_, gids=gids)] == model(q_, m_, gids=gids, scalar=True)
+            n += 1
+    for bad_ in ({"bctl": "y6"}, {"bskip": 1}, {"bskip": 21}, {"bskip": True}):
+        try:
+            normalise(dict(rh_, **bad_))
+            raise AssertionError(("accepted", bad_))
+        except SystemExit:
+            pass
+    for bad_ in ({"producer": "UISETP.NE", "consumer": "BRA.gc"}, {"producer": "UISETP", "consumer": "BRA.back"}, {"producer": "UISETP.NE", "consumer": "BRA.back", "bctl": "y5"},
+                 {"producer": "UISETP.NE", "consumer": "BRA.back", "front": ["mmax1@7"]}, {"producer": "UISETP.NE", "consumer": "BRA.back", "yield": "set"}):
+        try:
+            normalise(dict({"id": "selftest", "kind": "raw"}, **bad_))
+            raise AssertionError(("accepted", bad_))
+        except SystemExit:
+            pass
+    # version 34 - the sets of cubit's own builds: the letters L, i, N, Y; a set of relative readers alone; rbar, preader, first
+    for forms, extra in (("L,L", {}), ("m,m,m", {}), ("C,C", {}), ("m,C", {}), ("Y,L", {}), ("i,i", {}), ("i,i", {"rbar": "same"}), ("i,L", {}), ("Y,i,L", {}), ("N,N", {}),
+                         ("N,N", {"preader": "set"}), ("C,C", {"first": "older"}), ("L,L", {"first": "older"}), ("m,m,m", {"first": "older"}), ("L,C,m", {}), ("L,L,L", {}),
+                         ("N,i", {"preader": "set", "rbar": "same"}), ("N,i,c", {"preader": "set"}), ("N,G,Q", {"first": "older", "rbar": "same"})):
+        for bar in ("all", "none"):
+            if bar == "none" and extra.get("rbar"):
+                continue
+            r = normalise(dict({"id": "selftest", "kind": "ord", "forms": forms, "barrier": bar, "yield": "set"}, **extra))
+            assert is_set(r) and r["occupancy"] == ["w8", "w16"] and (shfl_of(r) == "idx") == ("i" in forms), forms
+            g, st_ = model(r, "good", gids=gids), model(r, "stale", gids=gids)
+            assert [int(x) for x in g] == model(r, "good", gids=gids, scalar=True) and [int(x) for x in st_] == model(r, "stale", gids=gids, scalar=True), forms
+            assert (g != st_).all() and (g != 0).all(), forms
+            PTR_STANDIN[:] = [0x1234567, 0x89abcde]      # (no term of a fold may be the pointer the host model does not know)
+            try:
+                assert [int(x) for x in g] == model(r, "good", gids=gids, scalar=True), forms
+            finally:
+                PTR_STANDIN[:] = [0, 0]
+            plan = set_plan(r)
+            for v in ("bare", "ctl"):
+                body = body_ord(r, 4, "none", v)
+                prods = [a for a in body if a.tag == "P"]
+                assert len(prods) == len(plan) == r["nload"], forms
+                if v == "bare":
+                    want_ = ("R1:W1" if extra.get("rbar") else "R-:W1") if bar == "all" else "R-:W-"
+                    assert all(a.ctl[9:14] == want_ for a in prods) and all(a.ctl[-4:] == "S04]" for a in prods[:-1]) and prods[-1].ctl[-4:] == "S02]", (forms, [a.ctl for a in prods])
+                else:
+                    assert all(a.ctl[9:14] == "R-:W0" and a.ctl[-4:] == "S01]" for a in prods), forms
+                snaps = [a for a in body if a.tag == "C"]
+                assert snaps[0].ctl[1:8] == ("B0-----" if v == "ctl" else "B------" if bar == "none" else "B-1----") and all(a.ctl[1:8] == "B------" for a in snaps[1:]), forms
+                assert (snaps[0].text.startswith("ISETP.GE.AND P3, PT, R") and sum(1 for a in body if a.text.startswith("SEL ")) == 1) == bool(extra.get("preader")), forms
+                first_ = plan[0] if extra.get("first") else plan[-1]      # the first register read is the oldest producer's with "first": "older", else the youngest's
+                if first_[1] not in ("L", "Y"):
+                    assert f"R{first_[2]}" in snaps[0].text, (forms, snaps[0].text)
+                elif first_[1] == "L":
+                    assert snaps[0].text == f"IADD.64 R24, -R2, UR{first_[3]} ;", (forms, snaps[0].text)
+                um_ = [a.text for a in body if a.text.startswith("UMOV UR")]
+                assert len(um_) == 2 * forms.split(",").count("L") and all(k_ < body.index(prods[0]) for k_, a in enumerate(body) if a.text.startswith("UMOV UR")), forms
+                text = kernel_text("selftest_x", dict(r, _threads=256), 188, body, 65536)
+                assert misaligned(text) == [] and "    .reg R0-R79\n    .regcount 88\n" in text, forms
+                assert max(int(x) for x in re.findall(r"(?<![UA-Za-z])R(\d+)", text.split(".shared")[1])) <= SET_REGS - 1, forms
+            n += 2
+    for forms, extra in (("N,gN,kN", {"pguard": "ff", "pneg": "set"}), ("N,gN,kN", {"pguard": "cc", "pneg": "set", "rbar": "same", "preader": "set"}), ("N,i,gN,kN", {"pguard": "tt"}),
+                         ("N,i,gN,kN", {"pguard": "ll", "pneg": "set", "preader": "set", "first": "older"}), ("gN,kN", {"pguard": "tf"})):
+        for wt_ in ("reader", "end"):
+            r = normalise(dict({"id": "selftest", "kind": "ord", "forms": forms, "barrier": "all", "yield": "set", "wait": wt_}, **extra))
+            g = model(r, "good", gids=gids)
+            assert [int(x) for x in g] == model(r, "good", gids=gids, scalar=True) and (g != 0).all(), (forms, extra)
+            if "stale" in modes_of(r):
+                st_ = model(r, "stale", gids=gids)
+                assert [int(x) for x in st_] == model(r, "stale", gids=gids, scalar=True) and (g != st_).any(), (forms, extra)
+            body = body_ord(r, 4, "none", "bare")
+            prods = [a for a in body if a.tag == "P"]
+            pn_ = "!" if extra.get("pneg") else ""
+            want_ = {"N,gN,kN": ["LDG.E.CONSTANT", f"@{pn_}P0 LDG.E.CONSTANT", f"@{pn_}P2 LDG.E.CONSTANT"], "gN,kN": [f"@{pn_}P0 LDG.E.CONSTANT", f"@{pn_}P2 LDG.E.CONSTANT"],
+                     "N,i,gN,kN": ["LDG.E.CONSTANT", "SHFL.IDX", f"@{pn_}P0 LDG.E.CONSTANT", f"@{pn_}P2 LDG.E.CONSTANT"]}[forms]
+            assert [a.text.split(" R")[0].split(" PT")[0] for a in prods] == want_, (forms, [a.text for a in prods])
+            assert all(a.ctl[9:14] == ("R1:W1" if extra.get("rbar") else "R-:W1") for a in prods), forms
+            snaps = [a for a in body if a.tag == "C"]
+            assert snaps[0].ctl[1:8] == ("B-1----" if wt_ == "reader" else "B------"), (forms, wt_)
+            text = kernel_text("selftest_x", dict(r, _threads=256), 188, body, 65536)
+            assert misaligned(text) == [], forms
+            n += 1
+    for bad in ({"forms": "L,L,L,L"}, {"forms": "i,h"}, {"forms": "Y"}, {"forms": "Y,Y"}, {"forms": "gL,G"}, {"forms": "gi,G"}, {"forms": "L,L", "preader": "set"},
+                {"forms": "C,N", "preader": "set", "first": "older"}, {"forms": "c,C", "rbar": "same"}, {"forms": "N,N", "rbar": "same", "barrier": "last"}, {"forms": "N,N", "first": "younger"},
+                {"forms": "N,N", "preader": "yes"}, {"forms": "C,C,C,L,L"}, {"forms": "S,S", "pguard": "tt", "first": "older"}, {"forms": "G,gN,kN", "pguard": "tt"}):
+        try:
+            rb = normalise(dict({"id": "selftest", "kind": "ord", "barrier": "all"}, **bad))
+            body_ord(rb, 4, "none", "bare")
+            raise AssertionError(f"a version-34 set request that must be refused was taken: {bad}")
+        except SystemExit:
+            pass
+    # version 34, second build - the letter z (S2UR UR12, SR_CgaCtaId: a uniform register read relative to a reference); ONE predicate written again between two guarded loads
+    for forms, extra in (("c,z", {}), ("c,z", {"first": "older"}), ("z,c", {}), ("z,c", {"first": "older"}), ("z,L", {}), ("C,z", {"first": "older"}), ("c,z,i", {})):
+        for bar in ("all", "none"):
+            r = normalise(dict({"id": "selftest", "kind": "ord", "forms": forms, "barrier": bar, "yield": "set"}, **extra))
+            assert is_set(r) and r["occupancy"] == ["w8", "w16"] and not set_onepred(r), forms
+            g, st_ = model(r, "good", gids=gids), model(r, "stale", gids=gids)
+            assert [int(x) for x in g] == model(r, "good", gids=gids, scalar=True) and [int(x) for x in st_] == model(r, "stale", gids=gids, scalar=True), forms
+            assert (g != st_).all() and (g != 0).all(), forms
+            Z_STANDIN[:] = [0x77]      # (no term of a fold may be the special register's value, which the host does not know)
+            PTR_STANDIN[:] = [0x1234567, 0x89abcde]
+            try:
+                assert [int(x) for x in g] == model(r, "good", gids=gids, scalar=True), forms
+            finally:
+                Z_STANDIN[:] = [0x2a]
+                PTR_STANDIN[:] = [0, 0]
+            Z_STANDIN[:] = [0x77]
+            try:
+                assert (g == model(r, "good", gids=gids)).all(), forms
+            finally:
+                Z_STANDIN[:] = [0x2a]
+            plan = set_plan(r)
+            for v in ("bare", "ctl"):
+                body = body_ord(r, 4, "none", v)
+                prods = [a for a in body if a.tag == "P"]
+                assert len(prods) == len(plan) == r["nload"], forms
+                pz_ = [a for a in prods if a.text == "S2UR UR12, SR_CgaCtaId ;"]
+                assert len(pz_) == 1 and pz_[0].dst == ("UR12",) and pz_[0].ctl[9:14] == ("R-:W0" if v == "ctl" else "R-:W1" if bar == "all" else "R-:W-"), (forms, v)
+                ks_ = [k for k, a in enumerate(body) if a.text == "S2R R31, SR_CgaCtaId ;"]
+                assert len(ks_) == 1 and ks_[0] < body.index(prods[0]) and [a.line() for a in body[ks_[0] - 1:ks_[0] + 2]] == [
+                    "[B------:R-:W-:-:S15] UMOV UR12, 0x5a5a0157 ;", "[B------:R-:W0:-:S02] S2R R31, SR_CgaCtaId ;", "[B0-----:R-:W-:-:S15] IADD3 R15, PT, PT, R15, 0x1, RZ ;"], (forms, v)
+                snaps = [a for a in body if a.tag == "C"]
+                assert snaps[0].ctl[1:8] == ("B0-----" if v == "ctl" else "B------" if bar == "none" else "B-1----") and all(a.ctl[1:8] == "B------" for a in snaps[1:]), forms
+                kr_ = [k for k, a in enumerate(body) if a.text.startswith("MOV R") and a.text.endswith(", UR12 ;")]
+                assert len(kr_) == 1 and body[kr_[0]].tag == "C", forms
+                t_ = body[kr_[0]].text.split()[1].rstrip(",")
+                assert body[kr_[0] + 1].text == f"IADD3 {t_}, PT, PT, {t_}, -R31, RZ ;" and body[kr_[0] + 1].tag is None and body[kr_[0] + 1].ctl[-4:] == "S01]", (forms, body[kr_[0] + 1].line())
+                first_ = plan[0] if extra.get("first") else plan[-1]      # the first register read is the oldest producer's with "first": "older", else the youngest's
+                assert (snaps[0] is body[kr_[0]]) == (first_[1] == "z"), (forms, snaps[0].text)
+                assert not any(a.text.startswith(("MOV R31,", "IADD3 R31,", "IADD.64 R30,")) for a in body), forms
+                text = kernel_text("selftest_x", dict(r, _threads=256), 188, body, 65536)
+                assert misaligned(text) == [] and "    .reg R0-R79\n    .regcount 88\n" in text, forms
+            n += 2
+    for forms in ("i,L", "c,L", "N,i,L", "c,z,L"):      # (second build: an L or a z behind a plain register with "first": "older" - its own word, never inside a plain reader word)
+        r = normalise({"id": "selftest", "kind": "ord", "forms": forms, "barrier": "all", "yield": "set", "first": "older"})
+        g = model(r, "good", gids=gids)
+        assert [int(x) for x in g] == model(r, "good", gids=gids, scalar=True) and (g != model(r, "stale", gids=gids)).all(), forms
+        body = body_ord(r, 4, "none", "bare")
+        assert not any("(" in a.text for a in body) and sum(1 for a in body if a.text.startswith("IADD.64 R") and ", -R2, UR" in a.text) == 1, (forms, [a.text for a in body if "(" in a.text])
+        n += 1
+    for forms, extra in (("N,gN,gN", {"pguard": "ff", "pneg": "set"}), ("N,gN,gN", {"pguard": "cc", "pneg": "set", "rbar": "same", "preader": "set"}),
+                         ("N,i,gN,gN", {"pguard": "ll", "pneg": "set", "preader": "set", "first": "older"}), ("gN,gN", {"pguard": "ct"}), ("N,i,gN,gN", {"pguard": "cf", "pneg": "set", "rbar": "same"})):
+        for wt_ in ("reader", "end"):
+            r = normalise(dict({"id": "selftest", "kind": "ord", "forms": forms, "barrier": "all", "yield": "set", "wait": wt_}, **extra))
+            assert set_onepred(r), forms
+            g = model(r, "good", gids=gids)
+            assert [int(x) for x in g] == model(r, "good", gids=gids, scalar=True) and (g != 0).all(), (forms, extra)
+            if "stale" in modes_of(r):
+                st_ = model(r, "stale", gids=gids)
+                assert [int(x) for x in st_] == model(r, "stale", gids=gids, scalar=True) and (g != st_).any(), (forms, extra)
+            body = body_ord(r, 4, "none", "bare")
+            prods = [a for a in body if a.tag == "P"]
+            pn_ = "!" if extra.get("pneg") else ""
+            gl_ = [k for k, a in enumerate(body) if a.tag == "P" and a.text.startswith(f"@{pn_}P0 LDG.E.CONSTANT")]
+            assert len(gl_) == 2 and not any(a.text.startswith(("@P2", "@!P2")) for a in body), (forms, [a.text for a in prods])
+            btw_ = body[gl_[0] + 1:gl_[1]]
+            assert [a.text for a in btw_] == ["ISETP.GE.AND P0, PT, R7, RZ, PT ;"] and btw_[0].ctl[-4:] == "S13]" and body[gl_[0]].ctl[-4:] == "S04]", (forms, [a.line() for a in body[gl_[0]:gl_[1] + 1]])
+            assert sum(1 for a in body if a.text == "ISETP.GE.AND P0, PT, R7, RZ, PT ;") == 2 and (sum(1 for a in body if a.tag == "PS") == 1) == (extra["pguard"][0] == "c"), forms
+            assert all(a.ctl[9:14] == ("R1:W1" if extra.get("rbar") else "R-:W1") for a in prods), forms
+            snaps = [a for a in body if a.tag == "C"]
+            assert snaps[0].ctl[1:8] == ("B-1----" if wt_ == "reader" else "B------"), (forms, wt_)
+            text = kernel_text("selftest_x", dict(r, _threads=256), 188, body, 65536)
+            assert misaligned(text) == [], forms
+            n += 1
+    r1_, r2_ = (normalise({"id": "selftest", "kind": "ord", "forms": f_, "barrier": "all", "yield": "set", "pguard": "cc", "pneg": "set"}) for f_ in ("N,gN,gN", "N,gN,kN"))
+    assert not set_onepred(r2_) and (model(r1_, "good", gids=gids) != model(r2_, "good", gids=gids)).any(), "letter c: the second guarded load of the one-predicate set executes by another bit than the load under P2"
+    assert [a.line() for a in body_ord(r2_, 4, "none", "bare") if a.text.startswith("ISETP.GE.AND P0")] == ["[B------:R-:W-:-:S15] ISETP.GE.AND P0, PT, R7, RZ, PT ;"], "the set under two predicates is as it was: P0 is written once"
+    for bad in ({"forms": "z,z"}, {"forms": "gz,c"}, {"forms": "c,z", "pguard": "ff"}, {"forms": "c,z", "preader": "set"}, {"forms": "C,C,C,m,z"}, {"forms": "z"},
+                {"forms": "gN,gN,gN", "pguard": "ff"}, {"forms": "gN,gG", "pguard": "ff"}, {"forms": "N,gN", "pguard": "ff"}, {"forms": "S,z"}):
+        try:
+            rb = normalise(dict({"id": "selftest", "kind": "ord", "barrier": "all"}, **bad))
+            body_ord(rb, 4, "none", "bare")
+            raise AssertionError(f"a request of version 34's second build that must be refused was taken: {bad}")
+        except SystemExit:
+            pass
+    # version 34, third build - the shapes of the sets in cubit's own builds: the ONE wait on a word that reads no member ("wait": "front"); the read barriers as those builds have them
+    for forms, extra in (("Y,L", {}), ("i,i", {"rbar": "same"}), ("Y,i,L", {"rbar": "same"}), ("c,z", {"first": "older"}), ("L,L", {"first": "older"}), ("N,i", {"rbar": "split"})):
+        r = normalise(dict({"id": "selftest", "kind": "ord", "forms": forms, "barrier": "all", "yield": "set", "wait": "front"}, **extra))
+        r0_ = normalise(dict({"id": "selftest", "kind": "ord", "forms": forms, "barrier": "all", "yield": "set"}, **extra))
+        g, st_ = model(r, "good", gids=gids), model(r, "stale", gids=gids)
+        assert [int(x) for x in g] == model(r, "good", gids=gids, scalar=True) and [int(x) for x in st_] == model(r, "stale", gids=gids, scalar=True) and (g != st_).all(), forms
+        assert (g == model(r0_, "good", gids=gids)).all(), (forms, "the waiting word changes no checksum")
+        for v in ("bare", "ctl"):
+            body, body0 = body_ord(r, 4, "none", v), body_ord(r0_, 4, "none", v)
+            kw_ = [k for k, a in enumerate(body) if a.tag == "W"]
+            snaps = [a for a in body if a.tag == "C"]
+            assert len(kw_) == 1 and body[kw_[0]].line() == ("[B0-----:R-:W-:-:S01]" if v == "ctl" else "[B-1----:R-:W-:-:S01]") + " IADD3 R15, PT, PT, R15, 0x1, RZ ;" and body[kw_[0] + 1] is snaps[0], (forms, v)
+            assert all(a.ctl[1:8] == "B------" for a in snaps) and len(body) == len(body0) + 1, (forms, v)
+            assert [a.text for a in body if a.tag != "W"] == [a.text for a in body0], (forms, v)
+            prods = [a for a in body if a.tag == "P"]
+            if extra.get("rbar") and v == "bare":
+                want_ = {"Y": "R-:W1", "L": "R-:W1", "c": "R-:W1", "i": "R2:W1" if extra["rbar"] == "split" else "R1:W1", "N": "R1:W1"}
+                assert [a.ctl[9:14] for a in prods] == [want_[t_] for t_ in forms.split(",")], (forms, [a.ctl for a in prods])
+                assert (body[-1].line() == "[B--2---:R-:W-:-:S15] IADD3 R15, PT, PT, R15, 0x1, RZ ;") == (extra["rbar"] == "split"), (forms, body[-1].line())
+        n += 2
+    rn_ = normalise({"id": "selftest", "kind": "ord", "forms": "Y,L", "barrier": "none", "yield": "set"})
+    assert not any(a.ctl[1:8] != "B------" for a in body_ord(rn_, 4, "none", "bare")), "the twin without a barrier has no wait at all"
+    for forms, extra in (("N,gN,gN", {"pguard": "cc", "pneg": "set", "rbar": "same"}), ("N,gN,gN", {"pguard": "ff", "pneg": "set", "rbar": "same", "preader": "set"}),
+                         ("N,i,gN,gN", {"pguard": "cc", "pneg": "set", "rbar": "split"}), ("N,i,gN,gN", {"pguard": "ll", "pneg": "set", "rbar": "split", "preader": "set"}), ("N,gN,kN", {"pguard": "cc", "pneg": "set", "rbar": "same"})):
+        r = normalise(dict({"id": "selftest", "kind": "ord", "forms": forms, "barrier": "all", "yield": "set", "wait": "front"}, **extra))
+        r0_ = normalise(dict({"id": "selftest", "kind": "ord", "forms": forms, "barrier": "all", "yield": "set", "wait": "reader"}, **extra))
+        g = model(r, "good", gids=gids)
+        assert [int(x) for x in g] == model(r, "good", gids=gids, scalar=True) and (g != 0).all() and (g == model(r0_, "good", gids=gids)).all(), (forms, extra)
+        st_ = model(r, "stale", gids=gids)
+        assert [int(x) for x in st_] == model(r, "stale", gids=gids, scalar=True) and (g != st_).any(), (forms, extra)
+        body = body_ord(r, 4, "none", "bare")
+        kw_ = [k for k, a in enumerate(body) if a.tag == "W"]
+        snaps = [a for a in body if a.tag == "C"]
+        assert len(kw_) == 1 and body[kw_[0]].line() == "[B-1----:R-:W-:-:S01] IADD3 R15, PT, PT, R15, 0x1, RZ ;" and body[kw_[0] + 1] is snaps[0] and all(a.ctl[1:8] == "B------" for a in snaps), (forms, extra)
+        assert (snaps[0].text.startswith("ISETP.GE.AND P3, PT, R")) == bool(extra.get("preader")), (forms, snaps[0].text)
+        np0_ = sum(1 for a in body if a.text == "ISETP.GE.AND P0, PT, R7, RZ, PT ;")
+        assert np0_ == (3 if set_onepred(r) else 1) and (body[kw_[0] - 1].line() == "[B------:R-:W-:-:S01] ISETP.GE.AND P0, PT, R7, RZ, PT ;") == set_onepred(r), (forms, np0_)
+        prods = [a for a in body if a.tag == "P"]
+        assert [a.ctl[9:14] for a in prods] == [("R2:W1" if (t_ == "i" and extra["rbar"] == "split") else "R1:W1") for t_ in forms.split(",")], (forms, [a.ctl for a in prods])
+        assert (body[-1].line() == "[B--2---:R-:W-:-:S15] IADD3 R15, PT, PT, R15, 0x1, RZ ;") == (extra["rbar"] == "split"), (forms, body[-1].line())
+        text = kernel_text("selftest_x", dict(r, _threads=256), 188, body, 65536)
+        assert misaligned(text) == [], forms
+        n += 1
+    for bad in ({"forms": "Y,L", "wait": "front", "barrier": "none"}, {"forms": "Y,L", "wait": "end"}, {"forms": "Y,L", "wait": "front", "rdist": 20}, {"forms": "c,C", "rbar": "same"},
+                {"forms": "N,N", "rbar": "split"}, {"forms": "i,i", "rbar": "split"}, {"forms": "Y,i,L", "rbar": "split"}, {"forms": "N,gN,gN", "pguard": "cc", "wait": "back"}):
+        try:
+            rb = normalise(dict({"id": "selftest", "kind": "ord", "barrier": "all"}, **bad))
+            body_ord(rb, 4, "none", "bare")
+            raise AssertionError(f"a request of version 34's third build that must be refused was taken: {bad}")
+        except SystemExit:
+            pass
+    # version 34, fourth build - the guarded store as the ONE reader of the plain set i,i
+    for extra in ({}, {"wait": "front"}):
+        for bar in ("all", "none"):
+            if bar == "none" and extra:
+                continue
+            r = normalise(dict({"id": "selftest", "kind": "ord", "forms": "i,i", "barrier": bar, "yield": "set", "reader": "gsts"}, **({"rbar": "same"} if bar == "all" else {}), **extra))
+            g, st_ = model(r, "good", gids=gids), model(r, "stale", gids=gids)
+            assert [int(x) for x in g] == model(r, "good", gids=gids, scalar=True) and [int(x) for x in st_] == model(r, "stale", gids=gids, scalar=True) and (g != st_).all() and (g != 0).all(), (bar, extra)
+            for v in ("bare", "ctl"):
+                body = body_ord(r, 4, "none", v)
+                ks_ = [k for k, a in enumerate(body) if a.text == "@!P0 STS.128 [R9+0x20], R32 ;"]
+                snaps = [a for a in body if a.tag == "C"]
+                assert len(ks_) == 1 and snaps == [body[ks_[0]]] and body[ks_[0] + 1].line() == "[B---3--:R-:W2:-:S02] LDS.128 R24, [R9+0x20] ;", (bar, extra, v)
+                want_ = "B0-----" if (v == "ctl" and not extra) else "B------" if (bar == "none" or extra) else "B-1----"
+                assert body[ks_[0]].ctl[1:8] == want_ and body[ks_[0]].ctl[9:11] == "R3", (bar, extra, v, body[ks_[0]].ctl)
+                assert (body[ks_[0] - 1].tag == "W") == bool(extra), (bar, extra, v)
+                assert sum(1 for a in body if a.text == "ISETP.GE.AND P0, PT, R7, RZ, PT ;") == 1 and [a.text for a in body if a.text.startswith(("MOV R34", "MOV R35"))] == ["MOV R34, R4 ;", "MOV R35, R5 ;"], (bar, extra)
+                prods = [a for a in body if a.tag == "P"]
+                assert len(prods) == 2 and all(a.text.startswith("SHFL.IDX PT, R3") for a in prods), (bar, extra)
+                text = kernel_text("selftest_x", dict(r, _threads=256), 188, body, 65536)
+                assert misaligned(text) == [] and "    .reg R0-R79\n    .regcount 88\n" in text, (bar, extra)
+            n += 2
+    for bad in ({"forms": "i,i", "reader": "sts"}, {"forms": "i,L", "reader": "gsts"}, {"forms": "i,i", "reader": "gsts", "first": "older"}, {"forms": "N,i", "reader": "gsts"}):
+        try:
+            rb = normalise(dict({"id": "selftest", "kind": "ord", "barrier": "all"}, **bad))
+            body_ord(rb, 4, "none", "bare")
+            raise AssertionError(f"a request of version 34's fourth build that must be refused was taken: {bad}")
+        except SystemExit:
+            pass
+    # version 34, fifth build - x and r READ TWICE (no reference word); the diagnostic of the wait behind a special-register word (a set of ONE producer)
+    for let_ in ("x", "r"):
+        dstn_, mk_ = ("UR12", SRD_UMARK) if let_ == "x" else ("R32", SRD_RMARK)
+        for bar in ("all", "none"):
+            for yl_ in (None, "set"):
+                q_ = {"id": "selftest", "kind": "ord", "forms": let_, "barrier": bar, "distances": "1,2,9,11,12,15,16,30,31,60"}
+                if yl_:
+                    q_["yield"] = yl_
+                r = normalise(q_)
+                assert is_srd(r) and is_set(r) and r["controls"] is False and r["nload"] == 1 and modes_of(r) == ["good", "stale", "drop1"] and r["occupancy"] == ["w8", "w16"], (let_, bar)
+                ms_ = {m_: model(r, m_, gids=gids) for m_ in modes_of(r)}
+                for m_, v_ in ms_.items():
+                    assert [int(x) for x in v_] == model(r, m_, gids=gids, scalar=True), (let_, bar, m_)
+                assert (ms_["good"] != 0).all() and all(((int(g_) - int(s_)) & 0xFFFFFFFF) == (3 * SRD_K * REPEAT) & 0xFFFFFFFF for g_, s_ in zip(ms_["good"], ms_["stale"])), (let_, bar, "stale = 3 x R21 less in every iteration")
+                assert all(((int(g_) - int(s_)) & 0xFFFFFFFF) == (5 * SRD_K * REPEAT) & 0xFFFFFFFF for g_, s_ in zip(ms_["good"], ms_["drop1"])), (let_, bar, "drop1 = 5 x R21 less in every iteration")
+                Z_STANDIN[:] = [0x77]
+                try:
+                    for m_, v_ in ms_.items():
+                        assert (v_ == model(r, m_, gids=gids)).all() and [int(x) for x in v_] == model(r, m_, gids=gids, scalar=True), (let_, bar, m_, "a term of the fold depends on the special register's value")
+                finally:
+                    Z_STANDIN[:] = [0x2a]
+                for d_ in r["distance_list"]:
+                    body = body_ord(dict(r, _threads=256), d_, "none", "bare")
+                    kp_ = [k for k, a in enumerate(body) if a.tag == "P"]
+                    kc_ = [k for k, a in enumerate(body) if a.tag == "C"]
+                    assert len(kp_) == 1 and len(kc_) == 1 and kp_[0] < kc_[0], (let_, d_)
+                    st_ = [int(a.ctl[-3:-1]) for a in body[kp_[0]:kc_[0]]]
+                    assert sum(st_) == d_ and st_[0] == min(d_, 11 if yl_ else 15) and all(a.text == "IADD3 R15, PT, PT, R15, 0x1, RZ ;" and a.ctl[1:16] == "B------:R-:W-:-" for a in body[kp_[0] + 1:kc_[0]]), (let_, d_, st_)
+                    pw_, cw_ = body[kp_[0]], body[kc_[0]]
+                    assert pw_.text == f"{'S2UR' if let_ == 'x' else 'S2R'} {dstn_}, SR_CgaCtaId ;" and pw_.dst == (dstn_,), (let_, pw_.text)
+                    assert pw_.ctl[1:16] == ("B------:R-:W1:" if bar == "all" else "B------:R-:W-:") + ("Y" if yl_ else "-"), (let_, bar, pw_.line())
+                    assert cw_.line() == ("[B-1----:R-:W-:-:S01] " if bar == "all" else "[B------:R-:W-:-:S01] ") + f"MOV R24, {dstn_} ;", (let_, bar, cw_.line())
+                    k2_ = [k for k, a in enumerate(body) if a.text == f"MOV R25, {dstn_} ;"]
+                    assert len(k2_) == 1 and sum(int(a.ctl[-3:-1]) for a in body[kc_[0]:k2_[0]]) == 31 and body[k2_[0]].tag is None, (let_, d_)
+                    assert body[0].line() == f"[B------:R-:W-:-:S15] {'UMOV' if let_ == 'x' else 'MOV'} {dstn_}, 0x{mk_:x} ;", (let_, body[0].line())
+                    assert [a.text for a in body[k2_[0] + 1:]] == ["LOP3.LUT R24, R24, R25, RZ, 0x3c, !PT ;", f"LOP3.LUT R25, R25, 0x{mk_:x}, RZ, 0x3c, !PT ;", "ISETP.LT.U32.AND P3, PT, R24, 0x1, PT ;",
+                                                                    "ISETP.LT.U32.AND P2, PT, R25, 0x1, PT ;", "SEL R24, R21, RZ, P3 ;", "SEL R25, RZ, R21, P2 ;", "IMAD R6, R24, 0x3, RZ ;", "IMAD R6, R25, 0x5, R6 ;",
+                                                                    "IADD3 R10, PT, PT, R10, R6, RZ ;", "IADD3 R10, PT, PT, R10, R4, RZ ;"], (let_, d_)
+                    assert all(a.ctl == "[B------:R-:W-:-:S15]" for a in body[k2_[0]:]) and not any("R31" in a.text or a.text.startswith(("MOV R21,", "SEL R21,", "LOP3.LUT R21,", "IMAD R21,", "IADD3 R21,")) for a in body), (let_, d_)
+                    text = kernel_text("selftest_x", dict(r, _threads=256), 188, body, 65536)
+                    assert misaligned(text) == [] and "    .reg R0-R79\n    .regcount 88\n" in text and "MOV R21, 0xf0f0f0f ;" in text, (let_, d_)
+                n += 3
+    # version 34, seventh build - (1) + (4): the third write of the ONE predicate from the lane register; a SHFL.IDX of a member as the first reader
+    for forms, extra in (("N,gN,gN", {"pguard": "cc", "pneg": "set", "rbar": "same"}), ("N,gN,gN", {"pguard": "ff", "pneg": "set", "rbar": "same"}), ("N,i,gN,gN", {"pguard": "cc", "pneg": "set", "rbar": "split"})):
+        q_ = dict({"id": "selftest", "kind": "ord", "forms": forms, "barrier": "all", "yield": "set", "wait": "front"}, **extra)
+        r0_ = normalise(dict(q_))
+        g0_, s0_ = model(r0_, "good", gids=gids), model(r0_, "stale", gids=gids)
+        b0_ = body_ord(r0_, 4, "none", "bare")
+        assert not any(("R30" in a.text or "R31" in a.text) for a in b0_), (forms, "R30 and R31 are free in the set's own text")
+        for new_ in ({"pthird": "lane"}, {"sreader": "set"}, {"pthird": "lane", "sreader": "set"}):
+            r = normalise(dict(q_, **new_))
+            g, st_ = model(r, "good", gids=gids), model(r, "stale", gids=gids)
+            assert [int(x) for x in g] == model(r, "good", gids=gids, scalar=True) and [int(x) for x in st_] == model(r, "stale", gids=gids, scalar=True) and (g != 0).all() and (g != st_).any(), (forms, new_)
+            assert ("sreader" in new_) or ((g == g0_).all() and (st_ == s0_).all()), (forms, new_, "the third write moves no checksum")
+            assert ("sreader" not in new_) or ((g != g0_).any() and modes_of(r) == ["good", "stale"]), (forms, new_)
+            body = body_ord(r, 4, "none", "bare")
+            kw_ = [k for k, a in enumerate(body) if a.tag == "W"]
+            assert len(kw_) == 1 and body[kw_[0]].line() == "[B-1----:R-:W-:-:S01] IADD3 R15, PT, PT, R15, 0x1, RZ ;", (forms, new_)
+            third_ = "[B------:R-:W-:-:S01] ISETP.NE.AND P0, PT, R31, RZ, PT ;" if "pthird" in new_ else "[B------:R-:W-:-:S01] ISETP.GE.AND P0, PT, R7, RZ, PT ;"
+            assert body[kw_[0] - 1].line() == third_ and sum(1 for a in body if a.text == "ISETP.GE.AND P0, PT, R7, RZ, PT ;") == (2 if "pthird" in new_ else 3), (forms, new_)
+            assert [a.line() for a in body if "R31" in a.text] == (["[B------:R-:W-:-:S15] LOP3.LUT R31, R0, 0x1f, RZ, 0xc0, !PT ;", third_] if "pthird" in new_ else []), (forms, new_)
+            sh_ = [a for a in body if "R30" in a.text]
+            if "sreader" in new_:
+                assert body[kw_[0] + 1] is sh_[0] and sh_[0].line() == f"[B-1----:R1:W1:Y:S04] SHFL.IDX PT, R30, R{set_plan(r)[0][2]}, RZ, 0x1f ;" and sh_[0].tag == "C", (forms, new_, sh_[0].line())
+                assert body[kw_[0] + 2].tag == "C" and body[kw_[0] + 2].ctl[1:8] == "B-1----" and len(sh_) == 2 and sh_[1].text.startswith("IMAD R6, R30, 0x"), (forms, new_)
+            else:
+                assert sh_ == [] and body[kw_[0] + 1].tag == "C" and body[kw_[0] + 1].ctl[1:8] == "B------", (forms, new_)
+            text = kernel_text("selftest_x", dict(r, _threads=256), 188, body, 65536)
+            assert misaligned(text) == [], (forms, new_)
+            n += 1
+    # version 34, seventh build - (2): the guarded store under the lane guard - it executes in lane 0 alone
+    for extra in ({}, {"wait": "front"}):
+        r = normalise(dict({"id": "selftest", "kind": "ord", "forms": "i,i", "barrier": "all", "yield": "set", "reader": "gsts", "rbar": "same", "sguard": "lane"}, **extra))
+        g, st_ = model(r, "good", gids=gids), model(r, "stale", gids=gids)
+        assert [int(x) for x in g] == model(r, "good", gids=gids, scalar=True) and [int(x) for x in st_] == model(r, "stale", gids=gids, scalar=True) and (g != 0).all(), extra
+        assert ((g != st_) == ((gids % 32) == 0)).all(), (extra, "only lane 0 stores: only lane 0 can show a stale store")
+        body = body_ord(r, 4, "none", "bare")
+        ks_ = [k for k, a in enumerate(body) if a.text == "@!P0 STS.128 [R9+0x20], R32 ;"]
+        assert len(ks_) == 1 and body[ks_[0]].sem[0] == "gsts" and body[ks_[0]].tag == "C" and body[ks_[0] + 1].line() == "[B---3--:R-:W2:-:S02] LDS.128 R24, [R9+0x20] ;", extra
+        assert [a.text for a in body if a.text.startswith(("LOP3.LUT R31", "ISETP.", "MOV R7,"))] == ["LOP3.LUT R31, R0, 0x1f, RZ, 0xc0, !PT ;", "ISETP.NE.AND P0, PT, R31, RZ, PT ;"], extra
+        assert (body[ks_[0] - 1].tag == "W") == bool(extra) and body[ks_[0]].ctl[1:8] == ("B------" if extra else "B-1----"), extra
+        text = kernel_text("selftest_x", dict(r, _threads=256), 188, body, 65536)
+        assert misaligned(text) == [], extra
+        n += 1
+    # version 34, seventh build - (3): the event word BAR.SYNC.DEFER_BLOCKING carries the ONE wait (barrier none: the control with the pair in the same place)
+    for bar in ("all", "none"):
+        q_ = dict({"id": "selftest", "kind": "ord", "forms": "Y,i,L", "barrier": bar, "yield": "set", "wait": "front", "waitword": "bar"}, **({"rbar": "same"} if bar == "all" else {}))
+        r = normalise(dict(q_))
+        r0_ = normalise({k_: v_ for k_, v_ in q_.items() if k_ != "waitword" and (bar == "all" or k_ != "wait")})
+        g = model(r, "good", gids=gids)
+        assert [int(x) for x in g] == model(r, "good", gids=gids, scalar=True) and (g == model(r0_, "good", gids=gids)).all() and (model(r, "stale", gids=gids) == model(r0_, "stale", gids=gids)).all(), bar
+        body = body_ord(r, 4, "none", "bare")
+        kw_ = [k for k, a in enumerate(body) if a.tag == "W"]
+        assert len(kw_) == 1 and body[kw_[0]].line() == ("[B-1----" if bar == "all" else "[B------") + ":R-:W-:Y:S06] BAR.SYNC.DEFER_BLOCKING 0x0 ;", (bar, [body[k].line() for k in kw_])
+        assert body[kw_[0] - 1].line() == "[B------:R-:W-:Y:S05] WARPSYNC.ALL ;" and body[kw_[0] + 1].tag == "C", bar
+        assert [k for k, a in enumerate(body) if a.ctl[1:8] != "B------"] == ([kw_[0]] if bar == "all" else []), bar
+        text = kernel_text("selftest_x", dict(r, _threads=256), 188, body, 65536)
+        assert misaligned(text) == [], bar
+        n += 1
+    # version 34, seventh build - the replay of an earlier batch's reference word WITHOUT a marker (a | b): t's text from the UMOV to the first read, no write of R31 but the S2R's
+    rt_ = normalise({"id": "selftest", "kind": "ord", "forms": "t", "barrier": "all", "distances": "1"})
+    for let_ in SRD_NOMARK:
+        r = normalise({"id": "selftest", "kind": "ord", "forms": let_, "barrier": "all", "distances": "1"})
+        assert is_srd(r) and is_set(r) and r["controls"] is False and modes_of(r) == (["good", "stale"] if let_ == "a" else ["good", "stale", "drop1"]), let_
+        ms_ = {m_: model(r, m_, gids=gids) for m_ in modes_of(r)}
+        for m_, v_ in ms_.items():
+            assert [int(x) for x in v_] == model(r, m_, gids=gids, scalar=True), (let_, m_)
+        assert (ms_["good"] != 0).all() and all(((int(g_) - int(s_)) & 0xFFFFFFFF) == (3 * SRD_K) & 0xFFFFFFFF for g_, s_ in zip(ms_["good"], ms_["stale"])), (let_, "stale = good minus ONE iteration's term")
+        assert let_ == "a" or all(((int(d_) - int(g_)) & 0xFFFFFFFF) == (7 * SRD_K) & 0xFFFFFFFF for g_, d_ in zip(ms_["good"], ms_["drop1"])), (let_, "drop1 = the pre-read equal in all 256 iterations")
+        Z_STANDIN[:] = [0x77]
+        try:
+            for m_, v_ in ms_.items():
+                assert (v_ == model(r, m_, gids=gids)).all(), (let_, m_, "a term of the fold depends on the special register's value")
+        finally:
+            Z_STANDIN[:] = [0x2a]
+        for fr_ in ("none", "sts128x15@4"):
+            body, bt_ = body_ord(dict(r, _threads=256), 1, fr_, "bare"), body_ord(dict(rt_, _threads=256), 1, fr_, "bare")
+            kc_, kt_ = [k for k, a in enumerate(body) if a.tag == "C"], [k for k, a in enumerate(bt_) if a.tag == "C"]
+            k0_ = 1 if let_ == "b" else 0
+            assert len(kc_) == len(kt_) == 1 and [a.line() for a in body[k0_:kc_[0] + 1]] == [a.line() for a in bt_[1:kt_[0] + 1]], (let_, fr_, "from the UMOV to the first read the text is t's")
+            assert bt_[0].text == "MOV R31, 0x5a5a0158 ;" and [a.text for a in body if a.text.startswith("MOV R31,") or " R31, 0x" in a.text] == [] and (body[0].line() == "[B------:R-:W-:-:S15] MOV R26, R31 ;") == (let_ == "b"), (let_, fr_)
+            k2_ = [k for k, a in enumerate(body) if a.text == "MOV R25, R31 ;"]
+            assert len(k2_) == 1 and sum(int(a.ctl[-3:-1]) for a in body[kc_[0]:k2_[0]]) == 31 and all(a.ctl == "[B------:R-:W-:-:S15]" for a in body[k2_[0]:]), (let_, fr_)
+            assert sum(1 for a in body if a.text.startswith("SEL ")) == (1 if let_ == "a" else 2) and sum(1 for a in body if a.text == "IMAD R6, R26, 0x7, R6 ;") == (0 if let_ == "a" else 1), (let_, fr_)
+            text = kernel_text("selftest_x", dict(r, _threads=256), 188, body, 65536)
+            assert misaligned(text) == [] and "    .reg R0-R79\n    .regcount 88\n" in text, (let_, fr_)
+        n += 1
+    # version 34, seventh build - the further producers in the diagnostic: the body and the model of the letter r (U: x) but for the producer's text, its preamble, O's waiting word and H's read barrier
+    for let_ in SRD_PROD:
+        for bar in (("all",) if let_ == "O" else ("all", "none")):
+            for yl_ in (None, "set"):
+                q_ = {"id": "selftest", "kind": "ord", "forms": let_, "barrier": bar, "distances": "1-8,12,16"}
+                if yl_:
+                    q_["yield"] = yl_
+                r = normalise(dict(q_))
+                rx_ = normalise(dict(q_, forms="x" if SRD_PROD[let_][1].startswith("UR") else "r"))
+                assert is_srd(r) and is_set(r) and r["controls"] is False and modes_of(r) == ["good", "stale", "drop1"], (let_, bar)
+                if not yl_:
+                    for m_ in modes_of(r):
+                        v_ = model(r, m_, gids=gids)
+                        assert [int(x) for x in v_] == model(r, m_, gids=gids, scalar=True) and (v_ == model(rx_, m_, gids=gids)).all(), (let_, bar, m_, "the model of a producer's diagnostic is the model of r | x")
+                for d_ in r["distance_list"]:
+                    body = body_ord(dict(r, _threads=256), d_, "none", "bare")
+                    kp_ = [k for k, a in enumerate(body) if a.tag == "P"]
+                    kc_ = [k for k, a in enumerate(body) if a.tag == "C"]
+                    assert len(kp_) == len(kc_) == 1 and body[kp_[0]].text == SRD_PROD[let_][0] and body[kp_[0]].dst == (SRD_PROD[let_][1],), (let_, d_)
+                    want_ = "B------:" + ("R2" if (let_ == "H" and bar == "all") else "R-") + (":W1:" if bar == "all" else ":W-:") + ("Y" if yl_ else "-")
+                    assert body[kp_[0]].ctl[1:16] == want_, (let_, bar, body[kp_[0]].line())
+                    assert sum(int(a.ctl[-3:-1]) for a in body[kp_[0]:kc_[0]]) == d_ + (1 if let_ == "O" else 0), (let_, d_)
+                    kw_ = [k for k, a in enumerate(body) if a.ctl[1:8] != "B------"]
+                    assert [body[k].ctl[1:8] for k in kw_] == ([] if bar == "none" else ["B-1----"] + (["B--2---"] if let_ == "H" else [])), (let_, bar, d_)
+                    assert bar == "none" or kw_[0] == kc_[0] - (1 if let_ == "O" else 0), (let_, bar, d_)
+                    text = kernel_text("selftest_x", dict(r, _threads=256), 188, body, 65536)
+                    assert misaligned(text) == [] and "    .reg R0-R79\n    .regcount 88\n" in text, (let_, d_)
+                n += 2
+    for bad in ({"forms": "N,gN,gN", "pguard": "cc", "pneg": "set", "wait": "reader", "pthird": "lane"}, {"forms": "N,gN,kN", "pguard": "cc", "pneg": "set", "wait": "front", "pthird": "lane"},
+                {"forms": "N,gN,gN", "pguard": "cc", "pneg": "set", "wait": "front", "sreader": "set", "preader": "set"}, {"forms": "i,i", "sguard": "lane"}, {"forms": "i,i", "reader": "gsts", "sguard": "all"},
+                {"forms": "Y,i,L", "waitword": "bar"}, {"forms": "N,gN,gN", "pguard": "cc", "pneg": "set", "wait": "front", "waitword": "bar"}, {"forms": "O", "barrier": "none"}, {"forms": "E,c"},
+                {"forms": "a", "yield": "set"}, {"forms": "b", "barrier": "none"}):
+        try:
+            rb = normalise(dict({"id": "selftest", "kind": "ord", "barrier": "all", "distances": "1"}, **bad))
+            body_ord(dict(rb, _threads=256), 1, "none", "bare")
+            raise AssertionError(f"a request of version 34's seventh build that must be refused was taken: {bad}")
+        except SystemExit:
+            pass
+    # version 34, sixth build - the diagnostic with a load as the producer (e | f | o): the body and the model of the letter r but for the producer's text
+    for let_ in ("e", "f", "o"):
+        for bar in ("all", "none"):
+            for yl_ in (None, "set"):
+                q_ = {"id": "selftest", "kind": "ord", "forms": let_, "barrier": bar, "distances": "1,2,11,12,15,16,31,60"}
+                if yl_:
+                    q_["yield"] = yl_
+                r = normalise(dict(q_))
+                rx_ = normalise(dict(q_, forms="r"))
+                assert is_srd(r) and is_set(r) and r["controls"] is False and r["nload"] == 1 and modes_of(r) == ["good", "stale", "drop1"] and r["occupancy"] == ["w8", "w16"], (let_, bar)
+                ms_ = {m_: model(r, m_, gids=gids) for m_ in modes_of(r)}
+                for m_, v_ in ms_.items():
+                    assert [int(x) for x in v_] == model(r, m_, gids=gids, scalar=True) and (v_ == model(rx_, m_, gids=gids)).all(), (let_, bar, m_, "the model of a load's diagnostic is the model of r")
+                assert (ms_["good"] != 0).all() and all(((int(g_) - int(s_)) & 0xFFFFFFFF) == (3 * SRD_K * REPEAT) & 0xFFFFFFFF for g_, s_ in zip(ms_["good"], ms_["stale"])), (let_, bar)
+                assert all(((int(g_) - int(s_)) & 0xFFFFFFFF) == (5 * SRD_K * REPEAT) & 0xFFFFFFFF for g_, s_ in zip(ms_["good"], ms_["drop1"])), (let_, bar)
+                for d_ in r["distance_list"]:
+                    body = body_ord(dict(r, _threads=256), d_, "none", "bare")
+                    bx_ = body_ord(dict(rx_, _threads=256), d_, "none", "bare")
+                    kp_ = [k for k, a in enumerate(body) if a.tag == "P"]
+                    assert len(kp_) == 1 and len(body) == len(bx_) and body[kp_[0]].text == SRD_LOADS[let_] and body[kp_[0]].dst == ("R32",) and body[kp_[0]].ctl == bx_[kp_[0]].ctl, (let_, d_)
+                    assert [a.line() for k, a in enumerate(body) if k != kp_[0]] == [a.line() for k, a in enumerate(bx_) if k != kp_[0]], (let_, d_, "but for the producer's text the body is r's")
+                    assert body[kp_[0]].ctl[1:16] == ("B------:R-:W1:" if bar == "all" else "B------:R-:W-:") + ("Y" if yl_ else "-"), (let_, bar, body[kp_[0]].line())
+                    text = kernel_text("selftest_x", dict(r, _threads=256), 188, body, 65536)
+                    assert misaligned(text) == [] and "    .reg R0-R79\n    .regcount 88\n" in text and "STG.E desc[UR4][R18.64], R20 ;" in text and "STS.128 [R9+0x20], R20 ;" in text, (let_, d_)
+                n += 2
+    # version 34, sixth build - the replay of an earlier batch's reference word (t | v | w): an earlier batch's top of the iteration word for word
+    for let_ in ("t", "v", "w"):
+        r = normalise({"id": "selftest", "kind": "ord", "forms": let_, "barrier": "all", "distances": "1"})
+        assert is_srd(r) and is_set(r) and r["controls"] is False and r["nload"] == 1 and modes_of(r) == ["good", "stale", "drop1"], let_
+        ms_ = {m_: model(r, m_, gids=gids) for m_ in modes_of(r)}
+        for m_, v_ in ms_.items():
+            assert [int(x) for x in v_] == model(r, m_, gids=gids, scalar=True), (let_, m_)
+        assert (ms_["good"] != 0).all() and all(((int(g_) - int(s_)) & 0xFFFFFFFF) == (3 * SRD_K * REPEAT) & 0xFFFFFFFF for g_, s_ in zip(ms_["good"], ms_["stale"])), let_
+        assert all(((int(g_) - int(s_)) & 0xFFFFFFFF) == (5 * SRD_K * REPEAT) & 0xFFFFFFFF for g_, s_ in zip(ms_["good"], ms_["drop1"])), let_
+        Z_STANDIN[:] = [0x77]
+        try:
+            for m_, v_ in ms_.items():
+                assert (v_ == model(r, m_, gids=gids)).all(), (let_, m_, "a term of the fold depends on the special register's value")
+        finally:
+            Z_STANDIN[:] = [0x2a]
+        wb_ = "0" if let_ == "t" else "1"
+        for fr_ in ("none", "sts128x15@4"):
+            body = body_ord(dict(r, _threads=256), 1, fr_, "bare")
+            ln_ = [a.line() for a in body if not a.text.startswith("STS.128")]
+            assert ln_[:12] == ["[B------:R-:W-:-:S15] MOV R31, 0x5a5a0158 ;", "[B------:R-:W-:-:S15] UMOV UR12, 0x5a5a0157 ;", f"[B------:R-:W{wb_}:-:S02] S2R R31, SR_CgaCtaId ;",
+                                {"t": "[B0-----", "v": "[B-1----", "w": "[B------"}[let_] + ":R-:W-:-:S15] IADD3 R15, PT, PT, R15, 0x1, RZ ;", "[B------:R-:W-:-:S15] MOV R32, R5 ;",
+                                "[B------:R-:W0:Y:S01] LDC R32, c[0x0][0x388] ;", "[B0-----:R-:W-:-:S01] IADD3 R15, PT, PT, R15, 0x1, RZ ;", "[B------:R-:W0:Y:S01] S2UR UR12, SR_CgaCtaId ;",
+                                "[B0-----:R-:W-:-:S02] IADD3 R15, PT, PT, R15, 0x1, RZ ;", "[B0-----:R-:W-:-:S01] MOV R6, R32 ;", "[B------:R-:W-:-:S01] MOV R24, UR12 ;",
+                                ("[B-1----" if let_ == "w" else "[B------") + ":R-:W-:-:S01] MOV R24, R31 ;"], (let_, fr_, ln_[:12])
+            kp_ = [k for k, a in enumerate(body) if a.tag == "P"]
+            kc_ = [k for k, a in enumerate(body) if a.tag == "C"]
+            k2_ = [k for k, a in enumerate(body) if a.text == "MOV R25, R31 ;"]
+            assert len(kp_) == len(kc_) == len(k2_) == 1 and body[kp_[0]].dst == ("R31",) and body[kc_[0]].text == "MOV R24, R31 ;", (let_, fr_)
+            assert sum(int(a.ctl[-3:-1]) for a in body[kp_[0]:kc_[0]]) == (39 if fr_ == "none" else 99) and sum(int(a.ctl[-3:-1]) for a in body[kc_[0]:k2_[0]]) == 31, (let_, fr_)
+            assert sum(a.text.startswith("STS.128") for a in body) == (0 if fr_ == "none" else 15) and all(a.ctl == "[B------:R-:W-:-:S15]" for a in body[k2_[0]:]), (let_, fr_)
+            assert not any(a.text.startswith(("MOV R21,", "SEL R21,", "LOP3.LUT R21,", "IMAD R21,", "IADD3 R21,")) for a in body), (let_, fr_)
+            text = kernel_text("selftest_x", dict(r, _threads=256), 188, body, 65536)
+            assert misaligned(text) == [] and "    .reg R0-R79\n    .regcount 88\n" in text and "MOV R21, 0xf0f0f0f ;" in text, (let_, fr_)
+        for bad in ({"barrier": "none"}, {"yield": "set"}, {"distances": "1,2"}):
+            try:
+                rb = normalise(dict({"id": "selftest", "kind": "ord", "forms": let_, "barrier": "all", "distances": "1"}, **bad))
+                for d_ in rb["distance_list"]:
+                    body_ord(dict(rb, _threads=256), d_, "none", "bare")
+                raise AssertionError(f"a replay request that must be refused was taken: {bad}")
+            except SystemExit:
+                pass
+        n += 1
+    for bad in ({"forms": "e,x"}, {"forms": "c,f"}, {"forms": "t,c"}, {"forms": "ge"}, {"forms": "o", "controls": True}):
+        try:
+            rb = normalise(dict({"id": "selftest", "kind": "ord", "barrier": "all", "distances": "1"}, **bad))
+            body_ord(dict(rb, _threads=256), 1, "none", "bare")
+            raise AssertionError(f"a request of version 34's sixth build that must be refused was taken: {bad}")
+        except SystemExit:
+            pass
+    for forms, extra in (("c,x", {}), ("c,x", {"first": "older"}), ("x,c", {}), ("x,c", {"first": "older"}), ("c,x,i", {}), ("C,x", {"first": "older"})):
+        for bar in ("all", "none"):
+            r = normalise(dict({"id": "selftest", "kind": "ord", "forms": forms, "barrier": bar, "yield": "set"}, **extra))
+            assert is_set(r) and not is_srd(r) and r["occupancy"] == ["w8", "w16"] and modes_of(r) == ["good", "stale"], forms
+            g, st_ = model(r, "good", gids=gids), model(r, "stale", gids=gids)
+            assert [int(x) for x in g] == model(r, "good", gids=gids, scalar=True) and [int(x) for x in st_] == model(r, "stale", gids=gids, scalar=True), forms
+            assert (g != st_).all() and (g != 0).all(), forms
+            Z_STANDIN[:] = [0x77]
+            PTR_STANDIN[:] = [0x1234567, 0x89abcde]
+            try:
+                assert [int(x) for x in g] == model(r, "good", gids=gids, scalar=True) and ("C" in forms or [int(x) for x in st_] == model(r, "stale", gids=gids, scalar=True)), (forms, "a term of the fold depends on a value the host does not know")      # (a STALE relative reader of an LDC.64 is its marker minus the pointer - `other` on a card, as in every set with C)
+            finally:
+                Z_STANDIN[:] = [0x2a]
+                PTR_STANDIN[:] = [0, 0]
+            plan = set_plan(r)
+            for v in ("bare", "ctl"):
+                body = body_ord(r, 4, "none", v)
+                prods = [a for a in body if a.tag == "P"]
+                assert len(prods) == len(plan) == r["nload"], forms
+                px_ = [a for a in prods if a.text == "S2UR UR12, SR_CgaCtaId ;"]
+                assert len(px_) == 1 and px_[0].dst == ("UR12",) and px_[0].ctl[9:14] == ("R-:W0" if v == "ctl" else "R-:W1" if bar == "all" else "R-:W-"), (forms, v)
+                assert body[0].line() == "[B------:R-:W-:-:S15] UMOV UR12, 0x5a5a0157 ;" and not any(a.text.startswith("S2R ") or "-R31" in a.text for a in body), (forms, v)
+                kr_ = [k for k, a in enumerate(body) if a.text.startswith("MOV R") and a.text.endswith(", UR12 ;")]
+                assert len(kr_) == 2 and body[kr_[0]].tag == "C" and body[kr_[1]].tag is None and sum(int(a.ctl[-3:-1]) for a in body[kr_[0]:kr_[1]]) >= 31, (forms, v)
+                t1_, t2_ = (body[k].text.split()[1].rstrip(",") for k in kr_)
+                assert [a.text for a in body[kr_[1] + 1:kr_[1] + 7]] == [f"LOP3.LUT {t1_}, {t1_}, {t2_}, RZ, 0x3c, !PT ;", f"LOP3.LUT {t2_}, {t2_}, 0x5a5a0157, RZ, 0x3c, !PT ;", f"ISETP.LT.U32.AND P3, PT, {t1_}, 0x1, PT ;",
+                                                                      f"ISETP.LT.U32.AND P2, PT, {t2_}, 0x1, PT ;", f"SEL {t1_}, R21, RZ, P3 ;", f"SEL {t2_}, RZ, R21, P2 ;"], (forms, v)
+                snaps = [a for a in body if a.tag == "C"]
+                assert snaps[0].ctl[1:8] == ("B0-----" if v == "ctl" else "B------" if bar == "none" else "B-1----") and all(a.ctl[1:8] == "B------" for a in snaps[1:]), forms
+                first_ = plan[0] if extra.get("first") else plan[-1]      # the first register read is the oldest producer's with "first": "older", else the youngest's
+                assert (snaps[0] is body[kr_[0]]) == (first_[1] == "x"), (forms, snaps[0].text)
+                text = kernel_text("selftest_x", dict(r, _threads=256), 188, body, 65536)
+                assert misaligned(text) == [] and "    .reg R0-R79\n    .regcount 88\n" in text, forms
+            n += 2
+    for bad in ({"forms": "x,x"}, {"forms": "x,z"}, {"forms": "r,c"}, {"forms": "c,r"}, {"forms": "gx,c"}, {"forms": "c,x", "pguard": "ff"}, {"forms": "c,x", "preader": "set"}, {"forms": "c,x", "wait": "front"},
+                {"forms": "c,x", "rbar": "same"}, {"forms": "S,x"}, {"forms": "x,L"}, {"forms": "x", "controls": True}, {"forms": "x", "barrier": "last"}, {"forms": "r", "wait": "front"},
+                {"forms": "x", "first": "older"}, {"forms": "r", "rdist": 5}):
+        try:
+            rb = normalise(dict({"id": "selftest", "kind": "ord", "barrier": "all"}, **bad))
+            body_ord(rb, 4, "none", "bare")
+            raise AssertionError(f"a request of version 34's fifth build that must be refused was taken: {bad}")
+        except SystemExit:
+            pass
     print(f"selftest: {n} (pair, hypothesis) models equal the scalar interpreter on {len(gids)} threads; `good` differs from every failure hypothesis")
     return 0
 
@@ -7265,6 +8667,13 @@ def main():
     r.add_argument("--only", default="")
     r.add_argument("--child", action="store_true", help="(internal) one request in its own process")
     r.add_argument("--no-isolate", action="store_true", help="all requests in ONE process (a trapped kernel then ends the batch)")
+    r.add_argument("--kernel-limit-s", type=float, default=KL_DEFAULT_S,
+                   help="run code 15: a request's child whose progress record does not change for this many seconds has a launch that does not return - it is killed and the kernel named (0 = no limit)")
+    r.add_argument("--kernel-first-s", type=float, default=KL_FIRST_S, help="the same limit while no kernel is named in the record (a request's start and end)")
+    r.add_argument("--after-hang", choices=("end", "next"), default="end",
+                   help="behind a launch that did not return: end = no further request starts (the default: a hang ends a block); next = the next request starts (a diagnostic)")
+    r.add_argument("--progress", action="store_true", help="(internal) the child keeps the progress record its parent watches")
+    r.add_argument("--ctx-check", action="store_true", help="(internal) `run - --ctx-check`: one fresh context on the card, in a process of its own")
     f = sub.add_parser("floor")
     f.add_argument("paths", nargs="+")
     ad = sub.add_parser("adapt")

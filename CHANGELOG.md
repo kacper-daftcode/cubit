@@ -4,6 +4,49 @@ User-visible changes, newest first. Table syncs name the blackwell-isa revision 
 (`tables/SOURCE.json` pins it byte for byte). Numbered `BUG-NNN` entries are the encoder /
 decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `docs/TESTS.md`).
 
+## Unreleased — 2026-11-18 (the sm_120 dependency table's row `barrier_arm` names what was measured on two card models: the yield flag that matters stands on the SETTER — the next word may wait from stall count 2 with it and from 1 without it, behind fourteen setters; three forms of a set's reader words and waits; `tools/stallfloor/probe.py` 34 — no schedule changes)
+
+- **`tables/dep_latency_sm120.json`, the row `barrier_arm`: two new members, `setter_flag` and `wait_forms`; `cycles`
+  stays 2** (KNOWN_ISSUES A26; the scheduler reads `cycles` alone, under `CUBIT_SCHED2_LAT=sm120` — no cell, no default
+  and no schedule changes; the table regenerates byte for byte by the README's command and ONE line of it differs).
+  `setter_flag`: behind each of fourteen setters of a write barrier — `MUFU.EX2`, `MUFU.RCP`, `I2F`, `F2I`, `F2F`,
+  `SHFL.IDX`, `S2R`, `LDCU`, `LDCU.64`, `LDC.64`, the register-indexed `LDC`, `@P0 LDG.E.CONSTANT`, `LDG.E`, `LDS.128` —
+  the word that waits on that barrier as the NEXT word is right from stall count 1 of the setter when the setter carries
+  no yield flag (168 of 168 cells on a card of the Server Edition and on a card of the Workstation Edition; 0 of
+  3 449 815 040 thread-launches not right on each over 1 … 8 cycles) and only from stall count 2 when the SETTER carries
+  the flag (at 1: 0 of 168 cells right, every thread-launch not right; at 2: 168 of 168 — on each card). In every probe
+  kernel the flag stands on the setter and on no other word; the waiting word carries none. The row's basis of
+  2026-11-10 said the same of four setters on one card model ("setter with yield at S01 and its waiter next = every
+  thread wrong"). The yield flag on the WAITING word one cycle behind a setter is not measured. Each row quotes the
+  setter, the waiting word and the first reader as the probe kernel prints them: thirteen setters are waited by their
+  first reader (`LDS.128` by a reader of its third register), `LDG.E` by a word that does not read, its reader one cycle
+  behind that word. `wait_forms` — three forms of a set of producers on one write barrier in front of one wait, each
+  right in every measured cell on both cards, each with a control that is not right in every thread-launch: the FIRST
+  reader word behind the wait is `ISETP.GE.AND` of a guarded load's register into ANOTHER predicate, with the third write
+  of the set's own predicate one cycle in front of the waiting word (48 of 48 cells); the first reader word is
+  `ISETP.GE.AND` of the shuffle's register into the set's OWN predicate (24 of 24); TWO waiting words on one barrier — a
+  word that reads no member, then the event word `BAR.SYNC.DEFER_BLOCKING 0x0` 7 and 101 cycles behind it (24 of 24 at
+  each distance). Both cards on driver 610.43.02, each with the probe alone and no power limit, the Workstation Edition
+  card with its standing memory clock offset of +5000 MHz.
+- **`tools/stallfloor/gen_dep_latency.py`** holds the two members — the words are the probe kernels' own, the numbers
+  those of the result files the rows name — and one sentence more in the row's basis.
+- **`tools/stallfloor/probe.py` 33 and 34** (nine builds of 34; selftest 5 184; old requests give the same texts — each
+  build against its predecessor, the ninth against the eighth on 27 482 kernel texts of 895 requests): version 33 — the
+  three forms of the uniform-branch diagnostic (`gen` refuses a batch that holds a uniform branch closer than 9 cycles
+  behind the producer of its predicate unless `PROBE_BRAU_BELOW9=diagnostic` is set; in no result file); version 34 —
+  kind `ord`: the sets of producers on one write barrier as cubit's own builds lay them out (the letters `L`, `i`, `N`,
+  `Y`, `x`, `r`; the fields `"rbar"`, `"wait": "front"`, `"preader"`, `"pthird"`, `"reader": "gsts"`, `"sguard"`,
+  `"sreader"`, `"waitword"`, `"wdist"`) and the diagnostic of the wait behind ONE producer, with the yield flag on the
+  producer (`"yield": "set"`) or without. README: two kind rows, three result rows.
+- **Result files** (`tools/stallfloor/`): `probe_sm120_20261113_b71.json`, `_b72.json` (a card of the Server Edition);
+  `probe_sm120_20261118_b71_ws_<card>_alone.json`, `_alone_2.json`, `_b72_ws_<card>_alone.json` (a card of the
+  Workstation Edition; `_alone_2` is a second run of the batch `_b71` with its two requests that hold a named-barrier word);
+  `probe_sm120_20261118_b74.json`, `_b75.json` and their `_ws_<card>_alone.json` files. The same verdict in 4 016 of
+  4 020 cells of `_b71` and `_b72` (every measuring cell the same on both cards; the four are three cells of a replay that
+  measures no pair and one cell of a control without barrier and wait), the same verdict and count in 66 of 66 cells of
+  `_b74` and in 246 of 246 of `_b75`. Each file's `conditions` carries the card's state (`memory_clock_offset_mhz`,
+  `card_state`).
+
 ## Unreleased — 2026-11-13 (`CUBIT_LOAD_COVER=1`: the vendor's SHARING at the colouring — a shared load without a free scoreboard joins the load in front as ONE set with ONE wait; the read barrier of a `SYNCS.ARRIVE` in front of a backward branch is waited where its scoreboard is armed again; a card has read FC2's stage loop under the switch inside the vendor's frame — 0.054 ± 0.017 % behind ptxas's build where its base stands 0.190 ± 0.018 % behind: cubit is still behind on FC2; without the switch nothing changes)
 
 - **Why.** With its three clauses the switch gave FC2's stage loop the vendor's 17 bare loads, not his sets: his set
