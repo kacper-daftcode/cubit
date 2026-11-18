@@ -509,7 +509,7 @@ fn sb_share_enabled() -> bool {
 /// same three words of the served fc2 kernel), under two different guards too (`[W0] @!P0 LDC.64
 /// R18 ; [W1] @!P1 LDC.64 R20`): every reader waits the one producer it reads.
 ///
-/// Under the switch a batch of constant loads ([`is_const_load`]: `LDC` and `LDCU` of any width,
+/// Under the switch a batch of constant loads (`is_const_load`: `LDC` and `LDCU` of any width,
 /// guarded or not) is taken apart in front of the colouring -- one use a load, each with its own
 /// first readers. THE EXCEPTION: loads of the batch that the same words read first stay on one
 /// barrier -- one wait settles them, and the vendor keeps two producers of one kind that ONE
