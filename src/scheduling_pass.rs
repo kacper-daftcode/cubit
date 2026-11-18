@@ -3472,13 +3472,13 @@ pub struct PathWar {
 /// word's. A word under a guard may be skipped: it is named, and the pair stays for the next
 /// rewriter. A word under `@!PT` never executes: it neither reads nor rewrites. `RZ` and `URZ`
 /// are no registers. The registers of a word are the scheduler's operand model in force
-/// ([`src_regs`], [`dest_regs`]): under `CUBIT_SYNC_CLASSES` it holds the high half of a 64-bit
+/// (`src_regs`, `dest_regs`): under `CUBIT_SYNC_CLASSES` it holds the high half of a 64-bit
 /// base and the second register of a pair.
 ///
 /// Two kinds of rewrite are counted and not named -- both are the vendor's practice in his own
 /// schedules, and neither is a write at the rewriter's issue into an operand that is read late:
 /// * the rewriter is a producer of the reader's own completion class with a result on a write
-///   barrier ([`same_completion_class`]: a `SHFL` whose result register is the operand of the
+///   barrier (`same_completion_class`: a `SHFL` whose result register is the operand of the
 ///   `SHFL` in front of it) -- its result returns behind the reader's, which returns behind the
 ///   reader's read;
 /// * the register is a uniform register and the reader is no synchronisation word with late
