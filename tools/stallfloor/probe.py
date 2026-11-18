@@ -368,6 +368,37 @@ behind the first waiting word (7 without it; those builds' place is 101); barrie
 both words in the same place and no wait on either. Nothing else differs from the eighth build.
     {"id": "s_nigg_o_cc_l", "kind": "ord", "forms": "N,i,gN,gN", "barrier": "all", "yield": "set", "pguard": "cc", "pneg": "set", "rbar": "split", "wait": "front", "pthird": "lane", "preader": "own", "distances": "1,4"}
     {"id": "w_yil_d", "kind": "ord", "forms": "Y,i,L", "barrier": "all", "yield": "set", "rbar": "same", "wait": "front", "waitword": "both", "distances": "1,4"}
+
+Version 34, tenth build - kind `ord`, THE DATA WAITING WORD AND THE OWN-PREDICATE READER AS cubit's OWN BUILDS HOLD THEM
+(five values, each absent in every older request; all need "wait": "front" with the data word as the waiting word):
+"wflag": true - the data waiting word carries the YIELD FLAG. "wover": "shfl2" - `SHFL.IDX PT, R71, R73, RZ, 0x1f` on READ
+barrier 2 and write barrier 3 (Y, stall 4) pends in front of the set; the data waiting word is `MOV R73, R5` - it overwrites
+the shuffles' source register - and waits the set's barrier AND barrier 2; R71 joins the fold behind a word that waits
+barrier 3 (barrier none: no barrier on the shuffle and no wait). "wplace": "text" - the youngest member has stall 1; two
+flagged one-cycle fillers and the flagged `MOV R72, RZ` stand between it and the data waiting word; the first reader word
+carries a wait bit of its own; with wover two flagged fillers (stalls 4, 3) stand behind the pending shuffle - it is 12
+cycles in front of the set's shuffle at distance 1 and 17 in front of the data word, as in those builds. "rgap": 12 (with wplace text) - six words (stalls 2, 3, 2, 1, 1, 2; the flag on all but the
+second) stand between the data word and its first reader, whose stall is 6; "wdist" then is 12 + 6 + the fillers + 5.
+"pown": "text" (with preader own) - the reader into the set's own predicate is `ISETP.GE.AND P0, PT, R<i>, R72, PT` with a
+wait bit of its own and the yield flag; R72 = 0 since the top of the iteration. A plain set for wflag | wover | wplace.
+    {"id": "w_yil_fy", "kind": "ord", "forms": "Y,i,L", "barrier": "all", "yield": "set", "rbar": "same", "wait": "front", "wflag": true, "distances": "1,4"}
+    {"id": "w_yil_ty2", "kind": "ord", "forms": "Y,i,L", "barrier": "all", "yield": "set", "rbar": "same", "wait": "front", "waitword": "both", "wdist": 101, "wflag": true, "wover": "shfl2", "wplace": "text", "rgap": 12, "distances": "1,4"}
+    {"id": "s_nigg_o_cc_ly", "kind": "ord", "forms": "N,i,gN,gN", "barrier": "all", "yield": "set", "pguard": "cc", "pneg": "set", "rbar": "split", "wait": "front", "pthird": "lane", "preader": "own", "pown": "text", "distances": "1,4"}
+version 34, eleventh build - THE SERVED READERS: "forms": "A" is the
+diagnostic of the letter r with the producer AND ITS FIRST READER as a served kernel holds them; "served" names the place:
+mlg = `MUFU.LG2 R32, R21` read IN PLACE by `FADD.FTZ R32, R32, R26` (R26 = the marker with its sign turned: the reader on the
+result gives exactly that number, on the marker +0.0; hypotheses good | stale = the reader took the marker and its result
+stands | drop2 = the producer landed behind the reader's write); tid = `S2R R32, SR_TID.X` read by `SHF.R.U32.HI R24, RZ,
+0x5, R32`; bfl = `SHFL.BFLY PT, R32, R21, 0x2, 0x1f` read by `SEL R24, R21, R32, !P0` (P0 true). The reader's stall is the
+served one (mlg 6 | with the flag 1, tid 6, bfl 1); with "yield": "set" the flag stands on the producer and - mlg, bfl - on
+the reader too, as served. barrier all | none as the letter r.
+    {"id": "f_mlg", "kind": "ord", "forms": "A", "served": "mlg", "barrier": "all", "distances": "1-8"}
+    {"id": "f_bfl_y", "kind": "ord", "forms": "A", "served": "bfl", "barrier": "all", "yield": "set", "distances": "1-8"}
+version 34, twelfth build - THE YIELD FLAG ON THE WAITING WORD of the single-producer
+diagnostic: "rflag": "set" puts the flag on the word that carries the wait (the reader `MOV R24, <dst>`; the letter O's word
+that is not the reader; the letter A's served reader, whose stall is then 1) - barrier all only, no replay letter. The letter
+p = `POPC R32, R21` as a producer of the diagnostic.
+    {"id": "g_mex_r", "kind": "ord", "forms": "E", "barrier": "all", "rflag": "set", "distances": "1,2"}
 """
 from __future__ import annotations
 
@@ -384,7 +415,7 @@ import subprocess
 import sys
 import time
 
-TOOL = "probe.py 34, ninth build (2026-11-18)"
+TOOL = "probe.py 34, twelfth build (2026-11-18)"
 HERE = pathlib.Path(__file__).resolve().parent
 RUN_CODE = "run code 15 (2026-11-13): the time limit per single kernel"
 SEED = 0x12345
@@ -1429,20 +1460,55 @@ SRD_PROD = {"E": ("MUFU.EX2 R32, R21 ;", "R32", (), "-"),
             "P": ("@P0 LDG.E.CONSTANT R32, desc[UR4][R18.64] ;", "R32", (("MOV R7, RZ ;", ("mov", "R7", 0)), ("ISETP.GE.AND P0, PT, R7, RZ, PT ;", ("sge0", "P0", "R7"))), "-"),
             "O": ("LDG.E R32, desc[UR4][R18.64] ;", "R32", (), "-"),
             "Z": ("LDS.128 R32, [R9+0x20] ;", "R34", (), "-"),      # version 34, eighth build: the marker and both reads on the load's THIRD register
-            "V": (f"LDCU.64 UR{SET_ZUR}, c[0x0][0x380] ;", f"UR{SET_ZUR}", (), "-")}      # version 34, eighth build: the uniform pair UR12:UR13, the low word read twice
+            "V": (f"LDCU.64 UR{SET_ZUR}, c[0x0][0x380] ;", f"UR{SET_ZUR}", (), "-"),      # version 34, eighth build: the uniform pair UR12:UR13, the low word read twice
+            "p": ("POPC R32, R21 ;", "R32", (), "-")}      # version 34, twelfth build: a population count
 SRD_PROD_NOTE = {"H": "; version 34, seventh build: the shuffle also sets READ barrier 2 (both barriers set, the write barrier waited); the last word of the body waits barrier 2",
                  "W": "; version 34, seventh build: a 64-BIT load - the pair R32:R33, the low word read twice",
                  "X": "; version 34, seventh build: the load's address is REGISTER-INDEXED (R13 = 0 from the top of the iteration) - those builds' `LDC R, c[0x2][R]` on bank 0 (a probe kernel has no bank 2)",
                  "P": "; version 34, seventh build: the load stands under P0, written TRUE at the top of every iteration (`MOV R7, RZ` + `ISETP.GE.AND P0, PT, R7, RZ, PT`): it executes in every lane",
                  "U": "; version 34, seventh build: a 32-bit load into a UNIFORM register",
                  "Z": "; version 34, eighth build: a 128-BIT load (the quad R32:R35 out of the thread's own line) WAITED BY A READER OF ITS THIRD REGISTER - the marker and both reads stand on R34",
-                 "V": "; version 34, eighth build: a 64-BIT load into a UNIFORM pair (UR12:UR13), the low word read twice"}
+                 "V": "; version 34, eighth build: a 64-BIT load into a UNIFORM pair (UR12:UR13), the low word read twice",
+                 "p": "; version 34, twelfth build: a population count of the constant R21 (one of the twelve producer kinds in front of a flagged waiting word)"}
 assert all(len(k_) == 1 for k_ in SRD_PROD) and not (set(SRD_PROD) & (set(SET_FORM) | set(ORDN_FORM) | {"g", "k", "j", "n"})), "a letter of SRD_PROD is taken"      # (is_set reads the LAST character of a token: single letters only)
 SET_FORM.update({k_: (v_[0].split()[1] if v_[0].startswith("@") else v_[0].split()[0], 0 if v_[1].startswith("UR") else 2 if k_ == "W" else 4 if k_ == "Z" else 1) for k_, v_ in SRD_PROD.items()})
 SET_NAMES.update({k_: f"{v_[0][:-2]} [the diagnostic's producer (seventh build): {v_[1]} read twice; no reference word]" for k_, v_ in SRD_PROD.items()})
 SRD_LETTERS = ("x", "r") + tuple(SRD_LOADS) + SRD_REPLAY + tuple(SRD_PROD)
 SRD_UMARK, SRD_RMARK = 0x5a5a0157, 0x5a5a0158      # what UR12 | R32 hold until the word lands (no CTA has such a number)
 SRD_K = 0x0f0f0f0f                                # R21 since the prologue: the constant the two SEL words choose against zero
+# version 34, eleventh build - THE SERVED READERS: the letter A = the diagnostic of the letter r with the producer AND ITS FIRST READER as a served kernel holds them;
+# "served" names the place. An entry: the producer's text, the words in front of the marker's word, the reader's text and what
+# it does for the host model, the reader's stall without | with the yield flag, whether the reader carries the flag when the
+# request does, IN PLACE (the reader overwrites the producer's register: the two reads are MOVs behind it, the questions are
+# (first == eq) and (second != img)) or not (the second read is the word `second`; the questions are the letter r's:
+# (first == second) and (second != img)).
+SRD_NEGM = SRD_RMARK ^ 0x80000000      # the marker with its sign turned: FADD.FTZ(<a small number>, -marker) is exactly -marker, FADD.FTZ(marker, -marker) is +0.0
+SRD_RD = {
+    "mlg": dict(prod="MUFU.LG2 R32, R21 ;", pre=((f"MOV R26, 0x{SRD_NEGM:x} ;", ("mov", "R26", SRD_NEGM)),),
+                rd="FADD.FTZ R32, R32, R26 ;", sem=("fadd", "R32", "R32", "R26"), rstall=(6, 1), yrd=True, inplace=True, eq=SRD_NEGM, img=0,
+                what=f"THE READER OVERWRITES THE PRODUCER's REGISTER, as served: R26 = 0x{SRD_NEGM:x} (the marker with its sign turned) "
+                     f"from the top of every iteration, so the reader on the producer's result gives EXACTLY 0x{SRD_NEGM:x} (the logarithm is far below half a unit of the marker's last place) "
+                     f"and on the marker +0.0; the two reads are `MOV R24, R32` (behind the reader's stall and one 15-cycle word) and `MOV R25, R32` 45 cycles behind that; (first == 0x{SRD_NEGM:x}) and (second != 0) "
+                     "each choose between the constant R21 and zero: good = both hold, stale = the reader took the marker and its result stands (both fail), drop2 = the reader's result is "
+                     "lost - the producer landed behind the reader's write (the first fails alone); nothing of the fold depends on the logarithm's value"),
+    "tid": dict(prod="S2R R32, SR_TID.X ;", pre=(),
+                rd="SHF.R.U32.HI R24, RZ, 0x5, R32 ;", sem=("shr", "R24", "R32", 5), rstall=(6, 6), yrd=False, inplace=False,
+                second=("SHF.R.U32.HI R25, RZ, 0x5, R32 ;", ("shr", "R25", "R32", 5)), img=SRD_RMARK >> 5,
+                what="the reader as served: the result as operand 3, another destination; the SECOND read is the same word into R25, 30 cycles behind the "
+                     f"reader's own stall; (first == second) and (second != 0x{SRD_RMARK >> 5:x}, the marker shifted) each choose between the constant R21 and zero: good = both hold, stale = the "
+                     "first read took the marker, drop1 = the word had not landed at the second read either; nothing of the fold depends on the thread's number"),
+    "bfl": dict(prod="SHFL.BFLY PT, R32, R21, 0x2, 0x1f ;", pre=(("MOV R7, RZ ;", ("mov", "R7", 0)), ("ISETP.GE.AND P0, PT, R7, RZ, PT ;", ("sge0", "P0", "R7"))),
+                rd="SEL R24, R21, R32, !P0 ;", sem=("selnot", "R24", "R21", "R32", "P0"), rstall=(1, 1), yrd=True, inplace=False,
+                second=("MOV R25, R32 ;", ("mov", "R25", "R32")), img=SRD_RMARK,
+                what="the reader as served: the result as operand 2 under a NEGATED predicate - P0, written TRUE at the top of every "
+                     "iteration (`MOV R7, RZ` + `ISETP.GE.AND P0, PT, R7, RZ, PT`), so the SEL takes R32 in every lane; the shuffle's source is the constant R21 (every lane brings the same "
+                     "number, never the marker); the SECOND read is `MOV R25, R32`; (first == second) and (second != the marker) each choose between the constant R21 and zero: good | stale | "
+                     "drop1 as the letter r; SERVED IS ONLY THE FLAG ON BOTH WORDS AT 2 CYCLES - a request without the flag, and the cell at one cycle, are THE TOOL's OWN QUESTION"),
+}
+assert "A" not in SET_FORM and "A" not in ORDN_FORM, "the letter A is taken"
+SET_FORM.update({"A": ("served", 1)})
+SET_NAMES.update({"A": "the diagnostic's producer WITH ITS SERVED FIRST READER (eleventh build): \"served\" names the place - " + " | ".join(SRD_RD)})
+SRD_LETTERS = SRD_LETTERS + ("A",)
 
 
 def is_srd(req):
@@ -2187,13 +2253,13 @@ def body_set_cov(req, d, front, variant):
     return b
 
 
-def srd_second(t1, t2, src, mark):
+def srd_second(t1, t2, src, mark, eq=None, word2=None):      # (eleventh build: eq = the first read against a constant; word2 = the second read as another word)
     """version 34, fifth build: the SECOND read of a special-register word's destination and the two questions as constants of the
     fold - t1 := R21 where the first read (in t1) equals the second, else 0; t2 := 0 where the second read is still the marker,
     else R21. Every word stands 15 cycles behind the word in front of it (the first of them is a pad)."""
     return [PAD(),
-            Ins(f"MOV {t2}, {src} ;", ("mov", t2, src)),
-            Ins(f"LOP3.LUT {t1}, {t1}, {t2}, RZ, 0x3c, !PT ;", ("xor", t1, t1, t2)),
+            Ins(*word2) if word2 else Ins(f"MOV {t2}, {src} ;", ("mov", t2, src)),
+            Ins(f"LOP3.LUT {t1}, {t1}, 0x{eq:x}, RZ, 0x3c, !PT ;", ("xor", t1, t1, eq)) if eq is not None else Ins(f"LOP3.LUT {t1}, {t1}, {t2}, RZ, 0x3c, !PT ;", ("xor", t1, t1, t2)),
             Ins(f"LOP3.LUT {t2}, {t2}, 0x{mark:x}, RZ, 0x3c, !PT ;", ("xor", t2, t2, mark)),
             Ins(f"ISETP.LT.U32.AND P3, PT, {t1}, 0x1, PT ;", ("ltu", "P3", t1, 1)),
             Ins(f"ISETP.LT.U32.AND P2, PT, {t2}, 0x1, PT ;", ("ltu", "P2", t2, 1)),
@@ -2201,8 +2267,25 @@ def srd_second(t1, t2, src, mark):
             Ins(f"SEL {t2}, RZ, R21, P2 ;", ("sel", t2, "RZ", "R21", "P2"))]
 
 
+def srd_rd_text(r):
+    """version 34, eleventh build: the text of a served-reader diagnostic (the letter A)"""
+    rd_ = SRD_RD.get(r.get("served"))
+    if rd_ is None:
+        raise SystemExit(f"{r.get('id')}: version 34, eleventh build - the letter A takes \"served\": {' | '.join(SRD_RD)}")
+    y = r.get("yield") == "set"
+    return (f"THE DIAGNOSTIC OF THE WAIT BEHIND A PRODUCER WITH ITS SERVED FIRST READER (version 34, eleventh build; \"served\": {r['served']}): `{rd_['prod'][:-2]}`, its destination R32 "
+            f"holding the marker 0x{SRD_RMARK:x} from the top of every iteration; "
+            + (f"the word sets write barrier 1 and THE SERVED READER `{rd_['rd'][:-2]}` d cycles behind it carries the wait" if r["barrier"] == "all"
+               else f"THE CONTROL: no barrier and no wait - the served reader `{rd_['rd'][:-2]}` stands d cycles behind the word (how long the word takes by itself)")
+            + f" (the reader's stall {rd_['rstall'][1 if (y or r.get('rflag') == 'set') else 0]}" + ("; THE YIELD FLAG ON BOTH WORDS" if (y and (rd_["yrd"] or r.get("rflag") == "set")) else "; the yield flag on the producer alone" if y
+                                                                                                    else "; THE YIELD FLAG ON THE READER ALONE (version 34, twelfth build)" if r.get("rflag") == "set" else "") + "); "
+            + rd_["what"])
+
+
 def srd_text(r):
     let = str(r["forms"]).strip()
+    if let == "A":      # version 34, eleventh build
+        return srd_rd_text(r)
     if let in SRD_REPLAY:      # version 34, sixth build
         return rpl_text(r)
     word, dst = ("`S2UR UR12, SR_CgaCtaId`", "UR12") if let == "x" else ("`S2R R32, SR_CgaCtaId`", "R32") if let == "r" else (f"`{SRD_PROD[let][0][:-2]}`", SRD_PROD[let][1]) if let in SRD_PROD else (f"`{SRD_LOADS[let][:-2]}`", "R32")
@@ -2212,7 +2295,7 @@ def srd_text(r):
                else f"THE CONTROL: no barrier and no wait - the reader word `MOV R24, {dst}` stands d cycles behind the word (how long the word takes by itself)")
             + f"; the SECOND read `MOV R25, {dst}` stands 31 cycles behind the first; (first == second) and (second != the marker) each choose between the constant R21 and zero: good = both hold, "
               "stale = the first read took the marker, drop1 = the word had not landed at the second read either; a mixture is decoded into the number of stale iterations of 256 "
-              "(the FIRST read of a thread is one of them)" + SRD_PROD_NOTE.get(let, ""))
+              "(the FIRST read of a thread is one of them)" + SRD_PROD_NOTE.get(let, "") + ("; THE WAITING WORD CARRIES THE YIELD FLAG (version 34, twelfth build)" if r.get("rflag") == "set" else ""))
 
 
 def nomark_text(r):
@@ -2298,7 +2381,16 @@ def body_set_srd(req, d, front, variant):
         raise SystemExit(f"{req.get('id')}: the diagnostic of a special-register word has forms x | r (sixth build: e | f | o, t | v | w), barrier all | none and no ctl variant")
     if let in SRD_REPLAY:      # version 34, sixth build
         return body_set_rpl(req, d, front, variant)
+    rf_ = req.get("rflag") == "set"      # version 34, twelfth build: THE WAITING WORD CARRIES THE YIELD FLAG (normalise refuses it anywhere else)
     pr_ = SRD_PROD.get(let)      # version 34, seventh build: the further producers - (text, destination, the words in front of the marker's word, read barrier)
+    rd_ = None
+    if let == "A":      # version 34, eleventh build: the producer and its FIRST READER as a served kernel holds them ("served" names the place)
+        rd_ = SRD_RD.get(req.get("served"))
+        if rd_ is None:
+            raise SystemExit(f"{req.get('id')}: version 34, eleventh build - the letter A takes \"served\": {' | '.join(SRD_RD)}")
+        pr_ = (rd_["prod"], "R32", rd_["pre"], "-")
+    elif req.get("served") is not None:
+        raise SystemExit(f"{req.get('id')}: version 34, eleventh build - \"served\" belongs to the letter A")
     if let == "O" and bar != "all":
         raise SystemExit(f"{req.get('id')}: version 34, seventh build - the letter O (an LDG.E waited by a word that is not its reader) has barrier all (its control is the letter o with barrier none)")
     dst, mark = (f"UR{SET_ZUR}", SRD_UMARK) if (let == "x" or (pr_ and pr_[1].startswith("UR"))) else (pr_[1] if pr_ else "R32", SRD_RMARK)      # (eighth build: a producer's marker and reads stand on the register it names - Z: the load's third)
@@ -2314,12 +2406,16 @@ def body_set_srd(req, d, front, variant):
                  ctl=C(s0, rb=(pr_[3] if (pr_ and bar == "all") else "-"), wb="1" if bar == "all" else "-", y=y), tag="P", dst=[dst]))
     b += [Ins("IADD3 R15, PT, PT, R15, 0x1, RZ ;", ("nop",), ctl=C(st)) for st in fill]
     if let == "O":      # version 34, seventh build: the wait stands on a word that reads nothing of the load, d cycles behind it; the reader one cycle behind that word
-        b.append(Ins("IADD3 R15, PT, PT, R15, 0x1, RZ ;", ("nop",), ctl=C(1, wait="1"), tag="W"))
+        b.append(Ins("IADD3 R15, PT, PT, R15, 0x1, RZ ;", ("nop",), ctl=C(1, wait="1", y=rf_), tag="W"))
         b.append(Ins(f"MOV R24, {dst} ;", ("mov", "R24", dst), ctl=C(1), tag="C"))
+    elif rd_:      # version 34, eleventh build: the served reader word carries the wait (its stall and its flag as served)
+        b.append(Ins(rd_["rd"], rd_["sem"], ctl=C(rd_["rstall"][1 if (y or rf_) else 0], wait="1" if bar == "all" else "", y=((y and rd_["yrd"]) or rf_)), tag="C", dst=(["R32"] if rd_["inplace"] else [])))
+        if rd_["inplace"]:      # the reader overwrote the producer's register: the first read is a MOV 15 cycles behind it
+            b += [PAD(), Ins("MOV R24, R32 ;", ("mov", "R24", "R32"))]
     else:
-        b.append(Ins(f"MOV R24, {dst} ;", ("mov", "R24", dst), ctl=C(1, wait="1" if bar == "all" else ""), tag="C"))
+        b.append(Ins(f"MOV R24, {dst} ;", ("mov", "R24", dst), ctl=C(1, wait="1" if bar == "all" else "", y=rf_), tag="C"))
     b.append(PAD())
-    b += srd_second("R24", "R25", dst, mark)
+    b += srd_second("R24", "R25", "R32", rd_["img"], eq=rd_.get("eq"), word2=rd_.get("second")) if rd_ else srd_second("R24", "R25", dst, mark)
     b += [Ins("IMAD R6, R24, 0x3, RZ ;", ("mad", "R6", "R24", 3, "RZ")), Ins("IMAD R6, R25, 0x5, R6 ;", ("mad", "R6", "R25", 5, "R6")),
           Ins("IADD3 R10, PT, PT, R10, R6, RZ ;", ("add", "R10", "R10", "R6")), Ins("IADD3 R10, PT, PT, R10, R4, RZ ;", ("add", "R10", "R10", "R4"))]
     if pr_ and pr_[3] != "-" and bar == "all":      # version 34, seventh build: the producer's READ barrier is waited by the last word of the body
@@ -2387,7 +2483,32 @@ def body_set(req, d, front, variant):
     if pg:
         b += set_pguard_top(pg, shift_first=(pg[0] == "c" and bool(again) and not psh))
     slast, rfill = set_rdist(req, y, ys)
+    wov_, wtx_, cwr_ = req.get("wover") == "shfl2", req.get("wplace") == "text", ""      # version 34, tenth build: the data waiting word and the own-predicate reader as cubit's own builds hold them
+    if any(req.get(k_) is not None for k_ in ("wflag", "wover", "wplace", "rgap", "pown")):
+        if req.get("wflag") not in (None, True) or req.get("wover") not in (None, "shfl2") or req.get("wplace") not in (None, "text") or req.get("rgap") not in (None, 12) or req.get("pown") not in (None, "text"):
+            raise SystemExit(f"{req.get('id')}: tenth build: wflag is true, wover is \"shfl2\", wplace is \"text\", rgap is 12, pown is \"text\", or absent")
+        if req.get("wait") != "front" or req.get("waitword") == "bar" or req.get("reader") is not None or req.get("sreader") or "rdist" in req or max([r_ for _g, _l, r_, _a in plan if isinstance(r_, int)] + [0]) >= 70:
+            raise SystemExit(f"{req.get('id')}: tenth build: wflag | wover | wplace | rgap | pown belong to a set request with wait front whose waiting word is the data word (no waitword bar, no reader, no sreader, no rdist; R71 and R72 free)")
+        if (req.get("wflag") or wov_ or wtx_) and (pg or req.get("preader")):
+            raise SystemExit(f"{req.get('id')}: tenth build: wflag | wover | wplace belong to a plain set (no pguard, no preader)")
+        if wov_ and (req.get("rbar") == "split" or not any(l_ == "i" for _g, l_, _r, _a in plan)):
+            raise SystemExit(f"{req.get('id')}: tenth build: wover shfl2 needs a set with an i (the shuffles share the source register) whose read barrier is not 2")
+        if req.get("rgap") is not None and not wtx_:
+            raise SystemExit(f"{req.get('id')}: tenth build: rgap belongs to wplace text")
+        if req.get("pown") and not (req.get("preader") == "own" and bar == "all"):
+            raise SystemExit(f"{req.get('id')}: tenth build: pown text belongs to preader own with barrier all")
+    if wtx_:
+        slast = 1      # (that build's `[B------:R-:W1:Y:S01] LDCU.64`: three one-cycle words stand between the youngest member and the data word; "younger_stall" is not read)
+    if wov_:
+        b.append(Ins("MOV R71, R5 ;", ("mov", "R71", "R5")))      # (the marker of the pending shuffle's register)
+    if req.get("pown") == "text":
+        b.append(Ins("MOV R72, RZ ;", ("nop",)))      # (the reader's register comparand: 0 from here on)
     b += front_ins(front, False)
+    if wov_:      # version 34, tenth build: A SHUFFLE OUTSIDE THE SET PENDS IN FRONT OF IT (that build's `[B0-----:R2:W3:Y:S04] SHFL.IDX PT, R8, R4, RZ, 0x1f`): READ barrier 2, write barrier 3, the set's shuffle's source register
+        b.append(Ins(f"SHFL.IDX PT, R71, R{SET_HSRC}, RZ, 0x1f ;", ("shfl", "R71", f"R{SET_HSRC}", "idx", 0), ctl=C(4, rb=("-" if bar == "none" else "2"), wb=("-" if bar == "none" else "3"), y=True)))
+        if wtx_:      # (two more shuffles of stall 4 stand there in that build, flagged fillers here: the pending shuffle stands 12 cycles in front of the set's shuffle at distance 1 and 17 in front of the data word, as in that build)
+            b.append(Ins("IADD3 R15, PT, PT, R15, 0x1, RZ ;", ("nop",), ctl=C(4, y=True)))
+            b.append(Ins("IADD3 R15, PT, PT, R15, 0x1, RZ ;", ("nop",), ctl=C(3, y=True)))
     for k, (g, let, reg, aux) in enumerate(plan):
         last = k == n - 1
         pn_ = "!" if (pg and req.get("pneg") == "set") else ""      # version 31: the guards written negated
@@ -2504,9 +2625,18 @@ def body_set(req, d, front, variant):
             b.append(Ins("WARPSYNC.ALL ;", ("nop",), ctl=C(5, y=True)))
             b.append(Ins("BAR.SYNC.DEFER_BLOCKING 0x0 ;", ("nop",), ctl=C(6, wait=cw, y=True), tag="W"))
         else:
-            b.append(Ins("IADD3 R15, PT, PT, R15, 0x1, RZ ;", ("nop",), ctl=C(1, wait=cw), tag="W"))
+            if wtx_:      # version 34, tenth build: THE BUILD's OWN PLACE - three one-cycle flagged words between the youngest member and the data word (two words that wait other barriers there, and `[B------:R-:W-:Y:S01] MOV R159, RZ`, a flagged word that sets no barrier)
+                b.append(Ins("IADD3 R15, PT, PT, R15, 0x1, RZ ;", ("nop",), ctl=C(1, y=True)))
+                b.append(Ins("IADD3 R15, PT, PT, R15, 0x1, RZ ;", ("nop",), ctl=C(1, y=True)))
+                b.append(Ins("MOV R72, RZ ;", ("nop",), ctl=C(1, y=True)))
+            if wov_:      # version 34, tenth build: THE DATA WAITING WORD OVERWRITES THE SHUFFLES' SOURCE REGISTER and waits the set's barrier AND read barrier 2 of the pending shuffle (that build's `[B-12---:R-:W-:Y:S01] MOV R4, R9`)
+                b.append(Ins(f"MOV R{SET_HSRC}, R5 ;", ("mov", f"R{SET_HSRC}", "R5"), ctl=C(1, wait=cw + ("" if bar == "none" else "2"), y=bool(req.get("wflag"))), tag="W"))
+            else:
+                b.append(Ins("IADD3 R15, PT, PT, R15, 0x1, RZ ;", ("nop",), ctl=C(1, wait=cw, y=bool(req.get("wflag"))), tag="W"))      # (tenth build: "wflag" - the yield flag on the data waiting word)
         if req.get("waitword") == "both":      # version 34, ninth build: the event pair waits the SAME barrier again behind the first reader word
             cw2_ = cw
+        if wtx_:      # version 34, tenth build: the first reader word carries a wait bit of its own - the set's barrier
+            cwr_ = cw
         cw = ""
         if req.get("sreader") == "set":      # version 34, seventh build: THE FIRST READER IS A SHFL.IDX WHOSE SOURCE IS A MEMBER (the unguarded N's register; those builds' `[B----4-:R4:W4:Y:S04] SHFL.IDX PT, R4, R19, RZ, 0x1f`): it waits the set's barrier itself and sets both barriers of that number
             b.append(Ins(f"SHFL.IDX PT, R30, R{plan[0][2]}, RZ, 0x1f ;", ("shfl", "R30", f"R{plan[0][2]}", "idx", 0), ctl=C(4, wait="1", rb="1", wb="1", y=True), tag="C"))
@@ -2520,17 +2650,26 @@ def body_set(req, d, front, variant):
             if not (pg and set_onepred(req)) or [l_ for _g, l_, _r, _a in plan].count("i") != 1:
                 raise SystemExit(f"{req.get('id')}: preader own (ninth build) needs a set under ONE predicate with exactly one i")
             pdst_, psrc_ = "P0", next(r_ for _g, l_, r_, _a in plan if l_ == "i")
-        b.append(Ins(f"ISETP.GE.AND {pdst_}, PT, R{psrc_}, RZ, PT ;", ("sge0", pdst_, f"R{psrc_}"), ctl=C(1, wait=cw), tag="C"))
+        if req.get("pown") == "text":      # version 34, tenth build: THE READER AS cubit's OWN BUILDS HOLD IT - `[B----4-:R-:W-:Y:S01] ISETP.GE.AND P5, PT, R25, R0, PT`: a wait bit of its own (the set's barrier), the yield flag, a register comparand (R72 = 0)
+            b.append(Ins(f"ISETP.GE.AND {pdst_}, PT, R{psrc_}, R72, PT ;", ("sge0", pdst_, f"R{psrc_}"), ctl=C(1, wait=("0" if ctl else "1"), y=True), tag="C"))
+        else:
+            b.append(Ins(f"ISETP.GE.AND {pdst_}, PT, R{psrc_}, RZ, PT ;", ("sge0", pdst_, f"R{psrc_}"), ctl=C(1, wait=cw), tag="C"))
     if gsts_:      # version 34, fourth build: the ONE reader word is the guarded store of the quad; the line is read back behind the store's read barrier
         b.append(Ins("@!P0 STS.128 [R9+0x20], R32 ;", (("gsts", "P0", 0, "R9", 0x20, "R32", 4) if glane_ else ("sts", "R9", 0x20, "R32", 4)), ctl=C(2, wait=cw, rb="3"), tag="C"))      # (stall 2: the load that waits the store's read barrier stands two cycles behind the word that arms it)
         b.append(Ins("LDS.128 R24, [R9+0x20] ;", ("lds", "R24", "R9", 0x20, 4), ctl=C(2, wait="3", wb="2")))
         words = []
     if cw2_ is not None and len(words) != 2:
         raise SystemExit(f"{req.get('id')}: waitword both (ninth build) needs a set with exactly two reader words (e.g. Y,i,L)")
+    rgap_ = req.get("rgap")      # version 34, tenth build
+    if rgap_ is not None:      # that build's six words between the data word and its first reader: stalls 2, 3, 2, 1, 1, 2, the flag on all but the second - with the data word's one cycle the reader stands 12 cycles behind it
+        for st_, y_ in ((2, True), (3, False), (2, True), (1, True), (1, True), (2, True)):
+            b.append(Ins("IADD3 R15, PT, PT, R15, 0x1, RZ ;", ("nop",), ctl=C(st_, y=y_)))
     for k, (t, acc, grp) in enumerate(words):
         ct = C(1, wait=cw) if (k == 0 and not pre34) else C(1)
+        if k == 0 and wtx_:      # version 34, tenth build: that build's first reader `[B-1----:R-:W-:-:S06] LEA R4, P2, R14, UR4, 0x2` - A WAIT BIT OF ITS OWN; stall 6 at that build's distance
+            ct = C(6 if rgap_ is not None else 1, wait=cwr_)
         if k == 1 and cw2_ is not None:      # version 34, ninth build: THE EVENT PAIR AS A SECOND WAITING WORD - behind the first reader word, in front of the second
-            fill_ = int(req.get("wdist", 7)) - 7      # ("wdist": the event word stands that many cycles behind the first waiting word = 1 + 1 + the fillers + the 5 of WARPSYNC.ALL; 7 = no filler)
+            fill_ = int(req.get("wdist", 7)) - (23 if rgap_ is not None else 7)      # (tenth build: with rgap the event word stands 12 + 6 + the fillers + 5 cycles behind the data word) ("wdist": the event word stands that many cycles behind the first waiting word = 1 + 1 + the fillers + the 5 of WARPSYNC.ALL; 7 = no filler)
             if not 0 <= fill_ <= 300:
                 raise SystemExit(f"{req.get('id')}: wdist (ninth build) is 7 ... 307 cycles")
             b.extend(PAD() for _ in range(fill_ // 15))
@@ -2570,6 +2709,9 @@ def body_set(req, d, front, variant):
         ut, pw = ["R24", "R25", "R26", "R27"], 1
     if req.get("sreader") == "set":      # version 34, seventh build: the reader shuffle's register joins the fold (the first plain reader word waited its barrier)
         ut.append("R30")
+    if wov_:      # version 34, tenth build: the pending shuffle's register joins the fold behind a word that waits its write barrier 3
+        b.append(Ins("IADD3 R15, PT, PT, R15, 0x1, RZ ;", ("nop",), ctl=C(wait=("" if bar == "none" else "3"))))
+        ut.append("R71")
     if pre34:      # version 34: the predicate reaches the checksum 15 cycles or more behind its ISETP
         if rw >= len(SET_REL) - 1:
             raise SystemExit(f"{req.get('id')}: preader: no temporary left for the SEL")
@@ -4880,6 +5022,8 @@ def modes_of(req):
     if req["kind"] == "ord" and req.get("read") == "younger":      # version 31: stale1 = only the reader of the YOUNGER (S2UR) result took its marker, stale2 = only the reader of the older (LDC) register, stale = both
         return ["good", "stale", "stale1", "stale2"]
     if is_srd(req):      # version 34, fifth build: stale = the first read took the marker in every iteration; drop1 = the word never landed (both reads took the marker in every iteration)
+        if str(req["forms"]).strip() == "A" and SRD_RD.get(req.get("served"), {}).get("inplace"):      # eleventh build: stale = the reader took the marker and its result stands; drop2 = the reader's result is lost (the producer landed behind the reader's write)
+            return ["good", "stale", "drop2"]
         return ["good", "stale"] if str(req["forms"]).strip() == "a" else ["good", "stale", "drop1"]      # (seventh build, a: no marker and no pre-read - a word that never landed reads as good)
     return ["good", "stale"] if req["kind"] in ("raw", "ord") else ["good", "late", "overtake"]
 
@@ -4907,6 +5051,10 @@ def normalise(req):
     r = dict(req)
     if not re.fullmatch(r"[a-z][a-z0-9_]{1,40}", r.get("id", "")):
         raise SystemExit(f"request id {r.get('id')!r}: lower-case letters, digits, underscore (it names files and kernels)")
+    if r.get("rflag") is not None and not (r.get("kind") == "ord" and str(r.get("forms", "")).strip() in SRD_LETTERS and str(r.get("forms", "")).strip() not in SRD_REPLAY
+                                           and r.get("rflag") == "set" and r.get("barrier") == "all"):      # version 34, twelfth build
+        raise SystemExit(f"{r['id']}: version 34, twelfth build - \"rflag\": \"set\" (THE WAITING WORD CARRIES THE YIELD FLAG) is for a single-producer diagnostic (forms: ONE letter of it, "
+                         "not a replay letter) with barrier all")
     if r.get("kind") == "raw" and RAW_CONSUMERS.get(r.get("consumer"), ("",))[0] in T24_WHAT:      # version 24
         norm24(r)
     elif r.get("kind") == "raw":
@@ -5322,6 +5470,13 @@ def pair_text(r):
                 + ("; version 34, seventh build: THE WORD THAT CARRIES THE ONE WAIT IS AN EVENT WORD - those builds' `WARPSYNC.ALL` (Y, stall 5) + `BAR.SYNC.DEFER_BLOCKING 0x0` (the wait, Y, stall 6) in the place of the "
                    "`IADD3`; the first reader word stands 6 cycles behind it; A NAMED-BARRIER WORD: every thread of the block arrives once per iteration - A LAUNCH OF SUCH A KERNEL MAY NOT RETURN"
                    + (" [barrier none: THE CONTROL - the pair in the same place, no barrier and no wait]" if r["barrier"] == "none" else "") if r.get("waitword") == "bar" else "; version 34, ninth build: TWO WAITING WORDS - the `IADD3` carries the wait first, the first reader word stands one cycle behind it, then the event pair `WARPSYNC.ALL` (Y, stall 5) + `BAR.SYNC.DEFER_BLOCKING 0x0` (Y, stall 6) waits the SAME barrier again, " + str(r.get("wdist", 7)) + " cycles behind the first waiting word, and the second reader word stands 6 cycles behind it; A NAMED-BARRIER WORD: every thread of the block arrives once per iteration - A LAUNCH OF SUCH A KERNEL MAY NOT RETURN" + (" [barrier none: THE CONTROL - both words in the same place, no barrier and no wait]" if r["barrier"] == "none" else "") if r.get("waitword") == "both" else "")
+                + ("; version 34, tenth build: THE DATA WAITING WORD CARRIES THE YIELD FLAG" if r.get("wflag") else "")
+                + ("; version 34, tenth build: A SHUFFLE OUTSIDE THE SET PENDS IN FRONT OF IT - `SHFL.IDX PT, R71, R73, RZ, 0x1f` on READ barrier 2 and write barrier 3 (Y, stall 4) -, THE DATA WAITING WORD IS `MOV R73, R5`: it overwrites the shuffles' source register and waits the set's barrier AND barrier 2; "
+                   "R71 joins the fold behind a word that waits barrier 3" + (" [barrier none: no barrier on that shuffle, no wait]" if r["barrier"] == "none" else "") if r.get("wover") else "")
+                + ("; version 34, tenth build: THE BUILD's OWN PLACE - the youngest member has stall 1, two flagged one-cycle fillers and the flagged `MOV R72, RZ` stand between it and the data waiting word, the first reader word carries a wait bit of its own, "
+                   + ("six words (12 cycles) behind the data word, stall 6" if r.get("rgap") else "one cycle behind the data word")
+                   + ("; two flagged fillers (stalls 4, 3) behind the pending shuffle: it stands 12 cycles in front of the set's shuffle at distance 1" if r.get("wover") else "") if r.get("wplace") else "")
+                + ("; version 34, tenth build: THE READER INTO THE SET's OWN PREDICATE AS cubit's OWN BUILDS HOLD IT - `ISETP.GE.AND P0, PT, R<the i's register>, R72, PT` with a wait bit of its own, the yield flag and a register comparand (R72 = 0 since the top of the iteration)" if r.get("pown") else "")
                 + ("; version 34, third build: the global loads carry the read barrier of the set's number, the shuffle READ BARRIER 2 (another number than its write barrier); the last word of the body waits it" if r.get("rbar") == "split" else "")
                 + ("; version 34, fifth build: the x's uniform register UR12 holds a marker from the top of the iteration and is READ TWICE - by `MOV R, UR12` among the reader words and once more 30 cycles or "
                    "more behind them; (first == second) and (second != the marker) each choose between two constants of the fold - NO reference word" if "x" in toks else "")
@@ -8519,6 +8674,90 @@ def cmd_selftest(_args):
                     text = kernel_text("selftest_x", dict(r, _threads=256), 188, body, 65536)
                     assert misaligned(text) == [] and "    .reg R0-R79\n    .regcount 88\n" in text, (let_, d_)
                 n += 2
+    # version 34, eleventh build - the served readers (the letter A): the body of the letter r but for the producer, its preamble, THE READER WORD (its text, stall and flag as served), the
+    # in-place form's two MOV reads and its two questions; the models (vector == scalar; the stand-in's value shows in no fold; the hypotheses' distances from good)
+    for sv_, rd_ in SRD_RD.items():
+        for bar in ("all", "none"):
+            for yl_ in (None, "set"):
+                q_ = {"id": "selftest", "kind": "ord", "forms": "A", "served": sv_, "barrier": bar, "distances": "1-8,12,16"}
+                if yl_:
+                    q_["yield"] = yl_
+                r = normalise(dict(q_))
+                assert is_srd(r) and is_set(r) and r["controls"] is False and r["nload"] == 1 and modes_of(r) == (["good", "stale", "drop2"] if rd_["inplace"] else ["good", "stale", "drop1"]), (sv_, bar)
+                ms_ = {}
+                for m_ in modes_of(r):
+                    v_ = model(r, m_, gids=gids)
+                    assert [int(x) for x in v_] == model(r, m_, gids=gids, scalar=True), (sv_, bar, m_, "the vector model is the scalar model")
+                    ms_[m_] = [int(x) for x in v_]
+                Z_STANDIN[:] = [0x77]      # (no term of a fold may be the producer's value, which the host does not know)
+                try:
+                    assert all([int(x) for x in model(r, m_, gids=gids)] == ms_[m_] for m_ in ms_), (sv_, bar, "the stand-in's value shows in a fold")
+                finally:
+                    Z_STANDIN[:] = [0x2a]
+                k8_ = SRD_K * REPEAT
+                if rd_["inplace"]:      # stale = both questions fail in every iteration (8 x R21 less); drop2 = the first alone (3 x R21 less)
+                    assert all(((g_ - s_) & 0xFFFFFFFF) == (8 * k8_) & 0xFFFFFFFF and ((g_ - d_) & 0xFFFFFFFF) == (3 * k8_) & 0xFFFFFFFF for g_, s_, d_ in zip(ms_["good"], ms_["stale"], ms_["drop2"])), (sv_, bar)
+                else:                   # the letter r's: stale = 3 x R21 less in every iteration, drop1 = 5 x R21 less
+                    assert all(((g_ - s_) & 0xFFFFFFFF) == (3 * k8_) & 0xFFFFFFFF and ((g_ - d_) & 0xFFFFFFFF) == (5 * k8_) & 0xFFFFFFFF for g_, s_, d_ in zip(ms_["good"], ms_["stale"], ms_["drop1"])), (sv_, bar)
+                for d_ in r["distance_list"]:
+                    body = body_ord(dict(r, _threads=256), d_, "none", "bare")
+                    kp_ = [k for k, a in enumerate(body) if a.tag == "P"]
+                    kc_ = [k for k, a in enumerate(body) if a.tag == "C"]
+                    assert len(kp_) == len(kc_) == 1 and body[kp_[0]].text == rd_["prod"] and body[kp_[0]].dst == ("R32",) and body[kc_[0]].text == rd_["rd"], (sv_, d_)
+                    assert body[kp_[0]].ctl[1:16] == "B------:R-" + (":W1:" if bar == "all" else ":W-:") + ("Y" if yl_ else "-"), (sv_, bar, body[kp_[0]].line())
+                    assert body[kc_[0]].ctl == C(rd_["rstall"][1 if yl_ else 0], wait="1" if bar == "all" else "", y=bool(yl_ and rd_["yrd"])), (sv_, bar, body[kc_[0]].line())
+                    assert sum(int(a.ctl[-3:-1]) for a in body[kp_[0]:kc_[0]]) == d_, (sv_, d_)
+                    assert [k for k, a in enumerate(body) if a.ctl[1:8] != "B------"] == ([] if bar == "none" else [kc_[0]]), (sv_, bar, d_)
+                    assert sum(1 for a in body if a.ctl[15] == "Y") == ((2 if rd_["yrd"] else 1) if yl_ else 0), (sv_, bar, d_)
+                    k1_ = [k for k, a in enumerate(body) if a.text == "MOV R24, R32 ;"]
+                    k2_ = [k for k, a in enumerate(body) if a.text == (rd_["second"][0] if not rd_["inplace"] else "MOV R25, R32 ;")]
+                    assert len(k2_) == 1 and len(k1_) == (1 if rd_["inplace"] else 0) and sum(int(a.ctl[-3:-1]) for a in body[kc_[0]:k2_[0]]) == rd_["rstall"][1 if yl_ else 0] + (60 if rd_["inplace"] else 30), (sv_, d_)
+                    assert all(a.ctl == "[B------:R-:W-:-:S15]" for a in body[kc_[0] + 1:]) and (rd_["inplace"] is False or k1_[0] == kc_[0] + 2), (sv_, d_)
+                    text = kernel_text("selftest_x", dict(r, _threads=256), 188, body, 65536)
+                    assert misaligned(text) == [] and "    .reg R0-R79\n    .regcount 88\n" in text, (sv_, d_)
+                n += 2
+    for bad in ({"forms": "A"}, {"forms": "A", "served": "nope"}, {"forms": "K", "served": "tid"}):
+        try:
+            rb = normalise(dict({"id": "selftest", "kind": "ord", "barrier": "all", "distances": "1"}, **bad))
+            body_ord(dict(rb, _threads=256), 1, "none", "bare")
+            raise AssertionError(f"a request of version 34's eleventh build that must be refused was taken: {bad}")
+        except SystemExit:
+            pass
+    # version 34, twelfth build - "rflag": "set" (THE WAITING WORD CARRIES THE YIELD FLAG): for every letter of the diagnostic but the replay letters, at the floor and one cycle above it,
+    # the body is the body without the value but for ONE word - the word that waits barrier 1: the same text, the flag, the same stall (the letter A: the flagged form's stall, 1) -,
+    # and no model changes
+    for let_ in [l_ for l_ in SRD_LETTERS if l_ not in SRD_REPLAY]:
+        for sv_ in (list(SRD_RD) if let_ == "A" else [None]):
+            for yl_ in (None, "set"):
+                q_ = {"id": "selftest", "kind": "ord", "forms": let_, "barrier": "all", "distances": "1,2"}
+                if sv_:
+                    q_["served"] = sv_
+                if yl_:
+                    q_["yield"] = yl_
+                r0_, r1_ = normalise(dict(q_)), normalise(dict(q_, rflag="set"))
+                assert is_srd(r1_) and modes_of(r0_) == modes_of(r1_) and r1_["distance_list"] == [1, 2], (let_, sv_)
+                if not yl_:
+                    for m_ in modes_of(r1_):
+                        assert (model(r1_, m_, gids=gids) == model(r0_, m_, gids=gids)).all(), (let_, sv_, m_, "the waiting word's flag changes no model")
+                for d_ in (1, 2):
+                    b0_ = body_ord(dict(r0_, _threads=256), d_, "none", "bare")
+                    b1_ = body_ord(dict(r1_, _threads=256), d_, "none", "bare")
+                    kw_ = [k for k, a in enumerate(b1_) if "1" in a.ctl[2:8]]      # the ONE word that waits barrier 1
+                    assert len(b0_) == len(b1_) and len(kw_) == 1 and b1_[kw_[0]].ctl[15] == "Y" and (b1_[kw_[0]].tag == ("W" if let_ == "O" else "C")), (let_, sv_, d_)
+                    for k, (a0_, a1_) in enumerate(zip(b0_, b1_)):
+                        if k != kw_[0]:
+                            assert a0_.line() == a1_.line(), (let_, sv_, d_, k)
+                        else:
+                            assert a0_.text == a1_.text and a1_.ctl[:15] == a0_.ctl[:15] and (a1_.ctl[16:] == a0_.ctl[16:] or (let_ == "A" and a1_.ctl[16:] == ":S01]")), (let_, sv_, d_, a1_.line())
+                    text = kernel_text("selftest_x", dict(r1_, _threads=256), 188, b1_, 65536)
+                    assert misaligned(text) == [] and "    .reg R0-R79\n    .regcount 88\n" in text, (let_, sv_, d_)
+                n += 1
+    for bad in ({"forms": "r", "rflag": "set", "barrier": "none"}, {"forms": "t", "rflag": "set", "barrier": "all"}, {"forms": "Y,i,L", "rflag": "set", "barrier": "all"}, {"forms": "r", "rflag": True, "barrier": "all"}):
+        try:
+            normalise(dict({"id": "selftest", "kind": "ord", "distances": "1"}, **bad))
+            raise AssertionError(f"a request of version 34's twelfth build that must be refused was taken: {bad}")
+        except SystemExit:
+            pass
     for bad in ({"forms": "N,gN,gN", "pguard": "cc", "pneg": "set", "wait": "reader", "pthird": "lane"}, {"forms": "N,gN,kN", "pguard": "cc", "pneg": "set", "wait": "front", "pthird": "lane"},
                 {"forms": "N,gN,gN", "pguard": "cc", "pneg": "set", "wait": "front", "sreader": "set", "preader": "set"}, {"forms": "i,i", "sguard": "lane"}, {"forms": "i,i", "reader": "gsts", "sguard": "all"},
                 {"forms": "Y,i,L", "waitword": "bar"}, {"forms": "N,gN,gN", "pguard": "cc", "pneg": "set", "wait": "front", "waitword": "bar"}, {"forms": "O", "barrier": "none"}, {"forms": "E,c"},

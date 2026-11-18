@@ -151,7 +151,8 @@ PRODUCER_FORMS_COMMENT = (" `producer_forms`: the result of a producer FORM name
                           " (consumer, role) pairs of `except` keep their cell or default (a trailing h of the role is ignored).")
 
 
-# The members `setter_flag` and `wait_forms` of the row `barrier_arm` (tools/stallfloor/probe.py 34 on two card models;
+# The members `setter_flag`, `wait_forms` and `waiter_flag` of the row `barrier_arm` (tools/stallfloor/probe.py 34; every row
+# says on how many card models it stands - `card_models`: two, or one where the second model's column is still to come;
 # the words are the probe kernels' own, the numbers those of the result files the rows name). `cycles` is the one member
 # the scheduler reads.
 BARRIER_ARM_MEASURED = json.loads(r'''{
@@ -165,6 +166,22 @@ BARRIER_ARM_MEASURED = json.loads(r'''{
   "conditions": {"driver": "610.43.02", "state": "each card with the probe alone, no power limit; the Workstation Edition card with its standing memory clock offset of +5000 MHz (the Server Edition model takes no offset)", "busy_clock_p50_mhz": {"_b71": [2370.0, 2872.0], "_b72": [2370.0, 2887.0]}, "grids": "1, 8, 9, 12 and 16 warps per SM; 2 CTAs of 9 warps per SM", "fronts": "none; fifteen `STS.128` at stall 4", "launches": 40, "distances": "the setter's stall count 1 ... 8"},
   "cells": {"what": "setter x grid x front = 14 x 6 x 2; right = every thread-launch of the cell right; [Server Edition, Workstation Edition, of]", "no_flag_right_at_1": [168, 168, 168], "flag_right_at_1": [0, 0, 168], "flag_right_at_2": [168, 168, 168], "no_flag_thread_launches_not_right_at_1_to_8": [0, 0, 3449815040], "flag_thread_launches_not_right_at_1": [431226880, 431226880, 431226880], "controls_without_barrier_and_wait_right_at_1_to_8": [0, 0, 624]},
   "files": {"_b71": ["probe_sm120_20261113_b71.json", "probe_sm120_20261118_b71_ws_2eabe5dcdba4_alone.json", "probe_sm120_20261118_b71_ws_2eabe5dcdba4_alone_2.json"], "_b72": ["probe_sm120_20261113_b72.json", "probe_sm120_20261118_b72_ws_2eabe5dcdba4_alone.json"]},
+  "card_models": 2,
+  "one_card_model": {
+   "standing": "measured on ONE card model (a card of the Server Edition): not a law; the PROHIBITION binds from one card model",
+   "prohibition": "the prohibition holds behind three more setters, each with ITS FIRST READER AS A SERVED KERNEL HOLDS IT as the word that waits (the next word): with the yield flag on the setter at stall count 1 right in 0 of 36 cells, 92405760 of 92405760 thread-launches not right; with the reference setter of this diagnostic in the same file (`MUFU.EX2`, one of the fourteen) 0 of 48 cells",
+   "measured": "behind each of the three setters the served reader is right from stall count 1 without the yield flag on the setter (96 of 96 cells each) and from stall count 2 with it (84 of 84 cells each): floor 1 without the flag, floor 2 with it - on one card model",
+   "flag": "the yield flag stands on the setter; where the served kernel carries it on the reader too (the readers of `MUFU.LG2` and `SHFL.BFLY`), the flagged variant carries it there and the reader's stall count is the served one",
+   "columns": ["a card of the Server Edition"],
+   "conditions": {"driver": "610.43.02", "state": "the card with the probe alone, no power limit (the Server Edition model takes no clock offset)", "busy_clock_p50_mhz": [2370.0], "grids": "1, 8, 9, 12 and 16 warps per SM; 2 CTAs of 9 warps per SM", "fronts": "none; fifteen `STS.128` at stall 4", "launches": 40, "distances": "the setter's stall count 1 ... 8"},
+   "cells": {"what": "setter x grid x front = 3 x 6 x 2; right = every thread-launch of the cell right; [Server Edition, of]", "no_flag_right_at_1": [36, 36], "flag_right_at_1": [0, 36], "flag_right_at_2": [36, 36], "no_flag_thread_launches_not_right_at_1_to_8": [0, 739246080], "flag_thread_launches_not_right_at_1": [92405760, 92405760], "controls_without_barrier_and_wait_right_at_1_to_8": [0, 144]},
+   "files": ["probe_sm120_20261118_b73.json"],
+   "setters": [
+    {"setter": "[B------:R-:W1:-:S01] MUFU.LG2 R32, R21 ;", "waiter": "[B-1----:R-:W-:-:S06] FADD.FTZ R32, R32, R26 ;", "first_reader": "the waiter, as a served kernel holds it: read IN PLACE (the reader overwrites the setter's register)", "waiter_with_the_flag_on_the_setter": "[B-1----:R-:W-:Y:S01] FADD.FTZ R32, R32, R26 ;", "floor": {"no_flag": [1], "flag": [2]}, "requests": ["f_mlg", "f_mlg_y", "f_mlg_n"]},
+    {"setter": "[B------:R-:W1:-:S01] S2R R32, SR_TID.X ;", "waiter": "[B-1----:R-:W-:-:S06] SHF.R.U32.HI R24, RZ, 0x5, R32 ;", "first_reader": "the waiter, as a served kernel holds it: read into another register", "floor": {"no_flag": [1], "flag": [2]}, "requests": ["f_tid", "f_tid_y", "f_tid_n"]},
+    {"setter": "[B------:R-:W1:-:S01] SHFL.BFLY PT, R32, R21, 0x2, 0x1f ;", "waiter": "[B-1----:R-:W-:-:S01] SEL R24, R21, R32, !P0 ;", "first_reader": "the waiter, as a served kernel holds it: read under a negated predicate", "waiter_with_the_flag_on_the_setter": "[B-1----:R-:W-:Y:S01] SEL R24, R21, R32, !P0 ;", "floor": {"no_flag": [1], "flag": [2]}, "requests": ["f_bfl", "f_bfl_y", "f_bfl_n"]}
+   ]
+  },
   "setters": [
    {"setter": "[B------:R-:W1:-:S01] MUFU.EX2 R32, R21 ;", "waiter": "[B-1----:R-:W-:-:S01] MOV R24, R32 ;", "first_reader": "the waiter", "floor": {"no_flag": [1, 1], "flag": [2, 2]}, "requests": ["f_mex", "f_mex_y", "f_mex_n"], "files": "_b71"},
    {"setter": "[B------:R-:W1:-:S01] MUFU.RCP R32, R21 ;", "waiter": "[B-1----:R-:W-:-:S01] MOV R24, R32 ;", "first_reader": "the waiter", "floor": {"no_flag": [1, 1], "flag": [2, 2]}, "requests": ["f_mrc", "f_mrc_y", "f_mrc_n"], "files": "_b71"},
@@ -184,6 +201,7 @@ BARRIER_ARM_MEASURED = json.loads(r'''{
  },
  "wait_forms": [
   {
+   "card_models": 2,
    "form": "the reader into ANOTHER predicate behind the third write of the set's predicate",
    "what": "a set of producers of one thread in flight under ONE predicate, every member on one write barrier with the yield flag, the last member at stall 2; the third write of that predicate, from the lane, stands one cycle in front of the word that carries the set's one wait (a word that reads no member), and the FIRST reader word behind the wait is `ISETP.GE.AND` of a guarded load's register into another predicate; the members 1 and 4 cycles apart; the sets N,gN,gN and N,i,gN,gN (N = `LDG.E.CONSTANT`, gN = `@!P0 LDG.E.CONSTANT`, i = `SHFL.IDX`), the guards a bit of the iteration counter or false in every lane",
    "words_of": "the kernel s_nigg_p_cc_l_bare_w1_f0_d0001 (one warp per SM, the members 1 cycle apart), from the set's first member to the first reader word",
@@ -202,6 +220,7 @@ BARRIER_ARM_MEASURED = json.loads(r'''{
    "files": ["probe_sm120_20261118_b74.json", "probe_sm120_20261118_b74_ws_2eabe5dcdba4_alone.json"]
   },
   {
+   "card_models": 2,
    "form": "the reader into the set's OWN predicate",
    "what": "the same set N,i,gN,gN with the third write of its predicate from the lane one cycle in front of the waiting word; the FIRST reader word behind the wait is `ISETP.GE.AND` of THE SHUFFLE's register and writes the predicate the guarded loads stand under; the members 1 and 4 cycles apart, the guards a bit of the iteration counter or false in every lane",
    "words_of": "the kernel s_nigg_o_cc_l_bare_w1_f0_d0001 (one warp per SM, the members 1 cycle apart), from the set's first member to the first reader word",
@@ -220,6 +239,7 @@ BARRIER_ARM_MEASURED = json.loads(r'''{
    "files": ["probe_sm120_20261118_b75.json", "probe_sm120_20261118_b75_ws_2eabe5dcdba4_alone.json"]
   },
   {
+   "card_models": 2,
    "form": "two waiting words on one barrier",
    "what": "a set `SYNCS.CCTL.IVALL`, `SHFL.IDX`, `LDCU.64` on one write barrier with the yield flag, the last member at stall 2; a word that reads no member carries the wait first and the first reader word (of the load) stands one cycle behind it; then the event word `BAR.SYNC.DEFER_BLOCKING 0x0` (the yield flag, stall 6; behind `WARPSYNC.ALL`, the yield flag, stall 5) waits the SAME barrier again, 7 cycles (`words`) and 101 cycles (seven filler words more) behind the first waiting word, and the second reader word (of the shuffle) stands 6 cycles behind it; the members 1 and 4 cycles apart; a kernel with this word holds a named barrier: a launch of such a kernel may not return",
    "words_of": "the kernel w_yil_d_bare_w1_f0_d0001 (one warp per SM, no front, the members 1 cycle apart), from the set's first member to the second reader word",
@@ -236,13 +256,175 @@ BARRIER_ARM_MEASURED = json.loads(r'''{
    "cells": {"what": "grid x front x distance, the set's text and the text with every member on its own barrier and wait; [Server Edition, Workstation Edition, of]", "measured_7_cycles": {"right": [24, 24, 24], "thread_launches_not_right": [0, 0, 61603840]}, "measured_7_cycles_own_barriers": {"right": [24, 24, 24], "thread_launches_not_right": [0, 0, 61603840]}, "measured_101_cycles": {"right": [24, 24, 24], "thread_launches_not_right": [0, 0, 61603840]}, "measured_101_cycles_own_barriers": {"right": [24, 24, 24], "thread_launches_not_right": [0, 0, 61603840]}, "reference_one_waiting_word": {"right": [24, 24, 24], "thread_launches_not_right": [0, 0, 61603840]}, "control_no_barrier_and_no_wait": {"right": [0, 0, 36], "thread_launches_not_right": [92405760, 92405760, 92405760]}},
    "requests": ["w_yil_d", "w_yil_t", "w_yil_f", "w_yil_d_n"],
    "files": ["probe_sm120_20261118_b75.json", "probe_sm120_20261118_b75_ws_2eabe5dcdba4_alone.json"]
+  },
+  {
+   "card_models": 1,
+   "form": "the yield flag on the data word that carries the set's one wait",
+   "what": "a set `SYNCS.CCTL.IVALL`, `SHFL.IDX`, `LDCU.64` on one write barrier with the yield flag, the last member at stall 2; the one wait stands on a word that reads no member, one cycle in front of the first reader word (of the load) - and THAT WORD CARRIES THE YIELD FLAG; the reference is the same text without the flag on it",
+   "words_of": "the kernel w_yil_fy_bare_w1_f0_d0001 (one warp per SM, no front, the members 1 cycle apart), from the set's first member to the second reader word",
+   "words": [
+    "[B------:R-:W1:Y:S01] SYNCS.CCTL.IVALL ;",
+    "[B------:R1:W1:Y:S01] SHFL.IDX PT, R32, R73, 0x1, 0x1f ;",
+    "[B------:R-:W1:Y:S02] LDCU.64 UR6, c[0x0][0x380] ;",
+    "[B-1----:R-:W-:Y:S01] IADD3 R15, PT, PT, R15, 0x1, RZ ;",
+    "[B------:R-:W-:-:S01] IADD.64 R24, -R2, UR6 ;",
+    "[B------:R-:W-:-:S01] MOV R6, R32 ;"
+   ],
+   "cells": {"what": "grid x front x distance (the members 1 and 4 cycles apart), the set's text and the text with every member on its own barrier and wait; [Server Edition, of]", "measured": {"right": [24, 24], "thread_launches_not_right": [0, 61603840]}, "measured_own_barriers": {"right": [24, 24], "thread_launches_not_right": [0, 61603840]}, "reference_no_flag_on_the_waiting_word": {"right": [24, 24], "thread_launches_not_right": [0, 61603840]}},
+   "requests": ["w_yil_fy", "w_yil_f"],
+   "files": ["probe_sm120_20261118_b76.json"]
+  },
+  {
+   "card_models": 1,
+   "form": "two barriers in the wait mask of the data waiting word",
+   "what": "a set `SYNCS.CCTL.IVALL`, `SHFL.IDX`, `LDCU.64` on one write barrier with the yield flag; a shuffle outside the set, on READ barrier 2 and write barrier 3 (the yield flag, stall 4), pends in front of it; the data waiting word `MOV R73, R5` overwrites the shuffles' source register and waits the set's barrier AND read barrier 2; the pending shuffle's register joins the fold behind a word that waits barrier 3",
+   "words_of": "the kernel w_yil_f2_bare_w1_f0_d0001 (one warp per SM, no front, the members 1 cycle apart), from the pending shuffle to the second reader word",
+   "words": [
+    "[B------:R2:W3:Y:S04] SHFL.IDX PT, R71, R73, RZ, 0x1f ;",
+    "[B------:R-:W1:Y:S01] SYNCS.CCTL.IVALL ;",
+    "[B------:R1:W1:Y:S01] SHFL.IDX PT, R32, R73, 0x1, 0x1f ;",
+    "[B------:R-:W1:Y:S02] LDCU.64 UR6, c[0x0][0x380] ;",
+    "[B-12---:R-:W-:-:S01] MOV R73, R5 ;",
+    "[B------:R-:W-:-:S01] IADD.64 R24, -R2, UR6 ;",
+    "[B------:R-:W-:-:S01] MOV R6, R32 ;"
+   ],
+   "cells": {"what": "grid x front x distance (the members 1 and 4 cycles apart), the set's text and the text with every member on its own barrier and wait; [Server Edition, of]", "measured": {"right": [24, 24], "thread_launches_not_right": [0, 61603840]}, "measured_own_barriers": {"right": [24, 24], "thread_launches_not_right": [0, 61603840]}},
+   "requests": ["w_yil_f2"],
+   "files": ["probe_sm120_20261118_b76.json"]
+  },
+  {
+   "card_models": 1,
+   "form": "the data waiting word in the place cubit's own builds give it, the event pair 101 cycles behind it",
+   "what": "a set `SYNCS.CCTL.IVALL`, `SHFL.IDX`, `LDCU.64` on one write barrier with the yield flag, the youngest member at stall 1; the data waiting word `MOV R73, R5` carries the yield flag and waits two barriers, one cycle behind a flagged word that sets no barrier and 4 cycles behind the load; its first reader word (of the load) stands 12 cycles behind it and carries a wait bit of its own; the event word `BAR.SYNC.DEFER_BLOCKING 0x0` (the yield flag, stall 6; behind `WARPSYNC.ALL`, the yield flag, stall 5) waits the SAME barrier again 101 cycles behind the data word; the control holds the same words with no barrier and no wait; a kernel with this word holds a named barrier: a launch of such a kernel may not return",
+   "words_of": "the kernel w_yil_ty2_bare_w1_f0_d0001 (one warp per SM, no front, the members 1 cycle apart), from the pending shuffle to the second reader word",
+   "words": [
+    "[B------:R2:W3:Y:S04] SHFL.IDX PT, R71, R73, RZ, 0x1f ;",
+    "[B------:R-:W-:Y:S04] IADD3 R15, PT, PT, R15, 0x1, RZ ;",
+    "[B------:R-:W-:Y:S03] IADD3 R15, PT, PT, R15, 0x1, RZ ;",
+    "[B------:R-:W1:Y:S01] SYNCS.CCTL.IVALL ;",
+    "[B------:R1:W1:Y:S01] SHFL.IDX PT, R32, R73, 0x1, 0x1f ;",
+    "[B------:R-:W1:Y:S01] LDCU.64 UR6, c[0x0][0x380] ;",
+    "[B------:R-:W-:Y:S01] IADD3 R15, PT, PT, R15, 0x1, RZ ;",
+    "[B------:R-:W-:Y:S01] IADD3 R15, PT, PT, R15, 0x1, RZ ;",
+    "[B------:R-:W-:Y:S01] MOV R72, RZ ;",
+    "[B-12---:R-:W-:Y:S01] MOV R73, R5 ;",
+    "[B------:R-:W-:Y:S02] IADD3 R15, PT, PT, R15, 0x1, RZ ;",
+    "[B------:R-:W-:-:S03] IADD3 R15, PT, PT, R15, 0x1, RZ ;",
+    "[B------:R-:W-:Y:S02] IADD3 R15, PT, PT, R15, 0x1, RZ ;",
+    "[B------:R-:W-:Y:S01] IADD3 R15, PT, PT, R15, 0x1, RZ ;",
+    "[B------:R-:W-:Y:S01] IADD3 R15, PT, PT, R15, 0x1, RZ ;",
+    "[B------:R-:W-:Y:S02] IADD3 R15, PT, PT, R15, 0x1, RZ ;",
+    "[B-1----:R-:W-:-:S06] IADD.64 R24, -R2, UR6 ;",
+    "[B------:R-:W-:-:S15] IADD3 R15, PT, PT, R15, 0x1, RZ ;",
+    "[B------:R-:W-:-:S15] IADD3 R15, PT, PT, R15, 0x1, RZ ;",
+    "[B------:R-:W-:-:S15] IADD3 R15, PT, PT, R15, 0x1, RZ ;",
+    "[B------:R-:W-:-:S15] IADD3 R15, PT, PT, R15, 0x1, RZ ;",
+    "[B------:R-:W-:-:S15] IADD3 R15, PT, PT, R15, 0x1, RZ ;",
+    "[B------:R-:W-:-:S03] IADD3 R15, PT, PT, R15, 0x1, RZ ;",
+    "[B------:R-:W-:Y:S05] WARPSYNC.ALL ;",
+    "[B-1----:R-:W-:Y:S06] BAR.SYNC.DEFER_BLOCKING 0x0 ;",
+    "[B------:R-:W-:-:S01] MOV R6, R32 ;"
+   ],
+   "cells": {"what": "grid x front x distance (the members 1 and 4 cycles apart), the set's text and the text with every member on its own barrier and wait; [Server Edition, of]", "measured": {"right": [24, 24], "thread_launches_not_right": [0, 61603840]}, "measured_own_barriers": {"right": [24, 24], "thread_launches_not_right": [0, 61603840]}, "control_no_barrier_and_no_wait": {"right": [0, 36], "thread_launches_not_right": [80507136, 92405760]}},
+   "requests": ["w_yil_ty2", "w_yil_ty2_n"],
+   "files": ["probe_sm120_20261118_b76.json"]
+  },
+  {
+   "card_models": 1,
+   "form": "the same data waiting word, the event pair 7 cycles behind it",
+   "what": "the text of the form above with the first reader word one cycle behind the data word and the event pair 7 cycles behind it",
+   "words_of": "the kernel w_yil_dy2_bare_w1_f0_d0001 (one warp per SM, no front, the members 1 cycle apart), from the pending shuffle to the second reader word",
+   "words": [
+    "[B------:R2:W3:Y:S04] SHFL.IDX PT, R71, R73, RZ, 0x1f ;",
+    "[B------:R-:W-:Y:S04] IADD3 R15, PT, PT, R15, 0x1, RZ ;",
+    "[B------:R-:W-:Y:S03] IADD3 R15, PT, PT, R15, 0x1, RZ ;",
+    "[B------:R-:W1:Y:S01] SYNCS.CCTL.IVALL ;",
+    "[B------:R1:W1:Y:S01] SHFL.IDX PT, R32, R73, 0x1, 0x1f ;",
+    "[B------:R-:W1:Y:S01] LDCU.64 UR6, c[0x0][0x380] ;",
+    "[B------:R-:W-:Y:S01] IADD3 R15, PT, PT, R15, 0x1, RZ ;",
+    "[B------:R-:W-:Y:S01] IADD3 R15, PT, PT, R15, 0x1, RZ ;",
+    "[B------:R-:W-:Y:S01] MOV R72, RZ ;",
+    "[B-12---:R-:W-:Y:S01] MOV R73, R5 ;",
+    "[B-1----:R-:W-:-:S01] IADD.64 R24, -R2, UR6 ;",
+    "[B------:R-:W-:Y:S05] WARPSYNC.ALL ;",
+    "[B-1----:R-:W-:Y:S06] BAR.SYNC.DEFER_BLOCKING 0x0 ;",
+    "[B------:R-:W-:-:S01] MOV R6, R32 ;"
+   ],
+   "cells": {"what": "grid x front x distance (the members 1 and 4 cycles apart), the set's text and the text with every member on its own barrier and wait; [Server Edition, of]", "measured": {"right": [24, 24], "thread_launches_not_right": [0, 61603840]}, "measured_own_barriers": {"right": [24, 24], "thread_launches_not_right": [0, 61603840]}},
+   "requests": ["w_yil_dy2"],
+   "files": ["probe_sm120_20261118_b76.json"]
+  },
+  {
+   "card_models": 1,
+   "form": "the reader into the set's own predicate with a wait bit of its own",
+   "what": "a set N,i,gN,gN (an unguarded `LDG.E.CONSTANT`, a `SHFL.IDX`, two guarded `LDG.E.CONSTANT` under ONE predicate) on one write barrier with the yield flag, the third write of the predicate from the lane one cycle in front of the waiting word; the reader of the shuffle's register into the set's own predicate, `ISETP.GE.AND P0`, stands behind the waiting word and carries A WAIT BIT OF ITS OWN (the set's barrier), the yield flag and a register as comparand; the reference is the reader on the one wait, without them",
+   "words_of": "the kernel s_nigg_o_cc_ly_bare_w1_f0_d0001 (one warp per SM, no front, the members 1 cycle apart), from the set's first member to the word that folds the predicate",
+   "words": [
+    "[B------:R1:W1:Y:S01] LDG.E.CONSTANT R32, desc[UR4][R18.64] ;",
+    "[B------:R2:W1:Y:S01] SHFL.IDX PT, R33, R73, 0x1, 0x1f ;",
+    "[B------:R1:W1:Y:S01] @!P0 LDG.E.CONSTANT R34, desc[UR4][R18.64] ;",
+    "[B------:R-:W-:-:S13] ISETP.GE.AND P0, PT, R7, RZ, PT ;",
+    "[B------:R1:W1:Y:S02] @!P0 LDG.E.CONSTANT R35, desc[UR4][R18.64] ;",
+    "[B------:R-:W-:-:S01] ISETP.NE.AND P0, PT, R31, RZ, PT ;",
+    "[B-1----:R-:W-:-:S01] IADD3 R15, PT, PT, R15, 0x1, RZ ;",
+    "[B-1----:R-:W-:Y:S01] ISETP.GE.AND P0, PT, R33, R72, PT ;",
+    "[B------:R-:W-:-:S01] IADD3 R6, PT, PT, R35, R34, R33 ;",
+    "[B------:R-:W-:-:S01] MOV R8, R32 ;",
+    "[B------:R-:W-:-:S15] IADD3 R15, PT, PT, R15, 0x1, RZ ;",
+    "[B------:R-:W-:-:S15] SEL R24, R4, R5, P0 ;"
+   ],
+   "cells": {"what": "grid x front x distance (the members 1 and 4 cycles apart), the set's text and the text with every member on its own barrier and wait; [Server Edition, of]", "measured": {"right": [12, 12], "thread_launches_not_right": [0, 30801920]}, "reference_reader_on_the_one_wait": {"right": [12, 12], "thread_launches_not_right": [0, 30801920]}},
+   "requests": ["s_nigg_o_cc_ly", "s_nigg_o_cc_l"],
+   "files": ["probe_sm120_20261118_b76.json"]
   }
- ]
+ ],
+ "waiter_flag": {
+  "measured": "the yield flag on the FIRST WAITING WORD behind a single setter that carries no flag does not change what the word reads: behind each of twenty-one setters of ten kinds the word that carries the wait is right at stall count 1 and at 2 of the setter, with the flag on that word (504 of 504 cells) and without it (504 of 504)",
+  "standing": "measured on ONE card model (a card of the Server Edition): not a law",
+  "card_models": 1,
+  "flag": "the yield flag stands on the word that carries the wait and on no other word; the setter carries none (the member `setter_flag` holds the other case)",
+  "controls": "without barrier and wait the reader is not right 1 and 2 cycles behind the setter: for `LDS`, `LDC`, `LDG.E` (the setter of two rows) and `POPC` in probe_sm120_20261118_b79.json (0 of 48 cells at 1 cycle, 0 of 48 at 2); for fourteen setters in the result files of the earlier batches of this diagnostic (probe_sm120_20261113_b71.json, probe_sm120_20261113_b72.json, probe_sm120_20261118_b73.json); for the two special-register words `S2R R32, SR_CgaCtaId` and `S2UR UR12, SR_CgaCtaId` in a batch whose result file is not published here",
+  "popc_at_three_cycles": "`POPC R32, R21` with its waiting word at stall count 3: right in 12 of 12 cells with the flag on the waiting word and in 12 of 12 without it",
+  "not_measured": "`SYNCS`, `ATOMG` and `F2F` as single setters; distances above 2 behind the twenty setters other than `POPC`",
+  "columns": ["a card of the Server Edition"],
+  "conditions": {"driver": "610.43.02", "state": "the card with the probe alone, no power limit (the Server Edition model takes no clock offset)", "busy_clock_p50_mhz": {"_b77": [2370.0], "_b79": [2370.0]}, "grids": "1, 8, 9, 12 and 16 warps per SM; 2 CTAs of 9 warps per SM", "fronts": "none; fifteen `STS.128` at stall 4", "launches": 40, "distances": "the setter's stall count 1 and 2 (`POPC` also 3)"},
+  "cells": {"what": "setter x grid x front x distance = 21 x 6 x 2 x 2; right = every thread-launch of the cell right; [Server Edition, of]", "flag_right": [504, 504], "no_flag_right": [504, 504], "thread_launches_not_right": [0, 2587361280], "controls_right_at_1": [0, 48], "controls_right_at_2": [0, 48], "popc_at_3_flag_right": [12, 12], "popc_at_3_no_flag_right": [12, 12]},
+  "files": ["probe_sm120_20261118_b77.json", "probe_sm120_20261118_b79.json"],
+  "setters": [
+   {"setter": "[B------:R2:W1:-:S01] SHFL.IDX PT, R32, R21, RZ, 0x1f ;", "waiter_with_the_flag": "[B-1----:R-:W-:Y:S01] MOV R24, R32 ;", "requests": ["y_shi", "y_shi_0"]},
+   {"setter": "[B------:R-:W1:-:S01] SHFL.BFLY PT, R32, R21, 0x2, 0x1f ;", "waiter_with_the_flag": "[B-1----:R-:W-:Y:S01] SEL R24, R21, R32, !P0 ;", "requests": ["y_sbf", "y_sbf_0"]},
+   {"setter": "[B------:R-:W1:-:S01] MUFU.EX2 R32, R21 ;", "waiter_with_the_flag": "[B-1----:R-:W-:Y:S01] MOV R24, R32 ;", "requests": ["y_mex", "y_mex_0"]},
+   {"setter": "[B------:R-:W1:-:S01] MUFU.RCP R32, R21 ;", "waiter_with_the_flag": "[B-1----:R-:W-:Y:S01] MOV R24, R32 ;", "requests": ["y_mrc", "y_mrc_0"]},
+   {"setter": "[B------:R-:W1:-:S01] MUFU.LG2 R32, R21 ;", "waiter_with_the_flag": "[B-1----:R-:W-:Y:S01] FADD.FTZ R32, R32, R26 ;", "waiter_without_the_flag": "[B-1----:R-:W-:-:S06] FADD.FTZ R32, R32, R26 ;", "requests": ["y_mlg", "y_mlg_0"]},
+   {"setter": "[B------:R-:W1:-:S01] LDS R32, [R9+0x20] ;", "waiter_with_the_flag": "[B-1----:R-:W-:Y:S01] MOV R24, R32 ;", "requests": ["y_lds", "y_lds_0"]},
+   {"setter": "[B------:R-:W1:-:S01] LDS.128 R32, [R9+0x20] ;", "waiter_with_the_flag": "[B-1----:R-:W-:Y:S01] MOV R24, R34 ;", "requests": ["y_l128", "y_l128_0"]},
+   {"setter": "[B------:R-:W1:-:S01] LDC R32, c[0x0][0x388] ;", "waiter_with_the_flag": "[B-1----:R-:W-:Y:S01] MOV R24, R32 ;", "requests": ["y_ldc", "y_ldc_0"]},
+   {"setter": "[B------:R-:W1:-:S01] LDC.64 R32, c[0x0][0x380] ;", "waiter_with_the_flag": "[B-1----:R-:W-:Y:S01] MOV R24, R32 ;", "requests": ["y_lc64", "y_lc64_0"]},
+   {"setter": "[B------:R-:W1:-:S01] LDC R32, c[0x0][R13+0x388] ;", "waiter_with_the_flag": "[B-1----:R-:W-:Y:S01] MOV R24, R32 ;", "requests": ["y_lcx", "y_lcx_0"]},
+   {"setter": "[B------:R-:W1:-:S01] LDG.E R32, desc[UR4][R18.64] ;", "waiter_with_the_flag": "[B-1----:R-:W-:Y:S01] MOV R24, R32 ;", "requests": ["y_ldg", "y_ldg_0"]},
+   {"setter": "[B------:R-:W1:-:S01] @P0 LDG.E.CONSTANT R32, desc[UR4][R18.64] ;", "waiter_with_the_flag": "[B-1----:R-:W-:Y:S01] MOV R24, R32 ;", "requests": ["y_lgc", "y_lgc_0"]},
+   {"setter": "[B------:R-:W1:-:S01] LDG.E R32, desc[UR4][R18.64] ;", "waiter_with_the_flag": "[B-1----:R-:W-:Y:S01] IADD3 R15, PT, PT, R15, 0x1, RZ ;", "requests": ["y_lgo", "y_lgo_0"]},
+   {"setter": "[B------:R-:W1:-:S01] LDCU UR12, c[0x0][0x388] ;", "waiter_with_the_flag": "[B-1----:R-:W-:Y:S01] MOV R24, UR12 ;", "requests": ["y_lcu", "y_lcu_0"]},
+   {"setter": "[B------:R-:W1:-:S01] LDCU.64 UR12, c[0x0][0x380] ;", "waiter_with_the_flag": "[B-1----:R-:W-:Y:S01] MOV R24, UR12 ;", "requests": ["y_lcu64", "y_lcu64_0"]},
+   {"setter": "[B------:R-:W1:-:S01] S2R R32, SR_CgaCtaId ;", "waiter_with_the_flag": "[B-1----:R-:W-:Y:S01] MOV R24, R32 ;", "requests": ["y_s2r", "y_s2r_0"]},
+   {"setter": "[B------:R-:W1:-:S01] S2R R32, SR_LTMASK ;", "waiter_with_the_flag": "[B-1----:R-:W-:Y:S01] MOV R24, R32 ;", "requests": ["y_ltm", "y_ltm_0"]},
+   {"setter": "[B------:R-:W1:-:S01] S2R R32, SR_TID.X ;", "waiter_with_the_flag": "[B-1----:R-:W-:Y:S06] SHF.R.U32.HI R24, RZ, 0x5, R32 ;", "requests": ["y_tid", "y_tid_0"]},
+   {"setter": "[B------:R-:W1:-:S01] I2F.RP R32, R21 ;", "waiter_with_the_flag": "[B-1----:R-:W-:Y:S01] MOV R24, R32 ;", "requests": ["y_i2f", "y_i2f_0"]},
+   {"setter": "[B------:R-:W1:-:S01] S2UR UR12, SR_CgaCtaId ;", "waiter_with_the_flag": "[B-1----:R-:W-:Y:S01] MOV R24, UR12 ;", "requests": ["y_s2ur", "y_s2ur_0"]},
+   {"setter": "[B------:R-:W1:-:S01] POPC R32, R21 ;", "waiter_with_the_flag": "[B-1----:R-:W-:Y:S01] MOV R24, R32 ;", "requests": ["y_popc", "y_popc_0"]}
+  ]
+ }
 }''')
 BARRIER_ARM_BASIS_2 = (". On two card models (2026-11-13 and 2026-11-18, tools/stallfloor/probe.py 34; the members `setter_flag` and "
                        "`wait_forms`): behind each of fourteen setters a waiter that is the next word is right from stall count 2 with the "
                        "yield flag on the SETTER and from stall count 1 without it - the flag stands on the setter, the waiter carries none; "
                        "`cycles` stays 2")
+BARRIER_ARM_BASIS_3 = (". On ONE card model (2026-11-18, the builds ten to twelve of tools/stallfloor/probe.py 34; every row of the "
+                       "members says on how many card models it stands, `card_models`): the prohibition binds behind three more "
+                       "setters read by their served first readers (`setter_flag`), five more forms of a set's waits are right in "
+                       "every measured cell (`wait_forms`), and the yield flag on the first waiting word behind a single setter "
+                       "without the flag does not change what the word reads at stall count 1 and 2 (`waiter_flag`, twenty-one "
+                       "setters) - measurements, a law only with a second card model's column; `cycles` stays 2")
 
 
 def main():
@@ -397,8 +579,9 @@ def main():
                         "waiter always finds the setter at S02 or more. Silicon 2026-11-10: `MUFU [W:Y:S01]` + waiter at S01 reads the "
                         "stale register (sparse_mla_prefill_v41 under CUBIT_SCHED2: softmax exp2, epilogue log2); in isolation "
                         "(harness v5b): MUFU / SHFL / LDC / LDS setter with yield at S01 and its waiter next = every thread wrong, "
-                        "without yield, at S02 or with one instruction between = clean" + BARRIER_ARM_BASIS_2,
-                        "setter_flag": BARRIER_ARM_MEASURED["setter_flag"], "wait_forms": BARRIER_ARM_MEASURED["wait_forms"]},
+                        "without yield, at S02 or with one instruction between = clean" + BARRIER_ARM_BASIS_2 + BARRIER_ARM_BASIS_3,
+                        "setter_flag": BARRIER_ARM_MEASURED["setter_flag"], "wait_forms": BARRIER_ARM_MEASURED["wait_forms"],
+                        "waiter_flag": BARRIER_ARM_MEASURED["waiter_flag"]},
         "variable_latency": VARIABLE,
         "cells": out_cells,
     }

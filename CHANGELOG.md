@@ -4,6 +4,34 @@ User-visible changes, newest first. Table syncs name the blackwell-isa revision 
 (`tables/SOURCE.json` pins it byte for byte). Numbered `BUG-NNN` entries are the encoder /
 decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `docs/TESTS.md`).
 
+## Unreleased — 2026-11-18 (`tools/stallfloor/probe.py` 34, builds ten to twelve, and the row `barrier_arm` of the sm_120 dependency table: every row says on how many card models it stands — the prohibition binds behind three more setters, the yield flag on the first waiting word reads right behind twenty-one setters, five more forms of a set's waits; one card model each)
+
+- **`tables/dep_latency_sm120.json`, the row `barrier_arm`: `card_models` in every row of its members, the member
+  `setter_flag.one_card_model`, five rows more in `wait_forms`, a third member `waiter_flag`; `cycles` stays 2** (the
+  scheduler reads `cycles` alone, under `CUBIT_SCHED2_LAT=sm120` — no cell, no default and no schedule changes; the
+  table regenerates byte for byte by the README's command and ONE line of it differs). What stands on TWO card models
+  reads as before (`card_models` 2: the law of the fourteen setters, three forms of a set's waits). What the four new
+  result files add stands on ONE card model, a card of the Server Edition, and is a measurement, not a law:
+  - `setter_flag.one_card_model` — behind three more setters, each waited by its first reader as a served kernel holds
+    it (`MUFU.LG2` read in place by `FADD.FTZ`, `S2R R32, SR_TID.X` by `SHF.R.U32.HI`, `SHFL.BFLY` by `SEL`), the
+    reader is right from stall count 1 without the yield flag on the setter and from 2 with it; with the flag at 1 it
+    is right in 0 of 36 cells. THE PROHIBITION — a setter with the yield flag at stall count 1 and the word that waits
+    on its barrier as the next word — binds behind these three too: a prohibition binds from one card model.
+  - `wait_forms`, five rows — the data word that carries a set's one wait with the yield flag, with two barriers in
+    its wait mask, in the place cubit's own builds give it (the event pair 101 or 7 cycles behind it), and the reader
+    into the set's own predicate with a wait bit of its own: 288 of 288 cells that carry their waits right.
+  - `waiter_flag` — the yield flag on the FIRST WAITING WORD behind a single setter without the flag does not change
+    what the word reads at stall count 1 and 2: twenty-one setters, 504 of 504 cells with the flag and 504 of 504
+    without it; the controls without barrier and wait are not right 1 and 2 cycles behind the word; `POPC` at three
+    cycles 12 of 12 with the flag and without it.
+- **`tools/stallfloor/probe.py` 34, builds ten to twelve** (kind `ord`; selftest 5 262): the data waiting word and the
+  own-predicate reader as cubit's own builds hold them (`"wflag"`, `"wover"`, `"wplace"`, `"rgap"`, `"pown"`); the
+  diagnostic of the wait behind one producer with its served first reader (`"forms": "A"`, `"served"`); the yield flag
+  on the word that carries the wait (`"rflag": "set"`) and `POPC` as a producer of the diagnostic.
+- **Result files** (a card of the Server Edition, the probe alone, no power limit, driver 610.43.02; the second card
+  model's files come in a commit of their own): `probe_sm120_20261118_b76.json`, `_b73.json`, `_b77.json`,
+  `_b79.json` — `tools/stallfloor/README.md`: one kind row, four result rows.
+
 ## Unreleased — 2026-11-18 (`CUBIT_CONST_ALONE=1`, opt-in: a constant load shares no barrier with another constant load while a scoreboard is free; `CUBIT_DUMP_COLOUR=1`, a look at the colouring; every schedule without the switch is what it was)
 
 - **`CUBIT_CONST_ALONE=1`** (KNOWN_ISSUES A59): the allocator batches consecutive loads of one opcode, one width and one
