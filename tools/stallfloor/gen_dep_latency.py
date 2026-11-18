@@ -270,7 +270,7 @@ BARRIER_ARM_MEASURED = json.loads(r'''{
     "[B------:R-:W-:-:S01] IADD.64 R24, -R2, UR6 ;",
     "[B------:R-:W-:-:S01] MOV R6, R32 ;"
    ],
-   "cells": {"what": "grid x front x distance (the members 1 and 4 cycles apart), the set's text and the text with every member on its own barrier and wait; [Server Edition, of]", "measured": {"right": [24, 24], "thread_launches_not_right": [0, 61603840]}, "measured_own_barriers": {"right": [24, 24], "thread_launches_not_right": [0, 61603840]}, "reference_no_flag_on_the_waiting_word": {"right": [24, 24], "thread_launches_not_right": [0, 61603840]}},
+   "cells": {"what": "grid x front x distance (the members 1 and 4 cycles apart), the set's text and the text with every member on its own barrier and wait; [Server Edition, of]", "measured": {"right": [24, 24], "thread_launches_not_right": [0, 61603840]}, "measured_own_barriers": {"right": [24, 24], "thread_launches_not_right": [0, 61603840]}, "reference_no_flag_on_the_waiting_word": {"right": [24, 24], "thread_launches_not_right": [0, 61603840]}, "reference_no_flag_on_the_waiting_word_own_barriers": {"right": [24, 24], "thread_launches_not_right": [0, 61603840]}},
    "requests": ["w_yil_fy", "w_yil_f"],
    "files": ["probe_sm120_20261118_b76.json"]
   },
@@ -325,7 +325,7 @@ BARRIER_ARM_MEASURED = json.loads(r'''{
     "[B-1----:R-:W-:Y:S06] BAR.SYNC.DEFER_BLOCKING 0x0 ;",
     "[B------:R-:W-:-:S01] MOV R6, R32 ;"
    ],
-   "cells": {"what": "grid x front x distance (the members 1 and 4 cycles apart), the set's text and the text with every member on its own barrier and wait; [Server Edition, of]", "measured": {"right": [24, 24], "thread_launches_not_right": [0, 61603840]}, "measured_own_barriers": {"right": [24, 24], "thread_launches_not_right": [0, 61603840]}, "control_no_barrier_and_no_wait": {"right": [0, 36], "thread_launches_not_right": [80507136, 92405760]}},
+   "cells": {"what": "grid x front x distance (the members 1 and 4 cycles apart), the set's text and the text with every member on its own barrier and wait; [Server Edition, of]", "measured": {"right": [24, 24], "thread_launches_not_right": [0, 61603840]}, "measured_own_barriers": {"right": [24, 24], "thread_launches_not_right": [0, 61603840]}, "control_no_barrier_and_no_wait": {"right": [0, 36], "thread_launches_not_right": [80507136, 92405760]}, "control_no_barrier_and_no_wait_own_barriers": {"right": [24, 24], "thread_launches_not_right": [0, 61603840]}},
    "requests": ["w_yil_ty2", "w_yil_ty2_n"],
    "files": ["probe_sm120_20261118_b76.json"]
   },
@@ -376,6 +376,140 @@ BARRIER_ARM_MEASURED = json.loads(r'''{
    "cells": {"what": "grid x front x distance (the members 1 and 4 cycles apart), the set's text and the text with every member on its own barrier and wait; [Server Edition, of]", "measured": {"right": [12, 12], "thread_launches_not_right": [0, 30801920]}, "reference_reader_on_the_one_wait": {"right": [12, 12], "thread_launches_not_right": [0, 30801920]}},
    "requests": ["s_nigg_o_cc_ly", "s_nigg_o_cc_l"],
    "files": ["probe_sm120_20261118_b76.json"]
+  },
+  {
+   "card_models": 1,
+   "form": "an older `LDG.E.CONSTANT` and a younger `LDG.E.128.STRONG.GPU` on one write barrier, the older read behind ONE wait",
+   "what": "a set of a constant load and a strong load that the younger arms while the older is pending; every member carries the yield flag, the youngest stands at stall 2 and the members 1, 4 and 11 cycles apart; eight shapes: the older's register read into a predicate by `ISETP.GE.AND P3` that carries the one wait (r_nt_o_p); the one wait on a word that reads no member, the `ISETP` behind it without one (r_nt_o_p_f); the pair read into data, the older first (r_nt_o); THE YOUNGER READ FIRST (r_nt_y); the pair under two predicates written negated, every combination of executed and nullified inside one warp (r_gnkt_ll_o_p); under two predicates, not negated, the wait on a word in front, each member also setting the read barrier of the set's number (r_gnkt_ll_o_p_f); eight constant loads, then eight strong loads - sixteen producers on the barrier, the oldest read into the predicate (r_n8t8_o_p); three and three under three negated predicates, the wait on a word in front (r_n3t3_lll_o_p_f). The twins: with no barrier and no wait (_n), or with the reader's wait bit moved to the first word behind the reader words (_ew, _fe). The loads of these kernels read lines that stay in the cache: the order in which the members land is not varied",
+   "sets": {"r_nt_o_p": ["LDG.E.CONSTANT", "LDG.E.128.STRONG.GPU"], "r_nt_o_p_f": ["LDG.E.CONSTANT", "LDG.E.128.STRONG.GPU"], "r_nt_o": ["LDG.E.CONSTANT", "LDG.E.128.STRONG.GPU"], "r_nt_y": ["LDG.E.CONSTANT", "LDG.E.128.STRONG.GPU"], "r_gnkt_ll_o_p": ["@!P0 LDG.E.CONSTANT", "@!P2 LDG.E.128.STRONG.GPU"], "r_gnkt_ll_o_p_f": ["@P0 LDG.E.CONSTANT", "@P2 LDG.E.128.STRONG.GPU"], "r_n8t8_o_p": ["LDG.E.CONSTANT", "LDG.E.CONSTANT", "LDG.E.CONSTANT", "LDG.E.CONSTANT", "LDG.E.CONSTANT", "LDG.E.CONSTANT", "LDG.E.CONSTANT", "LDG.E.CONSTANT", "LDG.E.128.STRONG.GPU", "LDG.E.128.STRONG.GPU", "LDG.E.128.STRONG.GPU", "LDG.E.128.STRONG.GPU", "LDG.E.128.STRONG.GPU", "LDG.E.128.STRONG.GPU", "LDG.E.128.STRONG.GPU", "LDG.E.128.STRONG.GPU"], "r_n3t3_lll_o_p_f": ["@!P0 LDG.E.CONSTANT", "@!P2 LDG.E.CONSTANT", "@!P4 LDG.E.CONSTANT", "@!P0 LDG.E.128.STRONG.GPU", "@!P2 LDG.E.128.STRONG.GPU", "@!P4 LDG.E.128.STRONG.GPU"]},
+   "words_of": "the kernel r_nt_o_p_bare_w1_f0_d0001 (one warp per SM, no word in front, the members 1 cycle apart), from the set's first member to the second word behind the one that carries the wait",
+   "words": [
+    "[B------:R-:W1:Y:S01] LDG.E.CONSTANT R36, desc[UR4][R18.64] ;",
+    "[B------:R-:W1:Y:S02] LDG.E.128.STRONG.GPU R32, desc[UR4][R76.64] ;",
+    "[B-1----:R-:W-:-:S01] ISETP.GE.AND P3, PT, R36, RZ, PT ;",
+    "[B------:R-:W-:-:S01] IADD3 R6, PT, PT, R36, R32, R33 ;",
+    "[B------:R-:W-:-:S01] IADD3 R8, PT, PT, R34, R35, RZ ;"
+   ],
+   "cells": {"what": "grid x distance = 6 x 3 (the members 1, 4 and 11 cycles apart), no word in front; right = every thread-launch of the cell right; the set's text, the text with every member on its own barrier and wait (a request without a predicate), and the twins that must fail; [Server Edition, of]", "measured": {"right": [144, 144], "thread_launches_not_right": [0, 369623040]}, "measured_own_barriers": {"right": [90, 90], "thread_launches_not_right": [0, 231014400]}, "twins_that_must_fail": {"right": [0, 108], "thread_launches_not_right": [248340480, 277217280]}, "twins_own_barriers": {"right": [54, 54], "thread_launches_not_right": [0, 138608640]}, "measured_by_request": {"r_nt_o_p": [18, 18], "r_nt_o_p_f": [18, 18], "r_nt_o": [18, 18], "r_nt_y": [18, 18], "r_gnkt_ll_o_p": [18, 18], "r_gnkt_ll_o_p_f": [18, 18], "r_n8t8_o_p": [18, 18], "r_n3t3_lll_o_p_f": [18, 18]}, "twins_by_request": {"r_nt_o_p_n": [0, 18], "r_nt_y_n": [0, 18], "r_gnkt_ll_o_p_ew": [0, 18], "r_gnkt_ll_o_p_fe": [0, 18], "r_n8t8_o_p_n": [0, 18], "r_n3t3_lll_o_p_fe": [0, 18]}},
+   "requests": ["r_nt_o_p", "r_nt_o_p_f", "r_nt_o", "r_nt_y", "r_gnkt_ll_o_p", "r_gnkt_ll_o_p_f", "r_n8t8_o_p", "r_n3t3_lll_o_p_f", "r_nt_o_p_n", "r_nt_y_n", "r_gnkt_ll_o_p_ew", "r_gnkt_ll_o_p_fe", "r_n8t8_o_p_n", "r_n3t3_lll_o_p_fe"],
+   "files": ["probe_sm120_20261118_b82.json"]
+  },
+  {
+   "card_models": 1,
+   "form": "`LDC.64` on the write barrier of eight `LDG.E.128.STRONG.GPU`, the `LDC.64` read first",
+   "what": "a set of a 64-bit constant-bank load and eight strong loads behind it on one write barrier; every member carries the yield flag, the youngest stands at stall 2 and the members 1, 4 and 11 cycles apart; the registers of the `LDC.64` are read first, on the one wait; the twin holds the same words with no barrier and no wait",
+   "sets": {"c_c_t8_o": ["LDC.64", "LDG.E.128.STRONG.GPU", "LDG.E.128.STRONG.GPU", "LDG.E.128.STRONG.GPU", "LDG.E.128.STRONG.GPU", "LDG.E.128.STRONG.GPU", "LDG.E.128.STRONG.GPU", "LDG.E.128.STRONG.GPU", "LDG.E.128.STRONG.GPU"]},
+   "words_of": "the kernel c_c_t8_o_bare_w1_f0_d0001 (one warp per SM, no word in front, the members 1 cycle apart), from the set's first member to the second word behind the one that carries the wait",
+   "words": [
+    "[B------:R-:W1:Y:S01] LDC.64 R64, c[0x0][0x380] ;",
+    "[B------:R-:W1:Y:S01] LDG.E.128.STRONG.GPU R32, desc[UR4][R76.64] ;",
+    "[B------:R-:W1:Y:S01] LDG.E.128.STRONG.GPU R36, desc[UR4][R76.64+0x10] ;",
+    "[B------:R-:W1:Y:S01] LDG.E.128.STRONG.GPU R40, desc[UR4][R76.64+0x20] ;",
+    "[B------:R-:W1:Y:S01] LDG.E.128.STRONG.GPU R44, desc[UR4][R76.64+0x30] ;",
+    "[B------:R-:W1:Y:S01] LDG.E.128.STRONG.GPU R48, desc[UR4][R76.64+0x40] ;",
+    "[B------:R-:W1:Y:S01] LDG.E.128.STRONG.GPU R52, desc[UR4][R76.64+0x50] ;",
+    "[B------:R-:W1:Y:S01] LDG.E.128.STRONG.GPU R56, desc[UR4][R76.64+0x60] ;",
+    "[B------:R-:W1:Y:S02] LDG.E.128.STRONG.GPU R60, desc[UR4][R76.64+0x70] ;",
+    "[B-1----:R-:W-:-:S01] IADD3 R24, PT, PT, R64, -R2, RZ ;",
+    "[B------:R-:W-:-:S01] IADD3 R6, PT, PT, R32, R36, R40 ;",
+    "[B------:R-:W-:-:S01] IADD3 R8, PT, PT, R44, R48, R52 ;"
+   ],
+   "cells": {"what": "grid x distance = 6 x 3 (the members 1, 4 and 11 cycles apart), no word in front; right = every thread-launch of the cell right; the set's text, the text with every member on its own barrier and wait (a request without a predicate), and the twins that must fail; [Server Edition, of]", "measured": {"right": [18, 18], "thread_launches_not_right": [0, 46202880]}, "measured_own_barriers": {"right": [18, 18], "thread_launches_not_right": [0, 46202880]}, "twins_that_must_fail": {"right": [0, 18], "thread_launches_not_right": [46202880, 46202880]}, "twins_own_barriers": {"right": [18, 18], "thread_launches_not_right": [0, 46202880]}, "measured_by_request": {"c_c_t8_o": [18, 18]}, "twins_by_request": {"c_c_t8_o_n": [0, 18]}},
+   "requests": ["c_c_t8_o", "c_c_t8_o_n"],
+   "files": ["probe_sm120_20261118_b82.json"]
+  },
+  {
+   "card_models": 1,
+   "form": "`LDC.64` and `LDCU.64` on one write barrier",
+   "what": "a set of a 64-bit constant-bank load into a register pair and one into a uniform pair; every member carries the yield flag, the youngest stands at stall 2 and the members 1, 4 and 11 cycles apart; the `LDC.64` is read first, on the one wait; the twin holds the same words with no barrier and no wait",
+   "sets": {"c_cl_o": ["LDC.64", "LDCU.64"]},
+   "words_of": "the kernel c_cl_o_bare_w1_f0_d0001 (one warp per SM, no word in front, the members 1 cycle apart), from the set's first member to the second word behind the one that carries the wait",
+   "words": [
+    "[B------:R-:W1:Y:S01] LDC.64 R32, c[0x0][0x380] ;",
+    "[B------:R-:W1:Y:S02] LDCU.64 UR6, c[0x0][0x380] ;",
+    "[B-1----:R-:W-:-:S01] IADD3 R24, PT, PT, R32, -R2, RZ ;",
+    "[B------:R-:W-:-:S01] IADD.64 R26, -R2, UR6 ;",
+    "[B------:R-:W-:-:S01] IADD3 R28, PT, PT, R33, -R3, RZ ;"
+   ],
+   "cells": {"what": "grid x distance = 6 x 3 (the members 1, 4 and 11 cycles apart), no word in front; right = every thread-launch of the cell right; the set's text, the text with every member on its own barrier and wait (a request without a predicate), and the twins that must fail; [Server Edition, of]", "measured": {"right": [18, 18], "thread_launches_not_right": [0, 46202880]}, "measured_own_barriers": {"right": [18, 18], "thread_launches_not_right": [0, 46202880]}, "twins_that_must_fail": {"right": [0, 18], "thread_launches_not_right": [46202880, 46202880]}, "twins_own_barriers": {"right": [18, 18], "thread_launches_not_right": [0, 46202880]}, "measured_by_request": {"c_cl_o": [18, 18]}, "twins_by_request": {"c_cl_o_n": [0, 18]}},
+   "requests": ["c_cl_o", "c_cl_o_n"],
+   "files": ["probe_sm120_20261118_b82.json"]
+  },
+  {
+   "card_models": 1,
+   "form": "four and five `LDG.E.CONSTANT` on one write barrier",
+   "what": "a set of one form: four constant loads, the oldest read into a predicate by `ISETP.GE.AND P3` that carries the one wait (b_n4_p), and five, the youngest read first (b_n5); each member also sets the read barrier of the set's number; every member carries the yield flag, the youngest stands at stall 2 and the members 1, 4 and 11 cycles apart; the twin holds the same words with no barrier and no wait (of the four)",
+   "sets": {"b_n4_p": ["LDG.E.CONSTANT", "LDG.E.CONSTANT", "LDG.E.CONSTANT", "LDG.E.CONSTANT"], "b_n5": ["LDG.E.CONSTANT", "LDG.E.CONSTANT", "LDG.E.CONSTANT", "LDG.E.CONSTANT", "LDG.E.CONSTANT"]},
+   "words_of": "the kernel b_n4_p_bare_w1_f0_d0001 (one warp per SM, no word in front, the members 1 cycle apart), from the set's first member to the second word behind the one that carries the wait",
+   "words": [
+    "[B------:R1:W1:Y:S01] LDG.E.CONSTANT R32, desc[UR4][R18.64] ;",
+    "[B------:R1:W1:Y:S01] LDG.E.CONSTANT R33, desc[UR4][R18.64] ;",
+    "[B------:R1:W1:Y:S01] LDG.E.CONSTANT R34, desc[UR4][R18.64] ;",
+    "[B------:R1:W1:Y:S02] LDG.E.CONSTANT R35, desc[UR4][R18.64] ;",
+    "[B-1----:R-:W-:-:S01] ISETP.GE.AND P3, PT, R32, RZ, PT ;",
+    "[B------:R-:W-:-:S01] IADD3 R6, PT, PT, R32, R33, R34 ;",
+    "[B------:R-:W-:-:S01] MOV R8, R35 ;"
+   ],
+   "cells": {"what": "grid x distance = 6 x 3 (the members 1, 4 and 11 cycles apart), no word in front; right = every thread-launch of the cell right; the set's text, the text with every member on its own barrier and wait (a request without a predicate), and the twins that must fail; [Server Edition, of]", "measured": {"right": [36, 36], "thread_launches_not_right": [0, 92405760]}, "measured_own_barriers": {"right": [36, 36], "thread_launches_not_right": [0, 92405760]}, "twins_that_must_fail": {"right": [0, 18], "thread_launches_not_right": [46202880, 46202880]}, "twins_own_barriers": {"right": [18, 18], "thread_launches_not_right": [0, 46202880]}, "measured_by_request": {"b_n4_p": [18, 18], "b_n5": [18, 18]}, "twins_by_request": {"b_n4_p_n": [0, 18]}},
+   "requests": ["b_n4_p", "b_n5", "b_n4_p_n"],
+   "files": ["probe_sm120_20261118_b82.json"]
+  },
+  {
+   "card_models": 1,
+   "form": "four `LDG.E.CONSTANT` and a `SHFL.IDX` between them on one write barrier",
+   "what": "a set of four constant loads with a shuffle as its third member, each member also setting the read barrier of the set's number; every member carries the yield flag, the youngest stands at stall 2 and the members 1, 4 and 11 cycles apart; the twin holds the same words with no barrier and no wait",
+   "sets": {"b_n4i": ["LDG.E.CONSTANT", "LDG.E.CONSTANT", "SHFL.IDX", "LDG.E.CONSTANT", "LDG.E.CONSTANT"]},
+   "words_of": "the kernel b_n4i_bare_w1_f0_d0001 (one warp per SM, no word in front, the members 1 cycle apart), from the set's first member to the second word behind the one that carries the wait",
+   "words": [
+    "[B------:R1:W1:Y:S01] LDG.E.CONSTANT R32, desc[UR4][R18.64] ;",
+    "[B------:R1:W1:Y:S01] LDG.E.CONSTANT R33, desc[UR4][R18.64] ;",
+    "[B------:R1:W1:Y:S01] SHFL.IDX PT, R34, R73, 0x1, 0x1f ;",
+    "[B------:R1:W1:Y:S01] LDG.E.CONSTANT R35, desc[UR4][R18.64] ;",
+    "[B------:R1:W1:Y:S02] LDG.E.CONSTANT R36, desc[UR4][R18.64] ;",
+    "[B-1----:R-:W-:-:S01] IADD3 R6, PT, PT, R36, R35, R34 ;",
+    "[B------:R-:W-:-:S01] IADD3 R8, PT, PT, R33, R32, RZ ;"
+   ],
+   "cells": {"what": "grid x distance = 6 x 3 (the members 1, 4 and 11 cycles apart), no word in front; right = every thread-launch of the cell right; the set's text, the text with every member on its own barrier and wait (a request without a predicate), and the twins that must fail; [Server Edition, of]", "measured": {"right": [18, 18], "thread_launches_not_right": [0, 46202880]}, "measured_own_barriers": {"right": [18, 18], "thread_launches_not_right": [0, 46202880]}, "twins_that_must_fail": {"right": [0, 18], "thread_launches_not_right": [46202880, 46202880]}, "twins_own_barriers": {"right": [18, 18], "thread_launches_not_right": [0, 46202880]}, "measured_by_request": {"b_n4i": [18, 18]}, "twins_by_request": {"b_n4i_n": [0, 18]}},
+   "requests": ["b_n4i", "b_n4i_n"],
+   "files": ["probe_sm120_20261118_b82.json"]
+  },
+  {
+   "card_models": 1,
+   "form": "two guarded `LDG.E.CONSTANT` in front of an unguarded one on one write barrier",
+   "what": "a set of three constant loads, the first two under two predicates written negated (every combination of executed and nullified inside one warp), the unguarded one last; each member also sets the read barrier of the set's number; the one wait stands on a word that reads no member, the unguarded load's register is read into a predicate behind it; every member carries the yield flag, the youngest stands at stall 2 and the members 1, 4 and 11 cycles apart; the twin holds the same words with the reader's wait bit moved to the first word behind the reader words",
+   "sets": {"b_gkn_ll": ["@!P0 LDG.E.CONSTANT", "@!P2 LDG.E.CONSTANT", "LDG.E.CONSTANT"]},
+   "words_of": "the kernel b_gkn_ll_bare_w1_f0_d0001 (one warp per SM, no word in front, the members 1 cycle apart), from the set's first member to the second word behind the one that carries the wait",
+   "words": [
+    "[B------:R1:W1:Y:S01] @!P0 LDG.E.CONSTANT R32, desc[UR4][R18.64] ;",
+    "[B------:R1:W1:Y:S01] @!P2 LDG.E.CONSTANT R33, desc[UR4][R18.64] ;",
+    "[B------:R1:W1:Y:S02] LDG.E.CONSTANT R34, desc[UR4][R18.64] ;",
+    "[B-1----:R-:W-:-:S01] IADD3 R15, PT, PT, R15, 0x1, RZ ;",
+    "[B------:R-:W-:-:S01] ISETP.GE.AND P3, PT, R34, RZ, PT ;",
+    "[B------:R-:W-:-:S01] IADD3 R6, PT, PT, R34, R33, R32 ;"
+   ],
+   "cells": {"what": "grid x distance = 6 x 3 (the members 1, 4 and 11 cycles apart), no word in front; right = every thread-launch of the cell right; the set's text, the text with every member on its own barrier and wait (a request without a predicate), and the twins that must fail; [Server Edition, of]", "measured": {"right": [18, 18], "thread_launches_not_right": [0, 46202880]}, "twins_that_must_fail": {"right": [0, 18], "thread_launches_not_right": [46202880, 46202880]}, "measured_by_request": {"b_gkn_ll": [18, 18]}, "twins_by_request": {"b_gkn_ll_ew": [0, 18]}},
+   "requests": ["b_gkn_ll", "b_gkn_ll_ew"],
+   "files": ["probe_sm120_20261118_b82.json"]
+  },
+  {
+   "card_models": 1,
+   "form": "five `LDG.E.128.STRONG.GPU` on one write barrier under three predicates",
+   "what": "a set of five strong loads under three predicates (two, two and one; every combination of executed and nullified inside one warp); every member carries the yield flag, the youngest stands at stall 2 and the members 1, 4 and 11 cycles apart; the twin holds the same words with the reader's wait bit moved to the first word behind the reader words",
+   "sets": {"d_t5": ["@P0 LDG.E.128.STRONG.GPU", "@P2 LDG.E.128.STRONG.GPU", "@P4 LDG.E.128.STRONG.GPU", "@P0 LDG.E.128.STRONG.GPU", "@P2 LDG.E.128.STRONG.GPU"]},
+   "words_of": "the kernel d_t5_bare_w1_f0_d0001 (one warp per SM, no word in front, the members 1 cycle apart), from the set's first member to the second word behind the one that carries the wait",
+   "words": [
+    "[B------:R-:W1:Y:S01] @P0 LDG.E.128.STRONG.GPU R32, desc[UR4][R76.64] ;",
+    "[B------:R-:W1:Y:S01] @P2 LDG.E.128.STRONG.GPU R36, desc[UR4][R76.64+0x10] ;",
+    "[B------:R-:W1:Y:S01] @P4 LDG.E.128.STRONG.GPU R40, desc[UR4][R76.64+0x20] ;",
+    "[B------:R-:W1:Y:S01] @P0 LDG.E.128.STRONG.GPU R44, desc[UR4][R76.64+0x30] ;",
+    "[B------:R-:W1:Y:S02] @P2 LDG.E.128.STRONG.GPU R48, desc[UR4][R76.64+0x40] ;",
+    "[B-1----:R-:W-:-:S01] IADD3 R6, PT, PT, R48, R44, R40 ;",
+    "[B------:R-:W-:-:S01] IADD3 R8, PT, PT, R36, R32, R49 ;",
+    "[B------:R-:W-:-:S01] IADD3 R12, PT, PT, R50, R51, R45 ;"
+   ],
+   "cells": {"what": "grid x distance = 6 x 3 (the members 1, 4 and 11 cycles apart), no word in front; right = every thread-launch of the cell right; the set's text, the text with every member on its own barrier and wait (a request without a predicate), and the twins that must fail; [Server Edition, of]", "measured": {"right": [18, 18], "thread_launches_not_right": [0, 46202880]}, "twins_that_must_fail": {"right": [0, 18], "thread_launches_not_right": [40427520, 46202880]}, "measured_by_request": {"d_t5": [18, 18]}, "twins_by_request": {"d_t5_ew": [0, 18]}},
+   "requests": ["d_t5", "d_t5_ew"],
+   "files": ["probe_sm120_20261118_b82.json"]
   }
  ],
  "waiter_flag": {
@@ -425,6 +559,84 @@ BARRIER_ARM_BASIS_3 = (". On ONE card model (2026-11-18, the builds ten to twelv
                        "every measured cell (`wait_forms`), and the yield flag on the first waiting word behind a single setter "
                        "without the flag does not change what the word reads at stall count 1 and 2 (`waiter_flag`, twenty-one "
                        "setters) - measurements, a law only with a second card model's column; `cycles` stays 2")
+BARRIER_ARM_BASIS_4 = (". On ONE card model (2026-11-18, the thirteenth build of tools/stallfloor/probe.py 34): seven more rows of "
+                       "`wait_forms` - sets of producers on one write barrier read behind ONE wait: an older `LDG.E.CONSTANT` "
+                       "beside younger `LDG.E.128.STRONG.GPU` in eight shapes, `LDC.64` beside eight strong loads, `LDC.64` and "
+                       "`LDCU.64`, four and five `LDG.E.CONSTANT`, four with a `SHFL.IDX` between them, two guarded in front of "
+                       "an unguarded one, five strong loads - right in 576 of 576 measured cells, the twins without the "
+                       "wait in 0 of 216; measurements, a law only with a second card model's column; `cycles` stays 2")
+# The row `hold_flag` (tools/stallfloor/probe.py 34, its twelfth and thirteenth builds; ONE card model - `card_models`): the
+# yield flag on a word that holds the distance between a producer and its fixed-latency reader - on the producer itself
+# (kind A) and on ONE word that stands between the two (kind B). The words are the probe kernels' own, the numbers those of
+# the result files the row names. The scheduler reads no member of this row and no `L` of the table moves with it.
+HOLD_FLAG_MEASURED = json.loads(r'''{
+ "measured": "FOR THE WORDS THE ROWS NAME, at the stall counts they name - the yield flag on a word that HOLDS the issue distance between a producer and its fixed-latency reader moves no floor: (A) on the producer itself, whose stall count is the distance - the smallest distance from which the reader is right in every condition is the same with the flag and without it for each of 14 pairs (condition by condition the same in 153 of 168; the 15 others belong to the two pairs of `below_the_floor`, where the reader is right one cycle behind the producer in some conditions without the flag); (B) on ONE word that stands between the producer (stall count 1, no flag) and the reader and holds the rest of the distance - the same floor with the flag on that word and without it in 19 of 19 forms, and from the table's number of the pair up the reader is right in 732 of 732 cells behind the flagged hold and in 732 of 732 behind the hold without the flag",
+ "standing": "measured on ONE card model (a card of the Server Edition): not a law",
+ "card_models": 1,
+ "keys": "the row is read WORD BY WORD, not as a sentence about every hold: what is measured is the word that carries the flag (`flag_word`: its opcode), its stall count (`flag_stall`, with the distances at which the reader is right and not right), the kind - A: the producer holds; B: one word between producer and reader holds - and the pair; the words that carried the flag - (A) `IADD3`, `IMAD`, `ISETP.LT.U32.AND`, `LEA`, `LOP3.LUT`, `MOV`, `PRMT`, `SEL`, `SHF.R.U32.HI`, `VOTEU.ANY`; (B) `IADD3`, `ISETP.LT.U32.AND`, `LEA`, `LOP3.LUT`, `MOV`, `PRMT`, `SEL`, `SHF.R.U32.HI`, `UMOV`, `VOTEU.ANY`. A flagged hold of another opcode, at another stall count or in front of another reader is NOT MEASURED",
+ "L": "no number of the table moves with this row: every `L` of `cells`, `defaults`, `mma`, `resources`, `result_high` and `producer_forms` is what it was; each measured floor stands at or below the number the table holds for its pair (`L` in a row here, with the member it comes from) - but for the one form whose request starts above that number (the hold at stall count 7, 8 ... 13 cycles): its floor is its smallest distance, the reader is right at every distance it holds; a floor that equals the request's smallest distance says no more than that",
+ "flag": "(A): the two variants of a pair differ in that one field of the producer; (B): in that one field of the hold - the producer carries no flag there and stands at stall count 1 (or, where the hold's stall count is fixed, holds the rest)",
+ "below_the_floor": "where the reader is not right the flag can change how many conditions fail - (A) one cycle behind the producer, below a floor of 2 that is the same with the flag and without it: `LOP3 -> QMMA.r2` right in 10 of 12 conditions without the flag and in 6 with it; `VOTEU -> FLO.u1` right in 11 of 12 conditions without the flag and in 0 with it; (B) one cycle below the table's number: right in 190 of 216 cells behind the flagged hold and in 189 behind the hold without the flag; at 2 cycles (the hold at stall count 1): 6 | 31 of 84. No prohibition is read from cells below a floor",
+ "controls": "(A) 0 of 336 control cells right, 0 of 862453760 thread-launches good; (B) 0 of 168 control cells right, 0 of 431226880 thread-launches good - a control holds the producer's word behind the reader and its checksum (a filler in its place) while the model gives the reader the new content",
+ "not_measured": "a second card model; every holding word, stall count and pair that no row names; a hold of more than one word; a reader behind a scoreboard (the row `barrier_arm` holds those forms)",
+ "columns": ["a card of the Server Edition"],
+ "conditions": {"driver": "610.43.02", "state": "the card with the probe alone, no power limit (the Server Edition model takes no clock offset)", "busy_clock_p50_mhz": {"_b80": [2370.0], "_b81": [2370.0]}, "grids": "1, 8, 9, 12 and 16 warps per SM; 2 CTAs of 9 warps per SM", "fronts": "no word in front, and fifteen `STS.128` at stall 4 in front; for the pairs into a tensor word: no word in front, and one tensor word of the same form on another accumulator at stall 7 in front", "launches": 40},
+ "kinds": [
+  {
+   "kind": "A",
+   "form": "the yield flag on the producer that holds the distance to its reader",
+   "what": "the producer's stall count is the distance, 1 ... 8 cycles; two variants - no flag on the producer, the flag on it - and a control",
+   "words": "a pair's row quotes the kernel with the flag at one warp per SM, no word in front, at the floor's distance: the producer and its reader (the next word)",
+   "cells": {"what": "pair x grid x front = 14 x 6 x 2 conditions, x distance = cells; right = every thread-launch of the cell right; [Server Edition, of]", "conditions_with_the_same_floor": [153, 168], "no_flag_right_from_the_floor_up": [840, 840], "flag_right_from_the_floor_up": [840, 840], "controls_right": [0, 336], "controls_thread_launches_good": [0, 862453760], "flag_changes_the_count_below_the_floor": [{"pair": "LOP3 -> QMMA.r2", "distance": 1, "no_flag_right": [10, 12], "flag_right": [6, 12]}, {"pair": "VOTEU -> FLO.u1", "distance": 1, "no_flag_right": [11, 12], "flag_right": [0, 12]}]},
+   "files": ["probe_sm120_20261118_b80.json"],
+   "pairs": [
+    {"producer": "SHF", "consumer": "PRMT.r3", "L": 4, "L_of": "cell", "floor": {"no_flag": 4, "flag": 4}, "flag_word": "SHF.R.U32.HI", "flag_stall": "the distance", "flag_right_at": [4, 5, 6, 7, 8], "flag_not_right_at": [1, 2, 3], "producer_with_the_flag": "[B------:R-:W-:Y:S04] SHF.R.U32.HI R6, RZ, 0x3, R4 ;", "reader": "[B------:R-:W-:-:S15] PRMT R8, R5, 0x7632, R6 ;", "requests": ["h_shf_prmt3", "h_shf_prmt3_y", "h_shf_prmt3_c"]},
+    {"producer": "IADD3", "consumer": "LEA.r1", "L": 4, "L_of": "cell", "floor": {"no_flag": 4, "flag": 4}, "flag_word": "IADD3", "flag_stall": "the distance", "flag_right_at": [4, 5, 6, 7, 8], "flag_not_right_at": [1, 2, 3], "producer_with_the_flag": "[B------:R-:W-:Y:S04] IADD3 R6, PT, PT, R4, R5, RZ ;", "reader": "[B------:R-:W-:-:S15] LEA R8, R6, R6, 0x2 ;", "requests": ["h_iadd3_lea1", "h_iadd3_lea1_y", "h_iadd3_lea1_c"]},
+    {"producer": "IADD3", "consumer": "LEA.r2", "L": 4, "L_of": "cell", "floor": {"no_flag": 4, "flag": 4}, "flag_word": "IADD3", "flag_stall": "the distance", "flag_right_at": [4, 5, 6, 7, 8], "flag_not_right_at": [1, 2, 3], "producer_with_the_flag": "[B------:R-:W-:Y:S04] IADD3 R6, PT, PT, R4, R5, RZ ;", "reader": "[B------:R-:W-:-:S15] LEA R8, R5, R6, 0x2 ;", "requests": ["h_iadd3_lea2", "h_iadd3_lea2_y", "h_iadd3_lea2_c"]},
+    {"producer": "LEA", "consumer": "IMAD.r3", "L": 5, "L_of": "cell", "floor": {"no_flag": 5, "flag": 5}, "flag_word": "LEA", "flag_stall": "the distance", "flag_right_at": [5, 6, 7, 8], "flag_not_right_at": [1, 2, 3, 4], "producer_with_the_flag": "[B------:R-:W-:Y:S05] LEA R6, R4, R4, 0x2 ;", "reader": "[B------:R-:W-:-:S15] IMAD R8, R5, 0x3, R6 ;", "requests": ["h_lea_imad3", "h_lea_imad3_y", "h_lea_imad3_c"]},
+    {"producer": "IMAD", "consumer": "PRMT.r1", "L": 5, "L_of": "cell", "floor": {"no_flag": 5, "flag": 5}, "flag_word": "IMAD", "flag_stall": "the distance", "flag_right_at": [5, 6, 7, 8], "flag_not_right_at": [1, 2, 3, 4], "producer_with_the_flag": "[B------:R-:W-:Y:S05] IMAD R6, R4, 0x9, R5 ;", "reader": "[B------:R-:W-:-:S15] PRMT R8, R6, 0x7632, R5 ;", "requests": ["h_imad_prmt1", "h_imad_prmt1_y", "h_imad_prmt1_c"]},
+    {"producer": "PRMT", "consumer": "LOP3.r1", "L": 4, "L_of": "cell", "floor": {"no_flag": 4, "flag": 4}, "flag_word": "PRMT", "flag_stall": "the distance", "flag_right_at": [4, 5, 6, 7, 8], "flag_not_right_at": [1, 2, 3], "producer_with_the_flag": "[B------:R-:W-:Y:S04] PRMT R6, R4, 0x7632, R5 ;", "reader": "[B------:R-:W-:-:S15] LOP3.LUT R8, R6, 0x33cc33cc, RZ, 0x3c, !PT ;", "requests": ["h_prmt_lop31", "h_prmt_lop31_y", "h_prmt_lop31_c"]},
+    {"producer": "ISETP", "consumer": "ISETP.p", "L": 5, "L_of": "cell", "floor": {"no_flag": 5, "flag": 5}, "flag_word": "ISETP.LT.U32.AND", "flag_stall": "the distance", "flag_right_at": [5, 6, 7, 8], "flag_not_right_at": [1, 2, 3, 4], "producer_with_the_flag": "[B------:R-:W-:Y:S05] ISETP.LT.U32.AND P2, PT, R4, R5, PT ;", "reader": "[B------:R-:W-:-:S15] ISETP.GT.AND P3, PT, R21, RZ, P2 ;", "requests": ["h_isetp_p", "h_isetp_p_y", "h_isetp_p_c"]},
+    {"producer": "MOV", "consumer": "QMMA.r1", "L": 7, "L_of": "defaults.mma_input", "floor": {"no_flag": 6, "flag": 6}, "flag_word": "MOV", "flag_stall": "the distance", "flag_right_at": [6, 7, 8], "flag_not_right_at": [1, 2, 3, 4, 5], "producer_with_the_flag": "[B------:R-:W-:Y:S06] MOV R16, R6 ;", "reader": "[B------:R-:W-:-:S15] QMMA.SF.16832.F32.E4M3.E2M1.E8 R28, R16, R12, R28, R14, R14, URZ ;", "requests": ["h_mov_q1", "h_mov_q1_y", "h_mov_q1_c"]},
+    {"producer": "MOV", "consumer": "QMMA.r1h", "L": 7, "L_of": "defaults.mma_input", "floor": {"no_flag": 1, "flag": 1}, "flag_word": "MOV", "flag_stall": "the distance", "flag_right_at": [1, 2, 3, 4, 5, 6, 7, 8], "flag_not_right_at": [], "producer_with_the_flag": "[B------:R-:W-:Y:S01] MOV R17, R6 ;", "reader": "[B------:R-:W-:-:S15] QMMA.SF.16832.F32.E4M3.E2M1.E8 R28, R16, R12, R28, R14, R14, URZ ;", "requests": ["h_mov_q1h", "h_mov_q1h_y", "h_mov_q1h_c"]},
+    {"producer": "LOP3", "consumer": "QMMA.r2", "L": 7, "L_of": "defaults.mma_input", "floor": {"no_flag": 2, "flag": 2}, "flag_word": "LOP3.LUT", "flag_stall": "the distance", "flag_right_at": [2, 3, 4, 5, 6, 7, 8], "flag_not_right_at": [1], "producer_with_the_flag": "[B------:R-:W-:Y:S02] LOP3.LUT R12, R0, 0x3c3c3c3c, RZ, 0xc0, !PT ;", "reader": "[B------:R-:W-:-:S15] QMMA.SF.16832.F32.E4M3.E2M1.E8 R28, R16, R12, R28, R14, R14, URZ ;", "requests": ["h_lop3_q2", "h_lop3_q2_y", "h_lop3_q2_c"]},
+    {"producer": "SEL", "consumer": "LOP3.r1", "L": 5, "L_of": "cell", "floor": {"no_flag": 5, "flag": 5}, "flag_word": "SEL", "flag_stall": "the distance", "flag_right_at": [5, 6, 7, 8], "flag_not_right_at": [1, 2, 3, 4], "producer_with_the_flag": "[B------:R-:W-:Y:S05] SEL R6, R4, R5, !P2 ;", "reader": "[B------:R-:W-:-:S15] LOP3.LUT R8, R6, 0x33cc33cc, RZ, 0x3c, !PT ;", "requests": ["h_sel_lop31", "h_sel_lop31_y", "h_sel_lop31_c"]},
+    {"producer": "VOTEU", "consumer": "FLO.u1", "L": 2, "L_of": "cell", "floor": {"no_flag": 2, "flag": 2}, "flag_word": "VOTEU.ANY", "flag_stall": "the distance", "flag_right_at": [2, 3, 4, 5, 6, 7, 8], "flag_not_right_at": [1], "producer_with_the_flag": "[B------:R-:W-:Y:S02] VOTEU.ANY UR6, UPT, PT ;", "reader": "[B------:R-:W1:-:S15] FLO.U32 R8, UR6 ;", "requests": ["h_voteu_flo", "h_voteu_flo_y", "h_voteu_flo_c"]},
+    {"producer": "IADD3", "consumer": "IADD3.r1", "L": 4, "L_of": "cell", "floor": {"no_flag": 4, "flag": 4}, "flag_word": "IADD3", "flag_stall": "the distance", "flag_right_at": [4, 5, 6, 7, 8], "flag_not_right_at": [1, 2, 3], "producer_with_the_flag": "[B------:R-:W-:Y:S04] IADD3 R6, PT, PT, R4, R5, RZ ;", "reader": "[B------:R-:W-:-:S15] IADD3 R8, PT, PT, R6, R5, RZ ;", "requests": ["h_iadd3_iadd3", "h_iadd3_iadd3_y", "h_iadd3_iadd3_c"]},
+    {"producer": "IMAD", "consumer": "IADD3.r1", "L": 5, "L_of": "cell", "floor": {"no_flag": 5, "flag": 5}, "flag_word": "IMAD", "flag_stall": "the distance", "flag_right_at": [5, 6, 7, 8], "flag_not_right_at": [1, 2, 3, 4], "producer_with_the_flag": "[B------:R-:W-:Y:S05] IMAD R6, R4, 0x9, R5 ;", "reader": "[B------:R-:W-:-:S15] IADD3 R8, PT, PT, R6, R5, RZ ;", "requests": ["h_imad_iadd3", "h_imad_iadd3_y", "h_imad_iadd3_c"]}
+   ]
+  },
+  {
+   "kind": "B",
+   "form": "the yield flag on ONE hold that stands between the producer and its reader",
+   "what": "the producer at stall count 1 without the flag, ONE word that sets no barrier, waits none and writes a register nobody reads at stall count d - 1, the reader d cycles behind the producer; the hold without the flag, the hold with it; for seven pairs also the distance made of one-cycle fillers and a control; nine other words as the hold of one pair; three forms with the hold at a fixed stall count and the producer holding the rest",
+   "words": "a form's row quotes the kernel with the flagged hold at one warp per SM, no word in front, at the distance `words_at` (the floor, or the smallest distance of the request): the producer, the hold and the reader",
+   "cells": {"what": "form x grid x front = 19 x 6 x 2 conditions, x distance = cells; right = every thread-launch of the cell right; [Server Edition, of]", "forms_with_the_same_floor": [19, 19], "flagged_hold_right_from_L_up": [732, 732], "hold_right_from_L_up": [732, 732], "flagged_hold_right_one_below_L": [190, 216], "hold_right_one_below_L": [189, 216], "flagged_hold_right_at_2": [6, 84], "hold_right_at_2": [31, 84], "controls_right": [0, 168], "controls_thread_launches_good": [0, 431226880]},
+   "files": ["probe_sm120_20261118_b81.json"],
+   "pairs": [
+    {"producer": "SHF", "consumer": "PRMT.r3", "L": 4, "L_of": "cell", "floor": {"fillers": 2, "hold": 4, "flagged_hold": 4}, "flag_word": "MOV", "flag_stall": "the distance - 1", "flag_right_at": [4, 5, 6, 7, 8], "flag_not_right_at": [2, 3], "distances": "2-8", "producer_word": "[B------:R-:W-:-:S01] SHF.R.U32.HI R6, RZ, 0x3, R4 ;", "hold_with_the_flag": "[B------:R-:W-:Y:S03] MOV R15, R4 ;", "reader": "[B------:R-:W-:-:S15] PRMT R8, R5, 0x7632, R6 ;", "words_at": 4, "requests": ["v_shf_prmt3_f", "v_shf_prmt3_h", "v_shf_prmt3_y", "v_shf_prmt3_c"]},
+    {"producer": "IADD3", "consumer": "LEA.r1", "L": 4, "L_of": "cell", "floor": {"fillers": 2, "hold": 4, "flagged_hold": 4}, "flag_word": "MOV", "flag_stall": "the distance - 1", "flag_right_at": [4, 5, 6, 7, 8], "flag_not_right_at": [2, 3], "distances": "2-8", "producer_word": "[B------:R-:W-:-:S01] IADD3 R6, PT, PT, R4, R5, RZ ;", "hold_with_the_flag": "[B------:R-:W-:Y:S03] MOV R15, R4 ;", "reader": "[B------:R-:W-:-:S15] LEA R8, R6, R6, 0x2 ;", "words_at": 4, "requests": ["v_iadd3_lea1_f", "v_iadd3_lea1_h", "v_iadd3_lea1_y", "v_iadd3_lea1_c"]},
+    {"producer": "IADD3", "consumer": "LEA.r2", "L": 4, "L_of": "cell", "floor": {"fillers": 2, "hold": 4, "flagged_hold": 4}, "flag_word": "MOV", "flag_stall": "the distance - 1", "flag_right_at": [4, 5, 6, 7, 8], "flag_not_right_at": [2, 3], "distances": "2-8", "producer_word": "[B------:R-:W-:-:S01] IADD3 R6, PT, PT, R4, R5, RZ ;", "hold_with_the_flag": "[B------:R-:W-:Y:S03] MOV R15, R4 ;", "reader": "[B------:R-:W-:-:S15] LEA R8, R5, R6, 0x2 ;", "words_at": 4, "requests": ["v_iadd3_lea2_f", "v_iadd3_lea2_h", "v_iadd3_lea2_y", "v_iadd3_lea2_c"]},
+    {"producer": "LEA", "consumer": "IMAD.r3", "L": 5, "L_of": "cell", "floor": {"fillers": 3, "hold": 4, "flagged_hold": 4}, "flag_word": "LOP3.LUT", "flag_stall": "the distance - 1", "flag_right_at": [4, 5, 6, 7, 8], "flag_not_right_at": [2, 3], "distances": "2-8", "producer_word": "[B------:R-:W-:-:S01] LEA R6, R4, R4, 0x2 ;", "hold_with_the_flag": "[B------:R-:W-:Y:S03] LOP3.LUT R15, R4, R5, RZ, 0x3c, !PT ;", "reader": "[B------:R-:W-:-:S15] IMAD R8, R5, 0x3, R6 ;", "words_at": 4, "requests": ["v_lea_imad3_f", "v_lea_imad3_h", "v_lea_imad3_y", "v_lea_imad3_c"]},
+    {"producer": "IMAD", "consumer": "PRMT.r1", "L": 5, "L_of": "cell", "floor": {"fillers": 3, "hold": 5, "flagged_hold": 5}, "flag_word": "SHF.R.U32.HI", "flag_stall": "the distance - 1", "flag_right_at": [5, 6, 7, 8], "flag_not_right_at": [2, 3, 4], "distances": "2-8", "producer_word": "[B------:R-:W-:-:S01] IMAD R6, R4, 0x9, R5 ;", "hold_with_the_flag": "[B------:R-:W-:Y:S04] SHF.R.U32.HI R15, RZ, 0x3, R4 ;", "reader": "[B------:R-:W-:-:S15] PRMT R8, R6, 0x7632, R5 ;", "words_at": 5, "requests": ["v_imad_prmt1_f", "v_imad_prmt1_h", "v_imad_prmt1_y", "v_imad_prmt1_c"]},
+    {"producer": "ISETP", "consumer": "ISETP.p", "L": 5, "L_of": "cell", "floor": {"fillers": 3, "hold": 5, "flagged_hold": 5}, "flag_word": "SEL", "flag_stall": "the distance - 1", "flag_right_at": [5, 6, 7, 8], "flag_not_right_at": [2, 3, 4], "distances": "2-8", "producer_word": "[B------:R-:W-:-:S01] ISETP.LT.U32.AND P2, PT, R4, R5, PT ;", "hold_with_the_flag": "[B------:R-:W-:Y:S04] SEL R15, R4, R5, !P0 ;", "reader": "[B------:R-:W-:-:S15] ISETP.GT.AND P3, PT, R21, RZ, P2 ;", "words_at": 5, "requests": ["v_isetp_p_f", "v_isetp_p_h", "v_isetp_p_y", "v_isetp_p_c"]},
+    {"producer": "MOV", "consumer": "QMMA.r1", "L": 7, "L_of": "defaults.mma_input", "floor": {"fillers": 4, "hold": 6, "flagged_hold": 6}, "flag_word": "MOV", "flag_stall": "the distance - 1", "flag_right_at": [6, 7, 8], "flag_not_right_at": [2, 3, 4, 5], "distances": "2-8", "producer_word": "[B------:R-:W-:-:S01] MOV R16, R6 ;", "hold_with_the_flag": "[B------:R-:W-:Y:S05] MOV R15, R4 ;", "reader": "[B------:R-:W-:-:S15] QMMA.SF.16832.F32.E4M3.E2M1.E8 R28, R16, R12, R28, R14, R14, URZ ;", "words_at": 6, "requests": ["v_mov_q1_f", "v_mov_q1_h", "v_mov_q1_y", "v_mov_q1_c"]},
+    {"producer": "IMAD", "consumer": "PRMT.r1", "L": 5, "L_of": "cell", "floor": {"hold": 5, "flagged_hold": 5}, "flag_word": "IADD3", "flag_stall": "the distance - 1", "flag_right_at": [5, 6], "flag_not_right_at": [3, 4], "distances": "3-6", "producer_word": "[B------:R-:W-:-:S01] IMAD R6, R4, 0x9, R5 ;", "hold_with_the_flag": "[B------:R-:W-:Y:S04] IADD3 R15, PT, PT, R15, 0x1, RZ ;", "reader": "[B------:R-:W-:-:S15] PRMT R8, R6, 0x7632, R5 ;", "words_at": 5, "requests": ["w_imad_prmt1_iadd3_h", "w_imad_prmt1_iadd3_y"]},
+    {"producer": "IMAD", "consumer": "PRMT.r1", "L": 5, "L_of": "cell", "floor": {"hold": 5, "flagged_hold": 5}, "flag_word": "MOV", "flag_stall": "the distance - 1", "flag_right_at": [5, 6], "flag_not_right_at": [3, 4], "distances": "3-6", "producer_word": "[B------:R-:W-:-:S01] IMAD R6, R4, 0x9, R5 ;", "hold_with_the_flag": "[B------:R-:W-:Y:S04] MOV R15, R4 ;", "reader": "[B------:R-:W-:-:S15] PRMT R8, R6, 0x7632, R5 ;", "words_at": 5, "requests": ["w_imad_prmt1_mov_h", "w_imad_prmt1_mov_y"]},
+    {"producer": "IMAD", "consumer": "PRMT.r1", "L": 5, "L_of": "cell", "floor": {"hold": 5, "flagged_hold": 5}, "flag_word": "LOP3.LUT", "flag_stall": "the distance - 1", "flag_right_at": [5, 6], "flag_not_right_at": [3, 4], "distances": "3-6", "producer_word": "[B------:R-:W-:-:S01] IMAD R6, R4, 0x9, R5 ;", "hold_with_the_flag": "[B------:R-:W-:Y:S04] LOP3.LUT R15, R4, R5, RZ, 0x3c, !PT ;", "reader": "[B------:R-:W-:-:S15] PRMT R8, R6, 0x7632, R5 ;", "words_at": 5, "requests": ["w_imad_prmt1_lop3_h", "w_imad_prmt1_lop3_y"]},
+    {"producer": "IMAD", "consumer": "PRMT.r1", "L": 5, "L_of": "cell", "floor": {"hold": 5, "flagged_hold": 5}, "flag_word": "SEL", "flag_stall": "the distance - 1", "flag_right_at": [5, 6], "flag_not_right_at": [3, 4], "distances": "3-6", "producer_word": "[B------:R-:W-:-:S01] IMAD R6, R4, 0x9, R5 ;", "hold_with_the_flag": "[B------:R-:W-:Y:S04] SEL R15, R4, R5, !P0 ;", "reader": "[B------:R-:W-:-:S15] PRMT R8, R6, 0x7632, R5 ;", "words_at": 5, "requests": ["w_imad_prmt1_sel_h", "w_imad_prmt1_sel_y"]},
+    {"producer": "IMAD", "consumer": "PRMT.r1", "L": 5, "L_of": "cell", "floor": {"hold": 5, "flagged_hold": 5}, "flag_word": "PRMT", "flag_stall": "the distance - 1", "flag_right_at": [5, 6], "flag_not_right_at": [3, 4], "distances": "3-6", "producer_word": "[B------:R-:W-:-:S01] IMAD R6, R4, 0x9, R5 ;", "hold_with_the_flag": "[B------:R-:W-:Y:S04] PRMT R15, R4, 0x7632, R5 ;", "reader": "[B------:R-:W-:-:S15] PRMT R8, R6, 0x7632, R5 ;", "words_at": 5, "requests": ["w_imad_prmt1_prmt_h", "w_imad_prmt1_prmt_y"]},
+    {"producer": "IMAD", "consumer": "PRMT.r1", "L": 5, "L_of": "cell", "floor": {"hold": 5, "flagged_hold": 5}, "flag_word": "LEA", "flag_stall": "the distance - 1", "flag_right_at": [5, 6], "flag_not_right_at": [3, 4], "distances": "3-6", "producer_word": "[B------:R-:W-:-:S01] IMAD R6, R4, 0x9, R5 ;", "hold_with_the_flag": "[B------:R-:W-:Y:S04] LEA R15, R4, R4, 0x2 ;", "reader": "[B------:R-:W-:-:S15] PRMT R8, R6, 0x7632, R5 ;", "words_at": 5, "requests": ["w_imad_prmt1_lea_h", "w_imad_prmt1_lea_y"]},
+    {"producer": "IMAD", "consumer": "PRMT.r1", "L": 5, "L_of": "cell", "floor": {"hold": 5, "flagged_hold": 5}, "flag_word": "ISETP.LT.U32.AND", "flag_stall": "the distance - 1", "flag_right_at": [5, 6], "flag_not_right_at": [3, 4], "distances": "3-6", "producer_word": "[B------:R-:W-:-:S01] IMAD R6, R4, 0x9, R5 ;", "hold_with_the_flag": "[B------:R-:W-:Y:S04] ISETP.LT.U32.AND P6, PT, R4, R5, PT ;", "reader": "[B------:R-:W-:-:S15] PRMT R8, R6, 0x7632, R5 ;", "words_at": 5, "requests": ["w_imad_prmt1_isetp_h", "w_imad_prmt1_isetp_y"]},
+    {"producer": "IMAD", "consumer": "PRMT.r1", "L": 5, "L_of": "cell", "floor": {"hold": 5, "flagged_hold": 5}, "flag_word": "VOTEU.ANY", "flag_stall": "the distance - 1", "flag_right_at": [5, 6], "flag_not_right_at": [3, 4], "distances": "3-6", "producer_word": "[B------:R-:W-:-:S01] IMAD R6, R4, 0x9, R5 ;", "hold_with_the_flag": "[B------:R-:W-:Y:S04] VOTEU.ANY UP1, P0 ;", "reader": "[B------:R-:W-:-:S15] PRMT R8, R6, 0x7632, R5 ;", "words_at": 5, "requests": ["w_imad_prmt1_voteu_h", "w_imad_prmt1_voteu_y"]},
+    {"producer": "IMAD", "consumer": "PRMT.r1", "L": 5, "L_of": "cell", "floor": {"hold": 5, "flagged_hold": 5}, "flag_word": "UMOV", "flag_stall": "the distance - 1", "flag_right_at": [5, 6], "flag_not_right_at": [3, 4], "distances": "3-6", "producer_word": "[B------:R-:W-:-:S01] IMAD R6, R4, 0x9, R5 ;", "hold_with_the_flag": "[B------:R-:W-:Y:S04] UMOV UR14, 0x9 ;", "reader": "[B------:R-:W-:-:S15] PRMT R8, R6, 0x7632, R5 ;", "words_at": 5, "requests": ["w_imad_prmt1_umov_h", "w_imad_prmt1_umov_y"]},
+    {"producer": "LEA", "consumer": "IMAD.r3", "L": 5, "L_of": "cell", "floor": {"hold": 4, "flagged_hold": 4}, "flag_word": "LOP3.LUT", "flag_stall": 3, "flag_right_at": [4, 5, 6, 7, 8], "flag_not_right_at": [], "distances": "4-8", "producer_word": "[B------:R-:W-:-:S01] LEA R6, R4, R4, 0x2 ;", "hold_with_the_flag": "[B------:R-:W-:Y:S03] LOP3.LUT R15, R4, R5, RZ, 0x3c, !PT ;", "reader": "[B------:R-:W-:-:S15] IMAD R8, R5, 0x3, R6 ;", "words_at": 4, "requests": ["x_lea_imad3_lop33_h", "x_lea_imad3_lop33_y"]},
+    {"producer": "MOV", "consumer": "QMMA.r1", "L": 7, "L_of": "defaults.mma_input", "floor": {"hold": 6, "flagged_hold": 6}, "flag_word": "MOV", "flag_stall": 3, "flag_right_at": [6, 7, 8, 9, 10], "flag_not_right_at": [4, 5], "distances": "4-10", "producer_word": "[B------:R-:W-:-:S03] MOV R16, R6 ;", "hold_with_the_flag": "[B------:R-:W-:Y:S03] MOV R15, R4 ;", "reader": "[B------:R-:W-:-:S15] QMMA.SF.16832.F32.E4M3.E2M1.E8 R28, R16, R12, R28, R14, R14, URZ ;", "words_at": 6, "requests": ["x_mov_q1_mov3_h", "x_mov_q1_mov3_y"]},
+    {"producer": "MOV", "consumer": "QMMA.r1", "L": 7, "L_of": "defaults.mma_input", "floor": {"hold": 8, "flagged_hold": 8}, "flag_word": "MOV", "flag_stall": 7, "flag_right_at": [8, 9, 10, 11, 12, 13], "flag_not_right_at": [], "distances": "8-13", "producer_word": "[B------:R-:W-:-:S01] MOV R16, R6 ;", "hold_with_the_flag": "[B------:R-:W-:Y:S07] MOV R15, R4 ;", "reader": "[B------:R-:W-:-:S15] QMMA.SF.16832.F32.E4M3.E2M1.E8 R28, R16, R12, R28, R14, R14, URZ ;", "words_at": 8, "requests": ["x_mov_q1_mov7_h", "x_mov_q1_mov7_y"]}
+   ]
+  }
+ ]
+}''')
 
 
 def main():
@@ -579,9 +791,11 @@ def main():
                         "waiter always finds the setter at S02 or more. Silicon 2026-11-10: `MUFU [W:Y:S01]` + waiter at S01 reads the "
                         "stale register (sparse_mla_prefill_v41 under CUBIT_SCHED2: softmax exp2, epilogue log2); in isolation "
                         "(harness v5b): MUFU / SHFL / LDC / LDS setter with yield at S01 and its waiter next = every thread wrong, "
-                        "without yield, at S02 or with one instruction between = clean" + BARRIER_ARM_BASIS_2 + BARRIER_ARM_BASIS_3,
+                        "without yield, at S02 or with one instruction between = clean" + BARRIER_ARM_BASIS_2 + BARRIER_ARM_BASIS_3
+                        + BARRIER_ARM_BASIS_4,
                         "setter_flag": BARRIER_ARM_MEASURED["setter_flag"], "wait_forms": BARRIER_ARM_MEASURED["wait_forms"],
                         "waiter_flag": BARRIER_ARM_MEASURED["waiter_flag"]},
+        "hold_flag": HOLD_FLAG_MEASURED,
         "variable_latency": VARIABLE,
         "cells": out_cells,
     }

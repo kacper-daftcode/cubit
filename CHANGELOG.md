@@ -4,6 +4,45 @@ User-visible changes, newest first. Table syncs name the blackwell-isa revision 
 (`tables/SOURCE.json` pins it byte for byte). Numbered `BUG-NNN` entries are the encoder /
 decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `docs/TESTS.md`).
 
+## Unreleased — 2026-11-18 (`tools/stallfloor/probe.py` 34, thirteenth build, and the sm_120 dependency table: a new row `hold_flag` — in the pairs measured the yield flag on a word that holds the distance to a fixed-latency reader moves no floor — and seven more rows of `barrier_arm.wait_forms` — sets of producers on one write barrier read behind one wait; one card model each, no number the scheduler reads moves)
+
+- **`tables/dep_latency_sm120.json`: ONE line differs from the parent's (`barrier_arm`) and ONE line is new
+  (`hold_flag`); `cycles` stays 2, and every `L` — `cells`, `defaults`, `mma`, `resources`, `result_high`,
+  `producer_forms` — is what it was** (the scheduler reads no member this commit touches; the table regenerates byte
+  for byte by the README's command). Everything the three new result files add stands on ONE card model, a card of
+  the Server Edition, with `card_models` 1 in its row: a measurement, not a law.
+  - `hold_flag`, a new row — FOR THE WORDS IT NAMES, at the stall counts it names, the yield flag on a word that
+    HOLDS the distance between a producer and its fixed-latency reader moves no floor; the row is read word by word
+    (the opcode of the word that carries the flag, its stall count, the kind, the pair), and a flagged hold of
+    another opcode, at another stall count or in front of another reader is not measured. Kind A, the flag on the producer itself (its stall count is the distance):
+    for each of fourteen pairs the smallest distance from which the reader is right in every condition is the same
+    with the flag and without it; the fourteen controls are right in 0 of 336 cells. Kind B, the flag on ONE word
+    that stands between the producer and its reader: the same floor behind the flagged hold and behind the hold
+    without the flag in 19 of 19 forms, and from the table's number of the pair up the reader is right in 732 of
+    732 cells behind the flagged hold and in 732 of 732 behind the other; the seven controls are right in 0 of 168
+    cells. Each floor stands at or below the table's number of its pair, but for the one form whose request starts
+    above that number (`MOV -> QMMA.r1` behind the hold at stall count 7: its floor is its smallest distance, 8 over
+    the table's 7, as the row's member `L` says). Below a floor the flag can change how many conditions fail (one
+    cycle behind `VOTEU` and `LOP3` in front of `FLO` and `QMMA`; below the table's number behind a hold) — the row
+    holds the counts; no prohibition is read from them.
+  - `barrier_arm.wait_forms`, seven rows more — sets of producers on one write barrier read behind ONE wait: an
+    older `LDG.E.CONSTANT` beside a younger `LDG.E.128.STRONG.GPU` in eight shapes (the younger read first among
+    them), `LDC.64` beside eight strong loads, `LDC.64` and `LDCU.64`, four and five `LDG.E.CONSTANT`, four with a
+    `SHFL.IDX` between them, two guarded constant loads in front of an unguarded one, five strong loads under three
+    predicates: 576 of 576 cells that carry their waits right, the twins without the wait right in 0 of 216. A row
+    names its sets by their members (`sets`). The basis of the row gains one sentence.
+  - `barrier_arm.wait_forms[3]` and `[5]`, the member `cells` — the cells of the reference and of the control
+    request with every member on its own barrier and wait are named too: the rows of the data waiting word now
+    name the 288 cells that were counted (240 before); no count changes.
+- **`tools/stallfloor/probe.py` 34, thirteenth build** (kind `raw`; selftest 6 798): `"via": "hold"` — the producer
+  at stall 1 without the yield flag, ONE word that sets no barrier, waits none and writes a register nobody reads at
+  stall d - 1, then the reader; `"hold"` (ten words), `"hflag": "set"` (the hold carries the yield flag), `"hstall"`
+  (the hold at a fixed stall, the producer holds the rest). A request without these keys builds the text it built;
+  a kind-`raw` `via` that is none of `stall`, `fill`, `hold` is refused.
+- **Result files** (a card of the Server Edition, the probe alone, no power limit, driver 610.43.02; the second card
+  model's files come in a commit of their own): `probe_sm120_20261118_b80.json`, `_b81.json`, `_b82.json` —
+  `tools/stallfloor/README.md`: one kind row, three result rows.
+
 ## Unreleased — 2026-11-18 (`CUBIT_WAIT_DRAINED`: a wait parked for a reader that cannot wait is told to the rule — found in review; what `CUBIT_VERIFY` counts under the rule)
 
 - **The finding** (review of the rule; KNOWN_ISSUES A63). A reader that cannot carry a wait — `LDGSTS`, `FENCE`,

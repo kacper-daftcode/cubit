@@ -399,6 +399,13 @@ diagnostic: "rflag": "set" puts the flag on the word that carries the wait (the 
 that is not the reader; the letter A's served reader, whose stall is then 1) - barrier all only, no replay letter. The letter
 p = `POPC R32, R21` as a producer of the diagnostic.
     {"id": "g_mex_r", "kind": "ord", "forms": "E", "barrier": "all", "rflag": "set", "distances": "1,2"}
+version 34, thirteenth build - A HOLD THAT
+STANDS BETWEEN A PRODUCER AND ITS READER: "via": "hold" on kind raw puts the producer at stall 1 without the yield flag and ONE
+word behind it that sets no barrier, waits none and writes a register nobody reads ("hold": iadd3 | mov | lop3 | shf | sel |
+prmt | lea | isetp | voteu | umov) at stall d - 1, with the yield flag ("hflag": "set") or without; "hstall": h fixes the
+hold's stall, the producer then holds d - h. The host model is the fill model's. An absolute tensor consumer without a guard
+takes "via": "fill" | "hold" too; a control is admitted via hold; a kind-raw `via` that is none of stall | fill | hold is refused.
+    {"id": "v_imad_prmt_shf_y", "kind": "raw", "producer": "IMAD", "consumer": "PRMT.r1", "via": "hold", "hold": "shf", "hflag": "set", "distances": "2-8"}
 """
 from __future__ import annotations
 
@@ -415,7 +422,7 @@ import subprocess
 import sys
 import time
 
-TOOL = "probe.py 34, twelfth build (2026-11-18)"
+TOOL = "probe.py 34, thirteenth build (2026-11-18)"
 HERE = pathlib.Path(__file__).resolve().parent
 RUN_CODE = "run code 15 (2026-11-13): the time limit per single kernel"
 SEED = 0x12345
@@ -855,6 +862,38 @@ def split_distance(d, via="stall"):
     return d - 15 * npad, [PAD() for _ in range(npad)]
 
 
+# ------------------------------------------------------------------------------------------------ version 34, thirteenth build
+# `"via": "hold"` on kind raw - A HOLD THAT STANDS BETWEEN a producer and its reader: the
+# producer at stall 1 WITHOUT the yield flag, then ONE word that sets no barrier, waits none and writes a register nobody reads,
+# at stall d - 1 - with the yield flag ("hflag": "set") or without -, then the reader. "hstall": h fixes the hold's stall and the
+# producer holds the rest (stall d - h): the loop's shapes (`LEA` at 2, `LOP3` at 3, the reader; `MOV` at 3, `MOV` at 7, the
+# tensor word). The host model is the fill model's: the hold is a filler (R15 | P6 | UP1 | UR14 are read by no word of the tool
+# but the fillers' own R15).
+HOLD_FORMS = {"iadd3": "IADD3 R15, PT, PT, R15, 0x1, RZ ;",      # the tool's own filler, with a stall
+              "mov": "MOV R15, R4 ;", "lop3": "LOP3.LUT R15, R4, R5, RZ, 0x3c, !PT ;", "shf": "SHF.R.U32.HI R15, RZ, 0x3, R4 ;",
+              "sel": "SEL R15, R4, R5, !P0 ;", "prmt": "PRMT R15, R4, 0x7632, R5 ;", "lea": "LEA R15, R4, R4, 0x2 ;",
+              "isetp": "ISETP.LT.U32.AND P6, PT, R4, R5, PT ;",      # P6: no text of the tool reads or writes it
+              "voteu": "VOTEU.ANY UP1, P0 ;",      # UP1: no text of the tool reads or writes it
+              "umov": "UMOV UR14, 0x9 ;"}      # UR14: no text of the tool reads or writes it
+
+
+def hold_split(req, d):
+    """version 34, thirteenth build -> (the producer's stall, [the hold]) of a request via hold at distance d"""
+    h = req.get("hstall") or d - 1
+    if not (1 <= h <= 15 and 1 <= d - h <= 15):
+        raise SystemExit(f"{req.get('id')}: via hold at distance {d}: the hold's stall {h} and the producer's {d - h} must both be 1 .. 15")
+    return d - h, [Ins(HOLD_FORMS[req.get("hold", "iadd3")], ("nop",), ctl=C(h, y=req.get("hflag") == "set"))]
+
+
+def hold_text(r):
+    """version 34, thirteenth build: what a family's pair line says of a request via hold"""
+    if r.get("kind") != "raw" or r.get("via") != "hold":
+        return ""
+    return (" [VIA HOLD, version 34, thirteenth build: the producer at stall " + ("1" if r.get("hstall") is None else f"d - {r['hstall']}")
+            + " without the yield flag, then ONE word `" + HOLD_FORMS[r["hold"]].rstrip(" ;") + "` at stall " + ("d - 1" if r.get("hstall") is None else str(r["hstall"]))
+            + (" WITH THE YIELD FLAG" if r.get("hflag") else " without the yield flag") + ", then the reader - a hold BETWEEN the producer and its reader]")
+
+
 # ------------------------------------------------------------------------------------------------ version 24
 # Kind `raw` with a TENSOR consumer, and RELATIVE consumers.
 #   tdata  one register of an operand of a tensor word (QMMA.SF / HMMA with uniform fragments, the model of body_mma):
@@ -931,7 +970,9 @@ def body_raw24(req, d, front):
     if kind == "rel":
         return body_rel24(req, d, front)
     control = req.get("control") == "stale"
-    s, fill = split_distance(d)
+    s, fill = split_distance(d, req.get("via", "stall"))      # version 34, thirteenth build: an absolute tensor consumer also via fill | hold
+    if req.get("via") == "hold":
+        s, fill = hold_split(req, d)
     fn = req["form"]
     form, sp = MMA_FORMS[fn], MMA_SPEC[fn]
     t = t24_reg(req)
@@ -1044,15 +1085,17 @@ def norm24(r):
         raise SystemExit(f"{r['id']}: {cons} takes the producers {', '.join(T24_PRODUCERS[kind])} (version 24), not {prod!r}")
     if r.get("control") not in (None, "stale"):
         raise SystemExit(f"{r['id']}: control is \"stale\" (the positive control: the producer's word behind the consumer) or absent")
-    if r.get("via") not in (None, "stall") or r.get("salt") is not None:
-        raise SystemExit(f"{r['id']}: a version-24 consumer is swept via stall and has no salt field")
+    if (r.get("via") not in (None, "stall") and not (kind in ("acc", "a", "b") and r.get("rguard") is None      # version 34, thirteenth build
+                                                    and (r.get("via") == "hold" or (r.get("via") == "fill" and not r.get("control"))))) or r.get("salt") is not None:
+        raise SystemExit(f"{r['id']}: a version-24 consumer is swept via stall and has no salt field (version 34, thirteenth build: an absolute tensor consumer without a guard "
+                         "also via fill | hold; a control via stall | hold)")
     rg_ = r.get("rguard")      # version 32: the tensor reader under a guard
     if rg_ is not None and (rg_ not in ("t", "f", "c") or not ((kind == "acc" and prod == "CS2R" and cons.startswith("QMMA")) or kind == "u") or (rg_ == "f" and r.get("control"))):
         raise SystemExit(f"{r['id']}: rguard is \"t\" | \"f\" | \"c\" (version 32: the reader `@P2 QMMA.SF` - P2 true | false | bit 1 of the iteration counter, the same in every lane of a warp) "
                          "on CS2R -> QMMA.r3 / QMMA.r3h and on UMOV -> QMMA.u6; with f the reader never executes - no control")
     if r.get("upguard") not in (None, "set") or (r.get("upguard") and (kind != "u" or rg_ is None)):
         raise SystemExit(f"{r['id']}: upguard is \"set\" (version 32: the producer `@UP0 UMOV UR6, 0x9` in front of QMMA.u6 with rguard) or absent")
-    r["via"] = "stall"
+    r["via"] = r.get("via") or "stall"      # version 34, thirteenth build: fill | hold passed the check above
     role = RAW_CONSUMERS[cons][3]
     if kind != "rel":
         r["form"] = "HMMA.BF16" if cons.startswith("HMMA") else "QMMA.SF.E4M3.E2M1"
@@ -1088,7 +1131,7 @@ def norm24(r):
 
 def text24(r):
     cons, prod, kind = r["consumer"], r["producer"], t24_kind(r["consumer"])
-    body = body_raw24(dict(r, control=None), 3, "none")
+    body = body_raw24(dict(r, control=None, via="stall"), 3, "none")      # (version 34, thirteenth build: the words do not depend on how the distance is carried)
     p = next(i.text for i in body if i.tag == "P").rstrip(" ;")
     c = next(i.text for i in body if i.tag == "C").rstrip(" ;")
     if kind == "rel":
@@ -1119,6 +1162,8 @@ def body_raw(req, d, front):
     if what in T24_WHAT:      # version 24
         return body_raw24(req, d, front)
     s, fill = split_distance(d, req.get("via", "stall"))
+    if req.get("via") == "hold":      # version 34, thirteenth build: ONE word between the producer and its reader carries the distance
+        s, fill = hold_split(req, d)
     control = req.get("control") == "stale"      # version 25: the positive control of an ordinary pair
     b = []
     if what == "addr":
@@ -5082,8 +5127,8 @@ def normalise(req):
                              f"consumers {', '.join(RESULT1_CONSUMERS)}) or absent")
         if r.get("control") not in (None, "stale"):      # version 25
             raise SystemExit(f"{r['id']}: control is \"stale\" (the positive control: the producer's word behind the consumer and its checksum) or absent")
-        if r.get("control") and r.get("via") not in (None, "stall"):
-            raise SystemExit(f"{r['id']}: a control request is swept via stall")
+        if r.get("control") and r.get("via") not in (None, "stall", "hold"):      # version 34, thirteenth build: a control also via hold
+            raise SystemExit(f"{r['id']}: a control request is swept via stall (version 34, thirteenth build: or via hold)")
         if r.get("bctl") not in (None, "y5") or (r.get("bctl") and r["consumer"] != "BRA.gc"):      # version 33
             raise SystemExit(f"{r['id']}: bctl is \"y5\" (the uniform branch of BRA.gc carries the yield flag at stall 5 - the form of the MoE texts) or absent")
         if not (r.get("bskip") is None or (isinstance(r["bskip"], int) and not isinstance(r["bskip"], bool) and 2 <= r["bskip"] <= 20 and r["consumer"] == "BRA.gc")):
@@ -5393,6 +5438,20 @@ def normalise(req):
         if o not in GEOM:
             raise SystemExit(f"{r['id']}: occupancy {o!r}: one of {', '.join(GEOM)}")
     r["distance_list"] = parse_distances(r["distances"])
+    # version 34, thirteenth build: "via": "hold" - A HOLD BETWEEN the producer and its reader
+    if r["kind"] == "raw" and r.get("via") not in (None, "stall", "fill", "hold"):
+        raise SystemExit(f"{r['id']}: via is \"stall\" | \"fill\" | \"hold\" (kind raw; version 34, thirteenth build)")
+    if r["kind"] == "raw" and r.get("via") == "hold":
+        r.setdefault("hold", "iadd3")
+        h_ = r.get("hstall")
+        if (r["hold"] not in HOLD_FORMS or r.get("hflag") not in (None, "set") or not (h_ is None or (isinstance(h_, int) and not isinstance(h_, bool) and 1 <= h_ <= 15))
+                or r["consumer"] in ("BRA.gc", "BRA.back") or r.get("pbar")
+                or any(not (1 <= (h_ or d_ - 1) <= (11 if r.get("hflag") else 15) and 1 <= d_ - (h_ or d_ - 1) <= 15) for d_ in r["distance_list"])):
+            raise SystemExit(f"{r['id']}: version 34, thirteenth build - via hold: \"hold\" is one of {', '.join(HOLD_FORMS)} (default iadd3), \"hflag\" is \"set\" (THE HOLD CARRIES THE YIELD FLAG) "
+                             "or absent, \"hstall\" is 1 .. 15 or absent (then the hold's stall is d - 1); every distance leaves the hold AND the producer a stall of 1 .. 15 (no distance 1), "
+                             "with the yield flag the hold's stall is at most 11 (the tool's rule for every flagged stall); not for a uniform branch, not with pbar")
+    elif any(k_ in r for k_ in ("hold", "hflag", "hstall")):
+        raise SystemExit(f"{r['id']}: hold / hflag / hstall belong to a raw request with \"via\": \"hold\" (version 34, thirteenth build)")
     return r
 
 
@@ -5588,7 +5647,7 @@ def producer_word(r):
     if r.get("kind") != "raw":
         return None
     try:
-        w_ = next(i.text for i in body_raw(dict(r, control=None), 3, "none") if i.tag == "P").split()
+        w_ = next(i.text for i in body_raw(dict(r, control=None, via="stall"), 3, "none") if i.tag == "P").split()
         return w_[1] if w_[0].startswith("@") else w_[0]      # (version 32: a producer under a guard - the mnemonic behind the guard)
     except (StopIteration, Poison):
         return None
@@ -5661,7 +5720,7 @@ def cmd_gen(args):
             late_delta = reuse_late_delta(r)
         if is_srd(r):      # version 34, fifth build: a stale first read costs the fold 3 x R21 in its iteration - the runner decodes the number of such iterations from a mixture
             late_delta = (-3 * SRD_K) & 0xFFFFFFFF
-        fam = {"request": r, "pair": pair_text(r) + (" [the swept instruction carries the YIELD flag]" if r.get("yield") else "")
+        fam = {"request": r, "pair": pair_text(r) + (" [the swept instruction carries the YIELD flag]" if r.get("yield") else "") + hold_text(r)
                                  + (" [COLD: every load reads another line of the never-written tail of another CTA's block of the output buffer, chosen by lane and iteration]" if r.get("cold") else ""),
                "provenance": prov, "kernels": kernels, "modes": modes_of(r), "late_delta": late_delta,
                "table_cell": table_cell(args.dep_table, r.get("cell"), producer_word(r)),
@@ -8885,6 +8944,80 @@ def cmd_selftest(_args):
             raise AssertionError(f"a request of version 34's fifth build that must be refused was taken: {bad}")
         except SystemExit:
             pass
+    # version 34, thirteenth build: "via": "hold" - ONE word between the producer and its reader carries the distance, with the yield flag or without
+    def cut13_(b):
+        kp, kc = next(k for k, a in enumerate(b) if a.tag == "P"), next(k for k, a in enumerate(b) if a.tag == "C")
+        return [a.line() for a in b[:kp]], b[kp], b[kp + 1:kc], [a.line() for a in b[kc:]]
+    stall13_ = lambda a: int(a.ctl[-3:-1])
+
+    def m13_(r, mode):
+        try:
+            return [int(x) for x in model(r, mode, gids=gids)]
+        except Poison:
+            return "poison"
+    assert len(HOLD_FORMS) == 10 and HOLD_FORMS["iadd3"] == FILL1().text == PAD().text
+    for prod_, cons_ in (("SHF", "PRMT.r3"), ("IADD3", "LEA.r1"), ("IADD3", "LEA.r2"), ("LEA", "IMAD.r3"), ("IMAD", "PRMT.r1"), ("ISETP", "ISETP.p"), ("MOV", "QMMA.r1"),
+                         ("IADD3", "STS.data")):
+        q_ = {"id": "selftest", "kind": "raw", "producer": prod_, "consumer": cons_, "distances": "2-8"}
+        rs_, rf_ = normalise(q_), normalise(dict(q_, via="fill"))
+        assert rs_["via"] == "stall" and rf_["via"] == "fill" and hold_text(rs_) == "" and hold_text(rf_) == ""
+        for form_ in HOLD_FORMS:
+            for hs_ in (None, 1, 3):
+                rn_, ry_ = (normalise(dict(q_, via="hold", hold=form_, distances=("2-8" if hs_ is None else f"{hs_ + 1}-8"), **x_, **({"hstall": hs_} if hs_ else {})))
+                            for x_ in ({}, {"hflag": "set"}))
+                assert "WITH THE YIELD FLAG" in hold_text(ry_) and "without the yield flag, then the reader" in hold_text(rn_) and HOLD_FORMS[form_].rstrip(" ;") in hold_text(ry_)
+                for mode in modes_of(rs_):      # the host model is the request's via stall: the hold is a filler (a tensor A class has no `stale` model: Poison on both sides)
+                    assert modes_of(ry_) == modes_of(rs_) == modes_of(rn_) == modes_of(rf_) and m13_(ry_, mode) == m13_(rs_, mode) == m13_(rn_, mode) == m13_(rf_, mode), (prod_, cons_, form_, mode)
+                    assert mode != "good" or m13_(ry_, mode) != "poison", (prod_, cons_, form_)
+                for dd in ry_["distance_list"]:
+                    h_ = hs_ or dd - 1
+                    (pre_y, p_y, mid_y, suf_y), (pre_n, p_n, mid_n, suf_n) = cut13_(body_raw(ry_, dd, "none")), cut13_(body_raw(rn_, dd, "none"))
+                    (pre_f, p_f, mid_f, suf_f), (pre_s, p_s, mid_s, suf_s) = cut13_(body_raw(rf_, dd, "none")), cut13_(body_raw(rs_, dd, "none"))
+                    assert pre_y == pre_n == pre_f == pre_s and suf_y == suf_n == suf_f == suf_s, (prod_, cons_, form_, dd)
+                    assert p_y.line() == p_n.line() and p_y.text == p_f.text == p_s.text and p_y.sem == p_s.sem and p_y.dst == p_s.dst and p_y.ctl == C(dd - h_), (prod_, cons_, form_, dd)
+                    assert p_f.ctl == C(1) and [a.line() for a in mid_f] == [FILL1().line()] * (dd - 1) and p_s.ctl == C(dd) and mid_s == [], (prod_, cons_, dd)
+                    assert len(mid_y) == 1 and len(mid_n) == 1 and mid_y[0].text == mid_n[0].text == HOLD_FORMS[form_], (prod_, cons_, form_, dd)
+                    assert mid_y[0].ctl == C(h_, y=True) and mid_n[0].ctl == C(h_) and mid_y[0].ctl[:15] == mid_n[0].ctl[:15] and mid_y[0].ctl[16:] == mid_n[0].ctl[16:], (prod_, cons_, form_, dd)
+                    assert all(a.sem == ("nop",) and a.tag is None and a.dst == () for a in (mid_y[0], mid_n[0])), (prod_, cons_, form_, dd)
+                    assert stall13_(p_y) + stall13_(mid_y[0]) == dd == stall13_(p_f) + sum(stall13_(a) for a in mid_f) == stall13_(p_s), (prod_, cons_, form_, dd)
+                    text = kernel_text("selftest_x", dict(ry_, _threads=256), 188, body_raw(ry_, dd, "none"))
+                    assert misaligned(text) == [] and text.count(f"    {mid_y[0].line()}\n") == 1, (prod_, cons_, form_, dd)
+                    n += 1
+        # a control via hold: the model's producer under a filler's text, the hold in its place, the real word behind the checksum
+        rc_ = normalise(dict(q_, via="hold", hold="mov", hflag="set", control="stale", distances="2,7"))
+        for dd in rc_["distance_list"]:
+            bc_, bh_ = body_raw(rc_, dd, "none"), body_raw(normalise(dict(q_, via="hold", hold="mov", hflag="set")), dd, "none")
+            (pre_c, p_c, mid_c, suf_c), (pre_h, p_h, mid_h, suf_h) = cut13_(bc_), cut13_(bh_)
+            assert pre_c == pre_h and p_c.text == "IADD3 R15, PT, PT, R15, 0x1, RZ ;" and p_c.sem == p_h.sem and p_c.ctl == p_h.ctl == C(1) and p_c.dst == p_h.dst, (prod_, cons_, dd)
+            assert [a.line() for a in mid_c] == [a.line() for a in mid_h] == [f"{C(dd - 1, y=True)} MOV R15, R4 ;"] and len(bc_) == len(bh_) + 1, (prod_, cons_, dd)
+            assert sum(1 for a in bc_ if a.text == p_h.text and a.sem == ("nop",) and a.tag is None) == 1 and bc_.index(next(a for a in bc_ if a.text == p_h.text)) > next(k for k, a in enumerate(bc_) if a.tag == "C"), (prod_, cons_, dd)
+            n += 1
+    for bad in ({"hflag": "set"}, {"hold": "mov"}, {"hstall": 3}, {"via": "fill", "hflag": "set"}, {"via": "hold", "hold": "nop"}, {"via": "hold", "hflag": True}, {"via": "hold", "hstall": 0},
+                {"via": "hold", "hstall": 16}, {"via": "hold", "hstall": True}, {"via": "hold", "distances": "1-8"}, {"via": "hold", "hstall": 4, "distances": "4-8"},
+                {"via": "hold", "hstall": 2, "distances": "3-18"}, {"via": "hold", "distances": "2-17"}, {"via": "hold", "yield": "set"}, {"via": "held"}, {"via": "nop"},
+                {"via": "hold", "hflag": "set", "distances": "2-13"}, {"via": "hold", "hflag": "set", "hstall": 12, "distances": "13-14"},
+                {"via": "fill", "control": "stale"}, {"producer": "MOV", "consumer": "QMMA.r1", "via": "fill", "control": "stale"}, {"producer": "MOV", "consumer": "QMMA.r1", "via": "held"},
+                {"producer": "UMOV", "consumer": "QMMA.u6", "via": "hold"}, {"producer": "UMOV", "consumer": "QMMA.u6", "via": "fill"},
+                {"producer": "CS2R", "consumer": "QMMA.r3", "rguard": "t", "via": "hold"}, {"producer": "CS2R", "consumer": "IMAD.rel", "via": "hold"},
+                {"producer": "MOV", "consumer": "QMMA.r1", "hflag": "set"}, {"producer": "MOV", "consumer": "QMMA.r1", "via": "hold", "distances": "1-8"}):
+        try:
+            normalise(dict({"id": "selftest", "kind": "raw", "producer": "IMAD", "consumer": "PRMT.r1", "distances": "2-8"}, **bad))
+        except SystemExit:
+            continue
+        raise AssertionError(f"a request of version 34's thirteenth build that must be refused was taken: {bad}")
+    assert normalise({"id": "selftest", "kind": "raw", "producer": "IMAD", "consumer": "PRMT.r1", "via": "hold", "distances": "2-16"})["distance_list"][-1] == 16      # no flag: a hold of 15
+    assert normalise({"id": "selftest", "kind": "raw", "producer": "IMAD", "consumer": "PRMT.r1", "via": "hold", "hflag": "set", "distances": "2-12"})["hold"] == "iadd3"      # the flag: a hold of 11
+    assert normalise({"id": "selftest", "kind": "ord", "forms": "r", "barrier": "all", "distances": "1,2"})["distance_list"] == [1, 2]
+    for bad in ({"hflag": "set"}, {"hold": "mov"}, {"hstall": 3}):
+        try:
+            normalise(dict({"id": "selftest", "kind": "ord", "forms": "r", "barrier": "all", "distances": "1,2"}, **bad))
+        except SystemExit:
+            continue
+        raise AssertionError(f"a request of version 34's thirteenth build that must be refused was taken: {bad}")
+    assert normalise({"id": "selftest", "kind": "raw", "producer": "MOV", "consumer": "QMMA.r1", "via": "hold", "hold": "mov", "hstall": 7, "hflag": "set", "distances": "8-13"})["distance_list"] == [8, 9, 10, 11, 12, 13]
+    assert [a.line() for a in body_raw(normalise({"id": "selftest", "kind": "raw", "producer": "LEA", "consumer": "IMAD.r3", "via": "hold", "hold": "lop3", "hstall": 3, "hflag": "set", "distances": "4-8"}), 5, "none")
+            if a.tag in ("P", "C") or a.text == HOLD_FORMS["lop3"]] == ["[B------:R-:W-:-:S02] LEA R6, R4, R4, 0x2 ;", "[B------:R-:W-:Y:S03] LOP3.LUT R15, R4, R5, RZ, 0x3c, !PT ;",
+                                                                    "[B------:R-:W-:-:S15] IMAD R8, R5, 0x3, R6 ;"]
     print(f"selftest: {n} (pair, hypothesis) models equal the scalar interpreter on {len(gids)} threads; `good` differs from every failure hypothesis")
     return 0
 
