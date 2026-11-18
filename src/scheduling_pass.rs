@@ -526,14 +526,14 @@ fn sb_share_enabled() -> bool {
 ///   cannot go back, and when a use that has a scoreboard to itself without the switch would
 ///   lose it to a load that stands alone across its flight -- no other use pays for the rule.
 ///
-/// Loads that are not constant loads keep their batches (`LDG`, `LDS`, ...); two constant loads
-/// that are no batch (an `LDC.64` and an `LDCU.64`) and overflow onto one scoreboard stay
-/// there -- no scoreboard is free. The colouring counts a scoreboard as busy along every PATH:
-/// at the head of a loop the read barriers of the loop's own loads are pending from the round
-/// before. The switch is for exploration; nothing of the form has been measured on silicon
-/// beyond the vendor's practice. `CUBIT_DUMP_COLOUR=1` prints the colouring use by use (`COL`
-/// lines on stderr: the scoreboards busy over the use's flight, ` over` = none was free,
-/// ` const[<batch>]` = a load of a batch taken apart, ` joined[..]` = it went back).
+/// Loads that are not constant loads keep their batches (`LDG`, `LDS`, ...); two constant loads that are no batch (an
+/// `LDC.64` and an `LDCU.64`) and overflow onto one scoreboard stay there -- no scoreboard is free. The colouring
+/// counts a scoreboard as busy along every PATH: at the head of a loop the read barriers of the loop's own loads are
+/// pending from the round before. A card read cubit's own frame of the served FC2 under the switch: no difference in
+/// time against the same frame without it (−0.04 ± 0.16 µs a call at 4 096 rows; the short form, one load order; one
+/// Server card, free of its power limit); the frame stands 4.6 % of FC2 behind ptxas either way.
+/// `CUBIT_DUMP_COLOUR=1` prints the colouring use by use (`COL` lines on stderr: the scoreboards busy over the use's
+/// flight, ` over` = none was free, ` const[<batch>]` = a load of a batch taken apart, ` joined[..]` = it went back).
 pub fn const_alone() -> bool {
     std::env::var("CUBIT_CONST_ALONE").ok().as_deref() == Some("1")
 }
