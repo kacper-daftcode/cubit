@@ -6050,6 +6050,23 @@ fn cmd_asm_directive_format(
             }
         }
 
+        // CUBIT_VERIFY (read-only; sm_120, a kernel with a tensor instruction): the two laws of a tensor
+        // instruction that no scoreboard carries and no cell of the dependency table prices
+        // (`tensor_laws`) -- a source register rewritten by a fixed-latency word inside the hold, a
+        // branch inside the landing distance -- on the final words and the kernel's flow graph, whoever
+        // wrote the schedule. One line a place and one count line; the counts stand apart from the
+        // three of the simulation, and no field of a word moves.
+        if std::env::var("CUBIT_VERIFY").is_ok() && table.target_sm() == 120 {
+            let dt = cubit::dep_stall::DepLatTable::for_checks(dep_table.as_ref(), table.target_sm())?;
+            let rep = cubit::tensor_laws::check(&insns_with_ctrl, &dt);
+            if rep.tensors > 0 {
+                for s in &rep.sites {
+                    eprintln!("{}", cubit::tensor_laws::describe(&insns_with_ctrl, s));
+                }
+                eprintln!("{}", cubit::tensor_laws::summary(&rep));
+            }
+        }
+
         total_enc += enc;
         total_fail += fail;
         let n = def.instructions.len() as u64;

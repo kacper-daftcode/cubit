@@ -63,6 +63,7 @@ pub mod sync_class;
 pub mod scheduling;
 pub mod scheduling_pass;
 pub mod table;
+pub mod tensor_laws;
 pub mod tensor_yield;
 pub mod wait_drained;
 

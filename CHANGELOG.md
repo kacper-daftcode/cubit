@@ -4,6 +4,46 @@ User-visible changes, newest first. Table syncs name the blackwell-isa revision 
 (`tables/SOURCE.json` pins it byte for byte). Numbered `BUG-NNN` entries are the encoder /
 decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `docs/TESTS.md`).
 
+## Unreleased — 2026-11-18 (two laws of a tensor instruction: `CS2R` keeps the source hold, a plain `BRA` the landing distance, and `CUBIT_VERIFY` names a place below either — cubit's own schedule of a kernel with m-tile loops broke both at six places and no check of cubit read the distances)
+
+- **The hole** (KNOWN_ISSUES A66): `QMMA ..., R48, ... [S01] ; CS2R R50, SRZ [S01] ; CS2R R48, SRZ [S01] ; NOP [S01] ;
+  BRA L_a160` — the accumulate re-zeroed one and two issue cycles behind the tensor instruction that reads it, where
+  the source hold is 8, and the branch four cycles behind it, where the landing distance is 14; a second `QMMA` 11
+  cycles in front of the same plain branch. Four registers and two branches, in every schedule of the FC2 instance
+  with m-tile loops (`fc2_kernel_ws<4,2,1,0>`) whose words are all cubit's. The vendor's schedule of that kernel
+  stands at 8 | 9 and 14 | 14.
+- **The source hold binds `CS2R`** (`sync_class::hold_need`): the hold took its slow writers — the ones that may
+  follow a tensor instruction at once — from the first pass's list of long-latency opcodes, which names `CS2R`
+  beside the loads. `CS2R` is a fixed-latency word: the allocator never gives it a write barrier, the dependency
+  table prices its result (`producer_forms`, 7) and does not list it among the variable-latency classes. It is no
+  slow writer now, and neither is `CS2UR`, whatever barrier a text gives them. `CS2R` was the only opcode the hold
+  called slow and the allocator fast.
+- **The landing row covers every `BRA`** (`sync_class::settle_need`, `MMA_BRANCH_LANDING` = 14): the row "a tensor
+  instruction 14 issue cycles in front of a branch" was written for a branch with a guard, a predicate operand or
+  `.DIV`; the vendor keeps the distance in front of a plain `BRA` too. Of the 23 landing rows of the law's table it
+  was the one `settle_need` left out.
+- **`CUBIT_VERIFY_TENSOR`** (`tensor_laws::check`, printed under `CUBIT_VERIFY` for an sm_120 kernel that holds a
+  tensor instruction): a read-only walk that asks neither pass — every general register a tensor instruction reads
+  (the A fragment four registers, the B fragment two, the accumulate four, each further register operand one)
+  against every fixed-latency word that rewrites it closer than 8 issue cycles behind it, and every `BRA` closer
+  than 14 behind a tensor instruction, over the paths of the flow graph with the stalls as written. One
+  `TENSOR HOLD` / `TENSOR LANDING` line a place and one count line, printed with or without a place; a writer whose
+  result lands late and the next tensor instruction are counted beside the places. The scoreboard simulation, the
+  audit and `CUBIT_DEP_VERIFY` named nothing in the schedule above: the first two read barriers and waits, the third
+  the requirements the legaliser itself derives — a form a row leaves out was left out of the check with it.
+- **What moves.** Under the scheduler's switches (`CUBIT_SYNC_CLASSES`, `CUBIT_SCHED2_MEMSTALL=table`): in the FC2
+  instance with m-tile loops three control words — the stall of the tensor instruction 1 → 8, of two `NOP` 1 → 4,
+  the vendor's stalls at the three words — and no other byte; the FC1 instance with m-tile loops, the instances
+  without them and the schedules that keep the vendor's frame are byte for byte what they were. Without a switch
+  nothing moves: neither pass runs there. The log under `CUBIT_VERIFY` gains the count line (and the lines of the
+  places) for an sm_120 kernel with a tensor instruction; no cubin moves with the variable.
+- **Tests:** `tests/tensor_laws.rs` (8: the six places of the kernel, word for word — the two `CS2R` 8 and 9 cycles
+  behind the tensor instruction, both branches 14 behind theirs; the smallest kernel of each kind; the check on the
+  schedule as it was written, which names the six places, and on the vendor's three stalls, which names none; the
+  23 landing rows one by one; a load right behind a tensor instruction and a guarded branch as controls — six fail
+  without the fix), the unit tests of `tensor_laws` (6); the line of `sync_class`'s unit test that asserted no row
+  for a plain branch asserts 14.
+
 ## Unreleased — 2026-11-18 (`tools/stallfloor/probe.py` 34, thirteenth build, and the sm_120 dependency table: a new row `hold_flag` — in the pairs measured the yield flag on a word that holds the distance to a fixed-latency reader moves no floor — and seven more rows of `barrier_arm.wait_forms` — sets of producers on one write barrier read behind one wait; one card model each, no number the scheduler reads moves)
 
 - **`tables/dep_latency_sm120.json`: ONE line differs from the parent's (`barrier_arm`) and ONE line is new

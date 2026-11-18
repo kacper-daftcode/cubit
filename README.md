@@ -190,7 +190,12 @@ barrier, a younger shuffle's write barrier (`SHUFFLE SOURCE`, `CUBIT_VERIFY_SHFL
 register that a word reads through an operand slot with the operand-reuse flag (`.reuse`) and that is written on some
 path before the next word that reads it through that slot, with the flag or without — that reader gets the old
 content at every distance; a branch does not end the window, and the slot is the flag bit the table gives the
-operand, not the position of its field (`REUSE FLAG`, `CUBIT_VERIFY_REUSE`; KNOWN_ISSUES A39);
+operand, not the position of its field (`REUSE FLAG`, `CUBIT_VERIFY_REUSE`; KNOWN_ISSUES A39). And, for an sm_120
+kernel that holds a tensor instruction, the two laws of that instruction that no scoreboard carries: each general
+register it reads that a fixed-latency word rewrites closer than 8 issue cycles behind it on some path, and each
+`BRA` closer than 14 behind it (`TENSOR HOLD`, `TENSOR LANDING` and the count line `CUBIT_VERIFY_TENSOR`, printed
+with or without a place; a walk of its own that asks neither the operand hold nor the landing rows of the
+legaliser; KNOWN_ISSUES A66);
 `CUBIT_VERIFY_FLOW=1` adds a view of the PATHS beside the three counts: the simulation follows the text — also across a word that never
 falls through, which on a kernel with out-of-line blocks reports what no execution has and misses what a forward branch
 carries — and the view asks the same three questions of every path of the flow graph (`CUBIT_VERIFY_FLOW: …`, the object

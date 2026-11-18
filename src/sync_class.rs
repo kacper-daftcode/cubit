@@ -474,8 +474,15 @@ pub fn hold_need(reader: &Instruction, writer: &Instruction, key: RegKey) -> Opt
     let (uniform, k) = key;
     let w = writer.opcode.as_str();
     if !uniform && k < 255 && crate::scheduling_pass::is_warp_mma(reader.opcode.as_str()) {
-        let slow = crate::scheduling_pass::is_long_latency(w)
-            || writer.ctrl.write_bar != 7
+        // A slow writer lands late and may follow at once: a load and the other scoreboard
+        // results. `CS2R` is none of them -- a fixed-latency read of a special register, it never
+        // carries a write barrier (`insn_needs_write_bar`) and a barrier a text gives it covers
+        // nothing -- though the first pass's list of long-latency opcodes names it: with the
+        // list alone `QMMA ..., R48, ... [S01] ; CS2R R50, SRZ ; CS2R R48, SRZ` re-zeroed the
+        // accumulate one and two cycles behind the tensor instruction that reads it (the
+        // vendor: 8 and 9; KNOWN_ISSUES A66).
+        let fixed_special = matches!(w, "CS2R" | "CS2UR");
+        let slow = (!fixed_special && (crate::scheduling_pass::is_long_latency(w) || writer.ctrl.write_bar != 7))
             || crate::scheduling_pass::is_warp_mma(w)
             || classify(writer).is_some();
         return if slow { None } else { Some(MMA_OPERAND_HOLD) };
@@ -550,6 +557,8 @@ pub fn store_uniform_operands(insn: &Instruction) -> Vec<RegKey> {
 
 /// An MMA's source registers are read over this many issue cycles.
 pub const MMA_OPERAND_HOLD: u8 = 8;
+/// An MMA stands this many issue cycles in front of a `BRA`, guarded or not (`settle_need`).
+pub const MMA_BRANCH_LANDING: u8 = 14;
 /// A uniform-datapath reader against a `UMOV` of one of its operands.
 pub const UNIFORM_OPERAND_HOLD: u8 = 3;
 /// A store against a fixed-latency rewrite of the uniform register of its address (the vendor's
@@ -715,7 +724,9 @@ pub fn predicate_register_xfer(insn: &Instruction) -> (Vec<u8>, Vec<u8>) {
 /// never less; 376 + 161 + 1 938 + 180 exactly 7), a predicate 13, an MMA 29 (47 sites, 35 at
 /// exactly 29); in front of `BRX` / `RET` an ALU result 4 (58 / 13 sites, all exactly 4); in
 /// front of a conditional `BRA` an MMA 14 (166 sites, 53 at exactly 14) — the `NOP [S13]` /
-/// `@!P6 BRA [S15]` behind a QMMA in ptxas's consumer loops is these two rows.
+/// `@!P6 BRA [S15]` behind a QMMA in ptxas's consumer loops is these two rows — and in front of
+/// an unguarded `BRA` the same 14 (`QMMA [S08] ; CS2R ; CS2R ; NOP [S04] ; BRA L_a160` in a
+/// kernel with m-tile loops: the row covers every form of the word since KNOWN_ISSUES A66).
 ///
 /// **ptxas's practice, not a law of the silicon** where it could be tested: broken alone on
 /// ptxas's own schedule of the served `fc1` / `fc2` (the stall in front of the word moved behind
@@ -745,8 +756,12 @@ pub fn settle_need(word: &Instruction, what: Landing) -> Option<u8> {
         "NANOSLEEP" if has(word, "SYNCS") => row(7, 13, 29),
         "EXIT" => row(6, 13, 29),
         "BRX" | "BRXU" | "JMX" | "JMXU" | "RET" | "PRET" => row(4, 4, 14),
-        // a conditional branch splits the warp: a cooperative MMA has to be through
-        "BRA" if what == Landing::Mma && crate::cfg_flow::is_conditional(word) => Some(14),
+        // a cooperative MMA has to be through in front of a branch -- of EVERY form. The row
+        // knew the conditional branch alone ("it splits the warp"); the vendor keeps the 14 in
+        // front of an unguarded `BRA` as well (his minimum in every form of the word), and
+        // without the row a `QMMA` stood 4 and 11 cycles in front of `BRA L_a160` in cubit's
+        // schedule of a kernel whose text carries the branch unguarded (KNOWN_ISSUES A66)
+        "BRA" if what == Landing::Mma => Some(MMA_BRANCH_LANDING),
         _ => None,
     }
 }
@@ -1082,7 +1097,9 @@ mod tests {
         assert_eq!(settle_need(&first("    EXIT ;\n"), Register), Some(6));
         let bra = first("    @!P6 BRA L_x ;\nL_x:\n");
         assert_eq!((settle_need(&bra, Mma), settle_need(&bra, Register)), (Some(14), None));
-        assert_eq!(settle_need(&first("    BRA L_x ;\nL_x:\n"), Mma), None, "an unconditional branch does not split the warp");
+        // every form of the branch: the vendor keeps the 14 in front of an unguarded `BRA` too (A66)
+        assert_eq!(settle_need(&first("    BRA L_x ;\nL_x:\n"), Mma), Some(MMA_BRANCH_LANDING));
+        assert_eq!(settle_need(&first("    BRA L_x ;\nL_x:\n"), Register), None, "a register result has no row in front of a branch");
         assert_eq!(settle_need(&first("    BSSY B0, L_x ;\nL_x:\n"), Register), None);
         // the high half of a 64-bit address base, the descriptor's second register
         assert_eq!(wide_address_uses(&first("    LDG.E.CONSTANT R7, desc[UR8][R4.64] ;\n")), vec![(false, 5), (true, 9)]);

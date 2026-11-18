@@ -188,7 +188,7 @@ pub struct DepLatTable {
     /// The write-after-read holds an edition carries (name, cycles); empty otherwise.
     pub edition_holds: Vec<(String, u8)>,
     /// The landing rows (`sync_class::settle_need`: what has to have landed in front of `EXIT`,
-    /// `BSYNC`, `CALL`, a register-indirect transfer, a conditional branch behind an MMA) are
+    /// `BSYNC`, `CALL`, a register-indirect transfer, a branch of any form behind an MMA) are
     /// requirements of this table without `CUBIT_SYNC_CLASSES` too. Set by `cubit asm` under
     /// `CUBIT_SCHED2_MEMSTALL=table`: the scheduler's margins behind memory words kept those
     /// distances by accident, and without the margins nothing else does. `false` everywhere
@@ -376,7 +376,8 @@ impl DepLatTable {
         self.mma.classes.iter().any(|c| c == class)
     }
 
-    fn is_variable(&self, insn: &Instruction) -> bool {
+    /// A producer of a variable-latency class of the table (its result is a scoreboard result).
+    pub(crate) fn is_variable(&self, insn: &Instruction) -> bool {
         self.variable.contains(insn.opcode.as_str())
     }
 
@@ -1023,7 +1024,7 @@ pub(crate) fn needs_of(
     }
     // CUBIT_SYNC_CLASSES: what has to have landed before a word that changes the warp's thread
     // set (`BSYNC`, `CALL`, `WARPSYNC.COLLECTIVE`, `NANOSLEEP.SYNCS`, `EXIT`), dispatches through a
-    // register (`BRX`, `RET`) or splits the warp behind a cooperative MMA (a conditional `BRA`):
+    // register (`BRX`, `RET`) or branches behind a cooperative MMA (a `BRA`, guarded or not):
     // every fixed-latency result in flight, whether the word reads it or not
     // (`sync_class::settle_need`: ptxas's distances in the served MoE cubin).
     // (`landing_rows`: the same rows by name, without the switch -- CUBIT_SCHED2_MEMSTALL=table)
