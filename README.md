@@ -138,7 +138,15 @@ with every check clean — not measured on silicon yet (KNOWN_ISSUES A38). `CUBI
 `CUBIT_SCHED2_MEMSTALL=table`; refused without) runs a pass behind the legaliser and the operand hold that takes back the stalls
 no requirement asks for — the passes only raise, and a raise that a later one covers stayed: on the vendor's texts of a served
 module one pass of the tensor loop goes from 1 399 / 826 / 1 326 to 1 319 / 805 / 1 289 static cycles (the vendor's own schedules:
-1 309 / 792 / 1 262) with every check as before; the attention kernel has nothing to take back. Not measured on silicon (KNOWN_ISSUES A46). All of these are opt-in and for
+1 309 / 792 / 1 262) with every check as before; the attention kernel has nothing to take back. Not measured on silicon (KNOWN_ISSUES A46).
+`CUBIT_SCHED2_PACE=tensor` (with the legaliser; refused without) sets one floor in front of it: in a tensor loop a word
+whose opcode is `IADD3`, `LEA`, `LOP3`, `PRMT` or `SHF` stands at a stall of 2 at least in front of another word of the
+five — the vendor's pacing of that unit (507 of 507 places in his schedules of the served module, never 1). The
+legaliser then has less to hold in front of a reader: in the recipe of the record text 439 of the 443 stall counts of
+the served FC1's tensor loop are those of the vendor's schedule as far as cubit's table allows it, and no word outside
+the loop moves. No schedule under the switch has been on a card; a text with those stall counts and the vendor's flags
+read 1.31 ± 0.12 µs a call below the record text (the short form: one load order, 4 096 rows; one Server card, free of
+its power limit; opt-in, KNOWN_ISSUES A61). All of these are opt-in and for
 sm_120, and the table is a `cubit asm` feature: `cubit::assemble` and the Python module do not honour
 `CUBIT_SCHED2_LAT` (they have no legaliser behind the passes; under plain `CUBIT_SCHED2` they run the
 scoreboard arming rule). They are certified on hand-written kernels: `cubit asm` names the instructions whose

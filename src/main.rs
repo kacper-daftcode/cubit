@@ -4696,6 +4696,19 @@ fn cmd_asm_directive_format(
             Err(e) => anyhow::bail!(e),
             Ok(v) => v,
         };
+        // CUBIT_SCHED2_PACE=tensor (opt-in, with CUBIT_SCHED2 + CUBIT_SCHED2_LAT): in a tensor loop a word
+        // of the unit IADD3 | LEA | LOP3 | PRMT | SHF stands at a stall of 2 at least in front of another
+        // word of the unit -- a floor set in front of the legaliser (`sched2_pace`). Refused where that
+        // legaliser does not run: nothing would place the waits behind the floor.
+        let pace_unit = match cubit::sched2_pace::request() {
+            Err(e) => anyhow::bail!(e),
+            Ok(v) => v,
+        };
+        if pace_unit && dep_table.is_none() {
+            anyhow::bail!(
+                "CUBIT_SCHED2_PACE=tensor needs CUBIT_SCHED2=1 CUBIT_SCHED2_LAT=<table>: the pacing is a floor in front of the legaliser, which places every wait behind it"
+            );
+        }
         // ... and with the margins gone, the two distances they kept by accident are requirements by
         // name, as under CUBIT_SYNC_CLASSES: what has to have landed in front of `EXIT` and the other
         // settle words (the legaliser's landing rows), and the operand hold of an MMA and of a
@@ -5582,6 +5595,17 @@ fn cmd_asm_directive_format(
                 }
             }
             if let Some(dt) = &dep_table {
+                // CUBIT_SCHED2_PACE=tensor: the floor of the paced unit, in front of the legaliser and of
+                // the snapshot the lowering pass takes its floors from
+                if pace_unit {
+                    let (words, cycles) = cubit::sched2_pace::apply(&mut insns_with_ctrl);
+                    if words > 0 {
+                        println!(
+                            "  {}: unit pacing: {} word(s) of the tensor loops take a stall of 2 in front of a word of their unit ({} cycles)",
+                            def.name, words, cycles
+                        );
+                    }
+                }
                 // CUBIT_SCHED2_LOWER: what every word carries in front of the raising passes
                 let before_raises = lower_stalls.then(|| cubit::stall_lower::snapshot(&insns_with_ctrl));
                 let rep = cubit::dep_stall::apply(&mut insns_with_ctrl, dt);

@@ -32,6 +32,38 @@ decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `
   model's files come in a commit of their own): `probe_sm120_20261118_b76.json`, `_b73.json`, `_b77.json`,
   `_b79.json` — `tools/stallfloor/README.md`: one kind row, four result rows.
 
+## Unreleased — 2026-11-18 (`CUBIT_SCHED2_PACE=tensor`, opt-in with the legaliser: in a tensor loop a word of the unit `IADD3`, `LEA`, `LOP3`, `PRMT`, `SHF` stands at a stall count of 2 at least in front of another word of the unit — the vendor's pacing as a floor in front of the legaliser; every schedule without the variable is what it was)
+
+- **`CUBIT_SCHED2_PACE=tensor`** (needs `CUBIT_SCHED2=1 CUBIT_SCHED2_LAT=<table>`, refused without; KNOWN_ISSUES A61): in
+  the text range of a tensor loop (the innermost loop around a warp tensor word, first word to backward branch) a word
+  cubit schedules whose opcode is `IADD3`, `LEA`, `LOP3`, `PRMT` or `SHF` and whose next word in the text is one of the
+  five takes a stall count of 2 as its floor — in front of the legaliser and of the snapshot the lowering pass takes
+  its floors from (`sched2_pace`). The legaliser and the lowering pass run as without the switch and never go below
+  the floor. A word in front of another opcode, a hand-scheduled word and every word outside the tensor loops stay as
+  they are; the pass sets no flag, wait or barrier, and no row of the dependency table moves. Any other value is
+  refused by name.
+- **Where it comes from:** the vendor's schedules of the served module pace that unit everywhere — a word of it in
+  front of another word of it stands at a stall count of 2 or more in 507 of 507 places (FC1 215, its r33 form 213,
+  FC2 79; inside the tensor loop and outside it), never at 1; cubit's schedule of the served FC1 carries 1 in 48 of the
+  tensor loop's 56 places. His holds in front of a reader are shorter than cubit's by the cycles that pacing has
+  already put between a producer and its reader: "his waits stand early" is that effect — no wait is placed elsewhere.
+- **What it writes:** in the recipe of the record text of the served FC1, 56 words of the tensor loop take the floor;
+  behind the legaliser 50 of the loop's 443 words stand longer and 21 shorter than without the switch (one pass of the
+  loop 1 312 → 1 332 static cycles), and 439 of the 443 stall counts are those of the vendor's schedule as far as
+  cubit's table allows it — the four others stand around one pair of synchronisation words, the same cycles on other
+  words. Two words that now stand at a stall count of 2 keep the `.reuse` operand of the source text. No word outside
+  the loop moves; the dependency check reads 0 below a cell, a spacing, a default and the arming distance; the lowering
+  pass is not withdrawn. Elsewhere: the r33 form of FC1 56 words (the pass 1 239 → 1 253); the record text of the
+  served FC2 — the vendor's frame, cubit's stage loop — 26 words (1 192 → 1 198); cubit's own frame of FC2 41.
+- **Measured:** no schedule under the switch has been on a card. A text of the served FC1 made by hand — the record
+  text with the vendor's stall count and yield flag on the words of the tensor loop where cubit's table allows his —
+  read 1.31 ± 0.12 µs a call below the record text (the short form: one load order, 4 096 rows; one Server card, free
+  of its power limit); the build under the switch has that text's stall counts on 439 of the loop's 443 words and
+  cubit's own flags. One cycle between two words of the unit is legal by every probe and is what cubit's schedules
+  carry on cards; the pacing says where cycles stand.
+- **Tests:** `tests/sched2_pace.rs` (6; the first five fail without the variable) and five unit tests in
+  `sched2_pace::tests`.
+
 ## Unreleased — 2026-11-18 (`CUBIT_TENSOR_YIELD=holds`, opt-in: in a tensor loop every hold of the fixed-latency datapath takes the yield flag; every schedule without the variable is what it was)
 
 - **`CUBIT_TENSOR_YIELD=holds`** (honoured only together with `CUBIT_SYNC_CLASSES=1`; KNOWN_ISSUES A60): one clause of
