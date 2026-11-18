@@ -555,6 +555,160 @@ fn is_const_load(op: &str) -> bool {
     matches!(op, "LDC" | "LDCU")
 }
 
+/// `CUBIT_SB_KIND=narrow | wide` (opt-in, 2026-11-18; honoured only with `CUBIT_WAIT_POLICY=1`):
+/// **a use takes its scoreboard by its kind.**
+///
+/// The colouring gives every use the lowest scoreboard that is free over its flight, whatever
+/// the use is, and a use that finds none shares the busiest. So read barriers end up where the
+/// results of global loads fly: a word that waits such a scoreboard for the release of a read
+/// barrier -- an operand long read -- blocks behind a load from memory, and the read barrier of
+/// a load can stand on the scoreboard of the load's own result. The vendor's assembler keeps the
+/// kinds apart: his read barriers stand on the two lowest scoreboards, his global loads on the
+/// upper ones, loads of one form together.
+///
+/// Under the switch, in the one loop where a number is chosen ([`reallocate_barriers`]):
+///
+/// * **(R)** a read-barrier use never takes the scoreboard of its own word's write barrier, free
+///   or shared. `wide`: it takes the LOWEST scoreboard on which no result of a global load is
+///   pending over its flight, FREE OR NOT, and keeps no scoreboard busy for the uses behind it
+///   in the colouring. The read of an operand is over a few cycles behind the word's issue: the
+///   waits that stand on a low scoreboard release the read barrier with whatever else they wait
+///   for, and the wait of its own first rewriter is one more wait there -- which
+///   `CUBIT_WAIT_DRAINED` takes off where another wait has drained the scoreboard. Where a
+///   global load flies on every scoreboard over its flight it takes a free one as without the
+///   switch; where none is free it joins read barriers alone, then the busiest.
+/// * **(G)** a write-barrier use of global loads (`LDG` in every form, an atomic with a result)
+///   takes the HIGHEST free scoreboard (`wide`: that carries no read barrier over its flight),
+///   and never the one of its own word's read barrier; where none is free it joins global loads
+///   of its own form, then global loads of any form, then (`wide`: a scoreboard that carries no
+///   read barrier, then) the busiest.
+/// * every other use as without the switch -- but for the scoreboard of the other barrier of
+///   its own word.
+///
+/// `narrow` is the first clause without its direction and the second whole: a read barrier off
+/// its own word's write barrier, the global loads from the top and by form. `wide` adds: no read
+/// barrier where a global load flies. No scoreboard is added. Whether a use of another kind pays
+/// is found by trial, as for [`const_alone`]: a use that has a scoreboard to itself without the
+/// switch and finds none under it sends the uses of the two kinds that moved across its flight
+/// back to the colouring without the switch, use by use, until no such use is left. One line a
+/// kernel says what the trial found ([`take_kind_report`]). Any other value is refused.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SbKind {
+    Narrow,
+    Wide,
+}
+
+impl SbKind {
+    pub fn name(self) -> &'static str {
+        match self {
+            SbKind::Narrow => "narrow",
+            SbKind::Wide => "wide",
+        }
+    }
+}
+
+/// `CUBIT_SB_KIND` as written: `Ok(None)` when unset, empty or `0`, and when
+/// `CUBIT_WAIT_POLICY=1` is not honoured; the value for `narrow` and `wide`; the message of the
+/// refusal for anything else.
+pub fn sb_kind_request() -> Result<Option<SbKind>, String> {
+    let on = |v: SbKind| Ok(wait_policy().then_some(v));
+    match std::env::var("CUBIT_SB_KIND") {
+        Err(_) => Ok(None),
+        Ok(v) if v.is_empty() || v == "0" => Ok(None),
+        Ok(v) if v == "narrow" => on(SbKind::Narrow),
+        Ok(v) if v == "wide" => on(SbKind::Wide),
+        Ok(v) => Err(format!(
+            "CUBIT_SB_KIND={v}: the values are `narrow` (a read barrier never on the scoreboard of its own word's write barrier; global loads from the top, loads of one form together) and `wide` (and no read barrier where a global load flies); unset = every use takes the lowest free scoreboard"
+        )),
+    }
+}
+
+/// A load from global memory with a result on a write barrier: `LDG` in every form, an atomic
+/// with a result -- the loads the clause (G) of [`SbKind`] speaks of.
+fn is_global_load(insn: &Instruction) -> bool {
+    insn.opcode == "LDG" || (is_atom_with_return(insn.opcode.as_str()) && !dest_regs(insn).is_empty())
+}
+
+/// The form of a write-barrier use for [`KindOcc`]: 0 when one of its setters is no global load,
+/// else 1 + the place of the first setter's full opcode in `forms`.
+fn global_form(insns: &[Instruction], setters: &[usize], forms: &mut Vec<String>) -> u16 {
+    if setters.is_empty() || !setters.iter().all(|&s| is_global_load(&insns[s])) {
+        return 0;
+    }
+    let f = &insns[setters[0]].opcode_full;
+    match forms.iter().position(|x| x == f) {
+        Some(p) => p as u16 + 1,
+        None => {
+            forms.push(f.clone());
+            forms.len() as u16
+        }
+    }
+}
+
+/// What the trial of `CUBIT_SB_KIND` found on one kernel.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct KindReport {
+    /// read-barrier uses | uses of global loads that took their scoreboard by the clause
+    pub read: usize,
+    pub global: usize,
+    /// of both, the uses on another scoreboard than without the switch
+    pub moved: usize,
+    /// uses of the two kinds that went back to the colouring without the switch
+    pub back: usize,
+    /// the uses of another kind that had lost a scoreboard to them: (a read barrier?, the first
+    /// setter)
+    pub lost: Vec<(bool, usize)>,
+}
+
+thread_local! {
+    static KIND_REPORT: std::cell::RefCell<Option<(SbKind, KindReport)>> = const { std::cell::RefCell::new(None) };
+}
+
+/// The report of the last kernel the allocator coloured under `CUBIT_SB_KIND` (once).
+pub fn take_kind_report() -> Option<(SbKind, KindReport)> {
+    KIND_REPORT.with(|r| r.borrow_mut().take())
+}
+
+/// The occupancy of the scoreboards by kind, word by word, for the clause of [`SbKind`]: where a
+/// read barrier is pending, where a write barrier, where the result of a global load and where
+/// any other use; and the form of the global loads on a scoreboard (0 = none, `MIXED` = more
+/// than one).
+struct KindOcc {
+    rb: Vec<u8>,
+    wb: Vec<u8>,
+    global: Vec<u8>,
+    other: Vec<u8>,
+    form: Vec<[u16; NUM_BARRIERS]>,
+}
+
+impl KindOcc {
+    const MIXED: u16 = u16::MAX;
+
+    fn new(n: usize) -> KindOcc {
+        KindOcc { rb: vec![0; n], wb: vec![0; n], global: vec![0; n], other: vec![0; n], form: vec![[0; NUM_BARRIERS]; n] }
+    }
+
+    /// A use on scoreboard `b` over the words `idx`: a read barrier, or a write barrier whose
+    /// setters are global loads of the form `form` (0 = it is no use of global loads).
+    fn mark(&mut self, idx: &[usize], b: u8, is_rb: bool, form: u16) {
+        let bit = 1u8 << b;
+        for &i in idx {
+            if is_rb {
+                self.rb[i] |= bit;
+            } else {
+                self.wb[i] |= bit;
+            }
+            if !is_rb && form != 0 {
+                self.global[i] |= bit;
+                let f = &mut self.form[i][b as usize];
+                *f = if *f == 0 || *f == form { form } else { Self::MIXED };
+            } else {
+                self.other[i] |= bit;
+            }
+        }
+    }
+}
+
 /// NEEDS 37 switch (T-11, 2026-11-06): with `CUBIT_GUARDED_READER_SETTLES=1` the FIRST reader of a
 /// load on an execution path settles its write barrier whether or not that reader is guarded --
 /// the readers behind it carry no wait of their own. The ptxas evidence (50 / 50 census sites,
@@ -4609,14 +4763,29 @@ struct ColourReport {
     /// the loads of the batches of constant loads that were taken apart: (the batch's first
     /// load, the load, the flight of the use that carries it)
     apart: Vec<(usize, usize, Flight)>,
+    /// (for the trial of `CUBIT_SB_KIND`) every use the loop coloured: ((a read barrier?, the
+    /// first setter), its scoreboard, its flight)
+    coloured: Vec<((bool, usize), u8, Flight)>,
+    /// of those, the uses that took their scoreboard by the clause: (a read barrier?, the first
+    /// setter)
+    by_kind: Vec<(bool, usize)>,
 }
 
 /// The runs of words a use is pending on, first word to last.
 type Flight = Vec<(usize, usize)>;
 
 pub fn reallocate_barriers(insns: &mut [Instruction], table: Option<&IsaTable>) {
+    let clause = sb_kind_request().ok().flatten();
     if !const_alone() {
-        reallocate_barriers_in(insns, table, None, false);
+        match clause {
+            None => {
+                reallocate_barriers_in(insns, table, None, None, false);
+            }
+            Some(mode) => {
+                let back = kind_trial(insns, table, None, mode);
+                reallocate_barriers_in(insns, table, None, Some(&back), false);
+            }
+        }
         return;
     }
     // CUBIT_CONST_ALONE: which batches of constant loads stand apart is found by trial, on
@@ -4624,11 +4793,11 @@ pub fn reallocate_barriers(insns: &mut [Instruction], table: Option<&IsaTable>) 
     // go back onto the barrier of its batch, and when a use that has a scoreboard to itself
     // without the rule loses it to a load that stands alone across its flight -- the rule takes
     // a scoreboard only while one is free.
-    let base = reallocate_barriers_in(&mut insns.to_vec(), table, None, true);
+    let base = reallocate_barriers_in(&mut insns.to_vec(), table, None, None, true);
     let touch = |a: &[(usize, usize)], b: &[(usize, usize)]| a.iter().any(|&(a0, a1)| b.iter().any(|&(b0, b1)| a0 <= b1 && b0 <= a1));
     let mut keep: Vec<usize> = Vec::new();
     loop {
-        let run = reallocate_barriers_in(&mut insns.to_vec(), table, Some(&keep), true);
+        let run = reallocate_barriers_in(&mut insns.to_vec(), table, Some(&keep), None, true);
         let mut blame: Vec<usize> = Vec::new();
         for (is_rb, first, flight) in &run.over {
             if let Some(a) = run.apart.iter().find(|a| !*is_rb && a.1 == *first) {
@@ -4649,13 +4818,74 @@ pub fn reallocate_barriers(insns: &mut [Instruction], table: Option<&IsaTable>) 
         keep.sort_unstable();
         eprintln!("CONST_ALONE batches kept whole (by their first load): {keep:?}");
     }
-    reallocate_barriers_in(insns, table, Some(&keep), false);
+    // (the sets first, the numbers behind them: the same trial and the same sentence)
+    let back = clause.map(|mode| kind_trial(insns, table, Some(&keep), mode));
+    reallocate_barriers_in(insns, table, Some(&keep), back.as_deref(), false);
+}
+
+/// The trial of `CUBIT_SB_KIND` ([`SbKind`]), on copies: the uses of the two kinds that go back
+/// to the colouring without the switch -- (a read barrier?, the first setter). A use of another
+/// kind that has a scoreboard to itself without the switch and finds none under it sends back
+/// every use of the two kinds that the clause moved onto another scoreboard across its flight;
+/// the trial is run again until no such use is left. Its report goes to [`take_kind_report`].
+fn kind_trial(insns: &[Instruction], table: Option<&IsaTable>, const_keep: Option<&[usize]>, mode: SbKind) -> Vec<(bool, usize)> {
+    let base = reallocate_barriers_in(&mut insns.to_vec(), table, const_keep, None, true);
+    let touch = |a: &[(usize, usize)], b: &[(usize, usize)]| a.iter().any(|&(a0, a1)| b.iter().any(|&(b0, b1)| a0 <= b1 && b0 <= a1));
+    let moved = |run: &ColourReport, k: &(bool, usize), b: u8| run.by_kind.contains(k) && base.coloured.iter().any(|(bk, bb, _)| bk == k && *bb != b);
+    let mut back: Vec<(bool, usize)> = Vec::new();
+    let mut lost: Vec<(bool, usize)> = Vec::new();
+    let run = loop {
+        let run = reallocate_barriers_in(&mut insns.to_vec(), table, const_keep, Some(&back), true);
+        let mut blame: Vec<(bool, usize)> = Vec::new();
+        for (is_rb, first, flight) in &run.over {
+            let key = (*is_rb, *first);
+            if run.by_kind.contains(&key) || base.over.iter().any(|o| (o.0, o.1) == key) {
+                continue;
+            }
+            if !lost.contains(&key) {
+                lost.push(key);
+            }
+            // who took it: the uses of the two kinds that the clause moved onto the scoreboard this
+            // use has without the switch, across its flight -- where there is none (the use was
+            // pushed off by a use that was pushed off), every use the clause moved across its flight
+            let home = base.coloured.iter().find(|(k, _, _)| *k == key).map(|(_, b, _)| *b);
+            let across: Vec<&((bool, usize), u8, Flight)> = run.coloured.iter().filter(|(k, b, f)| moved(&run, k, *b) && touch(f, flight)).collect();
+            if across.iter().any(|(_, b, _)| Some(*b) == home) {
+                blame.extend(across.iter().filter(|(_, b, _)| Some(*b) == home).map(|(k, _, _)| *k));
+            } else {
+                blame.extend(across.iter().map(|(k, _, _)| *k));
+            }
+        }
+        blame.retain(|k| !back.contains(k));
+        blame.sort_unstable();
+        blame.dedup();
+        if blame.is_empty() {
+            break run;
+        }
+        back.extend(blame);
+    };
+    let report = KindReport {
+        read: run.by_kind.iter().filter(|k| k.0).count(),
+        global: run.by_kind.iter().filter(|k| !k.0).count(),
+        moved: run.coloured.iter().filter(|(k, b, _)| moved(&run, k, *b)).count(),
+        back: back.len(),
+        lost,
+    };
+    KIND_REPORT.with(|r| *r.borrow_mut() = Some((mode, report)));
+    back
 }
 
 /// The barrier allocator. `const_keep`: `None` without `CUBIT_CONST_ALONE`; under it the batches
-/// of constant loads (by their first load) that stay as they are. `trial`: a run on a copy --
-/// no dump and no verifier line is printed.
-fn reallocate_barriers_in(insns: &mut [Instruction], table: Option<&IsaTable>, const_keep: Option<&[usize]>, trial: bool) -> ColourReport {
+/// of constant loads (by their first load) that stay as they are. `kind_back`: `None` without
+/// `CUBIT_SB_KIND`; under it the uses that are coloured as without the switch ([`kind_trial`]).
+/// `trial`: a run on a copy -- no dump and no verifier line is printed.
+fn reallocate_barriers_in(
+    insns: &mut [Instruction],
+    table: Option<&IsaTable>,
+    const_keep: Option<&[usize]>,
+    kind_back: Option<&[(bool, usize)]>,
+    trial: bool,
+) -> ColourReport {
     let n = insns.len();
     if n == 0 { return ColourReport::default(); }
     // Preserve mode: a fully hand-scheduled kernel owns its schedule verbatim
@@ -5380,9 +5610,20 @@ fn reallocate_barriers_in(insns: &mut [Instruction], table: Option<&IsaTable>, c
     // CUBIT_DUMP_COLOUR (a look, stderr): one `COL` line a use, in the order of the colouring
     let dump_colour = !trial && std::env::var("CUBIT_DUMP_COLOUR").is_ok();
     let mut over_uses: Vec<(bool, usize, Flight)> = Vec::new();
+    // CUBIT_SB_KIND (see `SbKind`): the clause's value, the occupancy by kind it reads, the forms
+    // of the global loads, and what the trial is told of this run
+    let kind_mode: Option<SbKind> = kind_back.and_then(|_| sb_kind_request().ok().flatten());
+    let mut kocc: Option<KindOcc> = kind_mode.map(|_| KindOcc::new(n));
+    let mut g_forms: Vec<String> = Vec::new();
+    let mut coloured: Vec<((bool, usize), u8, Flight)> = Vec::new();
+    let mut by_kind: Vec<(bool, usize)> = Vec::new();
     for &u in &order {
         let sidx = idxset(&uses[u].segs);
         if let Some(b) = pin_of[u] {
+            if let Some(k) = kocc.as_mut() {
+                let f = if uses[u].is_rb { 0 } else { global_form(insns, &uses[u].setters, &mut g_forms) };
+                k.mark(&sidx, b, uses[u].is_rb, f);
+            }
             // PINNED use: the colour is the author's, never reallocated; only
             // reserve it so auto uses stay off the in-flight window.
             if dump_colour {
@@ -5412,8 +5653,48 @@ fn reallocate_barriers_in(insns: &mut [Instruction], table: Option<&IsaTable>, c
             // below it - a wait for a store's latch never drains the loads in flight.
             chosen = Some(if uses[u].is_rb { NUM_BARRIERS as u8 - 2 } else { NUM_BARRIERS as u8 - 1 });
         }
+        // CUBIT_SB_KIND: the use's kind -- a read barrier, or a write barrier of global loads
+        // (`gform` != 0) -- takes its scoreboard by the clause unless the trial sent it back
+        let gform = if kocc.is_some() && !uses[u].is_rb { global_form(insns, &uses[u].setters, &mut g_forms) } else { 0 };
+        let sent_back = kind_back.is_some_and(|back| back.contains(&(uses[u].is_rb, uses[u].setters[0])));
+        let by_clause = kind_mode.filter(|_| chosen.is_none() && !sent_back && (uses[u].is_rb || gform != 0));
+        // ... and no use takes the scoreboard of the other barrier of its own word (a use the
+        // trial sent back keeps that much of the clause)
+        let own_other: u8 = if kind_mode.is_some() {
+            (0..uses.len())
+                .filter(|&v| {
+                    v != u
+                        && uses[v].is_rb != uses[u].is_rb
+                        && assigned[v] < NUM_BARRIERS as u8
+                        && !not_written.contains(&v)
+                        && uses[v].setters.iter().any(|s| uses[u].setters.contains(s))
+                })
+                .fold(0u8, |m, v| m | (1 << assigned[v]))
+        } else {
+            0
+        };
+        // (a read barrier that JOINS the low scoreboards under `wide` keeps no scoreboard busy)
+        let mut rb_joins = false;
+        if let (Some(mode), Some(k)) = (by_clause, kocc.as_ref()) {
+            let wide = mode == SbKind::Wide;
+            let free_on = |b: &u8| own_other & (1 << *b) == 0 && sidx.iter().all(|&i| occ[i] & (1 << *b) == 0);
+            chosen = if !uses[u].is_rb {
+                // (G) the highest free scoreboard -- `wide`: that carries no read barrier either
+                (lowest..NUM_BARRIERS as u8).rev().find(|b| free_on(b) && (!wide || sidx.iter().all(|&i| k.rb[i] & (1 << *b) == 0)))
+            } else if wide {
+                // (R) the lowest scoreboard on which no global load flies over the flight, free
+                // or not: the waits that stand on it release the read barrier with the rest
+                let low = (lowest..NUM_BARRIERS as u8).find(|b| own_other & (1 << *b) == 0 && sidx.iter().all(|&i| k.global[i] & (1 << *b) == 0));
+                rb_joins = low.is_some();
+                low.or_else(|| (first_colour..NUM_BARRIERS as u8).find(free_on))
+            } else {
+                (first_colour..NUM_BARRIERS as u8).find(free_on)
+            };
+        }
         for b in first_colour..NUM_BARRIERS as u8 {
-            if chosen.is_some() { break; }
+            if chosen.is_some() || by_clause.is_some() { break; }
+            // CUBIT_SB_KIND: never the scoreboard of the other barrier of the use's own word
+            if own_other & (1 << b) != 0 { continue; }
             if sidx.iter().all(|&i| occ[i] & (1 << b) == 0) { chosen = Some(b); break; }
         }
         // (for CUBIT_DUMP_COLOUR: no scoreboard was free over the use's flight)
@@ -5517,6 +5798,32 @@ fn reallocate_barriers_in(insns: &mut [Instruction], table: Option<&IsaTable>, c
         if over && !const_joined && (trial || const_keep.is_some()) {
             over_uses.push((uses[u].is_rb, uses[u].setters[0], uses[u].segs.clone()));
         }
+        if let (true, Some(mode), Some(k)) = (chosen.is_none() && sb_share, by_clause, kocc.as_ref()) {
+            // CUBIT_SB_KIND, no scoreboard free: the ladder -- the busiest scoreboard of the first
+            // step that has one, never the one of the other barrier of the use's own word
+            let busiest = |ok: &dyn Fn(u8) -> bool| -> Option<u8> {
+                let mut best: Option<(usize, u8)> = None;
+                for b in lowest..NUM_BARRIERS as u8 {
+                    if own_other & (1 << b) != 0 || !ok(b) { continue; }
+                    let free = sidx.iter().filter(|&&i| occ[i] & (1 << b) == 0).count();
+                    if best.is_none_or(|(f, _)| free < f) { best = Some((free, b)); }
+                }
+                best.map(|(_, b)| b)
+            };
+            let wide = mode == SbKind::Wide;
+            if !uses[u].is_rb {
+                // (G) global loads of its own form, then of any form, then (wide) no read barrier
+                chosen = busiest(&|b| sidx.iter().all(|&i| k.other[i] & (1 << b) == 0 && (k.form[i][b as usize] == 0 || k.form[i][b as usize] == gform)))
+                    .or_else(|| busiest(&|b| sidx.iter().all(|&i| k.other[i] & (1 << b) == 0)))
+                    .or_else(|| if wide { busiest(&|b| sidx.iter().all(|&i| k.rb[i] & (1 << b) == 0)) } else { None })
+                    .or_else(|| busiest(&|_| true));
+            } else if wide {
+                // (R) read barriers alone, then no global load
+                chosen = busiest(&|b| sidx.iter().all(|&i| k.wb[i] & (1 << b) == 0))
+                    .or_else(|| busiest(&|b| sidx.iter().all(|&i| k.global[i] & (1 << b) == 0)))
+                    .or_else(|| busiest(&|_| true));
+            }
+        }
         if chosen.is_none() && sb_share {
             // share: the scoreboard already busiest over our segment (clustering)
             let mut best = first_colour;
@@ -5524,6 +5831,8 @@ fn reallocate_barriers_in(insns: &mut [Instruction], table: Option<&IsaTable>, c
             for b in first_colour..NUM_BARRIERS as u8 {
                 // CUBIT_SB_LONG_KEEP: a short use never shares with a long one
                 if sb_long_keep && !is_long && sidx.iter().any(|&i| occ_long[i] & (1 << b) != 0) { continue; }
+                // CUBIT_SB_KIND: never the scoreboard of the other barrier of the use's own word
+                if own_other & (1 << b) != 0 { continue; }
                 let free = sidx.iter().filter(|&&i| occ[i] & (1 << b) == 0).count();
                 if free < best_cost { best_cost = free; best = b; }
             }
@@ -5588,14 +5897,28 @@ fn reallocate_barriers_in(insns: &mut [Instruction], table: Option<&IsaTable>, c
         if let Some((v, set_use)) = joined {
             // (the loads stand in the set of `v`: that use carries them, this one is not written)
             for i in idxset(&set_use.segs) { occ[i] |= 1 << b; }
+            if let Some(k) = kocc.as_mut() {
+                k.mark(&idxset(&set_use.segs), b, false, 0);
+            }
             uses[v] = set_use;
             assigned[u] = b;
             not_written.push(u);
             continue;
         }
         assigned[u] = b;
-        for &i in &sidx { occ[i] |= 1 << b; }
-        if is_long { for &i in &sidx { occ_long[i] |= 1 << b; } }
+        if !rb_joins {
+            for &i in &sidx { occ[i] |= 1 << b; }
+            if is_long { for &i in &sidx { occ_long[i] |= 1 << b; } }
+        }
+        if let Some(k) = kocc.as_mut() {
+            k.mark(&sidx, b, uses[u].is_rb, gform);
+        }
+        if trial {
+            coloured.push(((uses[u].is_rb, uses[u].setters[0]), b, uses[u].segs.clone()));
+            if by_clause.is_some() {
+                by_kind.push((uses[u].is_rb, uses[u].setters[0]));
+            }
+        }
     }
 
     // ---- CUBIT_WAIT_POLICY: where the waits stand, on the coloured uses (see `wait_policy`) ----
@@ -5927,7 +6250,7 @@ fn reallocate_barriers_in(insns: &mut [Instruction], table: Option<&IsaTable>, c
         verify_scoreboard(insns, table);
     }
     // CUBIT_CONST_ALONE: what the colouring did, for `reallocate_barriers`
-    let mut report = ColourReport { over: over_uses, apart: Vec::new() };
+    let mut report = ColourReport { over: over_uses, apart: Vec::new(), coloured, by_kind };
     for (u, use_) in uses.iter().enumerate() {
         if use_.is_rb || covered.contains(&u) || not_written.contains(&u) {
             continue;

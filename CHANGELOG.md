@@ -4,6 +4,44 @@ User-visible changes, newest first. Table syncs name the blackwell-isa revision 
 (`tables/SOURCE.json` pins it byte for byte). Numbered `BUG-NNN` entries are the encoder /
 decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `docs/TESTS.md`).
 
+## Unreleased — 2026-11-18 (`CUBIT_SB_KIND=narrow | wide`, opt-in with `CUBIT_WAIT_POLICY=1`: a use takes its scoreboard by its kind — read barriers off the scoreboards where global loads fly)
+
+- **The clause** (`scheduling_pass::SbKind`, KNOWN_ISSUES A65). The colouring gives every use the lowest scoreboard
+  free over its flight, whatever the use is, and a use that finds none shares the busiest. Read barriers end up
+  where the results of global loads fly — a word that waits such a scoreboard for the release of a read barrier, an
+  operand long read, blocks behind a load from memory — and the read barrier of a load can stand on the scoreboard
+  of the load's own result. The vendor keeps the kinds apart: his read barriers stand on the two lowest scoreboards,
+  his global loads on the upper ones, loads of one form together.
+- **Two values**, in the one loop where a number is chosen. Both: **(R)** a read-barrier use never takes the
+  scoreboard of its own word's write barrier (nor a write barrier its own word's read barrier's), free or shared;
+  **(G)** a write-barrier use of global loads — `LDG` in every form, an atomic with a result — takes the HIGHEST
+  free scoreboard and, where none is free, joins global loads of its own form, then of any form, then the busiest.
+  `narrow` is that. `wide` adds: a read barrier takes the LOWEST scoreboard on which no result of a global load is
+  pending over its flight, free or not, and keeps no scoreboard busy for the uses behind it in the colouring; a
+  global load takes no scoreboard that carries a read barrier. Every other use is coloured as before. Any other
+  value is refused by `cubit asm`; without `CUBIT_WAIT_POLICY=1` the variable changes nothing.
+- **Nobody else pays — by trial**, as for `CUBIT_CONST_ALONE` (and behind it: the sets first, the numbers second).
+  A use of another kind that has a scoreboard to itself without the variable and finds none under it sends back the
+  uses of the two kinds that the clause moved onto its scoreboard across its flight; they are coloured as before
+  (but for the first sentence of (R)), and the trial runs again until no such use is left. One line a kernel:
+  `scoreboard by kind (wide): R read barrier(s) and G use(s) of global loads by the clause, M of them on another
+  scoreboard than without it; B went back for L use(s) of another kind that lost theirs: …`.
+- **Counts** (static; scoreboards 0 … 5). cubit's own frame of the served FC2 (`CUBIT_WAIT_POLICY=1
+  CUBIT_LOAD_COVER=1`): read barriers 80 36 17 13 12 37 and the write barriers of the global loads 7 3 4 0 1 26
+  without the variable, ten words with the read barrier on their own write barrier's scoreboard; `narrow` 82 38 18
+  11 26 20 and 1 0 2 6 7 25, no such word, one use sent back; `wide` 187 0 0 0 2 6 and 0 0 10 2 9 20, no such word,
+  23 uses sent back for 10 (the vendor's schedule of that text: 121 43 8 8 17 1 and 0 0 9 7 6 19, one such word).
+  With `CUBIT_WAIT_DRAINED=paths` beside it: 509 wait bits under `narrow` and 478 under `wide`, where the rule alone
+  leaves 510 and the vendor's schedule has 458; under `wide` the nine words of the pair region that he keeps on
+  scoreboard 0 carry his read and write barriers field for field and the two words that rewrite their registers
+  carry no wait, as his. The record recipe of the served FC1: 22 such words and read barriers 16 56 33 16 52 3
+  without the variable; `narrow` 15 40 41 16 56 8, `wide` 143 33 0 0 0 0, no such word (the vendor: 97 18 27 13 19
+  0). On every one of these builds the audit names no read and no rewrite on a path.
+- **First read on a card on 2026-11-18, on one card model.** A read barrier's scoreboard is part
+  of a measured shape: a text under the clause is first silicon of its barrier numbers.
+- `tests/sb_kind.rs` (7: five fail on the allocator without the clause, two controls). Without the variable every
+  schedule is byte for byte what it was.
+
 ## Unreleased — 2026-11-18 (the scoreboard audit `CUBIT_HAZ` reads read barriers: a word that rewrites an operand of a word in flight is named, on the paths of the kernel)
 
 - **The write-after-read half of the audit** (`scheduling_pass::report_war_on_paths`, printed under `CUBIT_HAZ`;

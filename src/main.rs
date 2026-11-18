@@ -4715,6 +4715,11 @@ fn cmd_asm_directive_format(
         if let Err(e) = cubit::wait_drained::request() {
             anyhow::bail!(e);
         }
+        // CUBIT_SB_KIND=narrow | wide (opt-in, with CUBIT_WAIT_POLICY=1): a use takes its scoreboard by
+        // its kind (`scheduling_pass::SbKind`). A value that is neither is refused here.
+        if let Err(e) = cubit::scheduling_pass::sb_kind_request() {
+            anyhow::bail!(e);
+        }
         // ... and with the margins gone, the two distances they kept by accident are requirements by
         // name, as under CUBIT_SYNC_CLASSES: what has to have landed in front of `EXIT` and the other
         // settle words (the legaliser's landing rows), and the operand hold of an MMA and of a
@@ -5575,6 +5580,22 @@ fn cmd_asm_directive_format(
         // distance); reallocate just fixes the load/store barriers. Legacy path keeps its own.
         if !fully_frozen {
             cubit::scheduling_pass::reallocate_barriers(&mut insns_with_ctrl, Some(table));
+            // CUBIT_SB_KIND: what the trial of the clause found in this kernel
+            if let Some((mode, r)) = cubit::scheduling_pass::take_kind_report() {
+                let lost: Vec<String> = r.lost.iter().take(8).map(|(rb, s)| format!("{}[{}]", if *rb { "rb" } else { "wb" }, s)).collect();
+                println!(
+                    "  {}: scoreboard by kind ({}): {} read barrier(s) and {} use(s) of global loads by the clause, {} of them on another scoreboard than without it; {} went back for {} use(s) of another kind that lost theirs{}{}",
+                    def.name,
+                    mode.name(),
+                    r.read,
+                    r.global,
+                    r.moved,
+                    r.back,
+                    r.lost.len(),
+                    if lost.is_empty() { "" } else { ": " },
+                    lost.join(" ")
+                );
+            }
             // CUBIT_WAIT_DRAINED: what the rule left unwritten in this kernel
             if let Some((mode, r)) = cubit::wait_drained::take_report() {
                 println!(
