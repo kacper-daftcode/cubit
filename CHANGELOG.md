@@ -4,6 +4,15 @@ User-visible changes, newest first. Table syncs name the blackwell-isa revision 
 (`tables/SOURCE.json` pins it byte for byte). Numbered `BUG-NNN` entries are the encoder /
 decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `docs/TESTS.md`).
 
+## Unreleased — 2026-11-18 (`CUBIT_TENSOR_YIELD=holds`, `CUBIT_SCHED2_PACE=tensor`: what a card read on the served FC2 in the full form)
+
+- **KNOWN_ISSUES A60 | A61, one sentence each** (documents only; no schedule moves). In the recipe of the record
+  text of the served FC2 the build under `CUBIT_TENSOR_YIELD=holds` reads 0.787 ± 0.017 % ahead of ptxas and the span
+  of the call 0.307 ± 0.009 %, where the record text reads 0.134 ± 0.016 % and 0.051 ± 0.009 %; with
+  `CUBIT_SCHED2_PACE=tensor` beside it the build reads 0.800 ± 0.018 % and 0.314 ± 0.011 % — the pacing adds nothing
+  a card can see there (0.078 ± 0.106 µs a call apart), where on the served FC1 it carries about a third of the
+  build's lead. The full form: both load orders, 4 096 rows; one Server card, free of its power limit.
+
 ## Unreleased — 2026-11-18 (`CUBIT_WAIT_DRAINED=head | paths`, opt-in with `CUBIT_WAIT_POLICY=1`: the barrier allocator writes no wait on a scoreboard that another wait has drained)
 
 - **The rule** (`src/wait_drained.rs`, KNOWN_ISSUES A63). The allocator writes waits use by use: the first readers
