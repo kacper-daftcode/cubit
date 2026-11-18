@@ -4709,6 +4709,12 @@ fn cmd_asm_directive_format(
                 "CUBIT_SCHED2_PACE=tensor needs CUBIT_SCHED2=1 CUBIT_SCHED2_LAT=<table>: the pacing is a floor in front of the legaliser, which places every wait behind it"
             );
         }
+        // CUBIT_WAIT_DRAINED=head | paths (opt-in, with CUBIT_WAIT_POLICY=1): the barrier allocator
+        // writes no wait on a scoreboard another wait has drained (`wait_drained`). A value that is
+        // neither is refused here; the allocator reads the variable itself.
+        if let Err(e) = cubit::wait_drained::request() {
+            anyhow::bail!(e);
+        }
         // ... and with the margins gone, the two distances they kept by accident are requirements by
         // name, as under CUBIT_SYNC_CLASSES: what has to have landed in front of `EXIT` and the other
         // settle words (the legaliser's landing rows), and the operand hold of an MMA and of a
@@ -5569,6 +5575,18 @@ fn cmd_asm_directive_format(
         // distance); reallocate just fixes the load/store barriers. Legacy path keeps its own.
         if !fully_frozen {
             cubit::scheduling_pass::reallocate_barriers(&mut insns_with_ctrl, Some(table));
+            // CUBIT_WAIT_DRAINED: what the rule left unwritten in this kernel
+            if let Some((mode, r)) = cubit::wait_drained::take_report() {
+                println!(
+                    "  {}: wait rule ({}): {} wait bit(s) not written: {} on an empty scoreboard | {} behind a result the word does not need; {} kept for an unmeasured set",
+                    def.name,
+                    mode.name(),
+                    r.empty + r.landed,
+                    r.empty,
+                    r.landed,
+                    r.kept
+                );
+            }
             // CUBIT_SCHED2_MEMSTALL=table: the retirement stall of the first pass's recycle drain, judged
             // on the final allocation -- kept only where the word sets a barrier with producers in flight
             // that are not a measured set (`settle_recycle_drains`); in front of the legaliser, which

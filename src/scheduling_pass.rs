@@ -493,6 +493,17 @@ fn arrive_split(c: &crate::cfg_flow::Cfg, use_: &BarUse, idx: usize, k: usize, c
     Some((crate::cfg_flow::runs(&ahead), behind, heads))
 }
 
+/// A producer of a form the barrier allocator batches on one write barrier (the key of its
+/// batches by form: no learned variable-latency scalar, no `REDUX`, no `SHFL`, no
+/// synchronisation word). For `wait_drained::may_fly_together`.
+pub(crate) fn batch_form(insn: &Instruction) -> bool {
+    let op = insn.opcode.as_str();
+    !is_variable_latency_sched2(op)
+        && op != "REDUX"
+        && op != "SHFL"
+        && !(crate::sync_class::enabled() && crate::sync_class::classify(insn).is_some())
+}
+
 /// `CUBIT_SB_SHARE=1`, or [`wait_policy`], which contains it.
 fn sb_share_enabled() -> bool {
     std::env::var("CUBIT_SB_SHARE").ok().as_deref() == Some("1") || wait_policy()
@@ -5498,6 +5509,11 @@ fn reallocate_barriers_in(insns: &mut [Instruction], table: Option<&IsaTable>, c
         }
     }
 
+    // CUBIT_WAIT_DRAINED (with CUBIT_WAIT_POLICY): the rule that does not write a wait on a drained
+    // scoreboard (`wait_drained`) -- it is told which wait bit is written for which use
+    let drained = if trial || !policy { None } else { crate::wait_drained::request().ok().flatten() };
+    let mut written_for: Vec<crate::wait_drained::Written> = Vec::new();
+
     // ---- emit barrier fields ----
     for (u, use_) in uses.iter().enumerate() {
         let b = assigned[u];
@@ -5511,6 +5527,9 @@ fn reallocate_barriers_in(insns: &mut [Instruction], table: Option<&IsaTable>, c
         for &w in &use_.waiters {
             if can_wait[w] {
                 inject_wait[w] |= 1 << b;
+                if drained.is_some() {
+                    written_for.push(crate::wait_drained::Written { word: w, sb: b, setters: use_.setters.clone() });
+                }
             } else if !insns[w].hand_sched && try_make_waitable(&mut insns[w]) {
                 // The dependent was unwaitable only POSITIONALLY (IADD3+RZ):
                 // operand-swap it into a waitable form and put the wait where it
@@ -5519,6 +5538,9 @@ fn reallocate_barriers_in(insns: &mut [Instruction], table: Option<&IsaTable>, c
                 // load's address latch under >=2-CTA MIO replay.)
                 can_wait[w] = true;
                 inject_wait[w] |= 1 << b;
+                if drained.is_some() {
+                    written_for.push(crate::wait_drained::Written { word: w, sb: b, setters: use_.setters.clone() });
+                }
             } else {
                 // The dependent instruction can't encode a wait (e.g. IADD3+RZ). Place the
                 // wait on the LATEST waitable instruction strictly between the producer and
@@ -5554,6 +5576,17 @@ fn reallocate_barriers_in(insns: &mut [Instruction], table: Option<&IsaTable>, c
                 _ => {}
             }
         }
+    }
+
+    // ---- CUBIT_WAIT_DRAINED: no wait on a drained scoreboard (see `wait_drained`) ----
+    // Behind the emit step, on the fields as they stand, and in front of the two closing clauses
+    // below: they close the schedule on the waits that are left.
+    let mut drained_off: Vec<(usize, u8, bool)> = Vec::new();
+    let mut drained_kept = 0usize;
+    if let (Some(mode), Some(c)) = (drained, &cfg) {
+        let out = crate::wait_drained::apply(insns, c, &written_for, mode);
+        drained_off = out.off;
+        drained_kept = out.kept;
     }
 
     // ---- BUG-489: write after write the scans above do not see ----
@@ -5613,6 +5646,15 @@ fn reallocate_barriers_in(insns: &mut [Instruction], table: Option<&IsaTable>, c
                 }
             }
         }
+    }
+
+    // CUBIT_WAIT_DRAINED: the kernel's count -- the bits that are still off behind the closing
+    // clauses, by what stood on their scoreboard
+    if let Some(mode) = drained {
+        let still = |x: &&(usize, u8, bool)| insns[x.0].ctrl.wait_mask & (1 << x.1) == 0;
+        let landed = drained_off.iter().filter(still).filter(|x| x.2).count();
+        let empty = drained_off.iter().filter(still).count() - landed;
+        crate::wait_drained::put_report(mode, crate::wait_drained::Report { empty, landed, kept: drained_kept });
     }
 
     if !trial && std::env::var("CUBIT_VERIFY").is_ok() {

@@ -4,6 +4,47 @@ User-visible changes, newest first. Table syncs name the blackwell-isa revision 
 (`tables/SOURCE.json` pins it byte for byte). Numbered `BUG-NNN` entries are the encoder /
 decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `docs/TESTS.md`).
 
+## Unreleased — 2026-11-18 (`CUBIT_WAIT_DRAINED=head | paths`, opt-in with `CUBIT_WAIT_POLICY=1`: the barrier allocator writes no wait on a scoreboard that another wait has drained)
+
+- **The rule** (`src/wait_drained.rs`, KNOWN_ISSUES A63). The allocator writes waits use by use: the first readers
+  of a use wait its scoreboard, and a wait that another use wrote on the same scoreboard is never credited. Where
+  scoreboards are shared, a word waits for a barrier of the round before although the first wait of its own round
+  has drained the scoreboard, and a second reader waits again behind the wait of another use. On an empty
+  scoreboard such a bit is nothing; where a younger result has armed the scoreboard since, the word blocks behind a
+  result it does not read. One forward scan of the control-flow graph (`wait_drained::Armers::scan`) holds at every
+  word the barriers — write and read — that some path has armed and no word has waited since: a wait bit of any
+  word, hand-scheduled or not, and a `DEPBAR` drain their scoreboard, and the sets are united where paths meet.
+- **Two values.** `head`: a wait written for barriers of the round before is not written where every path from
+  every loop head down to its word holds another wait of the scoreboard in front of it. `paths`: the fixed point —
+  in the order of the flow a wait is placed where a barrier it was written for can still be armed, then, one at a
+  time, a placed wait is taken off again while every waiter of every use still stands behind a wait of its
+  scoreboard on every path from its setters. Any other value is refused by `cubit asm`; without
+  `CUBIT_WAIT_POLICY=1` the variable changes nothing.
+- **The guard.** A bit that goes on an empty scoreboard changes no state. A bit that released something its word
+  does not need hands it to the next wait of the scoreboard, and that can put two results on one scoreboard in
+  front of one wait that the allocator's own waits kept apart. Such a pair is formed in two shapes only
+  (`wait_drained::may_fly_together`): plain shared loads that are one of `MEASURED_SHARED_SETS` by their forms, and
+  guarded loads of one form the allocator batches, each under a predicate of its own (the vendor's practice: the
+  row loop of the served FC2 flies eight guarded `LDG.E.128.STRONG.GPU` on one barrier in front of one wait). For
+  any other pair the nearest wait in front of the place where the two would meet stays. The scan unites the paths,
+  so two results that reach one word on two paths count as a pair.
+- **Not touched**: the colouring and every barrier, a hand-scheduled word, a wait the allocator did not write for a
+  use, the word of an ordered event (control flow, the thread set, synchronisation, an atomic, the predicate set, a
+  timer read: what a wait holds back there is not an operand), and a wait whose own barrier can still be armed —
+  the release of a read barrier among them. The rule stands in front of the allocator's two closing clauses, which
+  close the schedule on the waits that are left. The rounds are read on the flow graph with a dispatch's own case
+  blocks and the word they leave to; what they propose is checked on the whole graph.
+- **Counts** (static). cubit's own frame of the served FC2 (`CUBIT_WAIT_POLICY=1 CUBIT_LOAD_COVER=1`; 748 wait bits
+  on 618 words): `head` leaves 132 bits on 122 words unwritten — 121 on an empty scoreboard, 11 behind a landed
+  result — and keeps 6 for an unmeasured set; `paths` 238 on 217 words — 217 and 21 — and keeps 7. The record recipe
+  of the served FC1 (every word cubit's): 76 | 204 bits; the same recipe of the kernel's other build form: 77 |
+  195; the record text of FC2, where cubit schedules the stage loop alone: none. Behind the masks the legaliser
+  moves the stall or the flag of at most seven words. One count line a kernel (`wait rule (head): N wait bit(s)
+  not written: E on an empty scoreboard | L behind a result the word does not need; K kept for an unmeasured
+  set`). No schedule built under the switch has been on a card.
+- `tests/wait_drained.rs` (12: seven fail on the allocator without the rule, five controls hold it in) and six unit
+  tests of the scan. Without the variable every schedule is byte for byte what it was.
+
 ## Unreleased — 2026-11-18 (the scoreboard audit `CUBIT_HAZ` follows the paths of a kernel: a second, path-aware scan names the reads of an unwaited result that the text walk does not reach, and counts the text walk's false alarms)
 
 - **The path-aware scan of the audit** (`scheduling_pass::report_hazards_on_paths`, printed under `CUBIT_HAZ`;

@@ -123,6 +123,12 @@ a scoreboard with more than one producer pending then wait their one producer. A
 switch: no difference in time against the same frame without it (−0.04 ± 0.16 µs a call at 4 096 rows; the short
 form, one load order; one Server card, free of its power limit); the frame stands 4.6 % of FC2 behind ptxas with the
 switch and without it (opt-in, KNOWN_ISSUES A59).
+`CUBIT_WAIT_DRAINED=head | paths` (with `CUBIT_WAIT_POLICY=1`): the barrier allocator writes no wait on a scoreboard
+that another wait has drained — `head`: no wait for a barrier of the round before behind the first wait of its own
+round; `paths`: a wait on the first word of every path that needs it and nowhere behind it. A bit whose going would
+let two results fly together that are no measured set stays; a hand-scheduled word and the word of an ordered
+event are not touched. In cubit's own frame of the served FC2, 748 wait bits, `head` leaves 132 unwritten and
+`paths` 238. No schedule built under the switch has been on a card (opt-in, KNOWN_ISSUES A63).
 `CUBIT_DUMP_COLOUR=1` prints the colouring of the scoreboards use by use (stderr, a look).
 `CUBIT_SCHED2=1` selects the dependency-aware stall model (a stall is charged where a consumer needs it, not
 after every producer); with `CUBIT_SCHED2_LAT=sm120` the latencies come from the pair table
