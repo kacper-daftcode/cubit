@@ -69,9 +69,9 @@
 //! * **The fields.** A wait releases every barrier armed on its scoreboard, also the read
 //!   barrier of a word that no use of the bit names: a wait written for one use can be the wait
 //!   that another word's late operand rests on. Where the allocator shares a wait on purpose it
-//!   tells the rule (`CUBIT_LOAD_COVER`'s sharing leaves the read barrier of an arrive to the
-//!   first wait of the loop's head: that bit is written for the arrive's use too). Whatever
-//!   else shares a wait without saying so is held by the guard on the fields: no wait comes off
+//!   tells the rule (`CUBIT_LOAD_COVER`'s sharing leaves an arrive's read barrier to a wait of the
+//!   loop's head: the wait at the rewrite, else the one in front of it, is written for its use
+//!   too). Whatever else shares a wait unsaid is held by the guard on the fields: no wait comes off
 //!   where the waiting word, or a word behind it in front of the next wait of the scoreboard,
 //!   rewrites a source of a word whose read barrier that wait released. Its oracle is the
 //!   write-after-read half of the path audit (`scheduling_pass::report_war_on_paths`): the
