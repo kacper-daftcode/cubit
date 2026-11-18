@@ -5806,6 +5806,26 @@ fn cmd_asm_directive_format(
                         def.name, p.on_paths, p.both, p.walk_only
                     );
                 }
+                // the write-after-read half (`report_war_on_paths`): a word that rewrites an operand of
+                // a word in flight whose read barrier some path leaves unawaited
+                let w = cubit::scheduling_pass::report_war_on_paths(&insns_with_ctrl);
+                for h in &w.found {
+                    eprintln!("  WARN [{}] HAZ {}", def.name, h.msg);
+                }
+                if !w.found.is_empty() || w.not_named != [0, 0] {
+                    eprintln!(
+                        "  WARN [{}] HAZ paths: {} rewrite(s) of an operand in flight -- the reader a global store {}, a shared or local store {}, a load {}, another word {}; counted and not named: {} by a producer of the reader's own completion class, {} of a uniform register of a reader that is no synchronisation word ({} read barrier(s) in the text)",
+                        def.name,
+                        w.found.len(),
+                        w.by_reader[0],
+                        w.by_reader[1],
+                        w.by_reader[2],
+                        w.by_reader[3],
+                        w.not_named[0],
+                        w.not_named[1],
+                        w.read_barriers
+                    );
+                }
             }
         }
 

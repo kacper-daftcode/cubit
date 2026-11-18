@@ -4,6 +4,32 @@ User-visible changes, newest first. Table syncs name the blackwell-isa revision 
 (`tables/SOURCE.json` pins it byte for byte). Numbered `BUG-NNN` entries are the encoder /
 decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `docs/TESTS.md`).
 
+## Unreleased — 2026-11-18 (the scoreboard audit `CUBIT_HAZ` reads read barriers: a word that rewrites an operand of a word in flight is named, on the paths of the kernel)
+
+- **The write-after-read half of the audit** (`scheduling_pass::report_war_on_paths`, printed under `CUBIT_HAZ`;
+  KNOWN_ISSUES A64). A word that carries a read barrier reads its register operands after it issues. Until a word
+  waits that scoreboard — or, where the reader has a result on a write barrier of its own, the scoreboard of that
+  result — the operands are in flight, and a word that rewrites one of them races the read. The audit's two RAW walks
+  hold results, not operands: a schedule in which the rewriter of a store's data had lost its wait drew no line.
+- **The scan** runs on the control-flow graph like the path-aware RAW scan. The state at a word is the set of
+  (register, reader) pairs that some path leaves unawaited; a wait bit or a `DEPBAR` of the read barrier's scoreboard
+  or of the reader's own result takes the reader's pairs out, a word that rewrites the register takes the register's
+  pairs out, the sets unite where paths meet. A word that rewrites a register with a pair in the state behind its own
+  wait is a finding: `HAZ WAR @0x… <word> rewrites R<n> <- 0x… <reader> (rb<b>, NOT awaited on a path; <c> cycle(s)
+  behind it on the shortest)` — the fewest static cycles such a path has between the two issues. A rewriter under a
+  guard is named and leaves the pair to the next rewriter; a word under `@!PT` neither reads nor rewrites.
+- **Counted, not named** — one summary line a kernel says how many: a rewrite by a producer of the reader's own
+  completion class with a result of its own (its result returns behind the reader's), and a rewrite of a uniform
+  register of a reader that is no synchronisation word (a descriptor, the uniform base of a shared store). Both stand
+  in the vendor's own schedules: 8 + 4 places in his FC2, 8 + 3 in his FC2 with m-tile loops, none in his FC1.
+- **What it reads on real texts:** 8 rewrites at four words, 86 … 101 cycles behind their readers, on a schedule of
+  cubit's own frame of FC2 from which two words had lost their wait for the read barriers of a pair region; nothing
+  on that frame as cubit builds it — without `CUBIT_WAIT_DRAINED`, under `head` and under `paths` —, on the record
+  builds of FC1 and FC2 and on the vendor's four schedules. It reads the hazard, not a colouring's bookkeeping: a
+  schedule that lost six waits which only ended a flight, with no rewriter in front of the next wait, draws no line.
+- `tests/haz_war_paths.rs` (11: eight fail on the audit without the scan, three controls). Printed under `CUBIT_HAZ`
+  alone; the audit writes no field and without the variable the log of a build is what it was.
+
 ## Unreleased — 2026-11-18 (two laws of a tensor instruction: `CS2R` keeps the source hold, a plain `BRA` the landing distance, and `CUBIT_VERIFY` names a place below either — cubit's own schedule of a kernel with m-tile loops broke both at six places and no check of cubit read the distances)
 
 - **The hole** (KNOWN_ISSUES A66): `QMMA ..., R48, ... [S01] ; CS2R R50, SRZ [S01] ; CS2R R48, SRZ [S01] ; NOP [S01] ;

@@ -3283,6 +3283,260 @@ pub fn report_hazards_on_paths(insns: &[Instruction]) -> PathHazards {
     PathHazards { added, on_paths: found.len(), both, walk_only: walk.len() - both }
 }
 
+/// What [`report_war_on_paths`] found.
+pub struct PathWar {
+    /// one finding for every (word, register): the word rewrites the register while a word that
+    /// reads it is in flight
+    pub found: Vec<HazardReport>,
+    /// the words of the text that carry a read barrier and execute
+    pub read_barriers: usize,
+    /// the findings by the reader in flight: a global store, a shared or local store, a load (a
+    /// word with a result on a write barrier of its own), any other word
+    pub by_reader: [usize; 4],
+    /// rewrites that are counted and not named: by a producer of the reader's own completion
+    /// class; of a uniform register of a reader that is no synchronisation word
+    pub not_named: [usize; 2],
+}
+
+/// The write-after-read half of the path audit (`CUBIT_HAZ`).
+///
+/// A word that carries a read barrier reads its register operands after it issues. From that
+/// word on its operands are IN FLIGHT -- until a word waits the scoreboard of the read barrier
+/// or, where the reader has a result on a write barrier of its own, the scoreboard of that
+/// result (a result does not return in front of the read of its operands). A word that rewrites
+/// an operand in flight races the read: the reader may latch the new value.
+///
+/// The two RAW walks hold results, not operands: neither reads a read barrier. A text in which
+/// the rewriter of a store's data lost its wait -- by hand, by a rule that takes waits off, by a
+/// rule that moves a read barrier onto another scoreboard -- drew no line from them.
+///
+/// The scan runs on the control-flow graph as [`report_hazards_on_paths`] does. The state at a
+/// word is the set of (register, reader) pairs for which SOME path from the reader to the word
+/// holds no wait of either scoreboard and no word that rewrites the register. A word that
+/// rewrites a register with a pair in the state behind its own wait is a finding, `NOT awaited
+/// on a path`, with the fewest static cycles such a path has from the reader's issue to the
+/// word's. A word under a guard may be skipped: it is named, and the pair stays for the next
+/// rewriter. A word under `@!PT` never executes: it neither reads nor rewrites. `RZ` and `URZ`
+/// are no registers. The registers of a word are the scheduler's operand model in force
+/// ([`src_regs`], [`dest_regs`]): under `CUBIT_SYNC_CLASSES` it holds the high half of a 64-bit
+/// base and the second register of a pair.
+///
+/// Two kinds of rewrite are counted and not named -- both are the vendor's practice in his own
+/// schedules, and neither is a write at the rewriter's issue into an operand that is read late:
+/// * the rewriter is a producer of the reader's own completion class with a result on a write
+///   barrier ([`same_completion_class`]: a `SHFL` whose result register is the operand of the
+///   `SHFL` in front of it) -- its result returns behind the reader's, which returns behind the
+///   reader's read;
+/// * the register is a uniform register and the reader is no synchronisation word with late
+///   operands (`sync_class`): the descriptor of a memory word, the uniform base of a shared
+///   store. A synchronisation word reads its uniform operands late, and they count.
+///
+/// What it is NOT. It holds no clock and no class beside those two: the read barrier is taken
+/// at the text's word, for every general register the reader reads, however far behind it the
+/// rewriter stands. And a wait that a colouring placed to END a flight -- so that the
+/// scoreboard is free for another use -- can go without a finding here, as long as no word
+/// rewrites an operand in front of the next wait of the scoreboard: that is the bookkeeping of
+/// the colouring that built the text (its waiters against its waits), not a hazard of the text.
+pub fn report_war_on_paths(insns: &[Instruction]) -> PathWar {
+    let n = insns.len();
+    let mut out = PathWar { found: Vec::new(), read_barriers: 0, by_reader: [0; 4], not_named: [0; 2] };
+    if n == 0 {
+        return out;
+    }
+    let key = |is_u: bool, reg: u16| -> Option<usize> {
+        if is_u {
+            (reg < 64).then_some(256 + reg as usize)
+        } else {
+            (reg < 255).then_some(reg as usize)
+        }
+    };
+    let never = |x: &Instruction| x.guard.as_ref().is_some_and(|g| g.pred == 7 && g.negated);
+    let skipped = |x: &Instruction| x.guard.as_ref().is_some_and(|g| g.pred < 7);
+    // the pairs: one for every register a word with a read barrier reads; `late_uniform`: the
+    // readers whose uniform operands are read late
+    let mut pairs: Vec<(usize, usize)> = Vec::new();
+    let mut of_key: Vec<Vec<usize>> = vec![Vec::new(); 256 + 64];
+    let mut of_bar: [Vec<usize>; NUM_BARRIERS] = std::array::from_fn(|_| Vec::new());
+    let mut of_word: Vec<Vec<usize>> = vec![Vec::new(); n];
+    let mut late_uniform = vec![false; n];
+    for (i, x) in insns.iter().enumerate() {
+        if x.ctrl.read_bar >= NUM_BARRIERS as u8 || never(x) {
+            continue;
+        }
+        out.read_barriers += 1;
+        late_uniform[i] = crate::sync_class::classify(x).is_some_and(|c| c.late_operands);
+        let mut srcs = src_regs(x);
+        if late_uniform[i] {
+            for r in crate::sync_class::source_regs(x) {
+                if !srcs.contains(&r) {
+                    srcs.push(r);
+                }
+            }
+        }
+        for (is_u, reg) in srcs {
+            let Some(k) = key(is_u, reg) else { continue };
+            if of_word[i].iter().any(|&id| pairs[id].0 == k) {
+                continue;
+            }
+            let id = pairs.len();
+            pairs.push((k, i));
+            of_key[k].push(id);
+            of_bar[x.ctrl.read_bar as usize].push(id);
+            if x.ctrl.write_bar < NUM_BARRIERS as u8 && x.ctrl.write_bar != x.ctrl.read_bar {
+                of_bar[x.ctrl.write_bar as usize].push(id);
+            }
+            of_word[i].push(id);
+        }
+    }
+    if pairs.is_empty() {
+        return out;
+    }
+    let words = pairs.len().div_ceil(64);
+    let clear = |s: &mut [u64], ids: &[usize]| {
+        for &id in ids {
+            s[id / 64] &= !(1u64 << (id % 64));
+        }
+    };
+    let waited = |s: &mut [u64], x: &Instruction| {
+        let mask = crate::store_paths::waits(x);
+        for (b, ids) in of_bar.iter().enumerate() {
+            if mask & (1 << b) != 0 {
+                clear(s, ids);
+            }
+        }
+    };
+    // the registers a word rewrites when it executes
+    let rewrites = |x: &Instruction| -> Vec<(bool, u16, usize)> {
+        if never(x) {
+            return Vec::new();
+        }
+        dest_regs(x).into_iter().filter_map(|(is_u, reg)| key(is_u, reg).map(|k| (is_u, reg, k))).collect()
+    };
+    let c = crate::cfg_flow::Cfg::build(insns);
+    let mut state: Vec<Vec<u64>> = vec![vec![0u64; words]; n];
+    let mut reached = vec![false; n];
+    reached[0] = true;
+    let mut work: Vec<usize> = vec![0];
+    while let Some(j) = work.pop() {
+        let mut s = state[j].clone();
+        waited(&mut s, &insns[j]);
+        if !skipped(&insns[j]) {
+            for (_, _, k) in rewrites(&insns[j]) {
+                clear(&mut s, &of_key[k]);
+            }
+        }
+        for &id in &of_word[j] {
+            s[id / 64] |= 1u64 << (id % 64);
+        }
+        for &t in &c.succ[j] {
+            let mut grew = !reached[t];
+            for (a, b) in state[t].iter_mut().zip(&s) {
+                if *b & !*a != 0 {
+                    *a |= *b;
+                    grew = true;
+                }
+            }
+            if grew {
+                reached[t] = true;
+                work.push(t);
+            }
+        }
+    }
+    // the fewest static cycles from the issue of `from` to the issue of `to` on a path that holds
+    // no wait of `mask` and no word that rewrites the register `k`
+    let fewest = |from: usize, to: usize, mask: u8, k: usize| -> Option<u32> {
+        let mut best = vec![u32::MAX; n];
+        let mut heap = std::collections::BinaryHeap::new();
+        let leave = |j: usize, d: u32, best: &mut [u32], heap: &mut std::collections::BinaryHeap<std::cmp::Reverse<(u32, usize)>>| {
+            let nd = d + insns[j].ctrl.stall as u32;
+            for &t in &c.succ[j] {
+                if nd < best[t] {
+                    best[t] = nd;
+                    heap.push(std::cmp::Reverse((nd, t)));
+                }
+            }
+        };
+        leave(from, 0, &mut best, &mut heap);
+        while let Some(std::cmp::Reverse((d, j))) = heap.pop() {
+            if d > best[j] {
+                continue;
+            }
+            if crate::store_paths::waits(&insns[j]) & mask != 0 {
+                continue;
+            }
+            if j == to {
+                return Some(d);
+            }
+            if !skipped(&insns[j]) && rewrites(&insns[j]).iter().any(|r| r.2 == k) {
+                continue;
+            }
+            leave(j, d, &mut best, &mut heap);
+        }
+        None
+    };
+    for (j, x) in insns.iter().enumerate() {
+        if !reached[j] {
+            continue;
+        }
+        let mut s = state[j].clone();
+        waited(&mut s, x);
+        for (is_u, reg, k) in rewrites(x) {
+            let pending: Vec<usize> = of_key[k].iter().copied().filter(|&id| (s[id / 64] >> (id % 64)) & 1 == 1).collect();
+            if pending.is_empty() {
+                continue;
+            }
+            // the rewriter's result returns behind the reader's: one completion class
+            let in_order = |p: usize| {
+                x.ctrl.write_bar < NUM_BARRIERS as u8 && insns[p].ctrl.write_bar < NUM_BARRIERS as u8 && same_completion_class(&insns[p], x)
+            };
+            let named: Vec<usize> = pending.iter().copied().filter(|&id| !in_order(pairs[id].1) && (!is_u || late_uniform[pairs[id].1])).collect();
+            let Some(&first) = named.first() else {
+                out.not_named[if pending.iter().any(|&id| in_order(pairs[id].1)) { 0 } else { 1 }] += 1;
+                continue;
+            };
+            let pending = named;
+            let p = pairs[first].1;
+            let r = &insns[p];
+            let mut mask = 1u8 << r.ctrl.read_bar;
+            if r.ctrl.write_bar < NUM_BARRIERS as u8 {
+                mask |= 1 << r.ctrl.write_bar;
+            }
+            let behind = match fewest(p, j, mask, k) {
+                Some(d) => format!("; {d} cycle(s) behind it on the shortest"),
+                None => String::new(),
+            };
+            let more = if pending.len() > 1 { format!(", and {} more reader(s)", pending.len() - 1) } else { String::new() };
+            let op = r.opcode.as_str();
+            let kind = if matches!(op, "STS" | "STSM" | "STL") {
+                1
+            } else if is_store(op) {
+                0
+            } else if r.ctrl.write_bar < NUM_BARRIERS as u8 {
+                2
+            } else {
+                3
+            };
+            out.by_reader[kind] += 1;
+            out.found.push(HazardReport {
+                frozen: x.hand_sched || r.hand_sched,
+                msg: format!(
+                    "WAR @0x{:04x} {:38} rewrites {}{} <- 0x{:04x} {} (rb{}, NOT awaited on a path{}{})",
+                    x.addr,
+                    x.raw_text.split('/').next().unwrap_or(&x.opcode).trim(),
+                    if is_u { "UR" } else { "R" },
+                    reg,
+                    r.addr,
+                    r.opcode,
+                    r.ctrl.read_bar,
+                    more,
+                    behind
+                ),
+            });
+        }
+    }
+    out
+}
+
 fn record_defs(st: &mut SchedulerState, insn: &Instruction, idx: usize, barrier: Option<u8>, clock: usize) {
     let is_carry = is_any_carry_pred_writer(insn.opcode_full.as_str());
     let dests = dest_regs(insn);
