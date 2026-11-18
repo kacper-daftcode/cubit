@@ -4,6 +4,32 @@ User-visible changes, newest first. Table syncs name the blackwell-isa revision 
 (`tables/SOURCE.json` pins it byte for byte). Numbered `BUG-NNN` entries are the encoder /
 decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `docs/TESTS.md`).
 
+## Unreleased — 2026-11-18 (`CUBIT_SB_KIND`: the trial sends back only the uses the clause moved onto a use's own scoreboard — its fallback left uses without one)
+
+- **The trial's fallback is gone** (`scheduling_pass::SbKind`, KNOWN_ISSUES A65). A use of another kind that lost
+  its scoreboard under the clause sent back the uses of the two kinds that the clause had moved onto that
+  scoreboard across its flight — and, where there was none, EVERY use the clause had moved across its flight. A
+  use that goes back is coloured by the allocator's rule on the scoreboards as the clause left them: a read
+  barrier that went back for nothing took a free scoreboard and kept it busy, or shared the busiest, where a
+  global load flies. On the instance of FC1 with m-tile loops (`fc1_kernel_wg<4,1,1,0,0>`) under `wide` the
+  trial's last round sent back 28 uses for six it could not help; behind it 17 uses were without a scoreboard of
+  their own and 13 read-barrier uses shared theirs with a global load in flight. Now, where no use the clause
+  moved stands on the lost use's own scoreboard, nothing goes back for it: it is named and left.
+- **What moves.** Under `narrow` nothing: every build of the three kernels is byte for byte what it was. Under
+  `wide`, that instance: 7 uses go back where 41 did, 6 are left where 17 were (one long `LDC` of the head; five
+  `LDS`, each the last load of a set in front of a tensor word) and no read-barrier use shares its scoreboard with
+  a global load in flight. Cubit's own frame of FC2 (`fc2_kernel_ws<4,1>`): 14 go back where 23 did, the one load
+  is left as before, read barriers 195 0 0 0 0 0 (187 0 0 0 2 6), the global loads' write barriers 0 0 10 3 17 11
+  (0 0 10 2 9 20), 732 wait bits (739), 479 with `CUBIT_WAIT_DRAINED=paths` beside it (478), no read-barrier use
+  beside a global load in flight (6). The record recipe of FC1 (`fc1_kernel_wg<4,1>`): 3 go back where 9 did, the
+  same two loads are left, read barriers 143 33 0 0 0 0 as before. On the builds of these two kernels the audit
+  names no read and no rewrite on a path.
+- **First read on a card on 2026-11-18, on one card model**, as the clause.
+- `tests/sb_kind.rs` (13: two fail on the trial with the fallback — a kernel in which the fallback sent back a
+  global load that took its scoreboard again, and one in which it sent back a read barrier that then kept a
+  scoreboard busy and cost the global load its own). Without the variable every schedule is byte for byte what
+  it was.
+
 ## Unreleased — 2026-11-18 (`CUBIT_SB_KIND=narrow | wide`, opt-in with `CUBIT_WAIT_POLICY=1`: a use takes its scoreboard by its kind — read barriers off the scoreboards where global loads fly)
 
 - **The clause** (`scheduling_pass::SbKind`, KNOWN_ISSUES A65). The colouring gives every use the lowest scoreboard

@@ -589,9 +589,10 @@ fn is_const_load(op: &str) -> bool {
 /// its own word's write barrier, the global loads from the top and by form. `wide` adds: no read
 /// barrier where a global load flies. No scoreboard is added. Whether a use of another kind pays
 /// is found by trial, as for [`const_alone`]: a use that has a scoreboard to itself without the
-/// switch and finds none under it sends the uses of the two kinds that moved across its flight
-/// back to the colouring without the switch, and the trial runs again until it finds no use to
-/// send back. A use of another kind can be left without a scoreboard of its own at that point:
+/// switch and finds none under it sends the uses of the two kinds that the clause moved ONTO THAT
+/// SCOREBOARD across its flight back to the colouring without the switch, and the trial runs again
+/// until it finds no use to send back. Where no such use stands on its scoreboard nothing goes
+/// back for it, and a use of another kind can be left without a scoreboard of its own:
 /// a use that finds none free without the switch finds one under it and holds it, or a use that
 /// went back took it again (it is coloured by the allocator's rule on the scoreboards as the
 /// clause left them). A line a kernel names it ([`take_kind_report`]). Any other value is refused.
@@ -662,8 +663,8 @@ pub struct KindReport {
     /// setter)
     pub lost: Vec<(bool, usize)>,
     /// of those, the uses that are still without a scoreboard of their own when the trial ends:
-    /// no use of the two kinds that the clause moved stands across their flight -- a use that finds
-    /// none free without the switch holds a scoreboard there now, or a use that went back
+    /// no use of the two kinds that the clause moved stands on their scoreboard across their flight:
+    /// a use that finds none free without the switch holds it now, or a use that went back
     pub still: Vec<(bool, usize)>,
 }
 
@@ -4834,7 +4835,7 @@ pub fn reallocate_barriers(insns: &mut [Instruction], table: Option<&IsaTable>) 
 /// to the colouring without the switch -- (a read barrier?, the first setter). A use of another
 /// kind that has a scoreboard to itself without the switch and finds none under it sends back
 /// the uses of the two kinds that the clause moved onto its scoreboard across its flight (where
-/// there is none: every use the clause moved across its flight); the trial is run again until
+/// there is none, nothing goes back for it: it is named and left); the trial is run again until
 /// it finds no use to send back. Its report goes to [`take_kind_report`].
 fn kind_trial(insns: &[Instruction], table: Option<&IsaTable>, const_keep: Option<&[usize]>, mode: SbKind) -> Vec<(bool, usize)> {
     let base = reallocate_barriers_in(&mut insns.to_vec(), table, const_keep, None, true);
@@ -4854,15 +4855,10 @@ fn kind_trial(insns: &[Instruction], table: Option<&IsaTable>, const_keep: Optio
                 lost.push(key);
             }
             // who took it: the uses of the two kinds that the clause moved onto the scoreboard this
-            // use has without the switch, across its flight -- where there is none (another use
-            // holds that scoreboard now), every use the clause moved across its flight
+            // use has without the switch, across its flight. Where there is none (another use
+            // holds that scoreboard now) nothing goes back for it: the use is named and left
             let home = base.coloured.iter().find(|(k, _, _)| *k == key).map(|(_, b, _)| *b);
-            let across: Vec<&((bool, usize), u8, Flight)> = run.coloured.iter().filter(|(k, b, f)| moved(&run, k, *b) && touch(f, flight)).collect();
-            if across.iter().any(|(_, b, _)| Some(*b) == home) {
-                blame.extend(across.iter().filter(|(_, b, _)| Some(*b) == home).map(|(k, _, _)| *k));
-            } else {
-                blame.extend(across.iter().map(|(k, _, _)| *k));
-            }
+            blame.extend(run.coloured.iter().filter(|(k, b, f)| moved(&run, k, *b) && Some(*b) == home && touch(f, flight)).map(|(k, _, _)| *k));
         }
         blame.retain(|k| !back.contains(k));
         blame.sort_unstable();

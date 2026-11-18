@@ -7,12 +7,12 @@
 //! word's write barrier, the global loads take theirs from the top; `wide`: a read barrier joins the lowest
 //! scoreboard on which no global load flies, free or not.
 //!
-//! The first ten tests fail on the allocator without the clause (the variable is then unknown and changes
-//! nothing); the last two are controls that pass on both. Five of the ten reach the trial and what stands behind
-//! "nobody else pays": a word with both barriers, a load that finds no scoreboard free (the ladder), a use that
-//! loses its scoreboard and has it again when the trial sends the taker back, the same beside `CUBIT_CONST_ALONE`,
-//! and a use the trial leaves without one -- under `wide` a use sent back is coloured by the allocator's rule and
-//! can take the scoreboard a joined read barrier keeps free.
+//! The first eleven tests fail on the allocator without the clause (the variable is then unknown and changes
+//! nothing); the last two are controls that pass on both. Six of the eleven reach the trial and what stands
+//! behind "nobody else pays": a word with both barriers, a load that finds no scoreboard free (the ladder), a use
+//! that loses its scoreboard and has it again when the trial sends the taker back, the same beside
+//! `CUBIT_CONST_ALONE`, and the two of the trial's limit -- a use goes back only for a use whose own scoreboard
+//! the clause moved it onto: nothing goes back for a use the clause's uses did not push, and it is named and left.
 
 use std::process::Command;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -305,27 +305,62 @@ fn load_beside_a_joined_read_barrier() -> String {
     )
 }
 
-/// The trial's limit (KNOWN_ISSUES A65): a use the trial sends back is coloured by the allocator's rule on the
-/// scoreboards as the clause left them -- it is not put back on the scoreboard it has without the switch.
+/// The trial's limit (KNOWN_ISSUES A65): a use goes back only for a use whose own scoreboard the clause moved it
+/// onto. Here the global load takes the top scoreboard, not the one the shared load has without the switch:
+/// nothing goes back, the shared load is named and left.
 #[test]
-fn under_wide_a_use_sent_back_takes_the_scoreboard_a_joined_read_barrier_keeps_free() {
+fn under_wide_nothing_goes_back_for_a_use_whose_scoreboard_the_clause_gave_to_nobody() {
     let text = load_beside_a_joined_read_barrier();
     let (plain, _, _) = build(&text, &[SYNC, POLICY]);
     assert_eq!((word(&plain, "STG.E desc[UR8][R22.64], R6").rb, word(&plain, "LDG.E R36").wb, word(&plain, "LDS R35").wb), (Some(0), Some(1), Some(0)));
     // `wide`: the read barrier joins scoreboard 0 and keeps nothing busy, the five shared loads take 0 .. 4, the
-    // global load takes 5 -- and `LDS R35` finds none free. The trial sends the global load back; by the
-    // allocator's rule it finds 5 free again (the read barrier that made it share holds nothing now), so the
-    // shared load is left without a scoreboard of its own and the line names it.
+    // global load takes 5 -- and `LDS R35` finds none free. Its own scoreboard, 0, carries a shared load now and no
+    // use the clause moved: the trial sends nothing back (sent back, the global load would take 5 again -- the read
+    // barrier that made it share holds nothing now), and the line names the shared load.
     let (k, _, log) = build(&text, &[SYNC, POLICY, WIDE]);
     let l = kind_line(&log);
     assert!(
-        l.contains("1 read barrier(s) and 0 use(s) of global loads by the clause, 0 of them on another scoreboard than without it; 1 went back for 1 use(s) of another kind that lost theirs: wb[15]; 1 still without a scoreboard of their own: wb[15]"),
+        l.contains("1 read barrier(s) and 1 use(s) of global loads by the clause, 1 of them on another scoreboard than without it; 0 went back for 1 use(s) of another kind that lost theirs: wb[15]; 1 still without a scoreboard of their own: wb[15]"),
         "{l}"
     );
     assert_eq!(word(&k, "LDG.E R36").wb, Some(5));
     assert_eq!(word(&k, "LDS R35").wb, word(&k, "LDS R34").wb, "it shares the scoreboard of the shared load in front of it");
     assert_eq!(word(&k, "IADD3 R13").wait, word(&k, "IADD3 R12").wait, "and its reader waits there");
     // `narrow`: the read barrier holds its scoreboard as without the switch -- nothing is lost
+    let (n, _, log) = build(&text, &[SYNC, POLICY, NARROW]);
+    assert!(kind_line(&log).contains("0 went back for 0 use(s) of another kind that lost theirs; 0 still without a scoreboard of their own"), "{}", kind_line(&log));
+    assert_eq!(n, plain, "under `narrow` every control field is the allocator's");
+}
+
+/// The head of a kernel in small: a store whose data is written again early (its read barrier holds 2 without the
+/// switch and frees it for the last shared load), a shared load on 0, a second store whose data is written again
+/// at the very end (its read barrier holds 1 across everything), four shared loads, a global load, and behind
+/// the first rewriter one more shared load. Without the switch the fourth of the four shared loads and the global
+/// load find no scoreboard free; the last shared load takes 2.
+fn long_read_barrier_across_a_crowd() -> String {
+    format!(
+        "{HEAD}    MOV R6, R60 ;\n    STG.E desc[UR8][R20.64+0x8], R6 ;\n    LDS R34, [R60+0x700] ;\n    MOV R7, R60 ;\n    STG.E desc[UR8][R22.64], R7 ;\n{}    LDG.E R36, desc[UR8][R20.64] ;\n    MOV R6, R2 ;\n    LDS R35, [R60+0x600] ;\n{}    MOV R7, R2 ;\n",
+        shared_loads(4),
+        readers(&[36, 30, 31, 32, 33, 34, 35])
+    )
+}
+
+#[test]
+fn under_wide_no_read_barrier_goes_back_for_a_use_it_did_not_push() {
+    let text = long_read_barrier_across_a_crowd();
+    let (plain, _, _) = build(&text, &[SYNC, POLICY]);
+    assert_eq!((word(&plain, "STG.E desc[UR8][R22.64], R7").rb, word(&plain, "LDS R35").wb), (Some(1), Some(2)));
+    // `wide`: both read barriers join scoreboard 0 and keep nothing busy, the five shared loads in flight take
+    // 0 .. 4, the global load takes 5, and `LDS R35` finds none free. Its own scoreboard, 2, carries a shared load.
+    // Nothing goes back: the long read barrier stays on 0 -- sent back it would take scoreboard 1 and keep it busy
+    // across the kernel, and the global load would lose the scoreboard the clause gave it.
+    let (k, _, log) = build(&text, &[SYNC, POLICY, WIDE]);
+    let l = kind_line(&log);
+    assert!(l.contains("; 0 went back for 1 use(s) of another kind that lost theirs: wb[16]; 1 still without a scoreboard of their own: wb[16]"), "{l}");
+    assert_eq!(word(&k, "STG.E desc[UR8][R22.64], R7").rb, Some(0), "the long read barrier stays where no global load flies");
+    assert_eq!(word(&k, "LDG.E R36").wb, Some(5), "the global load keeps the top scoreboard");
+    assert!(k.iter().all(|w| w.wb != Some(5) || w.text.starts_with("LDG.E R36")), "and keeps it to itself: {k:#?}");
+    // `narrow`: both read barriers hold their scoreboards as without the switch -- nothing is lost
     let (n, _, log) = build(&text, &[SYNC, POLICY, NARROW]);
     assert!(kind_line(&log).contains("0 went back for 0 use(s) of another kind that lost theirs; 0 still without a scoreboard of their own"), "{}", kind_line(&log));
     assert_eq!(n, plain, "under `narrow` every control field is the allocator's");
@@ -358,6 +393,7 @@ fn the_audit_names_no_rewrite_under_either_value() {
             loads_of_two_forms(),
             taker_and_loser(),
             load_beside_a_joined_read_barrier(),
+            long_read_barrier_across_a_crowd(),
         ] {
             let (_, _, log) = build(&text, &[SYNC, POLICY, mode, ("CUBIT_HAZ", "1")]);
             assert!(!log.contains("HAZ WAR") && !log.contains("HAZ RAW"), "under {mode:?}:\n{log}");
