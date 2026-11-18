@@ -63,8 +63,9 @@ decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `
   the schedule without it and 0.873 ± 0.014 % ahead of ptxas (the short form: one load order, 4 096 rows; one Server
   card, free of its power limit; every call's result compared) — a ranking: the full form has not read the switch
   alone. With `CUBIT_TENSOR_YIELD=holds` beside it the build reads 12.26 ± 0.10 µs a call and 1.375 ± 0.011 % ahead
-  of ptxas in the full form (both load orders, 4 096 rows; the same card), 5.00 ± 0.10 µs below the build under that
-  switch alone. A text of the served FC1 made by hand — the record text with the vendor's stall count and yield flag
+  of ptxas and the span of the call 0.733 ± 0.009 % in the full form (both load orders, 4 096 rows; the same card),
+  5.00 ± 0.10 µs below the build under that switch alone. A text of the served FC1 made by hand — the record text
+  with the vendor's stall count and yield flag
   on the words of the tensor loop where cubit's table allows his — had read 1.31 ± 0.12 µs a call below the record
   text (the short form); the build has that text's stall counts on 439 of the loop's 443 words and cubit's own
   flags, and which of the two differences carries what the build reads beyond it is not measured. One cycle between
@@ -96,8 +97,9 @@ decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `
 - **Measured:** the served FC1 under the switch, in the recipe of the record text, reads 4.52 ± 0.12 µs a call below
   the schedule without it and 0.801 ± 0.014 % ahead of ptxas (the short form: one load order, 4 096 rows; one Server
   card, free of its power limit; every call's result compared) — a ranking. In the full form (both load orders,
-  4 096 rows; the same card) it reads 7.26 ± 0.10 µs a call and 0.815 ± 0.011 % ahead of ptxas, where the schedule
-  without the switch reads 0.306 ± 0.012 %. A flag on a hold moves no floor of a fixed-latency distance, neither
+  4 096 rows; the same card) it reads 7.26 ± 0.10 µs a call and 0.815 ± 0.011 % ahead of ptxas and the span of the
+  call 0.421 ± 0.009 %, where the schedule without the switch reads 0.306 ± 0.012 % and 0.142 ± 0.010 %. A flag on
+  a hold moves no floor of a fixed-latency distance, neither
   where the producer holds the stall itself nor where the hold stands between producer and reader (probes on one
   card model). Nothing is known of FC2 under it, of the state at the power limit, of production's card model or of
   a server.

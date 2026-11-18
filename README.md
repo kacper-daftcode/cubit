@@ -106,8 +106,9 @@ KNOWN_ISSUES A58).
 yields — a word at a stall of 3 to 11 that carries no flag, sets no barrier, waits on none and is not the first
 reader behind a wait takes the yield flag; no stall, wait or barrier moves and no flag is taken off. Neither cubit's
 scheduler nor ptxas writes it; a search on a card found it. In the recipe of the record text the served FC1 under
-the switch reads 0.815 ± 0.011 % ahead of ptxas, where the schedule without it reads 0.306 ± 0.012 % (the full
-form: both load orders, 4 096 rows; one Server card, free of its power limit; opt-in, KNOWN_ISSUES A60).
+the switch reads 0.815 ± 0.011 % ahead of ptxas and the span of the call 0.421 ± 0.009 %, where the schedule
+without it reads 0.306 ± 0.012 % and 0.142 ± 0.010 % (the full form: both load orders, 4 096 rows; one Server card,
+free of its power limit; opt-in, KNOWN_ISSUES A60).
 `CUBIT_LOAD_COVER=1` (with `CUBIT_WAIT_POLICY=1`): the vendor's form of a shared-memory load — a load under the wait
 of a younger shared load carries no barrier, and loads that find no scoreboard free stand as one set in front of one
 wait, as his do. Without `CUBIT_YIELD_HOLD_FRAME=1` cubit is still behind ptxas on FC2: the stage loop under the
@@ -147,8 +148,8 @@ the served FC1's tensor loop are those of the vendor's schedule as far as cubit'
 that carries his own stall count on 388 of the 443 words; the build carries it on 384), and no word outside the loop
 moves. Under the switch the served FC1 reads 5.24 ± 0.12 µs a call below the record text (the short form: one load
 order, 4 096 rows; one Server card, free of its power limit — a ranking); with `CUBIT_TENSOR_YIELD=holds` beside it
-the build reads 1.375 ± 0.011 % ahead of ptxas (the full form: both load orders, 4 096 rows; the same card; opt-in,
-KNOWN_ISSUES A61). All of these are opt-in and for
+the build reads 1.375 ± 0.011 % ahead of ptxas and the span of the call 0.733 ± 0.009 % (the full form: both load
+orders, 4 096 rows; the same card; opt-in, KNOWN_ISSUES A61). All of these are opt-in and for
 sm_120, and the table is a `cubit asm` feature: `cubit::assemble` and the Python module do not honour
 `CUBIT_SCHED2_LAT` (they have no legaliser behind the passes; under plain `CUBIT_SCHED2` they run the
 scoreboard arming rule). They are certified on hand-written kernels: `cubit asm` names the instructions whose
