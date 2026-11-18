@@ -127,7 +127,7 @@ switch and without it (opt-in, KNOWN_ISSUES A59).
 that another wait has drained — `head`: no wait for a barrier of the round before behind the first wait of its own
 round; `paths`: a wait on the first word of every path that needs it and nowhere behind it. A bit whose going would
 let two results fly together that are no measured set stays; a hand-scheduled word and the word of an ordered
-event are not touched. In cubit's own frame of the served FC2, 748 wait bits, `head` leaves 132 unwritten and
+event are not touched. In cubit's own frame of FC2 without m-tile loops (`fc2_kernel_ws<4,1>`), 748 wait bits, `head` leaves 132 unwritten and
 `paths` 238. No schedule built under the switch has been on a card (opt-in, KNOWN_ISSUES A63).
 `CUBIT_DUMP_COLOUR=1` prints the colouring of the scoreboards use by use (stderr, a look).
 `CUBIT_SCHED2=1` selects the dependency-aware stall model (a stall is charged where a consumer needs it, not

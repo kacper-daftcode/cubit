@@ -18,7 +18,7 @@ decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `
   reader's use and goes into the rule's list like any other; a bit is judged by every use it was written for and
   goes only where all of them are drained. Under `CUBIT_DUMP_USES` the allocator prints one `PARKED` line a parked
   wait (the scoreboard, the reader, the word that carries the bit, the setters).
-- **Counted on the recipes** (static): cubit's own frame of the served FC2, the record recipe of the served FC1 and
+- **Counted on the recipes** (static): cubit's own frame of FC2 without m-tile loops (`fc2_kernel_ws<4,1>`), the record recipe of FC1 without m-tile loops (`fc1_kernel_wg<4,1>`) and
   the two instances with m-tile loops hold no parked wait at all (0 of 544 | 550 | 756 | 829 uses), so neither value
   could strike there, and every one of their builds under `head` and under `paths` is byte for byte what the rule
   built before the fix. On the kernel of the finding the dump names one parked wait and both values keep it.
@@ -29,13 +29,13 @@ decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `
 - `tests/wait_drained.rs`: 14 (the two new tests fail on the rule as it was first written; 12 as before). Without
   the variable every schedule is byte for byte what it was.
 
-## Unreleased — 2026-11-18 (`CUBIT_TENSOR_YIELD=holds`, `CUBIT_SCHED2_PACE=tensor`: what a card read on the served FC2 in the full form)
+## Unreleased — 2026-11-18 (`CUBIT_TENSOR_YIELD=holds`, `CUBIT_SCHED2_PACE=tensor`: what a card read on FC2 without m-tile loops (`fc2_kernel_ws<4,1>`) in the full form)
 
 - **KNOWN_ISSUES A60 | A61, one sentence each** (documents only; no schedule moves). In the recipe of the record
-  text of the served FC2 the build under `CUBIT_TENSOR_YIELD=holds` reads 0.787 ± 0.017 % ahead of ptxas and the span
+  text of FC2 without m-tile loops (`fc2_kernel_ws<4,1>`) the build under `CUBIT_TENSOR_YIELD=holds` reads 0.787 ± 0.017 % ahead of ptxas and the span
   of the call 0.307 ± 0.009 %, where the record text reads 0.134 ± 0.016 % and 0.051 ± 0.009 %; with
   `CUBIT_SCHED2_PACE=tensor` beside it the build reads 0.800 ± 0.018 % and 0.314 ± 0.011 % — the pacing adds nothing
-  a card can see there (0.078 ± 0.106 µs a call apart), where on the served FC1 the build under both reads
+  a card can see there (0.078 ± 0.106 µs a call apart), where on FC1 without m-tile loops (`fc1_kernel_wg<4,1>`) the build under both reads
   1.375 ± 0.011 % and under the clause alone 0.815 ± 0.011 %. The full form: both load orders, 4 096 rows; one
   Server card, free of its power limit.
 
@@ -60,7 +60,7 @@ decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `
   front of one wait that the allocator's own waits kept apart. Such a pair is formed in two shapes only
   (`wait_drained::may_fly_together`): plain shared loads that are one of `MEASURED_SHARED_SETS` by their forms, and
   guarded loads of one form the allocator batches, each under a predicate of its own (the vendor's practice: the
-  row loop of the served FC2 flies eight guarded `LDG.E.128.STRONG.GPU` on one barrier in front of one wait). For
+  row loop of FC2 without m-tile loops (`fc2_kernel_ws<4,1>`) flies eight guarded `LDG.E.128.STRONG.GPU` on one barrier in front of one wait). For
   any other pair the nearest wait in front of the place where the two would meet stays. The scan unites the paths,
   so two results that reach one word on two paths count as a pair.
 - **Not touched**: the colouring and every barrier, a hand-scheduled word, a wait the allocator did not write for a
@@ -69,10 +69,10 @@ decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `
   the release of a read barrier among them. The rule stands in front of the allocator's two closing clauses, which
   close the schedule on the waits that are left. The rounds are read on the flow graph with a dispatch's own case
   blocks and the word they leave to; what they propose is checked on the whole graph.
-- **Counts** (static). cubit's own frame of the served FC2 (`CUBIT_WAIT_POLICY=1 CUBIT_LOAD_COVER=1`; 748 wait bits
+- **Counts** (static). cubit's own frame of FC2 without m-tile loops (`fc2_kernel_ws<4,1>`) (`CUBIT_WAIT_POLICY=1 CUBIT_LOAD_COVER=1`; 748 wait bits
   on 618 words): `head` leaves 132 bits on 122 words unwritten — 121 on an empty scoreboard, 11 behind a landed
   result — and keeps 6 for an unmeasured set; `paths` 238 on 217 words — 217 and 21 — and keeps 7. The record recipe
-  of the served FC1 (every word cubit's): 76 | 204 bits; the same recipe of the kernel's other build form: 77 |
+  of FC1 without m-tile loops (`fc1_kernel_wg<4,1>`) (every word cubit's): 76 | 204 bits; the same recipe of the kernel's other build form: 77 |
   195; the record text of FC2, where cubit schedules the stage loop alone: none. Behind the masks the legaliser
   moves the stall or the flag of at most seven words. One count line a kernel (`wait rule (head): N wait bit(s)
   not written: E on an empty scoreboard | L behind a result the word does not need; K kept for an unmeasured
