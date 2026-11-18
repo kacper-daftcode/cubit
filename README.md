@@ -128,7 +128,7 @@ that another wait has drained — `head`: no wait for a barrier of the round bef
 round; `paths`: a wait on the first word of every path that needs it and nowhere behind it. A bit whose going would
 let two results fly together that are no measured set stays; a hand-scheduled word and the word of an ordered
 event are not touched. In cubit's own frame of FC2 without m-tile loops (`fc2_kernel_ws<4,1>`), 748 wait bits, `head` leaves 132 unwritten and
-`paths` 238. No schedule built under the switch has been on a card (opt-in, KNOWN_ISSUES A63).
+`paths` 238. First read on a card on 2026-11-18, on one card model (opt-in, KNOWN_ISSUES A63).
 `CUBIT_SB_KIND=narrow | wide` (with `CUBIT_WAIT_POLICY=1`): a use takes its scoreboard by its kind — a read barrier
 never the scoreboard of its own word's write barrier, the global loads from the top with loads of one form together;
 `wide`: a read barrier joins the lowest scoreboard on which no global load flies, free or not. In cubit's own frame
