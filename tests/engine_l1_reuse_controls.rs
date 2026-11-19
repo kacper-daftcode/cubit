@@ -181,6 +181,52 @@ fn int_text(row: &Value) -> String {
 }
 
 #[test]
+fn y1_ur_reuse_decisions_match_nvdisasm_on_both_targets() {
+    for arch in ARCHES {
+        let table = IsaTable::load(std::path::Path::new(&format!("tables/{arch}.json"))).unwrap();
+        let index = DecodeIndex::build(&table);
+        let fixture = hb300_fixture(&format!("{arch}_engine_l1_y1_ur_reuse_nvdisasm.jsonl"));
+        let (mut records, mut clear, mut accepted, mut refused) = (0, 0, 0, 0);
+        for line in fixture.lines() {
+            let row: Value = serde_json::from_str(line).unwrap();
+            assert!(row["stall"].as_u64().unwrap() > 0);
+            assert_eq!(row["bit109"], 1);
+            let raw = word(&row);
+            let bit = row["reuse_bit"].as_u64().unwrap();
+            let present = row["reuse_present"].as_u64().unwrap();
+            let expected_key = match row["family"].as_str().unwrap() {
+                "fadd2_rur" => "FADD2_R_R_UR",
+                "fmul2_rur" => "FMUL2_R_R_UR",
+                "ffma2_addend_ur" => "FFMA2_R_R_R_UR",
+                other => panic!("unexpected family {other}"),
+            };
+            let result = index.decode(raw, 0, &table);
+            if present == 0 || bit == 122 {
+                let decoded = result.unwrap_or_else(|error| {
+                    panic!("{arch} {raw:032x}: measured y1 word refused: {error}")
+                });
+                assert_eq!(decoded.key, expected_key);
+                let text = row["nvidia_sass"].as_str().unwrap();
+                assert_eq!(cubit::printer::to_sass_lossless(&decoded), text);
+                assert_eq!(reencode(&table, &decoded, raw), raw & !(7u128 << 125));
+                if present == 0 {
+                    clear += 1;
+                } else {
+                    assert!(text.contains(".reuse"));
+                    accepted += 1;
+                }
+            } else {
+                assert!(row["nvidia_sass"].is_null());
+                assert!(result.is_err(), "{arch} {raw:032x}: y1 refusal was adopted");
+                refused += 1;
+            }
+            records += 1;
+        }
+        assert_eq!((records, clear, accepted, refused), (11, 3, 3, 5), "{arch}");
+    }
+}
+
+#[test]
 fn three_token_rows_refuse_unowned_bits_74_and_75() {
     for arch in ARCHES {
         let table = IsaTable::load(std::path::Path::new(&format!("tables/{arch}.json"))).unwrap();

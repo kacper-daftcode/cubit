@@ -133,7 +133,7 @@ fn measured_lattice_and_provenance() {
             hex(&group["and_base"]),
             0x00000000082000000000000000000e4bu128
         );
-        assert_eq!(group["claim_forbid"].as_array().unwrap().len(), 7);
+        assert_eq!(group["claim_forbid"].as_array().unwrap().len(), 6);
         let mask = group["fields"]
             .as_array()
             .unwrap()
@@ -143,7 +143,7 @@ fn measured_lattice_and_provenance() {
                     << field["shift"].as_u64().unwrap())
             });
         assert_eq!(hex(&group["variable_mask"]), mask);
-        assert_eq!(mask, 0x0000000000000300c00000fffffff000u128);
+        assert_eq!(mask, 0x0400000000000300c00000fffffff000u128);
     }
 }
 
@@ -167,6 +167,14 @@ fn alternate_shapes_modifiers_and_refused_words_do_not_claim_this_row() {
             inert += usize::from(role == "unclaimed_text_inert");
             reuse += usize::from(label.starts_with("reuse-mask:"));
             if let Ok(decoded) = index.decode(word, 0, table) {
+                if label == "reuse-mask:1" {
+                    assert_eq!(
+                        (decoded.key.as_str(), decoded.mod_group.as_str()),
+                        ("FADD2_R_R_UR", "")
+                    );
+                    assert!(row["nvidia_sass"].is_null());
+                    continue;
+                }
                 if e2_consolidated_control(&row, "FADD2_R_R_UR", &decoded.key) {
                     assert_eq!(
                         cubit::printer::to_sass(&decoded),

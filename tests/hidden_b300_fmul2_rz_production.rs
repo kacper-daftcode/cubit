@@ -8,9 +8,9 @@ use std::sync::OnceLock;
 
 const SOURCE: &str = "engine-l1a-fmul2-shapes-2026-11-13";
 const GROUPS: [&str; 1] = ["RZ"];
-const EXPECTED_POSITIVE: usize = 847;
+const EXPECTED_POSITIVE: usize = 849;
 const EXPECTED_NEGATIVE: usize = 58;
-const EXPECTED_ADJACENT: usize = 16;
+const EXPECTED_ADJACENT: usize = 14;
 const EXPECTED_OTHER: usize = 4;
 const EXPECTED_CONTROL: usize = 36;
 
@@ -56,7 +56,6 @@ fn group_for_word(word: u128) -> &'static str {
     assert_eq!((word >> 78) & 0x3, 0x3);
     assert_eq!((word >> 88) & 1, 1);
     assert_eq!((word >> 82) & 1, 0);
-    assert_eq!((word >> 122) & 1, 0);
     GROUPS[0]
 }
 
@@ -126,6 +125,7 @@ fn one_modifier_group_fields_and_provenance() {
                 | (3u128 << 62)
                 | (3u128 << 72)
                 | (1u128 << 81)
+                | (1u128 << 122)
                 | (1u128 << 123);
             assert_eq!(hex(&group["variable_mask"]), expected_mask);
             for (shift, bits, extraction, token) in [
@@ -138,6 +138,7 @@ fn one_modifier_group_fields_and_provenance() {
                 (32, 8, "reg", 3),
                 (62, 1, "abs", 3),
                 (63, 1, "neg", 3),
+                (122, 1, "reuse", 2),
                 (123, 1, "reuse", 3),
             ] {
                 assert!(
@@ -152,8 +153,8 @@ fn one_modifier_group_fields_and_provenance() {
                     "{arch}: {group_name}: {extraction}@{shift}/{bits}"
                 );
             }
-            assert_eq!(group["claim_forbid"].as_array().unwrap().len(), 5);
-            for (shift, value) in [(83, 1), (122, 1), (124, 1)] {
+            assert_eq!(group["claim_forbid"].as_array().unwrap().len(), 4);
+            for (shift, value) in [(83, 1), (124, 1)] {
                 assert!(
                     group["claim_forbid"].as_array().unwrap().iter().any(|cf| {
                         cf["bits"] == 1 && cf["shift"] == shift && cf["values"][0] == value
@@ -161,7 +162,7 @@ fn one_modifier_group_fields_and_provenance() {
                     "{arch}: missing RZ prohibition at {shift}"
                 );
             }
-            assert_eq!(group["fields"].as_array().unwrap().len(), 10);
+            assert_eq!(group["fields"].as_array().unwrap().len(), 11);
         }
     }
 }

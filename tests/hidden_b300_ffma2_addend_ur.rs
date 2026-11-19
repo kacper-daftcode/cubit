@@ -127,7 +127,7 @@ fn measured_lattice_and_provenance() {
             hex(&group["and_base"]),
             0x00000000092000000000000000000e49u128
         );
-        assert_eq!(group["claim_forbid"].as_array().unwrap().len(), 8);
+        assert_eq!(group["claim_forbid"].as_array().unwrap().len(), 7);
         let mask = group["fields"]
             .as_array()
             .unwrap()
@@ -137,7 +137,7 @@ fn measured_lattice_and_provenance() {
                     << field["shift"].as_u64().unwrap())
             });
         assert_eq!(hex(&group["variable_mask"]), mask);
-        assert_eq!(mask, 0x0800000000000fffc00000fffffff000u128);
+        assert_eq!(mask, 0x0c00000000000fffc00000fffffff000u128);
         for field in group["fields"].as_array().unwrap() {
             match (
                 field["token_idx"].as_u64().unwrap(),
@@ -146,6 +146,7 @@ fn measured_lattice_and_provenance() {
                 (3, 64) => assert_eq!(field["extraction"].as_str(), Some("reg")),
                 (4, 32) => assert_eq!(field["extraction"].as_str(), Some("ureg")),
                 (3, 123) => assert_eq!(field["extraction"].as_str(), Some("reuse")),
+                (2, 122) => assert_eq!(field["extraction"].as_str(), Some("reuse")),
                 (3, 74 | 75) => assert_eq!(
                     field["extraction"].as_str(),
                     Some(match field["shift"].as_u64().unwrap() {

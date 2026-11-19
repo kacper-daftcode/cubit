@@ -130,7 +130,7 @@ fn both_resolved_uniform_donors_share_one_row() {
         ] {
             let parsed = cubit::parse_cuasm_line(text, 0).unwrap();
             let word = cubit::encoder::encode_instruction(&parsed, &t103).unwrap();
-            assert_eq!(bool::from((word >> 88) & 1 != 0), scalar, "{arch}: {text}");
+            assert_eq!((word >> 88) & 1 != 0, scalar, "{arch}: {text}");
             let index = DecodeIndex::build(&t103);
             let decoded = index.decode(word, 0, &t103).unwrap();
             assert_eq!(decoded.key, "FMUL2_R_R_UR");

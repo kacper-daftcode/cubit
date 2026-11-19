@@ -127,7 +127,7 @@ fn measured_lattice_and_provenance() {
             hex(&group["and_base"]),
             0x00000000080000000000000000000c4au128
         );
-        assert_eq!(group["claim_forbid"].as_array().unwrap().len(), 6);
+        assert_eq!(group["claim_forbid"].as_array().unwrap().len(), 5);
         let mask = group["fields"]
             .as_array()
             .unwrap()
@@ -137,7 +137,7 @@ fn measured_lattice_and_provenance() {
                     << field["shift"].as_u64().unwrap())
             });
         assert_eq!(hex(&group["variable_mask"]), mask);
-        assert_eq!(mask, 0x0000000001000300c00000fffffff000u128);
+        assert_eq!(mask, 0x0400000001000300c00000fffffff000u128);
     }
 }
 
