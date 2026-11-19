@@ -4,6 +4,11 @@ User-visible changes, newest first. Table syncs name the blackwell-isa revision 
 (`tables/SOURCE.json` pins it byte for byte). Numbered `BUG-NNN` entries are the encoder /
 decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `docs/TESTS.md`).
 
+## Unreleased — 2026-11-13 (engine unit E1/X3a: F2FP E2M1 selectors, reuse and unpack type order)
+
+- `op_f2fp_ra_sel` accepts one E2M1 source byte selector and one `.reuse` flag in either order; an omitted selector remains B0. Repeated or unknown suffixes are refused. SM103a and SM100a gain the existing measured `F16.E2M1.UNPACK_B` row from blackwell-isa `bceec379`; its F16-before-E2M1 print order follows the row type and the `F2FP_R_R` key, not an exact modifier-set lookup.
+- `tests/hidden_b300_f2fp_bf16_e2m1_reuse_selector.rs` retains all 188 production words and 4,534 controlled positives per target; `tests/hidden_b300_f2fp_f16_e2m1_unpackb.rs` retains 264 production and 2,524 positive records per target. Both deterministic fixtures and adjacent-row and suffix negatives are included. Immediate-suffix ownership is a separate E3 unit. CPU/SASS evidence only; no GPU or silicon claim.
+
 ## Unreleased — 2026-11-13 (`CUBIT_YIELD_HOLD=1|2`, opt-in: outside the tensor loops a datapath word that sets no barrier gives up the yield flag at stall 1, or 1 and 2 — measured on the served FC1; without the switch nothing changes)
 
 - **`CUBIT_YIELD_HOLD=<n>`**, n = 1 or 2 (honoured only together with `CUBIT_SYNC_CLASSES=1`; KNOWN_ISSUES A55): on

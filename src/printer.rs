@@ -1148,7 +1148,11 @@ fn format_opcode(base: &str, mod_group: &str, key: &str) -> String {
 /// NTZ (`F2I.FTZ.U32.CEIL.NTZ R0, 16`, nvdisasm-13.3 oracle sweep x96), while
 /// the legacy register-form F2I_R_R rows keep their alphabetical/priority
 /// prints (gold-locked pre-125 renders — do NOT unify silently).
-fn mod_priority_for_key(base: &str, _key: &str, m: &str) -> u8 {
+fn mod_priority_for_key(base: &str, key: &str, m: &str) -> u8 {
+    // F2FP.F16.E2M1.UNPACK_B prints destination type before source type.
+    if base == "F2FP" && key == "F2FP_R_R" && m == "F16" {
+        return 4;
+    }
     // VIMNMX3 prints its scalar/packed integer type before the independent clamp.
     if base == "VIMNMX3" && matches!(m, "U32" | "U16x2" | "S16x2") {
         return 4;

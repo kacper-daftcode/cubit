@@ -108,7 +108,7 @@ fn t459a_1_decode_matrix() {
 #[test]
 fn t459a_2_mint_junk_census_source() {
     // Current byte-pinned cut; historical fixture provenance remains unchanged.
-    const CURRENT_VENDORED_CANON: &str = "a94e465649873b69be568673e59eb8792fc352bc" /* 2026-11-06 T-11 (was c258f8a, T-10) */ /* 2026-11-06 T-10 (was b75cc20, T-9) */;
+    const CURRENT_VENDORED_CANON: &str = "b03d97ebd1e29e062bef43067b1d9a90b80d3591" /* 2026-11-06 T-11 (was c258f8a, T-10) */ /* 2026-11-06 T-10 (was b75cc20, T-9) */;
     assert_eq!(CANON459A, "9c0e4ce", "historical fixture revision drift");
 
     const CTL: u128 = !((1u128 << 96) - 1);
