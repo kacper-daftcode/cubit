@@ -139,7 +139,7 @@ fn production_and_measured_register_neg_reuse_domains_roundtrip() {
 }
 
 #[test]
-fn exactly_two_fields_are_repaired_on_one_existing_group() {
+fn measured_fields_and_reuse_boundaries_are_exact() {
     for arch in ["sm103a", "sm100a"] {
         let raw: Value = serde_json::from_slice(
             &cubit::table::read_table_bytes(std::path::Path::new(&format!("tables/{arch}.json")))
@@ -152,7 +152,13 @@ fn exactly_two_fields_are_repaired_on_one_existing_group() {
         let group = &entry["mod_groups"]["BF16_V2"];
         assert_eq!(group["_src"], SOURCE, "{arch}");
         assert_eq!(group["count"], Value::Null);
-        for (shift, extraction) in [(63, "neg"), (124, "reuse")] {
+        for (shift, extraction, token) in [
+            (62, "abs", 3),
+            (63, "neg", 3),
+            (72, "neg", 2),
+            (73, "abs", 2),
+            (124, "reuse", 3),
+        ] {
             let field = group["fields"]
                 .as_array()
                 .unwrap()
@@ -161,14 +167,41 @@ fn exactly_two_fields_are_repaired_on_one_existing_group() {
                 .unwrap_or_else(|| panic!("{arch}: missing {extraction}@{shift}"));
             assert_eq!(
                 (field["bits"].as_u64(), field["token_idx"].as_u64()),
-                (Some(1), Some(3)),
+                (Some(1), Some(token)),
                 "{arch}"
             );
             assert_ne!(hex(&group["variable_mask"]) & (1u128 << shift), 0, "{arch}");
             assert_eq!(hex(&group["and_base"]) & (1u128 << shift), 0, "{arch}");
         }
+        assert_eq!(
+            group["claim_forbid"],
+            serde_json::json!([{"bits": 1, "shift": 123, "values": [1]}])
+        );
         assert!(entry["mod_groups"][""]["_src"] != SOURCE);
         assert!(entry["mod_groups"]["F32"]["_src"] != SOURCE);
+    }
+}
+
+#[test]
+fn modifier_neighbours_roundtrip_and_refused_reuse_stays_closed() {
+    for (position, (arch, fixture)) in arches().iter().enumerate() {
+        let (table, index) = &tables()[position];
+        let (mut neighbours, mut refused) = (0, 0);
+        for row in rows(fixture) {
+            let word = hex(&row["word"]);
+            if row["role"] == "neighbor_evidence"
+                && row["nvidia_sass"].as_str().unwrap().starts_with("HADD2.BF16_V2 ")
+                && word & ((1u128 << 62) | (1u128 << 72) | (1u128 << 73)) != 0
+            {
+                roundtrip(table, index, arch, &row);
+                neighbours += 1;
+            }
+            if row["role"] == "negative" && word & (1u128 << 123) != 0 {
+                assert!(index.decode(word, 0, table).is_err(), "{arch}: {word:032x}");
+                refused += 1;
+            }
+        }
+        assert_eq!((neighbours, refused), (12, 13), "{arch}");
     }
 }
 

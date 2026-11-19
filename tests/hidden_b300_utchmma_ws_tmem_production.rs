@@ -87,8 +87,30 @@ fn mixed_descriptor_row_has_exact_fields_exclusions_and_provenance() {
             {"bits":2,"extraction":"dsel2","shift":10,"token_idx":1}
         ]));
         assert_eq!(group["claim_forbid"], json!([
-            {"bits":2,"shift":10,"values":[0,3]}
+            {"bits":2,"shift":10,"values":[0,3]},
+            {"bits":1,"shift":122,"values":[1]},
+            {"bits":1,"shift":123,"values":[1]},
+            {"bits":1,"shift":124,"values":[1]}
         ]));
+    }
+}
+
+#[test]
+fn every_reuse_mask_fails_closed_on_ws() {
+    for (position, (arch, fixture)) in arches().iter().enumerate() {
+        let (table, index) = &tables()[position];
+        let mut refused = 0;
+        for row in rows(fixture) {
+            let word = hex(&row["word"]);
+            if row["role"] == "control" && word & (7u128 << 122) != 0 {
+                if let Ok(decoded) = index.decode(word, 0, table) {
+                    assert!(!(decoded.key == KEY && decoded.mod_group == "WS"),
+                            "{arch}: reuse entered WS {word:032x}");
+                }
+                refused += 1;
+            }
+        }
+        assert_eq!(refused, 7, "{arch}");
     }
 }
 
