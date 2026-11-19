@@ -125,8 +125,8 @@ fn unlicensed_encodings_do_not_enter_atoms_max() {
             }
             let word = hex(&row["word"]);
             if let Ok(decoded) = index.decode(word, 0, table) {
-                assert_ne!(decoded.key, "ATOMS_R_ARURI_R",
-                           "{arch} overmatch {kind} {word:032x}");
+                assert!(decoded.key != "ATOMS_R_ARURI_R" || decoded.mod_group != "MAX",
+                        "{arch} overmatch {kind} {word:032x}");
             }
             if kind == "negative" {
                 assert!(index.decode(word, 0, table).is_err(),

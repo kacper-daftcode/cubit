@@ -8,6 +8,9 @@ use std::sync::OnceLock;
 const KEY: &str = "VHMNMX_R_R_R_R_P";
 const SOURCE: &str = "rows-vhmnmx-modifiers-production-2026-11-09";
 const OLD_SOURCE: &str = "rows-vhmnmx-plain-production-2026-11-09";
+// Re-measured 2026-11-11: the BF16_V2 row alone now carries all three
+// register reuse fields, with production-schedule and yield=0 controls.
+const REUSE_SOURCE: &str = "rows-vhmnmx-bf16-rc-reuse-production-2026-11-11";
 static ARCHES: std::sync::LazyLock<[(&str, &str); 2]> = std::sync::LazyLock::new(|| [
     (
         "sm103a",
@@ -48,6 +51,15 @@ fn encode(table: &IsaTable, word: u128, text: &str) -> u128 {
     let control = cubit::scheduling::format_control_code(&cubit::scheduling::decode_sched_upper32(
         (word >> 96) as u32,
     ));
+    let parsed = cubit::parse_cuasm_line(&format!("[{control}] {text} ;"), 0).unwrap();
+    cubit::encoder::encode_instruction(&parsed, table).unwrap()
+}
+
+fn encode_with_lossless_reuse(table: &IsaTable, word: u128, decoded: &cubit::decoder::DecodedInst) -> u128 {
+    let control = cubit::scheduling::format_control_code(&cubit::scheduling::decode_sched_upper32(
+        (word >> 96) as u32,
+    ));
+    let text = cubit::printer::to_sass_lossless(decoded);
     let parsed = cubit::parse_cuasm_line(&format!("[{control}] {text} ;"), 0).unwrap();
     cubit::encoder::encode_instruction(&parsed, table).unwrap()
 }
@@ -181,10 +193,30 @@ fn invalid_selectors_and_unmeasured_neighbors_stay_closed() {
                 let label = format!("{prefix}reuse-mask:{mask}");
                 let row = rows(fixture).find(|row| row["label"] == label).unwrap();
                 assert_eq!(row["kind"], "negative");
-                assert!(index.decode(hex(&row["word"]), 0, table).is_err());
+                let word = hex(&row["word"]);
+                if prefix == "bf16:" && mask <= 5 {
+                    let decoded = index.decode(word, 0, table).unwrap();
+                    assert_eq!(decoded.mod_group, "BF16_V2");
+                    assert_eq!(cubit::printer::to_sass(&decoded), row["nvidia_sass"]);
+                    assert!(cubit::printer::to_sass_lossless(&decoded).contains(".reuse"));
+                    assert_eq!(encode_with_lossless_reuse(table, word, &decoded),
+                               word & !(7u128 << 125));
+                    continue;
+                }
+                if prefix == "bf16:" {
+                    // This donor's schedule refuses both A+B reuse. It says
+                    // nothing against the independently measured C paths.
+                    assert_ne!(row["rc"], 0);
+                    assert!(row["nvidia_sass"].is_null());
+                    continue;
+                }
+                assert!(index.decode(word, 0, table).is_err());
             }
         }
         for row in rows(fixture) {
+            if row["label"].as_str().unwrap().starts_with("bf16:reuse-mask:") {
+                continue;
+            }
             if row["kind"] == "negative" {
                 assert!(
                     index.decode(hex(&row["word"]), 0, table).is_err(),
@@ -204,10 +236,10 @@ fn table_provenance_and_field_geometry_are_measured() {
                 .unwrap(),
         )
         .unwrap();
-        assert_eq!(raw["_meta"]["provenance"]["sources"][SOURCE]["rows"], 3);
+        assert_eq!(raw["_meta"]["provenance"]["sources"][SOURCE]["rows"], 2);
+        assert_eq!(raw["_meta"]["provenance"]["sources"][REUSE_SOURCE]["rows"], 1);
         let entry = &raw["instructions"][KEY];
         assert_eq!(entry["_src"], OLD_SOURCE);
-        assert_eq!(entry["mod_groups"].as_object().unwrap().len(), 4);
         for (group, and_bits) in [
             ("", 0u128),
             ("NAN", 1u128 << 81),
@@ -217,11 +249,19 @@ fn table_provenance_and_field_geometry_are_measured() {
             let row = &entry["mod_groups"][group];
             assert_eq!(
                 row["_src"],
-                if group.is_empty() { OLD_SOURCE } else { SOURCE }
+                if group.is_empty() { OLD_SOURCE } else if group == "BF16_V2" { REUSE_SOURCE } else { SOURCE }
             );
             assert_eq!(hex(&row["and_base"]) & and_bits, and_bits);
             let fields = row["fields"].as_array().unwrap();
-            assert_eq!(fields.len(), 16);
+            assert_eq!(fields.len(), if group == "BF16_V2" { 19 } else { 16 });
+            if group == "BF16_V2" {
+                for (shift, token) in [(122, 2), (123, 3), (124, 4)] {
+                    assert!(fields.iter().any(|field| field["extraction"] == "reuse"
+                        && field["shift"] == shift && field["token_idx"] == token));
+                    assert!(row["claim_forbid"].as_array().unwrap().iter().all(|claim|
+                        claim["shift"] != shift));
+                }
+            }
             for (token, shift) in [(2, 74), (3, 60), (4, 76)] {
                 let matches: Vec<_> = fields
                     .iter()
@@ -235,7 +275,7 @@ fn table_provenance_and_field_geometry_are_measured() {
                 } else {
                     &matches[0]["_src"]
                 };
-                assert_eq!(inherited, SOURCE);
+                assert_eq!(inherited, if group == "BF16_V2" { REUSE_SOURCE } else { SOURCE });
                 let forbidden = row["claim_forbid"].as_array().unwrap().iter().any(|rule| {
                     rule["shift"] == shift
                         && rule["bits"] == 2

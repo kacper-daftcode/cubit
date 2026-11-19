@@ -87,10 +87,13 @@ fn t329_1_structure_graft_and_siblings() {
         assert_eq!(has(Extraction::Neg, 72, 2), 1, "{leg}: neg@72 tok2 lost");
         // BUG-353 flip (canonical 9717447, attributed): tok3 sign window
         // grafted onto mg '' (mirror of dense 279/271 geometry): 8->12 fields.
+        // HIDDEN-B300: measured two-immediate third-source Rb.reuse@123 adds
+        // exactly one field on this plain/BF16_V2 pair, not other siblings.
+        assert_eq!(has(Extraction::Reuse, 123, 3), 1, "{leg}: Rb.reuse@123 tok3");
         assert_eq!(
             mg.fields.len(),
-            12,
-            "{leg}: field count drift (post-353: 12)"
+            13,
+            "{leg}: field count drift (two-immediate reuse: 12->13)"
         );
         // 353 A-LAW: tok3 sign lanes armed exactly once each
         for (ext, sh) in [

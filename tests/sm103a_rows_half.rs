@@ -18,10 +18,10 @@ const ALIAS_KEYS: &[(&str, &str)] = &[
 ];
 /// Rows of the family's mnemonics that stay without `_src` (key, group, reason) -- the probe's verdict names each.
 const EXCEPTIONS: &[(&str, &str, &str)] = &[
-    ("F2FP_R_R", "E4M3,F16,UNPACK_B", "bit 88 outside the fields moves operand 2 of the same form: 'F2FP.F16.E4M3.UNPACK_B R32, R48.H1'"),
+    ("F2FP_R_R", "E4M3,F16,UNPACK_B", "re-measured since: rows-f2fp-f16-e4m3-h1-production-2026-11-09 (a candidate form of the B300 measurement lane, taken on 2026-11-13 -- complete-word fixture tests/hidden_b300_f2fp_f16_e4m3_h1.rs); this pass had found: bit 88 outside the fields moves operand 2 of the same form: 'F2FP.F16.E4M3.UNPACK_B R32, R48.H1'"),
     ("F2FP_R_R", "E5M2,F16,UNPACK_B", "bit 88 outside the fields moves operand 2 of the same form: 'F2FP.F16.E5M2.UNPACK_B R16, R32.H1'"),
     ("F2FP_R_R", "F32,PACK_B,TF32", "cubit mishandles the row's words (not tagged; T-23): cubit decodes the canonical word through F2FP_R_R / 'TF32,F32,PACK_B' (shadowed)"),
-    ("F2FP_R_R", "F16,E4M3,UNPACK_B", "the key does not spell the vendor text: 'F2FP.F16.E4M3.UNPACK_B R32, R48' -> F2FP.F16.E4M3.UNPACK_B_R_R / 'E4M3,F16,UNPACK_B'"),
+    ("F2FP_R_R", "F16,E4M3,UNPACK_B", "re-measured since: rows-f2fp-f16-e4m3-h1-production-2026-11-09 (a candidate form of the B300 measurement lane, taken on 2026-11-13 -- complete-word fixture tests/hidden_b300_f2fp_f16_e4m3_h1.rs); this pass had found: the key does not spell the vendor text: 'F2FP.F16.E4M3.UNPACK_B R32, R48' -> F2FP.F16.E4M3.UNPACK_B_R_R / 'E4M3,F16,UNPACK_B'"),
     ("F2FP_R_R", "F16,E5M2,UNPACK_B", "the key does not spell the vendor text: 'F2FP.F16.E5M2.UNPACK_B R16, R32' -> F2FP.F16.E5M2.UNPACK_B_R_R / 'E5M2,F16,UNPACK_B'"),
     ("F2FP_R_R", "TF32,F32,PACK_B", "the key does not spell the vendor text: 'F2FP.TF32.F32.PACK_B R16, R32' -> F2FP.TF32.F32.PACK_B_R_R / 'F32,PACK_B,TF32'"),
     ("F2FP_R_R_R", "BF16,F32,PACK_AB", "bit 78 outside the fields moves several tokens of the same form: 'F2FP.BF16.F32.MERGE_C R32, R64, RZ'"),
@@ -44,7 +44,7 @@ const EXCEPTIONS: &[(&str, &str, &str)] = &[
     ("HADD2_R_R_FI_FI", "BF16_V2,SAT", "field bit 64 (bf16 tok 3) is text-inert"),
     ("HADD2_R_R_FI_FI", "BF16_V2,FTZ", "field bit 64 (bf16 tok 3) is text-inert"),
     ("HADD2_R_R_FI_FI", "BF16_V2,FTZ,SAT", "field bit 64 (bf16 tok 3) is text-inert"),
-    ("HADD2_R_R_R", "BF16_V2", "cubit mishandles the row's words (not tagged; T-23): field word bit 124: cubit 'HADD2.BF16_V2 R32, R48, R96' re-encode mismatch:000fe200002000000000006030207230 for 'HADD2.BF16_V2 R32, R48, R96.reuse'"),
+    ("HADD2_R_R_R", "BF16_V2", "re-measured since: rows-hadd2-bf16-rb-neg-reuse-production-2026-11-11 (a candidate form of the B300 measurement lane, taken on 2026-11-13 -- complete-word fixture tests/hidden_b300_hadd2_bf16_rb_neg_reuse_production.rs); this pass had found: cubit mishandles the row's words (not tagged; T-23): field word bit 124: cubit 'HADD2.BF16_V2 R32, R48, R96' re-encode mismatch:000fe200002000000000006030207230 for 'HADD2.BF16_V2 R32, R48, R96.reuse'"),
     ("HFMA2_R_R_FI_FI_R", "RELU", "cubit mishandles the row's words (not tagged; T-23): cubit decodes the canonical word through HFMA2.RELU_R_R_FI_FI_R_P / '' (shadowed)"),
     ("HFMA2_R_R_FI_FI_R", "FMZ,RELU", "cubit mishandles the row's words (not tagged; T-23): cubit decodes the canonical word through HFMA2.FMZ.RELU_R_R_FI_FI_R_P / '' (shadowed)"),
     ("HFMA2_R_R_FI_FI_R", "FTZ,RELU", "cubit mishandles the row's words (not tagged; T-23): cubit decodes the canonical word through HFMA2.FTZ.RELU_R_R_FI_FI_R_P / '' (shadowed)"),
@@ -55,7 +55,7 @@ const EXCEPTIONS: &[(&str, &str, &str)] = &[
     ("HFMA2_R_R_FI_FI_R", "BF16_V2,FMZ,RELU", "cubit mishandles the row's words (not tagged; T-23): cubit decodes the canonical word through HFMA2.BF16_V2.FMZ.RELU_R_R_FI_FI_R_P / '' (shadowed)"),
     ("HFMA2_R_R_FI_FI_R", "BF16_V2,FTZ,RELU", "cubit mishandles the row's words (not tagged; T-23): cubit decodes the canonical word through HFMA2.BF16_V2.FTZ.RELU_R_R_FI_FI_R_P / '' (shadowed)"),
     ("HFMA2_R_R_FI_FI_R", "BF16_V2,OOB,RELU", "cubit mishandles the row's words (not tagged; T-23): cubit decodes the canonical word through HFMA2.BF16_V2.OOB.RELU_R_R_FI_FI_R_P / '' (shadowed)"),
-    ("HFMA2_R_R_R_FI_FI", "", "cubit mishandles the row's words (not tagged; T-23): field word bit 123: cubit 'HFMA2 R16, R64, R80, 203.25, 203.25' re-encode mismatch:000fe200000000505a5a5a5a40107431 for 'HFMA2 R16, R64, R80.reuse, 203.25, 203.25'"),
+    ("HFMA2_R_R_R_FI_FI", "", "re-measured since: rows-hfma2-reuse-imm-production-2026-11-11 (a candidate form of the B300 measurement lane, taken on 2026-11-13 -- complete-word fixture tests/hidden_b300_hfma2_reuse_imm_production.rs); this pass had found: cubit mishandles the row's words (not tagged; T-23): field word bit 123: cubit 'HFMA2 R16, R64, R80, 203.25, 203.25' re-encode mismatch:000fe200000000505a5a5a5a40107431 for 'HFMA2 R16, R64, R80.reuse, 203.25, 203.25'"),
     ("HSET2_R_R_FI_FI_P", "AND,BF,BF16_V2,EQ", "field bit 12 (pred tok 5) moves guard 0: '@P6 HSET2.BF16_V2.BF.EQ.AND R16, R96, -2.4233807008389482662e-25, -0.0030975341796875, PT'"),
     ("HSET2_R_R_FI_FI_P", "AND,EQ", "cubit mishandles the row's words (not tagged; T-23): cubit prints 'HSET2.EQ.AND R32, R48, 1.2964953521779640022e-40, 0.003101348876953125, PT' for 'HSET2.EQ.AND R32, R48, 203.25, 203.25, PT' (+3 more)"),
     ("HSET2_R_R_R_P", "AND,BF,BF16_V2,EQ", "re-measured since: rows-hset2-rrr-production-2026-11-10 bit 60 outside the fields moves operand 3 of the same form: 'HSET2.BF16_V2.BF.EQ.AND R32, R48, R64.H1_H1, PT'"),

@@ -198,8 +198,10 @@ fn t143_6_parked_classes_stay_fail_closed() {
         // UN-parked with full vendor canon (nvcc 13.3.73 fresh witnesses,
         // arch-eq sm_120a==sm_103a==sm_100a, scope law [77:81) arb195) — exact
         // decode/encode pins live in bug195_atom_scope_width.rs. The classes
-        // below stay parked (still no canon):
-        w(0x00001c00ff00798c, 0x000e24000c000004), // ATOMS.EXCH [UR4+0x1c]
+        // Plain ATOMS.EXCH [UR+imm] is now covered by the measured production
+        // EXCH row. A different bit-80=0 form remains vendor-refused and is
+        // explicitly retained as a negative in that complete EXCH fixture.
+        w(0x0030b0ffffff798c, 0x000e240001000004), // ATOMS.EXCH bit80=0: no vendor text
     ];
     for word in parked {
         assert!(idx.decode(word, 0, &t).is_err(),

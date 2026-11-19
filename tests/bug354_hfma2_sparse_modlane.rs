@@ -40,6 +40,9 @@ const B84: u128 = 1 << 84;
 const B85: u128 = 1 << 85;
 const B86: u128 = 1 << 86;
 const B91: u128 = 1 << 91;
+const B123: u128 = 1 << 123;
+const LEGACY_RB_DEFAULT: u128 = 0xffu128 << 64;
+const FIELD_AND_REUSE_MASK: u128 = ((1u128 << 105) - 1) | (7u128 << 122);
 const H1: u128 = 0x3c00u128 << 48;
 const BF1: u128 = 0x3f80u128 << 48;
 const FI: u128 = 0x7431 | (2 << 16) | (3 << 24) | (4 << 64);
@@ -88,6 +91,8 @@ fn t354_1_structure_mirror_of_dense_delta_laws() {
         // names; the SAT/FTZ/OOB names are pinned by tests/bug367_*).
         assert_eq!(e.mod_groups.len(), 36, "{leg}: mg count drift");
         let pl = &e.mod_groups[""];
+        let legacy_mask = pl.variable_mask & !B123 & FIELD_AND_REUSE_MASK & !LEGACY_RB_DEFAULT;
+        assert_eq!(pl.and_base & LEGACY_RB_DEFAULT, 0, "{leg}: baked Rb default returned");
         for name in want_mgs {
             assert!(
                 e.mod_groups.contains_key(name),
@@ -115,13 +120,18 @@ fn t354_1_structure_mirror_of_dense_delta_laws() {
                 b
             };
             assert_eq!(
-                mg.and_base ^ pl.and_base,
+                (mg.and_base ^ pl.and_base) & !LEGACY_RB_DEFAULT,
                 want_bits,
                 "{leg}:{name}: ab delta drift"
             );
             assert_eq!(
-                mg.variable_mask, pl.variable_mask,
-                "{leg}:{name}: vm delta drift"
+                mg.variable_mask & FIELD_AND_REUSE_MASK & !LEGACY_RB_DEFAULT,
+                if name == "BF16_V2" {
+                    pl.variable_mask & FIELD_AND_REUSE_MASK & !LEGACY_RB_DEFAULT
+                } else {
+                    legacy_mask
+                },
+                "{leg}:{name}: vm must preserve old geometry except measured BF16_V2"
             );
             // BF16 lanes: tok4/tok5 immediate read as bf16 (288-era swap)
             let bfcnt = mg
@@ -184,8 +194,8 @@ fn t354_1_structure_mirror_of_dense_delta_laws() {
                 &e.mod_groups[lane_name.as_str()]
             };
             assert_eq!(
-                g.and_base,
-                lane.and_base | B79,
+                (g.and_base ^ lane.and_base) & !LEGACY_RB_DEFAULT,
+                B79,
                 "{leg}:{dk}: ab drift (lane bits + b79, no pv7)"
             );
             assert_eq!(

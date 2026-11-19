@@ -138,7 +138,8 @@ fn t181_7_sm103a_untouched() {
     // 2026-08-26 compose: "sm103a untouched" held for THIS branch's diff,
     // but the canonical wave itself filled ATOMS_R_ARURI on sm103a from the
     // 143-era adds -- POPC real-UR is live there now (UR63 prints UR63).
-    // EXCH AURI has no sm103a row and stays fail-closed, as pinned here.
+    // EXCH AURI was outside the historical Bug 181 patch. Its missing B300 row
+    // was subsequently measured and added by rows-atoms-exch-ur-production.
     let t = cubit::table::IsaTable::load(std::path::Path::new("tables/sm103a.json")).unwrap();
     let idx = cubit::decoder::DecodeIndex::build(&t);
     let good = "ATOMS.POPC.INC.32 RZ, [R0+UR63+0x3c]";
@@ -146,6 +147,7 @@ fn t181_7_sm103a_untouched() {
     let w = encode_instruction(&insn, &t).expect("POPC real-UR live on sm103a (wave row)");
     assert_eq!(idx.decode(w, 0, &t).map(|d| cubit::printer::to_sass(&d)).unwrap(), good);
     let insn = parse_sass("ATOMS.EXCH R0, [UR4+0x1c], R0", 0).expect("parse");
-    assert!(encode_instruction(&insn, &t).is_err(),
-            "EXCH AURI stays fail-closed on sm103a (no row)");
+    let w = encode_instruction(&insn, &t).expect("measured EXCH AURI encodes");
+    assert_eq!(idx.decode(w, 0, &t).map(|d| cubit::printer::to_sass(&d)).unwrap(),
+               "ATOMS.EXCH R0, [UR4+0x1c], R0");
 }
