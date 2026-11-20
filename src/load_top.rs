@@ -217,10 +217,12 @@ pub(crate) struct UseView {
 /// `lowest` (the copy group's), the scoreboard of the other barrier of one of its own words,
 /// one a pinned use holds over its flight, or one on which a write-barrier use that is none of
 /// `topped` flies beside its loads. If no scoreboard is clean it keeps the allocator's.
+/// `apart` (`CUBIT_SB_APART`, see `crate::sb_apart`): a scoreboard on which a read-barrier use
+/// is pending over the flight of the use is barred too -- the allocator's own among them.
 /// `CUBIT_DUMP_USES` prints one `TOP` line a use: the scoreboard and where it moves, the loads,
 /// the tops, the consumers that lost their wait and those that keep it, the counts by
 /// scoreboard, the scoreboards that are barred, the words that hold on the allocator's.
-pub(crate) fn scoreboards(c: &Cfg, uses: &[UseView], topped: &[(usize, Cover)], waits: &[u8], lowest: u8) -> Vec<(usize, u8)> {
+pub(crate) fn scoreboards(c: &Cfg, uses: &[UseView], topped: &[(usize, Cover)], waits: &[u8], lowest: u8, apart: bool) -> Vec<(usize, u8)> {
     const NB: usize = sp::NUM_BARRIERS;
     let dump = std::env::var("CUBIT_DUMP_USES").is_ok();
     let mut colour: Vec<u8> = uses.iter().map(|x| x.colour).collect();
@@ -247,6 +249,7 @@ pub(crate) fn scoreboards(c: &Cfg, uses: &[UseView], topped: &[(usize, Cover)], 
                         || (!x.is_rb
                             && !topped.iter().any(|(w, _)| *w == v)
                             && (x.setters.iter().any(|&s| live(me, s)) || me.setters.iter().any(|&s| live(x, s))))
+                        || (apart && x.is_rb && crate::sb_apart::meet(&x.segs, &me.segs))
                 });
             let waits_b = |j: usize| waits[j] & (1 << b) != 0 || others.iter().any(|&v| uses[v].waiters.contains(&j));
             let mut hold: Vec<usize> = Vec::new();

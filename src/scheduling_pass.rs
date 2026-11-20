@@ -446,6 +446,35 @@ pub fn load_top() -> bool {
     std::env::var("CUBIT_LOAD_TOP").ok().as_deref() == Some("1") && wait_policy()
 }
 
+/// `CUBIT_SB_APART=1` (opt-in, default off; honoured only together with [`wait_policy`]): a
+/// write-barrier use shares no scoreboard with a read barrier that is pending over its flight
+/// (`crate::sb_apart`, KNOWN_ISSUES A69).
+///
+/// A scoreboard counts: a word that waits it stands until everything armed on it has come back
+/// -- the result it reads and every operand read another word still has pending there. Under
+/// `CUBIT_SB_KIND=wide` a read barrier joins the low scoreboards and keeps none of them busy; a
+/// short producer behind it takes the same scoreboard, and its reader waits behind the operand
+/// reads that are pending there. Two clauses, behind the colouring of [`reallocate_barriers`]:
+///
+/// * **a write-barrier use that has a read-barrier use on its scoreboard whose flight meets its
+///   own moves to the lowest scoreboard on which nothing is in flight over its flight** -- no
+///   read barrier, no other result, no use the author numbered --, never below the copy
+///   group's; its setters arm the new scoreboard and its waiters wait the new one. Where no
+///   scoreboard is free it stays.
+/// * **the clause of [`load_top`] takes no scoreboard on which a read barrier is pending over
+///   the flight of the load.**
+///
+/// No wait comes off a word and no barrier goes: the rule changes a number on a use's setters
+/// and waiters together. No read-barrier use is touched, no use joins another use in flight or
+/// takes the scoreboard of a load that waits at a top, and nothing moves for a use the author
+/// numbered or one with a setter under a guard. A wait that stood in front of a word only
+/// because another use shared the scoreboard -- in front of a rewriter of the guard of an event
+/// word, which the allocator does not protect (KNOWN_ISSUES A68) -- may go or come with the
+/// number.
+pub fn sb_apart() -> bool {
+    std::env::var("CUBIT_SB_APART").ok().as_deref() == Some("1") && wait_policy()
+}
+
 /// A shared-memory load of the forms [`load_cover`] speaks of: `LDS`, `LDS.64`, `LDS.U16`, with
 /// no guard, scheduled by cubit.
 pub(crate) fn plain_shared_load(insn: &Instruction) -> bool {
@@ -6005,8 +6034,9 @@ fn reallocate_barriers_in(
 
     // ---- CUBIT_LOAD_TOP: the uses that wait at the tops of their loops take the scoreboard on
     // which no word waits for another use while their loads are in flight (see `load_top`) ----
-    if let (false, Some(c)) = (trial || topped.is_empty(), &cfg) {
-        let view: Vec<crate::load_top::UseView> = (0..uses.len())
+    // (the uses as the colouring left them, for the two clauses behind it)
+    let use_views = |assigned: &[u8]| -> Vec<crate::load_top::UseView> {
+        (0..uses.len())
             .map(|v| crate::load_top::UseView {
                 setters: uses[v].setters.clone(),
                 waiters: uses[v].waiters.clone(),
@@ -6015,9 +6045,29 @@ fn reallocate_barriers_in(
                 colour: if covered.contains(&v) || not_written.contains(&v) { 7 } else { assigned[v] },
                 pinned: pin_of[v].is_some(),
             })
-            .collect();
+            .collect()
+    };
+    let apart = !trial && cfg.is_some() && sb_apart();
+    if let (false, Some(c)) = (trial || topped.is_empty(), &cfg) {
+        let view = use_views(&assigned);
         let waits: Vec<u8> = (0..n).map(|j| insns[j].ctrl.wait_mask | inject_wait[j]).collect();
-        for (u, b) in crate::load_top::scoreboards(c, &view, &topped, &waits, if sb0_reserved { 1 } else { 0 }) {
+        for (u, b) in crate::load_top::scoreboards(c, &view, &topped, &waits, if sb0_reserved { 1 } else { 0 }, apart) {
+            assigned[u] = b;
+        }
+    }
+
+    // ---- CUBIT_SB_APART: a write-barrier use that has a read barrier pending over its flight on
+    // its own scoreboard takes the lowest scoreboard on which nothing is in flight over its
+    // flight (see `sb_apart`) -- behind the clause of the loads above, on the numbers it left,
+    // and in front of every clause below: they read the numbers as they stand now ----
+    if apart {
+        let view = use_views(&assigned);
+        let waits: Vec<u8> = (0..n).map(|j| insns[j].ctrl.wait_mask | inject_wait[j]).collect();
+        let at_tops: Vec<usize> = topped.iter().map(|t| t.0).collect();
+        // (a producer under a guard: the policy's fourth clause may write its wait on a later
+        // reader, behind the colouring -- its flight here is not all of it)
+        let under_a_guard: Vec<usize> = (0..uses.len()).filter(|&u| uses[u].setters.iter().any(|&s| guarded[s])).collect();
+        for (u, b) in crate::sb_apart::moves(&view, &at_tops, &under_a_guard, &waits, if sb0_reserved { 1 } else { 0 }) {
             assigned[u] = b;
         }
     }

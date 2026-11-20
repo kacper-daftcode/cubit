@@ -4,6 +4,36 @@ User-visible changes, newest first. Table syncs name the blackwell-isa revision 
 (`tables/SOURCE.json` pins it byte for byte). Numbered `BUG-NNN` entries are the encoder /
 decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `docs/TESTS.md`).
 
+## Unreleased — 2026-11-20 (`CUBIT_SB_APART=1`, opt-in with `CUBIT_WAIT_POLICY=1`: a write-barrier use shares no scoreboard with a read barrier that is pending over its flight)
+
+- **A use that shares moves to a scoreboard on which nothing is in flight over its flight** (`sb_apart::moves`,
+  KNOWN_ISSUES A69). A scoreboard counts: a word that waits it stands until everything armed on it has come back —
+  the result it reads and every operand read another word still has pending there. Under `CUBIT_SB_KIND=wide` a
+  read barrier joins the low scoreboards and keeps none of them busy; a short producer behind it (`S2R`, `POPC`, a
+  constant load) takes the same scoreboard, and its reader waits behind the operand reads. Under the switch,
+  behind the colouring, a write-barrier use that has a read-barrier use on its own scoreboard whose flight meets
+  its own moves to the lowest scoreboard that is free over its flight — no read barrier, no other result, no use
+  the author numbered, no word that already carries a wait on it — and its setters and waiters take the new
+  number together. Where no scoreboard is free it stays. `CUBIT_DUMP_USES` prints one `APART` line a use that
+  shares, with what bars each scoreboard.
+- **The clause of `CUBIT_LOAD_TOP` takes no scoreboard on which a read barrier is pending over the load's flight**
+  (`load_top::scoreboards`, its `apart`): a load that waits at the tops of its loops then keeps the allocator's
+  scoreboard where the clause had moved it beside such a read barrier.
+- **What the rule does not do**, each with a test: no wait comes off a word (a word of an ordered event among the
+  waiters keeps its wait, under the new number); no read-barrier use and no wait of a read barrier is touched; no
+  use joins another result in flight; none takes the scoreboard of a load that waits at a top, wherever that load
+  flies; nothing for a use with a setter under a guard (the policy's fourth clause may write that producer's wait
+  on a later reader, behind the colouring), for a use the author numbered, or without `CUBIT_WAIT_POLICY=1`.
+- What moves: nothing without the variable — the default path and every recipe that does not name it build byte
+  for byte as before. In cubit's own frame of `fc2_kernel_ws<4,2,1,0>` under the recipe with both rules and
+  `CUBIT_LOAD_TOP=1`, 89 of the 399 write-barrier uses stand beside a read-barrier use in flight on their own
+  scoreboard by the allocator's dump; under the switch 46 move and 45 are left (41 find no scoreboard free), 123
+  words carry another control field, the stall fields' sum is the same and the wait bits go from 589 to 613. What
+  the numbers leave open is in KNOWN_ISSUES A69.
+- Inside: the rule is `src/sb_apart.rs`; `load_top::scoreboards` takes `apart`; the two clauses read the uses
+  through one view (`use_views` in `reallocate_barriers_in`). Tests: `tests/sb_apart.rs` (12),
+  `sb_apart::tests` (4).
+
 ## Unreleased — 2026-11-20 (`CUBIT_DUMP_STALL=1`, a look: why every stall field has the value it has; every schedule is what it was)
 
 - **One `STALL` line a word** (stderr; `stall_lower::reasons`). A schedule's stall fields are written by the first

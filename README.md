@@ -150,6 +150,17 @@ thread on one write barrier, in five shapes; pairs of other forms, of more than 
 cycles are not measured, and this allocator's own batching rule says the opposite for loads of different address
 streams; a build under the switch is a candidate only after its own text has been read on both card models (opt-in,
 KNOWN_ISSUES A68).
+`CUBIT_SB_APART=1` (with `CUBIT_WAIT_POLICY=1`): a write-barrier use shares no scoreboard with a read barrier that
+is pending over its flight. A scoreboard counts — a word that waits it stands until every result and every operand
+read armed on it has come back — and under `CUBIT_SB_KIND=wide` a read barrier joins the low scoreboards without
+keeping one busy, so a short producer behind it (`S2R`, `POPC`, a constant load) takes the same scoreboard and its
+reader waits behind the operand read. Under the switch such a use moves, its setters and its waiters together, to
+the lowest scoreboard on which nothing is in flight over its flight — never the scoreboard of a load that waits at
+the top of its loop —, and the clause of `CUBIT_LOAD_TOP` takes no scoreboard on which a read barrier is pending
+over the load's flight; where no scoreboard is free the use stays, and a use with a setter under a guard is left
+alone. No wait comes off a word and no read-barrier use is touched; a wait that stood in front of a word only
+because another use shared the scoreboard may go or come with the number; a build under the switch is a candidate
+only after its own text has been read on both card models (opt-in, KNOWN_ISSUES A69).
 `CUBIT_DUMP_COLOUR=1` prints the colouring of the scoreboards use by use (stderr, a look).
 `CUBIT_DUMP_STALL=1` (with `CUBIT_SCHED2=1 CUBIT_SCHED2_LAT=<table>`) prints why every stall field has the value it
 has, one `STALL` line a word (stderr, a look; no byte changes): the requirement that is met exactly through the
