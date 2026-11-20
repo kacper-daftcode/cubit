@@ -223,6 +223,12 @@ fn negative_adjacent_and_control_records_are_not_silently_adopted() {
                     // Every neighbour it reads must re-assemble losslessly;
                     // the exact set and vendor-text relation is pinned below.
                     if let Ok(decoded) = index.decode(word, 0, table) {
+                        if decoded.key != KEY {
+                            // E2's resolved third-register/UR-addend row owns
+                            // this distinct form; it is not a neighbour of
+                            // the pre-existing R,R,UR,R row under test here.
+                            continue;
+                        }
                         let rendered = cubit::printer::to_sass_lossless(&decoded);
                         let control = cubit::scheduling::format_control_code(
                             &cubit::scheduling::decode_sched_upper32((word >> 96) as u32),
@@ -256,7 +262,7 @@ fn negative_adjacent_and_control_records_are_not_silently_adopted() {
                 (
                     "adjacent_modifier",
                     "000fc400092008474000000c04047c49",
-                    false
+                    true
                 ),
                 (
                     "adjacent_modifier",

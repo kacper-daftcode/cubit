@@ -13,6 +13,40 @@ use serde::Deserialize;
 use std::collections::HashMap;
 use std::path::Path;
 
+/// FP32x2 source-shape locations: (LO_HI, F32, optional NP).
+/// FADD2/FMUL2/FFMA2 use the same two-bank layout, with the third bank at
+/// bits 87/88 for the multiplier and no NP bit on that bank.
+pub(crate) fn fp32x2_shape_bits(opcode: &str, token: i32) -> Option<(u32, u32, Option<u32>)> {
+    match (opcode, token) {
+        ("FADD2" | "FMUL2" | "FFMA2", 2) => Some((81, 82, Some(83))),
+        ("FADD2", 3) | ("FFMA2", 4) => Some((84, 85, Some(86))),
+        ("FMUL2" | "FFMA2", 3) => Some((87, 88, None)),
+        _ => None,
+    }
+}
+
+/// Render one operand's FP32x2 shape from its measured fields. This is the
+/// common printer used by both ordinary and uniform source registers.
+pub(crate) fn fp32x2_shape_suffix(opcode: &str, token: i32, raw: u128) -> Option<Vec<&'static str>> {
+    let (lane_shift, scalar_shift, np_shift) = fp32x2_shape_bits(opcode, token)?;
+    let lane = (raw >> lane_shift) & 1 != 0;
+    let scalar = (raw >> scalar_shift) & 1 != 0;
+    let np = np_shift.is_some_and(|shift| (raw >> shift) & 1 != 0);
+    let mut out = Vec::with_capacity(3);
+    if lane && scalar {
+        out.push("INVALID3");
+    } else if scalar {
+        out.push("F32");
+    } else {
+        out.push("F32x2");
+        out.push(if lane { "LO_HI" } else { "HI_LO" });
+    }
+    if np {
+        out.push("NP");
+    }
+    Some(out)
+}
+
 /// The SM120 table compiled into the binary (used when no `tables/` directory
 /// is reachable and for the compile-time aux sections). Vendored gzip-compressed
 /// (2026-11-04: `tables/<arch>.json.gz` are the files in git; the plain JSON is

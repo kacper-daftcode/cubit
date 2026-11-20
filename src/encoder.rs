@@ -2453,6 +2453,82 @@ fn reg_token_suffixes(tok: &str) -> Option<Vec<String>> {
     }
 }
 
+/// Validate FP32x2 source suffixes against the shared table law. A field may
+/// own a cell explicitly, or the row may fix it in and_base; a spelling that
+/// differs from that fixed cell must not fall through to a donor row.
+fn check_fp32x2_suffixes(
+    insn: &Instruction,
+    entry: &crate::table::ModGroupEntry,
+    ef_flags: u32,
+) -> Result<()> {
+    if !crate::table::is_sm103a_encoding_family(ef_flags) {
+        return Ok(());
+    }
+    let base = entry.and_base;
+    let tokens = raw_op_tokens(&insn.raw_text);
+    for (index, operand) in insn.operands.iter().enumerate() {
+        if !matches!(operand, Operand::Reg { .. } | Operand::UReg { .. }) {
+            continue;
+        }
+        let token = (index + 1) as i32;
+        let Some((lane, scalar, np)) = crate::table::fp32x2_shape_bits(&insn.opcode, token) else {
+            continue;
+        };
+        let Some(text) = tokens.get(index) else { continue };
+        let Some(segments) = reg_token_suffixes(text) else { continue };
+        let count = |name: &str| segments.iter().filter(|segment| segment.as_str() == name).count();
+        let present: Vec<_> = ["F32", "F32x2", "HI_LO", "LO_HI", "NP", "INVALID3"]
+            .into_iter().filter(|name| count(name) != 0).collect();
+        if present.is_empty() {
+            continue;
+        }
+        if count("INVALID3") != 0 || present.iter().any(|name| count(name) != 1) {
+            anyhow::bail!("invalid or repeated FP32x2 shape suffix on operand {token}");
+        }
+        let has_scalar = count("F32") != 0;
+        let packed = count("F32x2") != 0;
+        let lo_hi = count("LO_HI") != 0;
+        let hi_lo = count("HI_LO") != 0;
+        let has_np = count("NP") != 0;
+        if has_scalar == packed || (lo_hi && hi_lo) || ((lo_hi || hi_lo) && !packed) {
+            anyhow::bail!("invalid combined FP32x2 shape suffix on operand {token}");
+        }
+        if !has_scalar && !packed {
+            anyhow::bail!("incomplete FP32x2 shape suffix on operand {token}");
+        }
+        for (shift, extraction, wanted) in [
+            (lane, "LO_HI", lo_hi),
+            (scalar, "F32", has_scalar),
+        ] {
+            let owned = entry.fields.iter().any(|field| {
+                field.token_idx == token && field.shift == shift
+                    && matches!(&field.extraction, Extraction::OpModFlag(name) if name == extraction)
+            });
+            if !owned {
+                let fixed = (base >> shift) & 1 != 0;
+                if fixed != wanted {
+                    anyhow::bail!(
+                        "operand {token}: requested shape bit {shift}={wanted:?}, but the row fixes it to {fixed:?}"
+                    );
+                }
+            }
+        }
+        if has_np {
+            let Some(shift) = np else {
+                anyhow::bail!("operand {token}: .NP has no measured selector on this bank");
+            };
+            let owned = entry.fields.iter().any(|field| {
+                field.token_idx == token && field.shift == shift
+                    && matches!(&field.extraction, Extraction::OpModFlag(name) if name == "NP")
+            });
+            if !owned {
+                anyhow::bail!("operand {token}: table row does not own .NP at bit {shift}");
+            }
+        }
+    }
+    Ok(())
+}
+
 /// BUG-272 (fail-closed): a bare R/UR/RZ/URZ operand token carrying a suffix
 /// chain the WINNING ROW cannot consume was silently DROPPED at byte
 /// production (parse_register keeps the register via base classification;
@@ -2490,7 +2566,7 @@ fn reg_token_suffixes(tok: &str) -> Option<Vec<String>> {
 /// disassemble re-encode probe oracle must MEASURE exactly this loss;
 /// doctrine of BUG-140/178/183). NOT CUBIT_DISABLE_ERRATA-unlockable: this
 /// guards byte production, not silicon behaviour.
-fn check_operand_suffixes(insn: &Instruction, entry: &crate::table::ModGroupEntry) -> Result<()> {
+fn check_operand_suffixes(insn: &Instruction, entry: &crate::table::ModGroupEntry, b300: bool) -> Result<()> {
     if matches!(fit_lint_mode(), FitLintMode::Allow) {
         return Ok(());
     }
@@ -2542,6 +2618,14 @@ fn check_operand_suffixes(insn: &Instruction, entry: &crate::table::ModGroupEntr
         }
         let tok = (oi + 1) as i32;
         for seg in &segs {
+            if b300
+                && crate::table::fp32x2_shape_bits(&insn.opcode, tok).is_some()
+                && matches!(op, Operand::UReg { .. })
+                && seg == "reuse"
+                && !entry.fields.iter().any(|field| field.token_idx == tok && matches!(field.extraction, Extraction::Reuse))
+            {
+                anyhow::bail!("FP32x2 operand {tok}: UR.reuse has no measured encoding field");
+            }
             // UR-domain .reuse stays OWNED by the BUG-252 generic fixup
             // guard (its own attributed fail-closed message; rows with an
             // explicit reuse field stay authoritative there). Skipping it
@@ -2716,6 +2800,9 @@ fn check_operand_suffixes(insn: &Instruction, entry: &crate::table::ModGroupEntr
             // (b) vendor-default notation without a field (printer mirror)
             let default_notation = (hsetp_default && seg == "H0_H0")
                 || (ffma2_default
+                    && matches!(seg.as_str(), "F32" | "F32x2" | "HI_LO" | "LO_HI" | "NP"))
+                || (b300
+                    && crate::table::fp32x2_shape_bits(&insn.opcode, tok).is_some()
                     && matches!(seg.as_str(), "F32" | "F32x2" | "HI_LO" | "LO_HI" | "NP"))
                 || (plop3_sign && seg == "SIGN")
                 || (imma_sel
@@ -3207,6 +3294,10 @@ fn encode_instruction_inner(
         match table.get(k, mg) {
             Some(e) => match entry_matches_operands(insn, e) {
                 Ok(()) => {
+                    if let Err(why) = check_fp32x2_suffixes(insn, e, table.ef_flags) {
+                        attempts.push(format!("({k}, \"{mg}\") REJECTED: {why}"));
+                        continue;
+                    }
                     // BUG-071 guard: default-payload operand (imm 0 / URZ) on a
                     // token the entry has no field for must not ride an entry
                     // whose and_base carries junk in a sibling-proven imm/ureg
@@ -3338,7 +3429,7 @@ fn encode_instruction_inner(
     check_label_imm_field(insn, entry)?;
     // BUG-272: bare-register operand suffixes the winning row cannot consume
     // must fail closed instead of being silently dropped (see the gate).
-    check_operand_suffixes(insn, entry)?;
+    check_operand_suffixes(insn, entry, crate::table::is_sm103a_encoding_family(table.ef_flags))?;
     if std::env::var("CUBIT_DEBUG_LOOKUP").is_ok() {
         eprintln!(
             "[lookup] fk={} key={} mod_group={:?} -> fields={:?}",

@@ -23,6 +23,25 @@ is stated, not a defect to fix), **closed** (kept for the record; closed in the 
 | T7 | Scheduling metadata outside `hw_measured` rows is synthetic or a ptxas weight; `sched_only` entries have no encoding. | documented | README of blackwell-isa; `latency_source` per row. |
 | T8 | **`HFMA2_R_R_R_FI_FI` on SM103a / SM100a: 2 of the 36 groups are repaired by measurement, 34 keep the legacy constant unmeasured (2026-11-13, batch B of the B300 lane).** The pair `hfma2-reuse-imm-production` measured the groups `""` and `BF16_V2` (tag `rows-hfma2-reuse-imm-production-2026-11-11`): the byte [71:64] is the third source's register field with no constant under it, and `Rb.reuse` is a field at bit 123. The other 34 groups (10 tagged `bug354-2026-09-02`, 24 tagged `bug367-2026-09-04`) keep the constant `0xff` at [71:64] and have no `reuse` field at bit 123. They are **suspected of the same repair and were not measured by this batch**; the pair did not wait for that measurement. That the suspicion is real is on record: the pair's own fixture holds 9 words per target for which nvdisasm prints the third operand as `R.reuse.H0_H0` and cubit prints it without `.reuse` — seven of the 34 groups (`FMZ`, `SAT`, `F32`, `FTZ`, `BF16_V2,FMZ`, `BF16_V2,SAT`, `BF16_V2,FTZ`) and the two keys `HFMA2.RELU_R_R_R_FI_FI_P` and `HFMA2.BF16_V2.RELU_R_R_R_FI_FI_P` (`bug354-2026-09-02`, the same shape). The family pins of `tests/bug353_hfma2_tok3_sparse.rs`, `tests/bug354_hfma2_sparse_modlane.rs` and `tests/bug367_hfma2_sparse_satftz.rs` are relaxed for the two measured groups only. | **open** | The family's measurement: for each of the 34 groups and the two RELU keys, nvdisasm on complete words (CPU, SM103 and SM100) with the third source's register byte varied and with the reuse flag at bit 123 set and clear on a control field with stall > 0 and bit 109 set (nvdisasm prints no `.reuse` on any other); then the rows by the rule of the tables. Until then a word of those groups that carries `Rb.reuse` is printed without it. |
 
+## Engine unit E2 / L1a (2026-11-13)
+
+The FP32x2 source-shape rows are encoding evidence only. The measured-law
+table and complete retained fixtures live at `pubwave/hidden-b300/engine-l1a/`.
+No silicon execution, arithmetic semantics, timing, six-corpus coverage, or
+publication is implied by the local CPU tests. Immediate suffix ownership is
+not part of this unit. SM120 and SM121a tables and print behavior are unchanged.
+
+The returned-unit reuse repair is bounded by complete-word nvdisasm evidence:
+532 distinct FlashMLA words (2,510 occurrences) and 78 clear/set reuse cells
+per target. The source-shape helper does not couple reuse to another operand's
+scalar bit. Three-token FADD2/FMUL2 rows refuse [75:74], for which they have no
+operand field; 66 formerly lossy fixture records per target are covered by this
+boundary. Regular vendor text that a row does not adopt is a stated table
+decision, not a measured hardware prohibition. nvdisasm's reuse refusals on an
+all-zero control field are not treated as operand evidence; cubit does not model
+that control-only rejection. H still owns the six served-corpus acceptance runs
+and checks that no served word is newly refused.
+
 ## Assembler / encoder
 
 | # | item | status | evidence / what it needs |
