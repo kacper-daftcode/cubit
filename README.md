@@ -171,6 +171,19 @@ pending on it and the word itself, or a word behind it in front of the next wait
 scoreboard — a second use would fly there beside that read barrier (one `BESIDE` line a bit). Any other wait that
 stood in front of a word only because another use shared the scoreboard may go or come with the number; a build under the
 switch is a candidate only after its own text has been read on both card models (opt-in, KNOWN_ISSUES A69).
+`CUBIT_SB_NEAR=1` (with `CUBIT_WAIT_POLICY=1`): in a loop that holds a copy word, no word waits for a result it
+does not need when that result was armed a few words in front of it. Where the waits stand is written behind the
+colouring, and there a word comes to wait a scoreboard a few words behind a constant load or a register read
+whose result it neither reads nor rewrites — the rewriter of a load's address register, the reader of another
+load of the batch. Under the switch, at the end of the allocation and on the fields as they stand, such a result
+(`LDC`, `LDCU`, `S2R`, `S2UR`, `CS2R`, `CS2UR` in the innermost loop round an `LDGSTS`; the first waiting word at
+most eight words behind it) takes the lowest scoreboard that is empty over its flight — nothing pending there,
+nothing armed there, no word that waits it but the words that need the result; never below the copy group's —,
+a load of a batch leaves the batch as a use of its own, and the first word that needs the result on every path
+waits the new number. No wait bit comes off and no barrier comes or goes; where no scoreboard is empty the use
+stays, as does a use the author numbered or one with a setter under a guard (`CUBIT_DUMP_USES`: one `NEAR` line
+a named use). The switch needs neither `CUBIT_LOAD_TOP` nor `CUBIT_SB_APART`; a build under it is a candidate
+only after its own text has been read on both card models (opt-in, KNOWN_ISSUES A70).
 `CUBIT_DUMP_COLOUR=1` prints the colouring of the scoreboards use by use (stderr, a look).
 `CUBIT_DUMP_STALL=1` (with `CUBIT_SCHED2=1 CUBIT_SCHED2_LAT=<table>`) prints why every stall field has the value it
 has, one `STALL` line a word (stderr, a look; no byte changes): the requirement that is met exactly through the

@@ -482,10 +482,34 @@ pub fn sb_apart() -> bool {
     std::env::var("CUBIT_SB_APART").ok().as_deref() == Some("1") && wait_policy() && !unswitched()
 }
 
+/// `CUBIT_SB_NEAR=1` (opt-in, default off; honoured only together with [`wait_policy`]): in a
+/// loop that holds a copy word, no word waits for a use it does not need when that use was
+/// armed a few words in front of it (`crate::sb_near`, KNOWN_ISSUES A70).
+///
+/// Where the waits stand is written behind the colouring, and there a word comes to wait a
+/// scoreboard a few words behind a setter whose use it neither reads nor rewrites: it stands
+/// until that near use has landed. One clause, at the end of [`reallocate_barriers`], on the
+/// fields of the schedule as every clause in front of it left them:
+///
+/// * **the result of a constant load or of a register read in the innermost loop round a copy
+///   word, whose scoreboard the first waiting word behind it -- at most eight words on
+///   (`sb_near::REACH`) -- waits for another use, takes the lowest scoreboard
+///   that is empty over its flight by the fields** (nothing pending there, nothing armed there,
+///   no word that waits it but the words that need the result; never below the copy group's); a
+///   load of a batch leaves the batch as a use of its own; the first word that needs the result
+///   on every path waits the new number.
+///
+/// No wait bit comes off and no barrier comes or goes; where no scoreboard is empty the use
+/// stays, and nothing moves outside such a loop, for a use the author numbered or one with a
+/// setter under a guard. The switch needs neither [`load_top`] nor [`sb_apart`].
+pub fn sb_near() -> bool {
+    std::env::var("CUBIT_SB_NEAR").ok().as_deref() == Some("1") && wait_policy() && !unswitched()
+}
+
 thread_local! {
     /// Set while [`reallocate_barriers`] asks, on a copy, what the same recipe writes WITHOUT the
-    /// two switches that give a use another scoreboard ([`load_top`], [`sb_apart`]): both read
-    /// as off, and that run prints nothing. For the mirror clause of `CUBIT_LOAD_TOP`
+    /// switches that give a use another scoreboard ([`load_top`], [`sb_apart`], [`sb_near`]): they
+    /// read as off, and that run prints nothing. For the mirror clause of `CUBIT_LOAD_TOP`
     /// (`crate::load_top::mirror`).
     static UNSWITCHED: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
 }
@@ -6538,6 +6562,51 @@ fn reallocate_barriers_in(
             .collect();
         for (w, b, _) in crate::load_top::mirror(&paths, before, &now, &able) {
             insns[w].ctrl.wait_mask |= 1 << b;
+        }
+    }
+
+    // ---- CUBIT_SB_NEAR: in a loop that holds a copy word, the result of a constant load or of a
+    // register read whose scoreboard a near word waits for another use takes a scoreboard that
+    // is empty over its flight (see `sb_near`) ----
+    // Behind every clause above, on the fields as they stand: one scoreboard number changes on
+    // the setter, the first words that need the result get the wait of the new number, and no
+    // bit comes off.
+    if let (true, Some(c)) = (!trial && sb_near(), &cfg) {
+        let paths = crate::wait_drained::paths(insns, c);
+        // (the innermost loop round every copy word that can run)
+        let copy_loops: Vec<(usize, usize)> = (0..n)
+            .filter(|&k| insns[k].opcode == "LDGSTS" && ltop[k] != usize::MAX && !insns[k].guard.as_ref().is_some_and(|g| g.pred == 7 && g.negated))
+            .map(|k| (ltop[k], lback[k]))
+            .collect();
+        let words: Vec<crate::sb_near::Word> = (0..n)
+            .map(|j| crate::sb_near::Word {
+                waits: crate::store_paths::waits(&insns[j]),
+                rb: insns[j].ctrl.read_bar,
+                wb: insns[j].ctrl.write_bar,
+                reads: reads[j].clone(),
+                writes: writes[j].clone(),
+                constant: matches!(insns[j].opcode.as_str(), "LDC" | "LDCU" | "S2R" | "S2UR" | "CS2R" | "CS2UR"),
+                in_copy_loop: copy_loops.iter().any(|&(top, back)| top <= j && j <= back),
+                guarded: guarded[j],
+                free: !insns[j].hand_sched,
+                can_wait: can_wait[j],
+            })
+            .collect();
+        let view: Vec<crate::load_top::UseView> = (0..uses.len())
+            .map(|v| crate::load_top::UseView {
+                setters: uses[v].setters.clone(),
+                waiters: uses[v].waiters.clone(),
+                segs: uses[v].segs.clone(),
+                is_rb: uses[v].is_rb,
+                colour: if covered.contains(&v) || not_written.contains(&v) { 7 } else { assigned[v] },
+                pinned: pin_of[v].is_some(),
+            })
+            .collect();
+        for m in crate::sb_near::moves(&paths, &words, &view, if sb0_reserved { 1 } else { 0 }) {
+            insns[m.setter].ctrl.write_bar = m.to;
+            for w in m.waiters {
+                insns[w].ctrl.wait_mask |= 1 << m.to;
+            }
         }
     }
 

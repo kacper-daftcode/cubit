@@ -4,6 +4,47 @@ User-visible changes, newest first. Table syncs name the blackwell-isa revision 
 (`tables/SOURCE.json` pins it byte for byte). Numbered `BUG-NNN` entries are the encoder /
 decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `docs/TESTS.md`).
 
+## Unreleased — 2026-11-20 (`CUBIT_SB_NEAR=1`, opt-in with `CUBIT_WAIT_POLICY=1`: in a loop that holds a copy word, a near result stands alone on its scoreboard)
+
+- **The result of a constant load or of a register read whose scoreboard a near word waits for another use takes
+  a scoreboard that is empty over its flight** (`sb_near::moves`, KNOWN_ISSUES A70). A scoreboard counts: a word
+  that waits it stands until everything armed on it has come back. Where the waits stand is written behind the
+  colouring — the wait rule, the early release of a far read barrier, the batches of constant loads —, and there
+  a word comes to wait a scoreboard a few words behind a setter whose use it neither reads nor rewrites: the
+  rewriter of a load's address register behind a register read, the reader of one constant load of a batch
+  behind the other. Under the switch, at the end of the allocation and on the fields of the schedule as every
+  clause in front left them, the result of `LDC`, `LDCU`, `S2R`, `S2UR`, `CS2R` or `CS2UR` in the innermost loop
+  round a copy word (`LDGSTS`) is named when the first word that waits its scoreboard on a path behind it stands
+  at most eight words behind it, needs nothing of it and needs no younger use on that scoreboard. A named result
+  takes the lowest scoreboard that is empty over its flight by the fields — nothing pending there on any path,
+  nothing armed there inside the flight, no word of the flight that waits it but the words that need the result;
+  never below the copy group's —, in text order, each on the fields the moves in front of it left.
+- **A load of a batch leaves it as a use of its own.** The other loads keep the scoreboard and the batch's
+  waiters; the load that leaves is waited by the first words behind it that read or rewrite what it writes.
+- **The wait of the new number goes on the first word that needs the result on every path, and no wait bit comes
+  off.** One scoreboard number changes on the setter and no barrier comes or goes; every word keeps every bit it
+  has.
+- **What it does not do.** Nothing outside the loops that hold a copy word, nothing for a result of another kind
+  and nothing for a read barrier. Where no scoreboard is empty by the fields the use stays; so does a use the
+  author numbered, one with a setter under a guard and one with a word that needs the result and cannot carry a
+  wait. Nothing in a trial of the allocator and nothing without the flow graph of `CUBIT_SYNC_CLASSES`. The switch
+  needs neither `CUBIT_LOAD_TOP` nor `CUBIT_SB_APART`.
+- **What it leaves.** The word that waited the old scoreboard for another use issues with the result that moved
+  still in flight, as every word of the flight that is no reader does (`CUBIT_DUMP_USES`: one `NEAR` line a named
+  use). A build under the switch is a candidate only after its own text has been read on both card models.
+- **What it writes (static).** In cubit's own frame of `fc2_kernel_ws<4,2,1,0>` under the recipe
+  `CUBIT_WAIT_POLICY=1 CUBIT_LOAD_COVER=1 CUBIT_WAIT_DRAINED=paths CUBIT_SB_KIND=wide CUBIT_LOAD_TOP=1
+  CUBIT_SB_APART=1` the switch names two uses, both in the loop round its copy words, and changes the control
+  field of four words: the result of an `S2UR` goes from scoreboard 0 to 3 and its reader, six words on, gets
+  bit 3 — the rewriter of a global load's address register three words behind the `S2UR` keeps its wait of 0
+  —; the second `LDCU.64` of a batch of two goes from scoreboard 2 to 3 and its reader gets bit 3 — the reader
+  of the first load, seven words behind the second, keeps its wait of 2. `CUBIT_VERIFY` names 8 `UNPROTECTED RAW`
+  lines and 144 `RECYCLE-STALE` lines with and without the variable (no proof of legality either way). Without
+  the variable every schedule is byte for byte what it was.
+- Inside: the rule is `src/sb_near.rs` (`REACH`, `moves`); the pass stands at the end of
+  `reallocate_barriers_in`, behind the mirror clause of `CUBIT_LOAD_TOP`. Tests: `tests/sb_near.rs` (5),
+  `sb_near::tests` (5).
+
 ## Unreleased — 2026-11-20 (`CUBIT_SB_APART=1`, opt-in with `CUBIT_WAIT_POLICY=1`: a write-barrier use shares no scoreboard with a read barrier that is pending over its flight)
 
 - **A use that shares moves to a scoreboard on which nothing is in flight over its flight** (`sb_apart::moves`,

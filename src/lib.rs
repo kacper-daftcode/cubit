@@ -56,6 +56,7 @@ pub mod python;
 pub mod sass_file;
 pub mod sb_apart;
 pub mod sb_flow;
+pub mod sb_near;
 pub mod sched;
 pub mod sched2_pace;
 pub mod stall_lower;
