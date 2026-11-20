@@ -223,8 +223,14 @@ pub(crate) struct UseView {
 /// the tops, the consumers that lost their wait and those that keep it, the counts by
 /// scoreboard, the scoreboards that are barred, the words that hold on the allocator's.
 pub(crate) fn scoreboards(c: &Cfg, uses: &[UseView], topped: &[(usize, Cover)], waits: &[u8], lowest: u8, apart: bool) -> Vec<(usize, u8)> {
+    scoreboards_as(c, uses, topped, waits, lowest, apart, std::env::var("CUBIT_DUMP_USES").is_ok())
+}
+
+/// [`scoreboards`] with the dump said: without it the clause is only ASKED what it would do -- the
+/// numbers without the bar of `CUBIT_SB_APART`, which `sb_apart::kept` holds the numbers with it
+/// against.
+pub(crate) fn scoreboards_as(c: &Cfg, uses: &[UseView], topped: &[(usize, Cover)], waits: &[u8], lowest: u8, apart: bool, dump: bool) -> Vec<(usize, u8)> {
     const NB: usize = sp::NUM_BARRIERS;
-    let dump = std::env::var("CUBIT_DUMP_USES").is_ok();
     let mut colour: Vec<u8> = uses.iter().map(|x| x.colour).collect();
     let live = |x: &UseView, j: usize| x.segs.iter().any(|&(a, b)| a <= j && j <= b);
     let mut moves: Vec<(usize, u8)> = Vec::new();

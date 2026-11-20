@@ -149,6 +149,39 @@ pub(crate) fn moves(uses: &[UseView], topped: &[usize], guarded: &[usize], waits
     moves
 }
 
+/// The bits that stay, behind both clauses: `uses` with the scoreboards as the switch leaves
+/// them, `old` the scoreboards without it, `ordered` the words of ordered events
+/// (`wait_drained::ordered_event`). A waiter of a write-barrier use whose number the switch
+/// changed that is the word of an ordered event KEEPS its bit on the scoreboard the use left
+/// while a read-barrier use that keeps that number is pending on the word: the bit was a wait
+/// on that read barrier too, and a wait whose number changes while its setter does not is a
+/// wait taken off the word. `(word, scoreboard, the read-barrier use)`, one a word and
+/// scoreboard. `CUBIT_DUMP_USES` prints one `KEPT` line each.
+pub(crate) fn kept(uses: &[UseView], old: &[u8], ordered: &[bool]) -> Vec<(usize, u8, usize)> {
+    const NB: usize = sp::NUM_BARRIERS;
+    let dump = std::env::var("CUBIT_DUMP_USES").is_ok();
+    let mut out: Vec<(usize, u8, usize)> = Vec::new();
+    for (u, me) in uses.iter().enumerate() {
+        let (a, b) = (old[u], me.colour);
+        if me.is_rb || me.pinned || a == b || (a as usize) >= NB || (b as usize) >= NB {
+            continue;
+        }
+        for &w in &me.waiters {
+            if !ordered.get(w).copied().unwrap_or(false) || out.iter().any(|&(x, y, _)| x == w && y == a) {
+                continue;
+            }
+            let pending = (0..uses.len()).find(|&v| uses[v].is_rb && uses[v].colour == a && old[v] == a && uses[v].segs.iter().any(|&(s0, s1)| s0 <= w && w <= s1));
+            if let Some(v) = pending {
+                if dump {
+                    eprintln!("KEPT b={a} word={w} moved={a}->{b} setters={:?} rb={:?}", me.setters, uses[v].setters);
+                }
+                out.push((w, a, v));
+            }
+        }
+    }
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -227,5 +260,23 @@ mod tests {
         assert!(meet(&[(3, 8)], &[(8, 9)]));
         assert!(!meet(&[(3, 8)], &[(9, 12)]));
         assert!(meet(&[(20, 30), (2, 4)], &[(4, 6)]), "a flight that wraps round a loop meets at the loop's top");
+    }
+
+    #[test]
+    fn the_word_of_an_ordered_event_keeps_its_bit_while_a_read_barrier_is_pending_on_it() {
+        // the read barrier of word 3 is pending to word 8 on scoreboard 1; the results of words 4 and 6 went
+        // from 1 to 2 with the switch; word 5 is the word of an ordered event, word 7 is not
+        let uses = vec![rb(3, 8, 1), wb(4, 5, 2), wb(6, 7, 2)];
+        let old = [1u8, 1, 1];
+        let mut ordered = vec![false; 12];
+        ordered[5] = true;
+        assert_eq!(kept(&uses, &old, &ordered), vec![(5, 1, 0)], "the event word keeps bit 1; the plain reader goes with its number");
+        // a use whose number did not change keeps nothing, and neither does a waiter behind the read barrier's flight
+        assert!(kept(&uses, &[1, 2, 2], &ordered).is_empty());
+        let behind = vec![rb(3, 4, 1), wb(4, 5, 2)];
+        assert!(kept(&behind, &[1, 1], &ordered).is_empty(), "the read barrier was released at word 4");
+        // a read barrier that itself is on another number than the one the use left is not the one the bit released
+        let other = vec![rb(3, 8, 0), wb(4, 5, 2)];
+        assert!(kept(&other, &[0, 1], &ordered).is_empty());
     }
 }

@@ -252,18 +252,22 @@ const ORDERED: &str = "    S2R R2, SR_TID.X ;
 ";
 
 #[test]
-fn a_waiter_that_is_an_ordered_event_keeps_its_wait_under_the_new_number() {
+fn a_waiter_that_is_an_ordered_event_keeps_its_bit_on_the_scoreboard_its_use_leaves() {
     let (wide, apart) = both(ORDERED);
     let r = wide.rb("LDS R5");
     assert_eq!(wide.wb("S2R R8"), r, "{:#?}", wide.words);
     assert_eq!(wide.word("R2P").wait, vec![r]);
-    // the setter moves, and the event word waits its setter as before: no wait comes off it
+    // the setter moves and the event word waits it under the new number -- AND keeps the bit of the scoreboard
+    // the use left: the load's read barrier keeps that number and is pending on the word, the one bit was a
+    // wait on it too, and a wait whose number changes while its setter does not is a wait taken off
     let s = apart.wb("S2R R8");
-    assert_ne!(s, apart.rb("LDS R5"), "{:#?}", apart.words);
-    assert_eq!(apart.word("R2P").wait, vec![s], "no wait comes off the word of an ordered event: {:#?}", apart.words);
-    // every word waits on as many scoreboards as before
+    assert_eq!(apart.rb("LDS R5"), r, "{:#?}", apart.words);
+    assert_ne!(s, r, "{:#?}", apart.words);
+    assert_eq!(apart.word("R2P").wait, if r < s { vec![r, s] } else { vec![s, r] }, "no wait comes off the word of an ordered event: {:#?}", apart.words);
+    assert_eq!(apart.lines("KEPT ").len(), 1, "the dump names the bit that stays: {}", apart.log);
+    // no word waits on fewer scoreboards than before
     let bits = |b: &Build| -> Vec<usize> { b.words.iter().map(|w| w.wait.len()).collect() };
-    assert_eq!(bits(&apart), bits(&wide), "{:#?}", apart.words);
+    assert!(bits(&apart).iter().zip(bits(&wide)).all(|(a, w)| *a >= w), "{:#?}", apart.words);
 }
 
 /// Six results in flight over a store's pending read barrier, one a scoreboard.
@@ -340,12 +344,15 @@ fn a_load_that_waits_at_a_top_takes_no_scoreboard_of_a_pending_read_barrier() {
     let r = top.rb("STG.E");
     assert_eq!(top.wb("LDG.E R4"), r, "{:#?}", top.words);
     assert_eq!(top.word("@P0 BRA").wait, vec![r]);
-    // under the switch that scoreboard is barred for the load; the top waits the load where it went, and the
-    // rewriter of the store's data register keeps the wait of the read barrier
+    // under the switch that scoreboard is barred for the load; the top waits the load where it went AND keeps
+    // the bit of the scoreboard the load no longer takes -- the store's read barrier is pending on the top, and
+    // the top is the word of an ordered event --, and the rewriter of the store's data register keeps the wait
+    // of the read barrier
     let b = apart.wb("LDG.E R4");
     assert_eq!(apart.rb("STG.E"), r, "{:#?}", apart.words);
     assert_ne!(b, r, "the load takes no scoreboard on which a read barrier is pending over its flight: {:#?}", apart.words);
-    assert_eq!(apart.word("@P0 BRA").wait, vec![b], "{:#?}", apart.words);
+    assert_eq!(apart.word("@P0 BRA").wait, if r < b { vec![r, b] } else { vec![b, r] }, "{:#?}", apart.words);
+    assert_eq!(apart.lines("KEPT ").len(), 1, "the bit that stays: {}", apart.log);
     assert_eq!(apart.word("IADD3 R9,").wait, vec![r], "{:#?}", apart.words);
     assert_eq!(apart.lines("TOP ").len(), 1, "the load is the clause's: {}", apart.log);
     assert!(apart.lines("APART ").is_empty(), "and no use of the other clause: {}", apart.log);
@@ -386,8 +393,8 @@ fn no_use_takes_the_scoreboard_of_a_load_that_waits_at_a_top() {
     assert_eq!(apart.rb("STG.E"), r, "{:#?}", apart.words);
     assert!(load != r && s != r, "{:#?}", apart.words);
     assert_ne!(s, load, "the scoreboard of the load at the top is the tops' alone: {:#?}", apart.words);
-    assert_eq!(apart.word("IADD3 R31,").wait, vec![s], "{:#?}", apart.words);
-    assert_eq!(apart.word("@P0 BRA").wait, vec![load], "{:#?}", apart.words);
+    assert_eq!(apart.word("IADD3 R31,").wait, vec![s], "a reader that is no event word goes with its number: {:#?}", apart.words);
+    assert_eq!(apart.word("@P0 BRA").wait, if r < load { vec![r, load] } else { vec![load, r] }, "the top keeps the bit of the read barrier's scoreboard: {:#?}", apart.words);
     let line = apart.lines("APART ");
     assert_eq!(line.len(), 1, "{}", apart.log);
     assert!(line[0].contains(" t "), "the load's scoreboard is named as barred: {}", line[0]);

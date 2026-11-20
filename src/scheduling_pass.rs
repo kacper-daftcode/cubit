@@ -6048,9 +6048,17 @@ fn reallocate_barriers_in(
             .collect()
     };
     let apart = !trial && cfg.is_some() && sb_apart();
+    // (CUBIT_SB_APART: the uses' scoreboards as the recipe WITHOUT the switch leaves them -- what a
+    // waiter's bit was, for the bits that stay: `sb_apart::kept`, at the emit below)
+    let mut unbarred: Option<Vec<u8>> = if apart { Some(assigned.clone()) } else { None };
     if let (false, Some(c)) = (trial || topped.is_empty(), &cfg) {
         let view = use_views(&assigned);
         let waits: Vec<u8> = (0..n).map(|j| insns[j].ctrl.wait_mask | inject_wait[j]).collect();
+        if let Some(old) = unbarred.as_mut() {
+            for (u, b) in crate::load_top::scoreboards_as(c, &view, &topped, &waits, if sb0_reserved { 1 } else { 0 }, false, false) {
+                old[u] = b;
+            }
+        }
         for (u, b) in crate::load_top::scoreboards(c, &view, &topped, &waits, if sb0_reserved { 1 } else { 0 }, apart) {
             assigned[u] = b;
         }
@@ -6308,6 +6316,30 @@ fn reallocate_barriers_in(
                     let s = use_.setters.iter().copied().filter(|&s| s < w).max().unwrap_or(earliest_setter);
                     let latch = if use_.is_rb { 9u8 } else { 6u8 };
                     insns[s].ctrl.stall = insns[s].ctrl.stall.max(latch);
+                }
+            }
+        }
+    }
+    // ---- CUBIT_SB_APART, the bits that stay: a waiter that is the word of an ordered event keeps
+    // its bit on the scoreboard its use left while a read barrier that keeps that number is
+    // pending on it (see `sb_apart::kept`) -- written for that read-barrier use ----
+    if let Some(old) = unbarred.take() {
+        let view: Vec<crate::load_top::UseView> = (0..uses.len())
+            .map(|v| crate::load_top::UseView {
+                setters: uses[v].setters.clone(),
+                waiters: uses[v].waiters.clone(),
+                segs: uses[v].segs.clone(),
+                is_rb: uses[v].is_rb,
+                colour: if covered.contains(&v) || not_written.contains(&v) { 7 } else { assigned[v] },
+                pinned: pin_of[v].is_some(),
+            })
+            .collect();
+        let ordered: Vec<bool> = insns.iter().map(crate::wait_drained::ordered_event).collect();
+        for (w, a, v) in crate::sb_apart::kept(&view, &old, &ordered) {
+            if can_wait[w] && !insns[w].hand_sched {
+                inject_wait[w] |= 1 << a;
+                if drained.is_some() {
+                    written_for.push(crate::wait_drained::Written { word: w, sb: a, setters: uses[v].setters.clone() });
                 }
             }
         }
