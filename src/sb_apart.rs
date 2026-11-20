@@ -182,6 +182,79 @@ pub(crate) fn kept(uses: &[UseView], old: &[u8], ordered: &[bool]) -> Vec<(usize
     out
 }
 
+/// The waiters the second half of the clause speaks of: a waiter of a write-barrier use whose
+/// number the switch changed that is NO word of an ordered event, with the read-barrier uses of
+/// words of ordered events -- a synchronisation word, a copy word -- that keep the number the
+/// use left and are pending on the waiter by the allocator's flights. `(word, the scoreboard
+/// the use left, those read-barrier uses)`, one a word and scoreboard, every such use.
+pub(crate) fn beside_an_event(uses: &[UseView], old: &[u8], ordered: &[bool]) -> Vec<(usize, u8, Vec<usize>)> {
+    const NB: usize = sp::NUM_BARRIERS;
+    let event = |j: usize| ordered.get(j).copied().unwrap_or(false);
+    let mut out: Vec<(usize, u8, Vec<usize>)> = Vec::new();
+    for (u, me) in uses.iter().enumerate() {
+        let (a, b) = (old[u], me.colour);
+        if me.is_rb || me.pinned || a == b || (a as usize) >= NB || (b as usize) >= NB {
+            continue;
+        }
+        for &w in &me.waiters {
+            if event(w) || out.iter().any(|(x, y, _)| *x == w && *y == a) {
+                continue;
+            }
+            let pending: Vec<usize> = (0..uses.len())
+                .filter(|&v| {
+                    uses[v].is_rb
+                        && uses[v].colour == a
+                        && old[v] == a
+                        && uses[v].segs.iter().any(|&(s0, s1)| s0 <= w && w <= s1)
+                        && uses[v].setters.iter().any(|&s| event(s))
+                })
+                .collect();
+            if !pending.is_empty() {
+                out.push((w, a, pending));
+            }
+        }
+    }
+    out
+}
+
+/// The words a walk from the successors of `s` over `paths` passes when a word `ends` names
+/// ends a path (such a word is not passed).
+fn passed(paths: &[Vec<usize>], s: usize, ends: impl Fn(usize) -> bool) -> Vec<bool> {
+    let mut seen = vec![false; paths.len()];
+    let mut pass = vec![false; paths.len()];
+    let mut stack: Vec<usize> = paths[s].clone();
+    while let Some(j) = stack.pop() {
+        if seen[j] {
+            continue;
+        }
+        seen[j] = true;
+        if ends(j) {
+            continue;
+        }
+        pass[j] = true;
+        stack.extend(paths[j].iter().copied());
+    }
+    pass
+}
+
+/// Does the waiter `w` of [`beside_an_event`] keep its bit on scoreboard `a`? `fields`: a word,
+/// (the scoreboards it arms, the scoreboards it waits) as the fields stand; `setters`: the words
+/// whose read barriers are pending on `w` by the flights; `paths`: the successors of a word.
+/// Yes where a path from one of `setters` reaches `w` with no wait of `a` on the way -- the read
+/// barrier is pending on the word, which does not wait `a` itself -- and `w`, or a word a path
+/// behind `w` reaches before a wait of `a`, ARMS `a`: there a second use would be in flight on
+/// the scoreboard beside the read barrier of a synchronisation word or a copy word that nothing
+/// has released, where the schedule without the switch had the waiter's wait between them.
+/// Where every path behind `w` meets a wait of `a` first, the word goes with its number.
+pub(crate) fn armed_beside(paths: &[Vec<usize>], fields: &[(u8, u8)], setters: &[usize], w: usize, a: u8) -> bool {
+    let bit = 1u8 << a;
+    let waits = |j: usize| fields[j].1 & bit != 0;
+    if waits(w) || !setters.iter().any(|&s| passed(paths, s, waits)[w]) {
+        return false;
+    }
+    fields[w].0 & bit != 0 || passed(paths, w, waits).iter().zip(fields).any(|(&p, f)| p && f.0 & bit != 0)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -278,5 +351,35 @@ mod tests {
         // a read barrier that itself is on another number than the one the use left is not the one the bit released
         let other = vec![rb(3, 8, 0), wb(4, 5, 2)];
         assert!(kept(&other, &[0, 1], &ordered).is_empty());
+    }
+
+    #[test]
+    fn a_waiter_beside_the_read_barrier_of_an_event_word_keeps_its_bit_where_a_second_use_is_armed_behind_it() {
+        // the read barrier of word 3 -- a synchronisation word -- is pending to word 9 on scoreboard 1; the
+        // result of word 4 went from 1 to 2 with the switch, its reader is the plain word 5
+        let uses = vec![rb(3, 9, 1), wb(4, 5, 2)];
+        let mut ordered = vec![false; 12];
+        ordered[3] = true;
+        assert_eq!(beside_an_event(&uses, &[1, 1], &ordered), vec![(5, 1, vec![0])]);
+        assert!(beside_an_event(&uses, &[1, 1], &[false; 12]).is_empty(), "the read barrier of a plain word: nothing");
+        // a straight line of twelve words; a word's (scoreboards armed, scoreboards waited)
+        let paths: Vec<Vec<usize>> = (0..12).map(|j| if j + 1 < 12 { vec![j + 1] } else { Vec::new() }).collect();
+        let mut fields = vec![(0u8, 0u8); 12];
+        fields[3].0 = 1 << 1;
+        fields[4].0 = 1 << 2;
+        fields[5].1 = 1 << 2;
+        fields[9].1 = 1 << 1;
+        // nothing is armed on 1 between the reader and the wait at word 9: the reader goes with its number
+        assert!(!armed_beside(&paths, &fields, &[3], 5, 1));
+        // word 7 arms 1 -- a second use beside the pending read barrier: the reader keeps bit 1
+        fields[7].0 = 1 << 1;
+        assert!(armed_beside(&paths, &fields, &[3], 5, 1));
+        // ... not where a word in front of word 7 waits 1, and not where the read barrier is released in front
+        // of the reader
+        fields[6].1 = 1 << 1;
+        assert!(!armed_beside(&paths, &fields, &[3], 5, 1));
+        fields[6].1 = 0;
+        fields[4].1 = 1 << 1;
+        assert!(!armed_beside(&paths, &fields, &[3], 5, 1));
     }
 }

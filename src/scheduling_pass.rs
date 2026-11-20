@@ -6355,6 +6355,10 @@ fn reallocate_barriers_in(
     // ---- CUBIT_SB_APART, the bits that stay: a waiter that is the word of an ordered event keeps
     // its bit on the scoreboard its use left while a read barrier that keeps that number is
     // pending on it (see `sb_apart::kept`) -- written for that read-barrier use ----
+    // (`beside`: the waiters that are no such words, each with the setters of the read barriers of
+    // words of ordered events that are pending on it -- judged at the end, on the fields as they
+    // stand: `sb_apart::armed_beside`)
+    let mut beside: Vec<(usize, u8, Vec<usize>)> = Vec::new();
     if let Some(old) = unbarred.take() {
         let view: Vec<crate::load_top::UseView> = (0..uses.len())
             .map(|v| crate::load_top::UseView {
@@ -6375,6 +6379,10 @@ fn reallocate_barriers_in(
                 }
             }
         }
+        beside = crate::sb_apart::beside_an_event(&view, &old, &ordered)
+            .into_iter()
+            .map(|(w, a, vs)| (w, a, vs.into_iter().flat_map(|v| uses[v].setters.clone()).collect()))
+            .collect();
     }
     // CUBIT_WAIT_DRAINED: a wait that stands in for the wait of another use (CUBIT_LOAD_COVER, the
     // sharing: a word of the loop's head waits the scoreboard for a use of its own, and that wait
@@ -6479,6 +6487,31 @@ fn reallocate_barriers_in(
                 }
                 if can_wait[r] {
                     insns[r].ctrl.wait_mask |= 1 << b;
+                }
+            }
+        }
+    }
+
+    // ---- CUBIT_SB_APART, the bits that stay, for a waiter that is no word of an ordered event:
+    // it keeps its bit on the scoreboard its use left where the read barrier of a synchronisation
+    // word or a copy word is pending on it and a second use is armed on that scoreboard behind
+    // it before a wait (see `sb_apart::armed_beside`) ----
+    // Behind every clause above, on the fields as they stand. Only waits are added.
+    if let (false, Some(c)) = (beside.is_empty(), &cfg) {
+        let paths = crate::wait_drained::paths(insns, c);
+        let nb = NUM_BARRIERS as u8;
+        let arms = |x: &Instruction| -> u8 {
+            (if x.ctrl.read_bar < nb { 1 << x.ctrl.read_bar } else { 0 }) | (if x.ctrl.write_bar < nb { 1 << x.ctrl.write_bar } else { 0 })
+        };
+        for (w, a, setters) in &beside {
+            if !can_wait[*w] || insns[*w].hand_sched {
+                continue;
+            }
+            let fields: Vec<(u8, u8)> = insns.iter().map(|x| (arms(x), crate::store_paths::waits(x))).collect();
+            if crate::sb_apart::armed_beside(&paths, &fields, setters, *w, *a) {
+                insns[*w].ctrl.wait_mask |= 1 << *a;
+                if !quiet && std::env::var("CUBIT_DUMP_USES").is_ok() {
+                    eprintln!("BESIDE b={a} word={w} rb={setters:?}");
                 }
             }
         }

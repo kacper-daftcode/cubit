@@ -18,8 +18,12 @@
 //! producer under a guard does not move, and nothing moves without the switch, without `CUBIT_WAIT_POLICY=1`
 //! or where no use shares.
 //!
-//! Eight tests fail on the allocator without the switch (the variable is then unknown and changes nothing);
-//! four are controls -- shapes the switch leaves byte for byte.
+//! Of these twelve tests eight fail on the allocator without the switch (the variable is then unknown and
+//! changes nothing); four are controls -- shapes the switch leaves byte for byte.
+//!
+//! One more test says the second half of the bits that stay: a reader that is no word of an ordered event keeps
+//! its bit on the scoreboard its use leaves where a second use would be armed there beside the pending read
+//! barrier of a copy word (it fails without that half; the copy word's test in front of it is its control).
 
 use std::process::Command;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -202,6 +206,45 @@ fn the_read_barrier_of_a_copy_word_stays_and_the_producer_behind_it_moves() {
     let s = apart.wb("S2R R8");
     assert_ne!(s, r, "{:#?}", apart.words);
     assert_eq!(apart.word("IADD3 R9,").wait, vec![s], "{:#?}", apart.words);
+}
+
+/// The same with a store behind the reader of the `S2R`: the store's read barrier joins the scoreboard on which
+/// the copy word's is pending, in front of the word that waits it.
+const A_STORE_BEHIND_THE_READER: &str = "    S2R R2, SR_TID.X ;
+    MOV R6, R2 ;
+    MOV R7, RZ ;
+    MOV R12, RZ ;
+    MOV R14, R2 ;
+    MOV R15, RZ ;
+    ISETP.NE.AND P3, PT, R2, RZ, PT ;
+    LDGSTS.E [R12+0x2000], desc[UR8][R6.64], P3 ;
+    S2R R8, SR_CTAID.X ;
+    IADD3 R9, PT, PT, R8, 0x1, RZ ;
+    STG.E desc[UR8][R14.64], R9 ;
+    IADD3 R6, PT, PT, R6, 0x4, RZ ;
+    IADD3 R9, PT, PT, R9, 0x1, RZ ;
+    STG.E desc[UR8][R6.64], R9 ;
+    EXIT ;
+";
+
+#[test]
+fn a_reader_keeps_its_bit_where_a_second_use_is_armed_beside_the_read_barrier_of_a_copy_word() {
+    let (wide, apart) = both(A_STORE_BEHIND_THE_READER);
+    let (store, reader) = ("STG.E desc[UR8][R14.64]", "IADD3 R9, PT, PT, R8");
+    let r = wide.rb("LDGSTS.E");
+    assert_eq!((wide.wb("S2R R8"), wide.rb(store)), (r, r), "{:#?}", wide.words);
+    assert_eq!(wide.word(reader).wait, vec![r], "the reader releases the copy word's read barrier in front of the store: {:#?}", wide.words);
+    // under the switch the `S2R` takes another scoreboard and its reader waits that one -- AND keeps the bit of
+    // the scoreboard the use left: the copy word's read barrier is pending on the reader, and the store behind
+    // it arms that scoreboard before any word waits it. Without the bit two uses would be in flight there
+    // that the schedule without the switch keeps apart, beside a copy word
+    let s = apart.wb("S2R R8");
+    assert_ne!(s, r, "{:#?}", apart.words);
+    assert_eq!((apart.rb("LDGSTS.E"), apart.rb(store)), (r, r), "no read barrier is touched: {:#?}", apart.words);
+    assert_eq!(apart.word(reader).wait, if r < s { vec![r, s] } else { vec![s, r] }, "the reader keeps the wait behind the copy word's read barrier: {:#?}", apart.words);
+    assert_eq!(apart.lines("BESIDE ").len(), 1, "the dump names the bit: {}", apart.log);
+    // (where a word that waits the scoreboard stands in front of the next word that arms it, the reader goes
+    // with its number: `the_read_barrier_of_a_copy_word_stays_and_the_producer_behind_it_moves`)
 }
 
 /// Six `S2R` in front of one reader -- ONE use, six setters -- and a store whose data register the reader's
