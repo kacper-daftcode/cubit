@@ -144,7 +144,11 @@ scoreboard of its own. First read on a card on 2026-11-18, on one card model (op
 loop that holds the load — on the branch that ends the block of the loop's header, where every path into the next
 pass goes through — and not at the reader a few words behind it; a reader that a path reaches without that branch
 keeps its wait, and behind the colouring such a load takes the scoreboard on which no word waits for something else
-while it is in flight, where there is one. Loads that wait at one top may then fly together on one write barrier in front of one wait: the
+while it is in flight, where there is one. The rule rewrites no read-barrier use, but the colouring answers the new
+flights and may give a read barrier another scoreboard than without the switch: a word of an ordered event that was
+the first wait behind such a read barrier then waits its new number too, wherever a path still reaches the word with
+no wait of that number in front of it (the mirror clause; `CUBIT_DUMP_USES`: one `MIRROR` line a bit). Loads that
+wait at one top may then fly together on one write barrier in front of one wait: the
 vendor's practice at such words, measured on two card models for two loads of the one form `LDG.E.CONSTANT` of one
 thread on one write barrier, in five shapes; pairs of other forms, of more than two loads or further apart than 24
 cycles are not measured, and this allocator's own batching rule says the opposite for loads of different address
@@ -158,9 +162,15 @@ reader waits behind the operand read. Under the switch such a use moves, its set
 the lowest scoreboard on which nothing is in flight over its flight — never the scoreboard of a load that waits at
 the top of its loop —, and the clause of `CUBIT_LOAD_TOP` takes no scoreboard on which a read barrier is pending
 over the load's flight; where no scoreboard is free the use stays, and a use with a setter under a guard is left
-alone. No wait comes off a word and no read-barrier use is touched; a wait that stood in front of a word only
-because another use shared the scoreboard may go or come with the number; a build under the switch is a candidate
-only after its own text has been read on both card models (opt-in, KNOWN_ISSUES A69).
+alone. No use loses a setter or a waiter and no read barrier moves; a wait that was written goes only
+where a wait of that scoreboard stands in front of the word on every path (the wait rule reads the new numbers).
+Two kinds of bits stay on the scoreboard a use left, beside the new one: a word of an ordered event keeps the first
+wait on a read barrier that keeps its number (`CUBIT_DUMP_USES`: one `KEPT` line a bit); and a waiter that is no
+such word keeps its bit where the read barrier of a synchronisation word or a copy word that keeps the number is
+pending on it and the word itself, or a word behind it in front of the next wait of that scoreboard, arms the
+scoreboard — a second use would fly there beside that read barrier (one `BESIDE` line a bit). Any other wait that
+stood in front of a word only because another use shared the scoreboard may go or come with the number; a build under the
+switch is a candidate only after its own text has been read on both card models (opt-in, KNOWN_ISSUES A69).
 `CUBIT_DUMP_COLOUR=1` prints the colouring of the scoreboards use by use (stderr, a look).
 `CUBIT_DUMP_STALL=1` (with `CUBIT_SCHED2=1 CUBIT_SCHED2_LAT=<table>`) prints why every stall field has the value it
 has, one `STALL` line a word (stderr, a look; no byte changes): the requirement that is met exactly through the

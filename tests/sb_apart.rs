@@ -12,13 +12,21 @@
 //! 2. the clause of `CUBIT_LOAD_TOP` takes no scoreboard on which a read barrier is pending over the flight of the
 //!    load.
 //!
-//! What the rule must not do has a test each: no wait comes off a word (the word of an ordered event among the
-//! waiters keeps its wait), no read barrier and no wait of a read barrier moves, no use joins another result in
-//! flight or takes the scoreboard of a load that waits at a top, a use stays where no scoreboard is free, a
-//! producer under a guard does not move, and nothing moves without the switch, without `CUBIT_WAIT_POLICY=1`
-//! or where no use shares.
+//! What the rule must not do has a test each: no use loses a setter or a waiter; the word of an ordered event
+//! among the waiters keeps the first wait on a read barrier that keeps its number -- its bit on the scoreboard
+//! its use leaves stays beside the new number's --; no read barrier moves, no use joins another result in flight
+//! or takes the scoreboard of a load that waits at a top, a use stays where no scoreboard is free, a producer
+//! under a guard does not move, and nothing moves without the switch, without `CUBIT_WAIT_POLICY=1` or where no
+//! use shares. What no test here says: that every wait written without the switch is written under it -- which
+//! waiter's bit is written is the wait rule's (`CUBIT_WAIT_DRAINED`), read on the new numbers, and a written
+//! wait goes only where a wait of that scoreboard stands in front of the word on every path.
 //!
-//! Of these twelve tests eight fail on the allocator without the switch (the variable is then unknown and
+//! What those sentences are on a text has two tests of its own, of shapes a whole kernel shows: two loads that
+//! wait at one top stand on one number, every waiter holds the bit of THAT number and the top keeps the bit of
+//! the read barrier the loads left; and a written wait goes behind a wait of its scoreboard in front on the only
+//! path, and is written where one path goes round that wait.
+//!
+//! Of these fourteen tests ten fail on the allocator without the switch (the variable is then unknown and
 //! changes nothing); four are controls -- shapes the switch leaves byte for byte.
 //!
 //! One more test says the second half of the bits that stay: a reader that is no word of an ordered event keeps
@@ -37,6 +45,9 @@ const TOP: (&str, &str) = ("CUBIT_LOAD_TOP", "1");
 const APART: (&str, &str) = ("CUBIT_SB_APART", "1");
 const DUMP: (&str, &str) = ("CUBIT_DUMP_USES", "1");
 const VERIFY: (&str, &str) = ("CUBIT_VERIFY", "1");
+/// the rule that writes no wait on a scoreboard another wait has drained on every path
+const DRAINED: (&str, &str) = ("CUBIT_WAIT_DRAINED", "paths");
+const COVER: (&str, &str) = ("CUBIT_LOAD_COVER", "1");
 
 /// One instruction of the schedule cubit wrote: (wait bits, read barrier, write barrier, the word).
 #[derive(Debug, Clone, PartialEq)]
@@ -441,6 +452,128 @@ fn no_use_takes_the_scoreboard_of_a_load_that_waits_at_a_top() {
     let line = apart.lines("APART ");
     assert_eq!(line.len(), 1, "{}", apart.log);
     assert!(line[0].contains(" t "), "the load's scoreboard is named as barred: {}", line[0]);
+}
+
+/// [`TOPPED`] with a second load of the same address stream behind the first, a reader of each in the loads' own
+/// pass on one of two paths, and a reader of both in the next pass: the two loads are ONE use with two setters,
+/// and its waiters are the top and the reader of the first load in its own pass.
+const TWO_AT_A_TOP: &str = "    S2R R2, SR_TID.X ;
+    MOV R6, R2 ;
+    MOV R9, RZ ;
+    MOV R20, RZ ;
+    MOV R4, R2 ;
+    MOV R5, R2 ;
+L_top:
+    ISETP.GE.AND P0, PT, R20, 0x8, PT ;
+    @P0 BRA L_out ;
+    IADD3 R9, PT, PT, R4, R5, RZ ;
+    STG.E desc[UR8][R6.64], R9 ;
+    IADD3 R20, PT, PT, R20, 0x1, RZ ;
+    ISETP.NE.AND P3, PT, R20, 0x4, PT ;
+    LDG.E R4, desc[UR8][R2.64] ;
+    LDG.E R5, desc[UR8][R2.64+0x8] ;
+    @P3 BRA L_skip ;
+    ISETP.GE.AND P1, PT, R4, RZ, PT ;
+    ISETP.GE.AND P2, PT, R5, RZ, PT ;
+L_skip:
+    BRA L_top ;
+L_out:
+    EXIT ;
+";
+
+/// Two loads that wait at one top stand on ONE number, and every waiter holds the bit of THAT number: the top one
+/// bit for the two, the reader of the first load in its own pass the same bit, the reader of the second none -- it
+/// stands behind the first's on every path. Under the switch the number is not the pending read barrier's and the
+/// bits go with it; the top, the word of an ordered event, KEEPS the bit of the scoreboard the loads left -- the
+/// store's read barrier is pending on it -- beside the new number's, and the rewriter of the store's data
+/// register stands behind that wait with and without the switch.
+#[test]
+fn two_loads_at_a_top_on_one_number_are_waited_by_the_bit_of_that_number() {
+    let top = build(TWO_AT_A_TOP, &[SYNC, POLICY, WIDE, COVER, DRAINED, TOP, DUMP]);
+    let apart = build(TWO_AT_A_TOP, &[SYNC, POLICY, WIDE, COVER, DRAINED, TOP, APART, DUMP]);
+    let r = top.rb("STG.E");
+    assert_eq!((top.wb("LDG.E R4"), apart.rb("STG.E")), (r, r), "without the switch the loads fly beside the read barrier: {:#?}", top.words);
+    let n = apart.wb("LDG.E R4");
+    assert_ne!(n, r, "under the switch they do not: {:#?}", apart.words);
+    for (b, n, view) in [(&top, r, "the loads' clause alone"), (&apart, n, "under the switch")] {
+        assert_eq!((b.wb("LDG.E R4"), b.wb("LDG.E R5")), (n, n), "{view}: the two loads arm one scoreboard: {:#?}", b.words);
+        assert!(b.word("@P0 BRA").wait.contains(&n), "{view}: the top waits the two with one bit, that number's: {:#?}", b.words);
+        assert_eq!(b.word("ISETP.GE.AND P1").wait, vec![n], "{view}: the reader of the first load: {:#?}", b.words);
+        assert!(b.word("ISETP.GE.AND P2").wait.is_empty(), "{view}: the reader of the second stands behind it: {:#?}", b.words);
+        // the wait of the read barrier stands at the top, in front of the rewriter of the store's data register
+        assert!(b.word("@P0 BRA").wait.contains(&r), "{view}: the top waits the read barrier's scoreboard: {:#?}", b.words);
+        assert!(b.word("IADD3 R9,").wait.is_empty(), "{view}: {:#?}", b.words);
+    }
+    assert_eq!(top.word("@P0 BRA").wait, vec![r], "one bit without the switch: {:#?}", top.words);
+    assert_eq!(apart.word("@P0 BRA").wait, if r < n { vec![r, n] } else { vec![n, r] }, "two under it, the kept and the new: {:#?}", apart.words);
+    assert_eq!(apart.lines("KEPT ").len(), 1, "the bit that stays: {}", apart.log);
+}
+
+/// A shared load whose base a word further on rewrites, a producer under a guard and its reader between the two
+/// -- that use is left alone, and its reader waits the scoreboard the read barrier joined --, then a short
+/// producer whose reader IS the rewriter of the base: one word that waits for a result and releases a read
+/// barrier.
+const A_WAIT_IN_FRONT: &str = "    S2R R2, SR_TID.X ;
+    MOV R6, R2 ;
+    ISETP.NE.AND P0, PT, R2, RZ, PT ;
+    LDS R5, [R6+0x100] ;
+    @P0 S2R R14, SR_CTAID.Y ;
+    IADD3 R15, PT, PT, R14, 0x1, RZ ;
+    S2R R8, SR_CTAID.X ;
+    IADD3 R6, PT, PT, R6, R8, RZ ;
+    IADD3 R10, PT, PT, R5, R15, RZ ;
+    STG.E desc[UR8][R6.64], R10 ;
+    EXIT ;
+";
+
+/// [`A_WAIT_IN_FRONT`] with a path round the reader of the guarded producer.
+const A_PATH_ROUND_THE_WAIT: &str = "    S2R R2, SR_TID.X ;
+    MOV R6, R2 ;
+    MOV R15, RZ ;
+    ISETP.NE.AND P0, PT, R2, RZ, PT ;
+    ISETP.EQ.AND P1, PT, R2, 0x1, PT ;
+    LDS R5, [R6+0x100] ;
+    @P0 S2R R14, SR_CTAID.Y ;
+    @P1 BRA L_round ;
+    IADD3 R15, PT, PT, R14, 0x1, RZ ;
+L_round:
+    S2R R8, SR_CTAID.X ;
+    IADD3 R6, PT, PT, R6, R8, RZ ;
+    IADD3 R10, PT, PT, R5, R15, RZ ;
+    STG.E desc[UR8][R6.64], R10 ;
+    EXIT ;
+";
+
+/// No use loses a waiter, and a wait that was written goes only where a wait of that scoreboard stands in front of
+/// the word on every path. Without the switch the rewriter's one bit is the wait for its operand and the wait of
+/// the read barrier. Under the switch its producer moves and the rewriter waits it under the new number; the
+/// read-barrier use keeps its number and its waiter, and the wait is NOT written on the rewriter: the reader of
+/// the guarded producer waits that scoreboard in front of it on the only path. With one path round that reader
+/// the rewriter carries both bits. (The rewriter is no word of an ordered event: the bit that stays on such a
+/// word has its own tests.)
+#[test]
+fn a_written_wait_goes_only_behind_a_wait_of_its_scoreboard_on_every_path() {
+    let on = [SYNC, POLICY, WIDE, DRAINED, APART, DUMP];
+    let (wide, apart) = (build(A_WAIT_IN_FRONT, &[SYNC, POLICY, WIDE, DRAINED, DUMP]), build(A_WAIT_IN_FRONT, &on));
+    let r = wide.rb("LDS R5");
+    assert_eq!(wide.wb("S2R R8"), r, "{:#?}", wide.words);
+    assert_eq!(wide.word("IADD3 R6,").wait, vec![r], "{:#?}", wide.words);
+    let s = apart.wb("S2R R8");
+    assert_eq!(apart.rb("LDS R5"), r, "{:#?}", apart.words);
+    assert_ne!(s, r, "{:#?}", apart.words);
+    let rb_use = |b: &Build, r: u8| b.lines("USE ").iter().any(|l| l.starts_with(&format!("USE b={r} rb ")) && l.contains(" waiters=["));
+    assert!(rb_use(&wide, r) && rb_use(&apart, r), "the read-barrier use keeps its number: {}", apart.log);
+    assert_eq!(apart.word("IADD3 R15,").wait, vec![r], "the wait in front: {:#?}", apart.words);
+    assert_eq!(apart.word("IADD3 R6,").wait, vec![s], "the wait of the read barrier is not written behind it: {:#?}", apart.words);
+    assert!(apart.lines("KEPT ").is_empty(), "no word of an ordered event among the waiters: {}", apart.log);
+    // one path round the wait in front: the wait of the read barrier is written on the rewriter
+    let round = build(A_PATH_ROUND_THE_WAIT, &on);
+    let (r, s) = (round.rb("LDS R5"), round.wb("S2R R8"));
+    assert_ne!(s, r, "{:#?}", round.words);
+    assert_eq!(round.word("IADD3 R15,").wait, vec![r], "{:#?}", round.words);
+    let mut bits = round.word("IADD3 R6,").wait.clone();
+    bits.sort_unstable();
+    assert_eq!(bits, if r < s { vec![r, s] } else { vec![s, r] }, "{:#?}", round.words);
 }
 
 /// [`CONSTANT`] with the constant load under a guard.

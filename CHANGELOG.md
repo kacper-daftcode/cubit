@@ -19,20 +19,69 @@ decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `
 - **The clause of `CUBIT_LOAD_TOP` takes no scoreboard on which a read barrier is pending over the load's flight**
   (`load_top::scoreboards`, its `apart`): a load that waits at the tops of its loops then keeps the allocator's
   scoreboard where the clause had moved it beside such a read barrier.
-- **What the rule does not do**, each with a test: no wait comes off a word (a word of an ordered event among the
-  waiters keeps its wait, under the new number); no read-barrier use and no wait of a read barrier is touched; no
-  use joins another result in flight; none takes the scoreboard of a load that waits at a top, wherever that load
-  flies; nothing for a use with a setter under a guard (the policy's fourth clause may write that producer's wait
-  on a later reader, behind the colouring), for a use the author numbered, or without `CUBIT_WAIT_POLICY=1`.
+- **A word of an ordered event keeps the first wait on a read barrier that keeps its number** (`sb_apart::kept`).
+  Where a waiter of a use whose scoreboard the switch changes is the word of an ordered event
+  (`wait_drained::ordered_event`) and a read-barrier use that keeps its number is pending on the word, the one bit
+  the word carried was a wait on that read barrier too: the word keeps its bit on the scoreboard the use left,
+  beside the bit of the new one. A wait whose number changes while its setter does not would be a wait taken off
+  the word. `CUBIT_DUMP_USES` prints one `KEPT` line a bit.
+- **A waiter that is no word of an ordered event keeps its bit where a second use would be armed beside the read
+  barrier of a synchronisation word or a copy word** (`sb_apart::beside_an_event`, `sb_apart::armed_beside`).
+  Where the read barrier of such a word keeps the number the use left and is pending on the waiter — by the
+  allocator's flights, and by a path from its setter with no wait of the number on the way — and the waiter
+  itself, or a word a path behind it reaches before a wait of the number, arms the scoreboard, the waiter keeps
+  its bit on that scoreboard beside the new one: without it two uses would fly on one scoreboard beside a
+  synchronisation word or a copy word, a pair the schedule without the switch does not have. Where every path
+  behind the waiter meets a wait of the scoreboard first, the waiter goes with its number: the clause speaks of
+  pairs of uses, not of waits. It is judged at the end of the allocation, on the fields as they stand, and only
+  adds wait bits. `CUBIT_DUMP_USES` prints one `BESIDE` line a bit.
+- **Under `CUBIT_LOAD_TOP=1` a word of an ordered event that was a first wait behind a read barrier waits the
+  number the switch gives that read barrier** (`load_top::mirror`, the mirror clause; KNOWN_ISSUES A68). The rule
+  of A68 rewrites no read-barrier use, but the colouring answers the new flights of the loads and may give a
+  read-barrier use another scoreboard than without the switch — beside a word of an ordered event that keeps its
+  mask because the bit it carries is written for another use. Without the switch that word was the first wait
+  behind the read barrier; under it the event would overtake the operand read. The allocator therefore asks, on
+  a copy and in silence, what the same recipe writes without the switches that renumber (`CUBIT_LOAD_TOP`,
+  `CUBIT_SB_APART`), and at the end of the allocation every word of an ordered event that was a first wait on
+  the old number of such a read barrier, and that a path still reaches with no wait of the new number in front
+  of it, waits the new number too; a wait of the new number in front of the word on every path is no wait taken
+  off, and a read barrier that keeps its number gives no bit. Only wait bits are added; `CUBIT_DUMP_USES` prints
+  one `MIRROR` line a bit. The sentence "no read-barrier use is touched" of the rule's documents is mended: the
+  RULE touches none, the colouring under the switch may renumber one.
+- **What the rule does not do**, each with a test: no use loses a setter or a waiter; no word of an ordered event
+  loses the first wait on a read barrier that keeps its number; no read barrier moves; no use joins
+  another result in flight; none takes the scoreboard of a load that waits at a top, wherever that load flies;
+  nothing for a use with a setter under a guard (the policy's fourth clause may write that producer's wait on a
+  later reader, behind the colouring), for a use the author numbered, or without `CUBIT_WAIT_POLICY=1`.
+- **What it does not promise**: that every wait the build without the variable writes is written under it. Which
+  waiter's bit is written is the wait rule's (`CUBIT_WAIT_DRAINED`), read on the new numbers: a wait that was
+  written goes only where a wait of that scoreboard stands in front of the word on every path. On the frame of
+  KNOWN_ISSUES A69 two readers of a result carry no bit where they carried one (the reader of the second of two
+  loads on one scoreboard, behind the wait for the first; a reader of a shared load that stayed on the read
+  barriers' scoreboard, behind a word that waits that scoreboard), and four waits of read-barrier uses are not
+  written on three words whose own bit went to another scoreboard with the use that moved — none of them the
+  word of an ordered event.
 - What moves: nothing without the variable — the default path and every recipe that does not name it build byte
   for byte as before. In cubit's own frame of `fc2_kernel_ws<4,2,1,0>` under the recipe with both rules and
   `CUBIT_LOAD_TOP=1`, 89 of the 399 write-barrier uses stand beside a read-barrier use in flight on their own
-  scoreboard by the allocator's dump; under the switch 46 move and 45 are left (41 find no scoreboard free), 123
-  words carry another control field, the stall fields' sum is the same and the wait bits go from 589 to 613. What
-  the numbers leave open is in KNOWN_ISSUES A69.
-- Inside: the rule is `src/sb_apart.rs`; `load_top::scoreboards` takes `apart`; the two clauses read the uses
-  through one view (`use_views` in `reallocate_barriers_in`). Tests: `tests/sb_apart.rs` (12),
-  `sb_apart::tests` (4).
+  scoreboard by the allocator's dump; under the switch 46 move and 45 are left (41 find no scoreboard free), 18
+  words of ordered events keep a bit, 103 words carry another control field, the stall fields' sum goes from
+  9 301 to 9 299 and the wait bits go from 589 to 617; no word of an ordered event carries fewer wait bits than
+  without the switch. What the numbers leave open is in KNOWN_ISSUES A69. The second half of the bits that stay
+  and the mirror clause write nothing on that frame: its builds under `CUBIT_LOAD_TOP=1` and under both switches
+  are byte for byte what they were without the two clauses. In cubit's own frame of `fc1_kernel_wg<4,1,1,0,0>`
+  under its recipe, `CUBIT_LOAD_TOP=1` gives nine read barriers (nine `LDS` words) another scoreboard and the
+  mirror clause writes two bits — on a `BRA` and a `BSYNC` that were the first waits behind them —; with
+  `CUBIT_SB_APART=1` beside it the second half writes one bit, on an `IADD.64` on which the read barrier of a
+  `SYNCS.ARRIVE` is pending and behind which three `LDS` and a copy word arm the scoreboard with no wait between.
+- Inside: the rule is `src/sb_apart.rs`; `load_top::scoreboards` takes `apart`; the clauses read the uses
+  through one view (`use_views` in `reallocate_barriers_in`); the mirror clause is `load_top::mirror`, fed by a
+  second, silent allocation on a copy (`scheduling_pass::unswitched`). Tests: `tests/sb_apart.rs` (15: twelve of
+  the rule, one of the second half of the bits that stay, and two of what its sentences are on a text — two
+  loads at one top on one number, each waiter with the bit of that number and the top with the kept bit beside
+  it; a written wait that goes behind a wait of its scoreboard in front on the only path and is written where
+  one path goes round it), `sb_apart::tests` (6); `tests/load_top.rs` (18: three of the mirror clause),
+  `load_top::tests` (3).
 
 ## Unreleased — 2026-11-20 (`CUBIT_DUMP_STALL=1`, a look: why every stall field has the value it has; every schedule is what it was)
 

@@ -28,17 +28,29 @@
 //!   hold the loads, then the fewest outside, then the lowest number. If no scoreboard is clean
 //!   the use keeps the allocator's, and its tops. The words that waited for something else on
 //!   the old scoreboard keep their bit and no longer hold for the load.
+//! * `mirror`, at the end of the allocation -- **a word of an ordered event that was a first
+//!   wait behind a read barrier stays a wait behind it where the read barrier comes out on
+//!   another scoreboard** (the mirror clause). The allocator asks, on a copy and in silence,
+//!   what the same recipe writes without the switch; an event word that was the first wait on
+//!   the old number of such a read barrier, and that a path still reaches with no wait of the
+//!   new number in front of it, waits the new number too. Only wait bits are added
+//!   (`CUBIT_DUMP_USES`: one `MIRROR` line a bit).
 //!
 //! What the rule does not do:
 //!
 //! * **No wait comes off a word of an ordered event** (`wait_drained::ordered_event`): such a
 //!   first consumer keeps its wait behind any top. The wait the rule writes is a wait PUT ON a
 //!   branch.
-//! * **No read-barrier use is touched.** The rule speaks of the write barrier of an `LDG`; a
+//! * **The rule rewrites no read-barrier use.** It speaks of the write barrier of an `LDG`; a
 //!   wait that releases the read barrier of a word whose source the waiting word rewrites is
-//!   written for that use and stays where it is, on its scoreboard. The load's own read
-//!   barrier too: the walk for the words that rewrite its base ends at the first consumers, as
-//!   without the rule, not at the tops.
+//!   written for that use and stays on the word that carries it. The load's own read barrier
+//!   too: the walk for the words that rewrite its base ends at the first consumers, as
+//!   without the rule, not at the tops. **A read barrier may still come out on another
+//!   scoreboard than without the switch**: the colouring answers the new flights of the
+//!   loads, and a read-barrier use can be given another number, its setter and its waiters
+//!   together (on cubit's own frame of `fc1_kernel_wg<4,1,1,0,0>`: nine `LDS` words). A word
+//!   of an ordered event that carried the old number for ANOTHER use, and was the first wait
+//!   behind that read barrier, would then overtake the operand read: `mirror` holds it.
 //! * **No top in a block that holds a word with a write barrier** (the wait would stand right
 //!   behind that word -- the place the rule takes waits away from), none on a word that cannot
 //!   carry a wait or that the author scheduled, none in a text without a loop, and none for a

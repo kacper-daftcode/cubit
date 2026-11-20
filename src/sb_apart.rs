@@ -22,14 +22,28 @@
 //! * `load_top::scoreboards` takes no scoreboard on which a read barrier is pending over the
 //!   flight of the load (its `apart`): a load that waits at the tops of its loops is moved by
 //!   that clause alone, and not onto such a scoreboard.
+//! * `kept` -- **a waiter that is the word of an ordered event keeps its bit on the scoreboard
+//!   its use leaves while a read-barrier use that keeps that number is pending on the word**:
+//!   the one bit it carried was the first wait on that read barrier too.
+//! * `beside_an_event`, `armed_beside` -- **a waiter that is NO word of an ordered event keeps
+//!   its bit on the scoreboard its use leaves where a second use would be armed beside the
+//!   read barrier of a synchronisation word or a copy word**: that read barrier keeps the
+//!   number and is pending on the waiter (by the allocator's flights, and by a path from its
+//!   setter with no wait of the number on the way), and the waiter itself, or a word a path
+//!   behind it reaches before a wait of the number, arms the scoreboard. Where every path
+//!   behind the waiter meets a wait of the scoreboard first, it goes with its number: the
+//!   clause speaks of pairs of uses, not of waits. Judged at the end of the allocation, on
+//!   the fields as they stand; only wait bits are added.
 //!
 //! What the rule does not do:
 //!
-//! * **No wait comes off a word and no barrier goes.** A use that moves keeps every setter
-//!   and every waiter; the number changes on all of them together. A word of an ordered event
-//!   among the waiters waits as before, under the new number.
-//! * **No read-barrier use is touched**, and the wait that releases a read barrier stays on
-//!   the word that rewrites the source, on the scoreboard the read-barrier use names.
+//! * **No use loses a setter or a waiter and no barrier goes.** The number changes on all of
+//!   them together. Which waiter's bit is WRITTEN is the wait rule's (`CUBIT_WAIT_DRAINED`),
+//!   read on the new numbers: a written wait goes only where a wait of that scoreboard stands
+//!   in front of the word on every path -- and a word of an ordered event keeps the first
+//!   wait on a read barrier that keeps its number (`kept`: two bits, the old beside the new).
+//! * **No read-barrier use is touched**: its waiters are the words that rewrite the source,
+//!   on the scoreboard the use names -- written where the wait rule writes them.
 //! * **No use joins another use in flight.** The scoreboard a use moves to is free over the
 //!   whole flight -- the allocator's own condition for a scoreboard it gives without sharing --
 //!   so the move puts no result beside another result.
@@ -45,15 +59,12 @@
 //!   nothing without the flow graph of `CUBIT_SYNC_CLASSES`.
 //!
 //! What the rule leaves: where every other scoreboard carries a read barrier or a result over
-//! the flight, the use stays beside the read barrier (`CUBIT_DUMP_USES` prints one `APART`
-//! line a use that shares, with what bars each scoreboard). A word that waited the old
-//! scoreboard for the use that moved no longer releases what else was pending there. The wait
-//! of every read barrier is written on its own waiters and stays -- and where the wait rule
-//! (`CUBIT_WAIT_DRAINED`) had left it unwritten behind such a word, it is written again: on a
-//! rewriter that may now stand behind a result of a use that stayed on that scoreboard. A wait
-//! that stood in front of a word by coincidence -- in front of a rewriter of the GUARD of an
-//! event word, which the allocator does not protect (KNOWN_ISSUES A68), or between two uses of
-//! different kinds on one scoreboard -- may go or come with the number.
+//! the flight, the use stays beside the read barrier (`CUBIT_DUMP_USES`: one `APART` line a
+//! use that shares, one `KEPT` line a bit that stays for a word of an ordered event, one
+//! `BESIDE` line a bit that stays for another waiter). A word that is no such event word,
+//! waited the old scoreboard for the use that moved and keeps no bit by `beside_an_event` no
+//! longer releases what else was pending there; a wait in front of a rewriter of an event
+//! word's GUARD (A68) may go or come.
 
 use crate::load_top::UseView;
 use crate::scheduling_pass as sp;

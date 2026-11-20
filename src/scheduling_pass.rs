@@ -423,7 +423,7 @@ pub fn load_cover() -> bool {
 /// for the load is decided by the colouring: every waiter of another use on its scoreboard.
 /// Where the NEXT pass of a loop reads the load, both stand a few cycles behind a result that
 /// is still in flight. The vendor's assembler waits for such loads once, on the branch that
-/// ends the block of the loop's header. Two clauses:
+/// ends the block of the loop's header. Three clauses:
 ///
 /// * **in front of the colouring, the walk for the first consumers of an `LDG` in a natural
 ///   loop ends at the tops** -- the `BRA` that ends the header's block of every natural loop
@@ -433,8 +433,13 @@ pub fn load_cover() -> bool {
 /// * **behind the colouring, such a use moves to the scoreboard on which no word waits for
 ///   another use while its loads are in flight** (none inside the loops that hold them; then
 ///   the fewest outside, then the lowest number). If there is none it keeps the allocator's.
+/// * **at the end of the allocation, a word of an ordered event that was a first wait behind a
+///   read barrier waits the number the colouring gave that read barrier under the switch**
+///   (`load_top::mirror`, the mirror clause; what the same recipe writes without the switch is
+///   asked on a copy, in silence). Only wait bits are added.
 ///
-/// No wait comes off a word of an ordered event, no read-barrier use is touched, a flight that
+/// No wait comes off a word of an ordered event; the rule rewrites no read-barrier use (the
+/// colouring may give one another scoreboard under the switch: the third clause); a flight that
 /// crosses a register-indirect branch is not covered, and nothing moves for a hand-scheduled
 /// producer or in a text without a loop. Loads that wait at one top may then fly TOGETHER on
 /// one write barrier in front of one wait. That is the vendor's practice at such words: measured
@@ -464,13 +469,15 @@ pub fn load_top() -> bool {
 /// * **the clause of [`load_top`] takes no scoreboard on which a read barrier is pending over
 ///   the flight of the load.**
 ///
-/// No wait comes off a word and no barrier goes: the rule changes a number on a use's setters
-/// and waiters together. No read-barrier use is touched, no use joins another use in flight or
-/// takes the scoreboard of a load that waits at a top, and nothing moves for a use the author
-/// numbered or one with a setter under a guard. A wait that stood in front of a word only
-/// because another use shared the scoreboard -- in front of a rewriter of the guard of an event
-/// word, which the allocator does not protect (KNOWN_ISSUES A68) -- may go or come with the
-/// number.
+/// No use loses a setter or a waiter and no barrier goes: the rule changes a number on a use's
+/// setters and waiters together; a written wait goes only where a wait of that scoreboard
+/// stands in front of the word on every path (the wait rule reads the new numbers), and a word
+/// of an ordered event keeps the first wait on a read barrier that keeps its number -- its bit
+/// on the scoreboard the use left stays (`sb_apart::kept`) --, and a waiter that is no such word
+/// keeps its bit there where a second use would be armed beside the pending read barrier of a
+/// synchronisation word or a copy word (`sb_apart::beside_an_event`). No read barrier moves, no
+/// use joins another use in flight or takes the scoreboard of a load that waits at a top, and
+/// nothing moves for a use the author numbered or one with a setter under a guard.
 pub fn sb_apart() -> bool {
     std::env::var("CUBIT_SB_APART").ok().as_deref() == Some("1") && wait_policy() && !unswitched()
 }
