@@ -25,14 +25,16 @@ decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `
   word with a write barrier; a flight that crosses a register-indirect branch is not covered (the flow graph reads
   no jump table, A67); nothing for a hand-scheduled load, in a text without a loop, or without
   `CUBIT_WAIT_POLICY=1`.
-- **Two loads in flight on one write barrier — named, no law.** Loads that wait at one top may take one
-  scoreboard; the younger is then issued while the older is in flight. That is the vendor's practice at such words;
-  it is measured on one card model for two global loads of different forms, not for two of one form, and this
-  allocator's batching rule ("a write barrier is last-only") says the opposite for global loads of different
-  address streams. The rule shares a barrier between the loads it covers only under its switch; the rule that
-  takes waits off (`wait_drained::may_fly_together`) learns nothing from it; `CUBIT_VERIFY` names the readers of
-  the older load of such a pair (`RECYCLE-STALE`).
-  A build under the switch is no candidate before a second card model.
+- **Two loads in flight on one write barrier — named; measured for five shapes of one form, no further.** Loads
+  that wait at one top may take one scoreboard; the younger is then issued while the older is in flight. That is
+  the vendor's practice at such words; it is measured on two card models for two loads of the one form
+  `LDG.E.CONSTANT` of one thread on one write barrier, in five shapes; pairs of other forms, of more than two
+  loads or further apart than 24 cycles are not measured (two global loads of different forms: on one card model
+  only), and this allocator's batching rule ("a write barrier is last-only") says the opposite for global loads
+  of different address streams. The rule shares a barrier between the loads it covers only under its switch; the
+  rule that takes waits off (`wait_drained::may_fly_together`) learns nothing from it; `CUBIT_VERIFY` names the
+  readers of the older load of such a pair (`RECYCLE-STALE`).
+  A build under the switch is a candidate only after its own text has been read on both card models.
 - What moves: nothing without the variable — the default path and every recipe that does not name it build byte
   for byte as before. In cubit's own frame of `fc2_kernel_ws<4,2,1,0>` under the recipe with both rules ten
   global loads of the producer warp's two loops wait at three branches, and 45 words carry another control field

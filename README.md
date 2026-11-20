@@ -145,9 +145,11 @@ loop that holds the load — on the branch that ends the block of the loop's hea
 pass goes through — and not at the reader a few words behind it; a reader that a path reaches without that branch
 keeps its wait, and behind the colouring such a load takes the scoreboard on which no word waits for something else
 while it is in flight, where there is one. Loads that wait at one top may then fly together on one write barrier in front of one wait: the
-vendor's practice at such words, measured on one card model for two global loads of different forms — no law, and
-this allocator's own batching rule says the opposite for loads of different address streams; a build under the
-switch is no candidate before a second card model (opt-in, KNOWN_ISSUES A68).
+vendor's practice at such words, measured on two card models for two loads of the one form `LDG.E.CONSTANT` of one
+thread on one write barrier, in five shapes; pairs of other forms, of more than two loads or further apart than 24
+cycles are not measured, and this allocator's own batching rule says the opposite for loads of different address
+streams; a build under the switch is a candidate only after its own text has been read on both card models (opt-in,
+KNOWN_ISSUES A68).
 `CUBIT_DUMP_COLOUR=1` prints the colouring of the scoreboards use by use (stderr, a look).
 `CUBIT_SCHED2=1` selects the dependency-aware stall model (a stall is charged where a consumer needs it, not
 after every producer); with `CUBIT_SCHED2_LAT=sm120` the latencies come from the pair table

@@ -60,9 +60,9 @@
 //! which another write-barrier use flies beside the loads (`scoreboards`: such a scoreboard is
 //! barred), and the rule that takes waits off (`wait_drained::may_fly_together`) learns
 //! nothing from it. `CUBIT_VERIFY` names the readers of the older load of such a pair
-//! (`RECYCLE-STALE`). It is the vendor's practice at such words and no law: measured on one card
-//! model, for two global loads of different forms and not for two of one form. A build under
-//! the switch is no candidate before a second card model.
+//! (`RECYCLE-STALE`). The vendor's practice at such words; measured on two card models for two
+//! loads of the one form `LDG.E.CONSTANT` of one thread on one write barrier, in five shapes, no
+//! further. A build under the switch is a candidate only after its own text is read on both models.
 
 use crate::cfg_flow::Cfg;
 use crate::ir::Instruction;

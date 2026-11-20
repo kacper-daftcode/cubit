@@ -437,11 +437,11 @@ pub fn load_cover() -> bool {
 /// No wait comes off a word of an ordered event, no read-barrier use is touched, a flight that
 /// crosses a register-indirect branch is not covered, and nothing moves for a hand-scheduled
 /// producer or in a text without a loop. Loads that wait at one top may then fly TOGETHER on
-/// one write barrier in front of one wait. That is the vendor's practice at such words and no
-/// law: it is measured on one card model, for two global loads of different forms and not for
-/// two of one form, and the batching rule of this allocator (`reallocate_barriers`: "a write
-/// barrier is last-only") says the opposite for global loads of different address streams.
-/// The switch is for exploration; a build under it is no candidate before a second card model.
+/// one write barrier in front of one wait. That is the vendor's practice at such words: measured
+/// on two card models for two loads of the one form `LDG.E.CONSTANT` of one thread on one write
+/// barrier, in five shapes, no further; this allocator's batching rule (`reallocate_barriers`: "a
+/// write barrier is last-only") says the opposite for global loads of different address streams.
+/// A build under the switch is a candidate only after its own text is read on both card models.
 pub fn load_top() -> bool {
     std::env::var("CUBIT_LOAD_TOP").ok().as_deref() == Some("1") && wait_policy()
 }
