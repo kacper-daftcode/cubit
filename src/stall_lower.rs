@@ -49,6 +49,10 @@
 //!
 //! A lowered schedule is legal by every static check of this repository and has not been on a
 //! card: its class is that of every other schedule cubit builds from the table.
+//!
+//! `CUBIT_DUMP_STALL=1` (a look, stderr; it changes no byte) prints why every stall field has the
+//! value it has — `reasons`, by the same dataflows on the schedule as it stands, with or without
+//! the lowering: one `STALL` line a word with the requirement that is met exactly through it.
 
 use crate::dep_stall as ds;
 use crate::ir::{Instruction, Operand};
@@ -174,6 +178,51 @@ struct Lowering<'a> {
     rin: Vec<Vec<Req>>,
     spans: Vec<Span>,
     spans_of: Vec<Vec<u32>>,
+}
+
+impl<'a> Lowering<'a> {
+    /// The two dataflows of the schedule as it stands: the forward states, the needs of every word, and what
+    /// every reaching definition still has to have elapsed, at its fixed point. No span yet.
+    fn new(insns: &'a mut [Instruction], t: &ds::DepLatTable) -> Lowering<'a> {
+        let n = insns.len();
+        let flow = ds::build_flow(insns);
+        let sem = ds::semantics(insns, t);
+        let fin = ds::analyse(insns, &flow, &sem).ins;
+        let mut needs: Vec<Vec<Req>> = vec![Vec::new(); n];
+        for c in 0..n {
+            let Some(st) = &fin[c] else { continue };
+            let mut v: Vec<Req> = ds::needs_of(insns, &sem, t, c, st, &mut None).into_iter().map(|nd| (nd.key, nd.def as u32, nd.need)).collect();
+            v.sort_unstable();
+            // one entry per (key, definition): the largest need
+            let mut out: Vec<Req> = Vec::with_capacity(v.len());
+            for e in v {
+                match out.last_mut() {
+                    Some(l) if (l.0, l.1) == (e.0, e.1) => l.2 = l.2.max(e.2),
+                    _ => out.push(e),
+                }
+            }
+            needs[c] = out;
+        }
+        let mut lw = Lowering { insns, flow, sem, fin, needs, rin: vec![Vec::new(); n], spans: Vec::new(), spans_of: vec![Vec::new(); n] };
+        // the backward dataflow to its fixed point
+        let mut work: VecDeque<usize> = (0..n).rev().collect();
+        let mut queued = vec![true; n];
+        while let Some(j) = work.pop_front() {
+            queued[j] = false;
+            let new = lw.req_in(j);
+            if new != lw.rin[j] {
+                lw.rin[j] = new;
+                for k in 0..lw.flow.pred[j].len() {
+                    let p = lw.flow.pred[j][k];
+                    if !queued[p] {
+                        queued[p] = true;
+                        work.push_back(p);
+                    }
+                }
+            }
+        }
+        lw
+    }
 }
 
 impl Lowering<'_> {
@@ -463,44 +512,7 @@ pub fn run(insns: &mut [Instruction], t: &ds::DepLatTable, table: Option<&IsaTab
     // the lowest stall a word can end with
     let lowest: Vec<u8> = (0..n).map(|i| if insns[i].hand_sched { insns[i].ctrl.stall } else { before[i].0.min(insns[i].ctrl.stall) }).collect();
 
-    let flow = ds::build_flow(insns);
-    let sem = ds::semantics(insns, t);
-    let fin = ds::analyse(insns, &flow, &sem).ins;
-    let mut needs: Vec<Vec<Req>> = vec![Vec::new(); n];
-    for c in 0..n {
-        let Some(st) = &fin[c] else { continue };
-        let mut v: Vec<Req> = ds::needs_of(insns, &sem, t, c, st, &mut None).into_iter().map(|nd| (nd.key, nd.def as u32, nd.need)).collect();
-        v.sort_unstable();
-        // one entry per (key, definition): the largest need
-        let mut out: Vec<Req> = Vec::with_capacity(v.len());
-        for e in v {
-            match out.last_mut() {
-                Some(l) if (l.0, l.1) == (e.0, e.1) => l.2 = l.2.max(e.2),
-                _ => out.push(e),
-            }
-        }
-        needs[c] = out;
-    }
-    let mut lw = Lowering { insns, flow, sem, fin, needs, rin: vec![Vec::new(); n], spans: Vec::new(), spans_of: vec![Vec::new(); n] };
-    // the backward dataflow to its fixed point
-    {
-        let mut work: VecDeque<usize> = (0..n).rev().collect();
-        let mut queued = vec![true; n];
-        while let Some(j) = work.pop_front() {
-            queued[j] = false;
-            let new = lw.req_in(j);
-            if new != lw.rin[j] {
-                lw.rin[j] = new;
-                for k in 0..lw.flow.pred[j].len() {
-                    let p = lw.flow.pred[j][k];
-                    if !queued[p] {
-                        queued[p] = true;
-                        work.push_back(p);
-                    }
-                }
-            }
-        }
-    }
+    let mut lw = Lowering::new(insns, t);
     let mut frozen = vec![false; n];
     let mut seen: HashSet<(Vec<u32>, u32)> = HashSet::new();
     rep.hold_spans = hold_spans(&mut lw, &lowest, &mut frozen, &mut seen);
@@ -575,6 +587,200 @@ pub fn run(insns: &mut [Instruction], t: &ds::DepLatTable, table: Option<&IsaTab
     rep.cycles = entry.iter().zip(insns.iter()).map(|(e, x)| e.0.saturating_sub(x.ctrl.stall) as usize).sum();
     rep.lowered = entry.iter().zip(insns.iter()).filter(|(e, x)| x.ctrl.stall < e.0).count();
     rep
+}
+
+/// What holds a stall field where it stands (`CUBIT_DUMP_STALL=1`).
+#[derive(Debug, Clone)]
+pub enum Holder {
+    /// A requirement of the table between two words: the pair as `dep_stall::usage` names it (a cell or a
+    /// default of the table, a resource spacing, a landing row, the arming distance).
+    Table(ds::EdgeUse),
+    /// A requirement kept by name beside the table's: `hold` (an operand hold) or `sim` (the one distance the
+    /// scoreboard simulation reads), and the issue cycles it asks for.
+    Span { kind: &'static str, need: u32 },
+}
+
+/// One word of `reasons`: why its stall field has the value it has.
+#[derive(Debug, Clone)]
+pub struct Reason {
+    pub stall: u8,
+    /// the stall in front of the raising passes: the first pass's (with the recycle drain and the pacing)
+    pub first: u8,
+    pub hand: bool,
+    /// the smallest stall with every requirement through the word kept, the schedule as it stands
+    pub floor: u8,
+    /// the requirement that sets `floor` (the table's largest need first, then the spans), and how many more
+    /// set it too
+    pub holder: Option<Holder>,
+    pub more: usize,
+    /// the paths behind an operand hold's reader were too many to list: the lowering leaves the word alone
+    pub frozen: bool,
+}
+
+impl Reason {
+    /// `HAND` (a hand-scheduled word: no pass set its stall) | `REQ` (a requirement holds the stall: one cycle
+    /// less and it is broken) | `FIRST` (the first pass's stall, above every requirement) | `LEFT` (above the
+    /// first pass's stall AND above every requirement: a raise that nothing asks for any more) | `BELOW`
+    /// (below the first pass's stall).
+    pub fn class(&self) -> &'static str {
+        if self.hand {
+            "HAND"
+        } else if self.stall > 0 && self.floor >= self.stall {
+            "REQ"
+        } else if self.stall == self.first {
+            "FIRST"
+        } else if self.stall > self.first {
+            "LEFT"
+        } else {
+            "BELOW"
+        }
+    }
+}
+
+impl Lowering<'_> {
+    /// The word whose own need is the requirement on the definition `d` of `k` that stands at `r` behind word
+    /// `i`: the first found along the successors (a requirement passes through a word less that word's stall).
+    fn consumer_of(&self, i: usize, k: u16, d: u32, r: u8) -> Option<usize> {
+        let (mut cur, mut r) = (i, r);
+        for _ in 0..=self.insns.len() {
+            let mut next = None;
+            for &s in &self.flow.succ[cur] {
+                if !self.rin[s].contains(&(k, d, r)) {
+                    continue;
+                }
+                if self.needs[s].contains(&(k, d, r)) {
+                    return Some(s);
+                }
+                next = next.or(Some(s));
+            }
+            let s = next?;
+            r = r.checked_add(self.insns[s].ctrl.stall)?;
+            cur = s;
+        }
+        None
+    }
+}
+
+/// Read-only: for every word, what holds its stall field — the requirements the lowering pass keeps (the table's
+/// on every path, the operand holds, the simulation's distance), read off the schedule as it stands, by the
+/// pass's own dataflows. `first`: the stalls in front of the raising passes. A look: it says which requirement
+/// is met exactly, not that the schedule is legal.
+pub fn reasons(insns: &[Instruction], t: &ds::DepLatTable, first: &[Before]) -> Vec<Reason> {
+    let n = insns.len();
+    if n == 0 || first.len() != n {
+        return Vec::new();
+    }
+    let mut copy: Vec<Instruction> = insns.to_vec();
+    let lowest: Vec<u8> = (0..n).map(|i| if insns[i].hand_sched { insns[i].ctrl.stall } else { first[i].0.min(insns[i].ctrl.stall) }).collect();
+    let mut lw = Lowering::new(&mut copy, t);
+    let mut frozen = vec![false; n];
+    let mut seen: HashSet<(Vec<u32>, u32)> = HashSet::new();
+    hold_spans(&mut lw, &lowest, &mut frozen, &mut seen);
+    let holds = lw.spans.len();
+    sim_spans(&mut lw, &lowest, &mut seen);
+    let mut out = Vec::with_capacity(n);
+    for i in 0..n {
+        let stall = lw.insns[i].ctrl.stall;
+        let floor = lw.floor(i);
+        let mut holder = None;
+        let mut more = 0;
+        if floor > 0 {
+            // what `floor` took its maximum of, by name: the table's requirements first, the largest need in front
+            let mut at: Vec<Req> = Vec::new();
+            if let Some(st) = &lw.fin[i] {
+                for (k, d, r) in lw.req_out(i) {
+                    let m = if d as usize == i {
+                        r
+                    } else if ds::ends_key(&lw.sem[i], k) {
+                        continue;
+                    } else {
+                        match ds::elapsed_in(st, k, d as usize) {
+                            Some(f) => r.saturating_sub(f),
+                            None => continue,
+                        }
+                    };
+                    if m.min(stall) == floor {
+                        at.push((k, d, r));
+                    }
+                }
+            }
+            at.sort_unstable_by(|a, b| b.2.cmp(&a.2).then(a.cmp(b)));
+            for (k, d, r) in at {
+                let named = lw.consumer_of(i, k, d, r).and_then(|c| lw.fin[c].as_ref().and_then(|st| ds::edge_of(&*lw.insns, &lw.sem, t, c, st, k, d as usize)));
+                match named {
+                    Some(e) if holder.is_none() => holder = Some(Holder::Table(e)),
+                    _ => more += 1,
+                }
+            }
+            for &s in &lw.spans_of[i] {
+                let sp = &lw.spans[s as usize];
+                let slack = sp.sum.saturating_sub(sp.need);
+                if stall.saturating_sub(slack.min(stall as u32) as u8) == floor {
+                    if holder.is_none() {
+                        holder = Some(Holder::Span { kind: if (s as usize) < holds { "hold" } else { "sim" }, need: sp.need });
+                    } else {
+                        more += 1;
+                    }
+                }
+            }
+        }
+        out.push(Reason { stall, first: first[i].0, hand: insns[i].hand_sched, floor, holder, more, frozen: frozen[i] });
+    }
+    out
+}
+
+/// `CUBIT_DUMP_STALL=1`: the lines of the dump — a head line with the counts by class, then one line a word:
+/// its stall, the first pass's, the requirements' floor, the class (`Reason::class`), what sets the floor, the
+/// word. `unpaced`: the stalls in front of the unit pacing (a paced word says by how much).
+pub fn dump_lines(name: &str, insns: &[Instruction], t: &ds::DepLatTable, first: &[Before], unpaced: &[Before]) -> Vec<String> {
+    let rs = reasons(insns, t, first);
+    let count = |c: &str| rs.iter().filter(|r| r.class() == c).count();
+    let mut out = Vec::with_capacity(rs.len() + 1);
+    out.push(format!(
+        "STALL {}: {} word(s) | REQ {} FIRST {} LEFT {} HAND {} BELOW {} | table {}",
+        name,
+        rs.len(),
+        count("REQ"),
+        count("FIRST"),
+        count("LEFT"),
+        count("HAND"),
+        count("BELOW"),
+        t.label()
+    ));
+    for (i, r) in rs.iter().enumerate() {
+        let what = match &r.holder {
+            None => "-".to_string(),
+            Some(Holder::Span { kind, need }) => format!("{kind} need {need}"),
+            Some(Holder::Table(e)) => {
+                let pair = format!("[{}] -> [{}]", e.producer, e.consumer);
+                match e.kind.as_str() {
+                    "raw" => format!("{} {} -> {} {} need {} {}", if e.defaulted { "default" } else { "cell" }, e.producer_class, e.consumer_class, e.role, e.need, pair),
+                    "barrier-arm" => format!("arm need {} {}", e.need, pair),
+                    "resource" => format!("resource {} need {} {}", e.role, e.need, pair),
+                    kind => format!("{} {} -> {} need {} {}", kind, e.producer_class, e.consumer_class, e.need, pair),
+                }
+            }
+        };
+        let more = if r.more > 0 { format!(" +{}", r.more) } else { String::new() };
+        let paced = match unpaced.get(i) {
+            Some(u) if u.0 < r.first => format!(" paced +{}", r.first - u.0),
+            _ => String::new(),
+        };
+        out.push(format!(
+            "STALL [{}] S{:02} first {} floor {} {} {}{}{}{} | {}",
+            i,
+            r.stall,
+            r.first,
+            r.floor,
+            r.class(),
+            what,
+            more,
+            paced,
+            if r.frozen { " frozen" } else { "" },
+            insns[i].raw_text.trim()
+        ));
+    }
+    out
 }
 
 #[cfg(test)]
@@ -676,5 +882,51 @@ mod tests {
         let rep = lower(&mut k, &[5, 2, 1]);
         assert_eq!(k.iter().map(|x| x.ctrl.stall).collect::<Vec<_>>(), [5, 2, 5]);
         assert_eq!((rep.candidates, rep.lowered, rep.cycles), (1, 1, 3));
+    }
+
+    /// `reasons` on the kernels above: a stall an operand hold or the simulation's distance keeps names it, a
+    /// requirement of the table is named with its two words, a raise nothing asks for is `LEFT` with the floor
+    /// it could go down to, the first pass's stall is `FIRST`, a hand-scheduled word `HAND`.
+    #[test]
+    fn the_reasons_name_what_holds_a_stall_and_a_raise_nothing_asks_for() {
+        let t = ds::DepLatTable::from_json(ds::SM120_TABLE).unwrap();
+        let first = |b: &[u8]| -> Vec<Before> { b.iter().map(|s| (*s, true)).collect() };
+        // the operand hold: the rewrite stands 2 + 9 = 11 cycles behind the tensor instruction, eight are asked for
+        let mut k = vec![word("HMMA.16816.F32.BF16 R28, R64, R72, RZ", 2, 7, 7, 0), word("MOV R80, R20", 9, 7, 7, 0), word("MOV R72, RZ", 1, 7, 7, 0)];
+        let r = reasons(&k, &t, &first(&[2, 1, 1]));
+        assert_eq!((r[1].stall, r[1].first, r[1].floor, r[1].class()), (9, 1, 6, "LEFT"), "{:?}", r[1]);
+        assert!(matches!(r[1].holder, Some(Holder::Span { kind: "hold", need: 8 })), "{:?}", r[1]);
+        lower(&mut k, &[2, 1, 1]);
+        let r = reasons(&k, &t, &first(&[2, 1, 1]));
+        assert_eq!((r[1].stall, r[1].floor, r[1].class()), (6, 6, "REQ"), "{:?}", r[1]);
+        assert!(matches!(r[1].holder, Some(Holder::Span { kind: "hold", need: 8 })), "{:?}", r[1]);
+        assert_eq!((r[0].class(), r[2].class()), ("REQ", "FIRST"), "the hold spans the tensor instruction's own stall too: {r:?}");
+        // the simulation's distance: three issue cycles from the load to the overwriter of its address register
+        let mut k = vec![
+            word("LDG.E R4, desc[UR4][R2.64]", 1, 1, 0, 0),
+            word("MOV R80, R20", 4, 7, 7, 0),
+            word("IADD3 R2, PT, PT, R2, 0x4, RZ", 1, 7, 7, 0),
+            word("MOV R6, R4", 1, 7, 7, 0b10),
+        ];
+        lower(&mut k, &[1, 1, 1, 1]);
+        let r = reasons(&k, &t, &first(&[1, 1, 1, 1]));
+        assert_eq!((r[1].stall, r[1].class()), (2, "REQ"), "{:?}", r[1]);
+        assert!(matches!(r[1].holder, Some(Holder::Span { kind: "sim", need: 3 })), "{:?}", r[1]);
+        // the table: a waiter behind the word that set its scoreboard — the arming distance, with its two words
+        let mut k = vec![word("LDG.E R4, desc[UR4][R2.64]", 1, 1, 7, 0), word("MOV R6, R4", 1, 7, 7, 0b10)];
+        let f = snapshot(&k);
+        ds::apply(&mut k, &t);
+        let r = reasons(&k, &t, &f);
+        assert_eq!(r[0].class(), "REQ", "{:?}", r[0]);
+        match &r[0].holder {
+            Some(Holder::Table(e)) => assert_eq!((e.kind.as_str(), e.producer, e.consumer, e.need), ("barrier-arm", 0, 1, r[0].stall), "{e:?}"),
+            other => panic!("{other:?}"),
+        }
+        // nothing asks for anything: the first pass's stall, a raise left over, a hand-scheduled word
+        let mut k = vec![word("MOV R80, R20", 5, 7, 7, 0), word("MOV R81, R20", 5, 7, 7, 0), word("MOV R82, R20", 5, 7, 7, 0)];
+        k[2].hand_sched = true;
+        let r = reasons(&k, &t, &first(&[5, 2, 1]));
+        assert_eq!(r.iter().map(|x| x.class()).collect::<Vec<_>>(), ["FIRST", "LEFT", "HAND"], "{r:?}");
+        assert!(r.iter().all(|x| x.floor == 0 && x.holder.is_none()), "{r:?}");
     }
 }

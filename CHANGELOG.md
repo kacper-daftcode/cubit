@@ -4,6 +4,30 @@ User-visible changes, newest first. Table syncs name the blackwell-isa revision 
 (`tables/SOURCE.json` pins it byte for byte). Numbered `BUG-NNN` entries are the encoder /
 decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `docs/TESTS.md`).
 
+## Unreleased — 2026-11-20 (`CUBIT_DUMP_STALL=1`, a look: why every stall field has the value it has; every schedule is what it was)
+
+- **One `STALL` line a word** (stderr; `stall_lower::reasons`). A schedule's stall fields are written by the first
+  pass, raised by the latency legaliser and by the operand hold, and — under `CUBIT_SCHED2_LOWER=1` — taken back
+  where nothing asks for them; none of these passes says afterwards what a field stands on. The dump reads it off
+  the schedule as it is written, with the lowering pass's own two dataflows: the smallest stall the word could
+  carry with every requirement through it kept (`floor`), and the requirement that sets that floor — `cell` or
+  `default` with the table's pair class and the two words, a `resource` spacing, the arming distance (`arm`), a
+  landing row (`settle`), an operand hold (`hold`), the scoreboard simulation's distance (`sim`); `+N` says how
+  many more requirements set the same floor.
+- **The classes** (the head line counts them): `REQ` — the stall stands exactly on a requirement, one cycle less
+  breaks it; `FIRST` — the first pass's stall, above every requirement; `LEFT` — above the first pass's stall and
+  above every requirement, a raise that nothing asks for any more; `HAND` — a hand-scheduled word; `BELOW` — a
+  stall below the first pass's (counted; no pass is meant to leave one). It needs `CUBIT_SCHED2=1
+  CUBIT_SCHED2_LAT=<table>`; without the table, and for a kernel that is hand-scheduled as a whole, one line says so.
+- What it is not: a proof of legality (it names the requirement that is met exactly, by the table as it stands),
+  and it does not say which rule of the first pass wrote a `FIRST` stall.
+- What moves: nothing. Without the variable no line is printed; with it the cubin is byte for byte the one built
+  without it. `stall_lower::run` builds its dataflows through `Lowering::new` — the same statements, taken out so
+  that the dump reads what the pass reads.
+- Inside: `dep_stall::edge_of` (one requirement by name, as `usage` names an edge). Tests:
+  `tests/stall_reason.rs` (6: five fail without the dump, one control),
+  `stall_lower::tests::the_reasons_name_what_holds_a_stall_and_a_raise_nothing_asks_for`.
+
 ## Unreleased — 2026-11-18 (`CUBIT_LOAD_TOP=1`, opt-in with `CUBIT_WAIT_POLICY=1`: the wait for a global load stands at the top of the loop that holds it, not at the reader)
 
 - **The walk for the first consumers ends at the tops** (`load_top::covers`, KNOWN_ISSUES A68). The allocator

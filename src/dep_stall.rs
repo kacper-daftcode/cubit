@@ -1145,6 +1145,28 @@ pub fn usage(insns: &[Instruction], t: &DepLatTable) -> Vec<EdgeUse> {
     out
 }
 
+/// The requirement word `c` puts on the definition `def` of `key` that reaches it, named as `usage` names an
+/// edge (the largest, where the word asks more than once) — `CUBIT_DUMP_STALL`: what holds a stall field.
+pub(crate) fn edge_of(insns: &[Instruction], sem: &[Sem], t: &DepLatTable, c: usize, st: &[Entry], key: u16, def: usize) -> Option<EdgeUse> {
+    let nd = needs_of(insns, sem, t, c, st, &mut None).into_iter().filter(|nd| nd.key == key && nd.def == def).max_by_key(|nd| nd.need)?;
+    let (kind, role) = match nd.res {
+        Some(ri) => ("resource".to_string(), t.resources[ri].name.clone()),
+        None if nd.kind == "barrier-arm" => (nd.kind.to_string(), "arm".to_string()),
+        None => (nd.kind.to_string(), roles_of(&insns[c], nd.key).join("+")),
+    };
+    Some(EdgeUse {
+        producer: nd.def,
+        consumer: c,
+        producer_class: dep_class(&insns[nd.def]),
+        consumer_class: dep_class(&insns[c]),
+        role,
+        need: nd.need,
+        have: elapsed_in(st, nd.key, nd.def).unwrap_or(CAP),
+        kind,
+        defaulted: nd.defaulted,
+    })
+}
+
 /// Where one stall field cannot carry a requirement between two text-adjacent instructions (the
 /// MMA rows of the table: 16 between any two MMAs, 28 / 29 from an MMA to a reader of its result):
 /// `(i + 1, pads)` = the number of pad instructions to insert in front of instruction `i + 1`.

@@ -5574,6 +5574,9 @@ fn cmd_asm_directive_format(
             }
         } // end `if !fully_frozen` — preserve mode keeps a [CC]-frozen kernel byte-exact
 
+        // CUBIT_DUMP_STALL=1 (a look): the stalls in front of the unit pacing and in front of the legaliser
+        let mut dump_stall: Option<(Vec<cubit::stall_lower::Before>, Vec<cubit::stall_lower::Before>)> = None;
+
         // DEFAULT correct allocator: re-derive the entire scoreboard (RAW write-barriers +
         // WAR read-barriers) by liveness, AFTER all instruction insertions above so indices
         // are final. The MMA writeback drains remain (their stalls give the cooperative-MMA
@@ -5659,6 +5662,8 @@ fn cmd_asm_directive_format(
                 }
             }
             if let Some(dt) = &dep_table {
+                // CUBIT_DUMP_STALL=1 (a look): the stalls in front of the pacing, and in front of the legaliser below
+                let dump_unpaced = std::env::var("CUBIT_DUMP_STALL").is_ok().then(|| cubit::stall_lower::snapshot(&insns_with_ctrl));
                 // CUBIT_SCHED2_PACE=tensor: the floor of the paced unit, in front of the legaliser and of
                 // the snapshot the lowering pass takes its floors from
                 if pace_unit {
@@ -5672,6 +5677,9 @@ fn cmd_asm_directive_format(
                 }
                 // CUBIT_SCHED2_LOWER: what every word carries in front of the raising passes
                 let before_raises = lower_stalls.then(|| cubit::stall_lower::snapshot(&insns_with_ctrl));
+                if let Some(unpaced) = dump_unpaced {
+                    dump_stall = Some((unpaced, cubit::stall_lower::snapshot(&insns_with_ctrl)));
+                }
                 let rep = cubit::dep_stall::apply(&mut insns_with_ctrl, dt);
                 println!(
                     "  {}: dep-latency ({}): {} stalls raised by {} cycles in {} rounds, {} pair classes priced with a default{}",
@@ -5944,6 +5952,23 @@ fn cmd_asm_directive_format(
             let dropped = cubit::sync_class::settle_reuse(&mut insns_with_ctrl);
             if dropped > 0 {
                 println!("  {}: {} reuse flags dropped (the word's stall is not 1 or 2 in this schedule)", def.name, dropped);
+            }
+        }
+
+        // CUBIT_DUMP_STALL=1 (a look, stderr): why every stall field has the value it has -- the schedule as it
+        // is written, behind every pass that moves a stall (`stall_lower::reasons`); no byte changes
+        if std::env::var("CUBIT_DUMP_STALL").is_ok() {
+            match (&dep_table, &dump_stall) {
+                (Some(dt), Some((unpaced, first))) => {
+                    for line in cubit::stall_lower::dump_lines(&def.name, &insns_with_ctrl, dt, first, unpaced) {
+                        eprintln!("{line}");
+                    }
+                }
+                _ if fully_frozen => eprintln!("STALL {}: a hand-scheduled kernel, its stalls are the author's -- nothing is printed", def.name),
+                _ => eprintln!(
+                    "STALL {}: CUBIT_DUMP_STALL needs CUBIT_SCHED2=1 CUBIT_SCHED2_LAT=<table> (the reasons are read off the legaliser's requirements) -- nothing is printed",
+                    def.name
+                ),
             }
         }
 

@@ -151,6 +151,11 @@ cycles are not measured, and this allocator's own batching rule says the opposit
 streams; a build under the switch is a candidate only after its own text has been read on both card models (opt-in,
 KNOWN_ISSUES A68).
 `CUBIT_DUMP_COLOUR=1` prints the colouring of the scoreboards use by use (stderr, a look).
+`CUBIT_DUMP_STALL=1` (with `CUBIT_SCHED2=1 CUBIT_SCHED2_LAT=<table>`) prints why every stall field has the value it
+has, one `STALL` line a word (stderr, a look; no byte changes): the requirement that is met exactly through the
+word — a cell or a default of the latency table with its two words, a resource spacing, the arming distance, an
+operand hold, the scoreboard simulation's distance (`REQ`) —, the first pass's own stall above every requirement
+(`FIRST`), or a raise that nothing asks for any more (`LEFT`, with the floor the requirements would let it go to).
 `CUBIT_SCHED2=1` selects the dependency-aware stall model (a stall is charged where a consumer needs it, not
 after every producer); with `CUBIT_SCHED2_LAT=sm120` the latencies come from the pair table
 `tables/dep_latency_sm120.json` (ptxas's practice, measured on sm_120 silicon) and hold on every control-flow
