@@ -96,7 +96,11 @@ decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `
 - **The classes** (the head line counts them): `REQ` — the stall stands exactly on a requirement, one cycle less
   breaks it; `FIRST` — the first pass's stall, above every requirement; `LEFT` — above the first pass's stall and
   above every requirement, a raise that nothing asks for any more; `HAND` — a hand-scheduled word; `BELOW` — a
-  stall below the first pass's (counted; no pass is meant to leave one). It needs `CUBIT_SCHED2=1
+  stall below the first pass's (counted; no pass is meant to leave one); `UNREACHED` — a word no path of the flow
+  graph reaches (the word behind an `EXIT` that nothing jumps to): no requirement is read through it and the
+  lowering leaves it alone, so it stands on none and its line names none. Until this class such a word was
+  counted as `REQ` and its line named no requirement (the last `BRA` of a kernel, behind its `EXIT`); the six
+  counts of the head line are the lines' own. It needs `CUBIT_SCHED2=1
   CUBIT_SCHED2_LAT=<table>`; without the table, and for a kernel that is hand-scheduled as a whole, one line says so.
 - What it is not: a proof of legality (it names the requirement that is met exactly, by the table as it stands),
   and it does not say which rule of the first pass wrote a `FIRST` stall.

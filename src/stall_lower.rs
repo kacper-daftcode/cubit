@@ -615,16 +615,22 @@ pub struct Reason {
     pub more: usize,
     /// the paths behind an operand hold's reader were too many to list: the lowering leaves the word alone
     pub frozen: bool,
+    /// no path of the flow graph reaches the word (it has no forward state): no requirement is read through
+    /// it, the lowering leaves it alone, and `floor` only repeats its own stall
+    pub unreached: bool,
 }
 
 impl Reason {
-    /// `HAND` (a hand-scheduled word: no pass set its stall) | `REQ` (a requirement holds the stall: one cycle
-    /// less and it is broken) | `FIRST` (the first pass's stall, above every requirement) | `LEFT` (above the
-    /// first pass's stall AND above every requirement: a raise that nothing asks for any more) | `BELOW`
-    /// (below the first pass's stall).
+    /// `HAND` (a hand-scheduled word: no pass set its stall) | `UNREACHED` (a word no path of the flow graph
+    /// reaches -- the word behind an `EXIT` that nothing jumps to: it stands on no requirement and has no
+    /// name) | `REQ` (a requirement holds the stall: one cycle less and it is broken) | `FIRST` (the first
+    /// pass's stall, above every requirement) | `LEFT` (above the first pass's stall AND above every
+    /// requirement: a raise that nothing asks for any more) | `BELOW` (below the first pass's stall).
     pub fn class(&self) -> &'static str {
         if self.hand {
             "HAND"
+        } else if self.unreached {
+            "UNREACHED"
         } else if self.stall > 0 && self.floor >= self.stall {
             "REQ"
         } else if self.stall == self.first {
@@ -682,9 +688,11 @@ pub fn reasons(insns: &[Instruction], t: &ds::DepLatTable, first: &[Before]) -> 
     for i in 0..n {
         let stall = lw.insns[i].ctrl.stall;
         let floor = lw.floor(i);
+        // a word without a forward state: `floor` is its own stall ("leave it alone"), not a requirement's
+        let unreached = lw.fin[i].is_none();
         let mut holder = None;
         let mut more = 0;
-        if floor > 0 {
+        if floor > 0 && !unreached {
             // what `floor` took its maximum of, by name: the table's requirements first, the largest need in front
             let mut at: Vec<Req> = Vec::new();
             if let Some(st) = &lw.fin[i] {
@@ -724,7 +732,7 @@ pub fn reasons(insns: &[Instruction], t: &ds::DepLatTable, first: &[Before]) -> 
                 }
             }
         }
-        out.push(Reason { stall, first: first[i].0, hand: insns[i].hand_sched, floor, holder, more, frozen: frozen[i] });
+        out.push(Reason { stall, first: first[i].0, hand: insns[i].hand_sched, floor, holder, more, frozen: frozen[i], unreached });
     }
     out
 }
@@ -737,7 +745,7 @@ pub fn dump_lines(name: &str, insns: &[Instruction], t: &ds::DepLatTable, first:
     let count = |c: &str| rs.iter().filter(|r| r.class() == c).count();
     let mut out = Vec::with_capacity(rs.len() + 1);
     out.push(format!(
-        "STALL {}: {} word(s) | REQ {} FIRST {} LEFT {} HAND {} BELOW {} | table {}",
+        "STALL {}: {} word(s) | REQ {} FIRST {} LEFT {} HAND {} BELOW {} UNREACHED {} | table {}",
         name,
         rs.len(),
         count("REQ"),
@@ -745,6 +753,7 @@ pub fn dump_lines(name: &str, insns: &[Instruction], t: &ds::DepLatTable, first:
         count("LEFT"),
         count("HAND"),
         count("BELOW"),
+        count("UNREACHED"),
         t.label()
     ));
     for (i, r) in rs.iter().enumerate() {

@@ -176,7 +176,8 @@ switch is a candidate only after its own text has been read on both card models 
 has, one `STALL` line a word (stderr, a look; no byte changes): the requirement that is met exactly through the
 word — a cell or a default of the latency table with its two words, a resource spacing, the arming distance, an
 operand hold, the scoreboard simulation's distance (`REQ`) —, the first pass's own stall above every requirement
-(`FIRST`), or a raise that nothing asks for any more (`LEFT`, with the floor the requirements would let it go to).
+(`FIRST`), or a raise that nothing asks for any more (`LEFT`, with the floor the requirements would let it go to);
+a word that no path of the flow graph reaches stands on no requirement and is named so (`UNREACHED`).
 `CUBIT_SCHED2=1` selects the dependency-aware stall model (a stall is charged where a consumer needs it, not
 after every producer); with `CUBIT_SCHED2_LAT=sm120` the latencies come from the pair table
 `tables/dep_latency_sm120.json` (ptxas's practice, measured on sm_120 silicon) and hold on every control-flow

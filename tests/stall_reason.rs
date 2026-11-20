@@ -13,11 +13,14 @@
 //! * `FIRST` — the stall is the first pass's and stands above every requirement;
 //! * `LEFT` — the stall stands above the first pass's AND above every requirement: a raise nothing asks for any
 //!   more (`floor` = how far the requirements would let it go);
-//! * `HAND` — a hand-scheduled word.
+//! * `HAND` — a hand-scheduled word;
+//! * `UNREACHED` — a word no path of the flow graph reaches (the word behind an `EXIT` that nothing jumps to):
+//!   no requirement is read through it and the lowering leaves it alone, so it stands on none and has no name
+//!   (`floor` repeats its own stall). Without this class such a word was counted as `REQ`.
 //!
 //! The dump changes no byte: with it and without it the cubin is the same.
 //!
-//! Five tests fail without the dump (the variable is then unknown and prints nothing); one is a control.
+//! Six tests fail without the dump (the variable is then unknown and prints nothing); one is a control.
 
 use std::process::Command;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -28,6 +31,8 @@ const TABLE: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tables/sm120.json.gz")
 const S2: &[(&str, &str)] = &[("CUBIT_SCHED2", "1"), ("CUBIT_SCHED2_LAT", "sm120"), ("CUBIT_MMA_PTXAS", "1"), ("CUBIT_SCHED2_MEMSTALL", "table")];
 const LOWER: (&str, &str) = ("CUBIT_SCHED2_LOWER", "1");
 const DUMP: (&str, &str) = ("CUBIT_DUMP_STALL", "1");
+/// the classes of a `STALL` line, in the head line's order
+const CLASSES: [&str; 6] = ["REQ", "FIRST", "LEFT", "HAND", "BELOW", "UNREACHED"];
 
 fn with<'a>(env: &[(&'a str, &'a str)], more: &[(&'a str, &'a str)]) -> Vec<(&'a str, &'a str)> {
     let mut v = env.to_vec();
@@ -88,6 +93,11 @@ fn idx(b: &Built, head: &str, nth: usize) -> usize {
 fn line(b: &Built, i: usize) -> &str {
     let head = format!("STALL [{i}] ");
     b.dump.iter().find(|l| l.starts_with(&head)).unwrap_or_else(|| panic!("no dump line of word {i} in:\n{}", b.log))
+}
+
+/// The class of a word's dump line: its eighth field.
+fn class_of(l: &str) -> Option<&str> {
+    l.split_whitespace().nth(7)
 }
 
 /// Two tensor instructions with two words between them (the kernel of `tests/sched2_lower.rs`): a fixed-latency
@@ -178,14 +188,46 @@ fn a_stall_of_the_first_pass_that_no_requirement_holds_is_named_first() {
     let b = build(TWO_TENSOR_WORDS, &with(S2, &[LOWER, DUMP]));
     let exit = line(&b, idx(&b, "EXIT", 0));
     assert!(exit.contains(" floor 0 FIRST - | "), "{exit}");
-    // every line's class is one of the five, and a `FIRST` line's stall is the first pass's
+    // every line's class is one of the six, and a `FIRST` line's stall is the first pass's
     for l in &b.dump[1..] {
         let f: Vec<&str> = l.split_whitespace().collect();
-        assert!(["REQ", "FIRST", "LEFT", "HAND", "BELOW"].contains(&f[7]), "{l}");
+        assert!(CLASSES.contains(&f[7]), "{l}");
         if f[7] == "FIRST" {
             assert_eq!(f[2].trim_start_matches('S').parse::<u32>().unwrap(), f[4].parse::<u32>().unwrap(), "{l}");
         }
     }
+}
+
+/// A word no path reaches stands on no requirement: the branch behind the `EXIT`, which nothing jumps to, is
+/// `UNREACHED` — not `REQ` — and has no name; the head line counts it apart, its six counts are the lines' own and
+/// sum to the words; and a line that says `REQ` names its requirement.
+#[test]
+fn a_word_no_path_reaches_is_unreached_and_stands_on_no_requirement() {
+    let text = TWO_TENSOR_WORDS.replace("    EXIT ;\n", "    EXIT ;\nL_behind:\n    BRA L_behind ;\n");
+    assert_ne!(text, TWO_TENSOR_WORDS);
+    for env in [with(S2, &[DUMP]), with(S2, &[LOWER, DUMP])] {
+        let b = build(&text, &env);
+        let behind = line(&b, idx(&b, "BRA", 0));
+        assert!(behind.contains(" UNREACHED - | BRA"), "{behind}");
+        assert!(!behind.contains(" REQ "), "{behind}");
+        let head: Vec<&str> = b.dump[0].split_whitespace().collect();
+        let mut sum = 0;
+        for class in CLASSES {
+            let at = head.iter().position(|w| *w == class).unwrap_or_else(|| panic!("no `{class}` in {}", b.dump[0]));
+            let said: usize = head[at + 1].parse().unwrap();
+            let lines = b.dump[1..].iter().filter(|l| class_of(l) == Some(class)).count();
+            assert_eq!(said, lines, "{class}: {}", b.dump[0]);
+            sum += said;
+        }
+        assert_eq!(sum, b.lines.len(), "{}", b.dump[0]);
+        assert!(b.dump[0].contains(" UNREACHED 1 | "), "{}", b.dump[0]);
+        for l in b.dump[1..].iter().filter(|l| class_of(l) == Some("REQ")) {
+            assert_ne!(l.split_whitespace().nth(8), Some("-"), "a requirement without a name: {l}");
+        }
+    }
+    // the kernel without that word: every word is reached
+    let b = build(TWO_TENSOR_WORDS, &with(S2, &[LOWER, DUMP]));
+    assert!(b.dump[0].contains(" UNREACHED 0 | "), "{}", b.dump[0]);
 }
 
 /// Where no latency table is read there is no requirement to name: one line says so and the build is the build.
