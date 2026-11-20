@@ -443,7 +443,7 @@ pub fn load_cover() -> bool {
 /// write barrier is last-only") says the opposite for global loads of different address streams.
 /// A build under the switch is a candidate only after its own text is read on both card models.
 pub fn load_top() -> bool {
-    std::env::var("CUBIT_LOAD_TOP").ok().as_deref() == Some("1") && wait_policy()
+    std::env::var("CUBIT_LOAD_TOP").ok().as_deref() == Some("1") && wait_policy() && !unswitched()
 }
 
 /// `CUBIT_SB_APART=1` (opt-in, default off; honoured only together with [`wait_policy`]): a
@@ -472,7 +472,20 @@ pub fn load_top() -> bool {
 /// word, which the allocator does not protect (KNOWN_ISSUES A68) -- may go or come with the
 /// number.
 pub fn sb_apart() -> bool {
-    std::env::var("CUBIT_SB_APART").ok().as_deref() == Some("1") && wait_policy()
+    std::env::var("CUBIT_SB_APART").ok().as_deref() == Some("1") && wait_policy() && !unswitched()
+}
+
+thread_local! {
+    /// Set while [`reallocate_barriers`] asks, on a copy, what the same recipe writes WITHOUT the
+    /// two switches that give a use another scoreboard ([`load_top`], [`sb_apart`]): both read
+    /// as off, and that run prints nothing. For the mirror clause of `CUBIT_LOAD_TOP`
+    /// (`crate::load_top::mirror`).
+    static UNSWITCHED: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// Is this the run that asks what the recipe writes without [`load_top`] and [`sb_apart`]?
+fn unswitched() -> bool {
+    UNSWITCHED.with(|u| u.get())
 }
 
 /// A shared-memory load of the forms [`load_cover`] speaks of: `LDS`, `LDS.64`, `LDS.U16`, with
@@ -4858,15 +4871,28 @@ struct ColourReport {
 type Flight = Vec<(usize, usize)>;
 
 pub fn reallocate_barriers(insns: &mut [Instruction], table: Option<&IsaTable>) {
+    // CUBIT_LOAD_TOP, the mirror clause (`load_top::mirror`): what the same recipe writes without
+    // the switch -- the whole allocation asked a second time, on a copy and in silence, with
+    // `load_top` and `sb_apart` read as off: a word, its read barrier and the scoreboards it waits
+    let before: Option<Vec<(u8, u8)>> = if load_top() {
+        let mut copy = insns.to_vec();
+        UNSWITCHED.with(|u| u.set(true));
+        reallocate_barriers(&mut copy, table);
+        UNSWITCHED.with(|u| u.set(false));
+        Some(copy.iter().map(|x| (x.ctrl.read_bar, crate::store_paths::waits(x))).collect())
+    } else {
+        None
+    };
+    let before = before.as_deref();
     let clause = sb_kind_request().ok().flatten();
     if !const_alone() {
         match clause {
             None => {
-                reallocate_barriers_in(insns, table, None, None, false);
+                reallocate_barriers_in(insns, table, None, None, false, before);
             }
             Some(mode) => {
                 let back = kind_trial(insns, table, None, mode);
-                reallocate_barriers_in(insns, table, None, Some(&back), false);
+                reallocate_barriers_in(insns, table, None, Some(&back), false, before);
             }
         }
         return;
@@ -4876,11 +4902,11 @@ pub fn reallocate_barriers(insns: &mut [Instruction], table: Option<&IsaTable>) 
     // go back onto the barrier of its batch, and when a use that has a scoreboard to itself
     // without the rule loses it to a load that stands alone across its flight -- the rule takes
     // a scoreboard only while one is free.
-    let base = reallocate_barriers_in(&mut insns.to_vec(), table, None, None, true);
+    let base = reallocate_barriers_in(&mut insns.to_vec(), table, None, None, true, None);
     let touch = |a: &[(usize, usize)], b: &[(usize, usize)]| a.iter().any(|&(a0, a1)| b.iter().any(|&(b0, b1)| a0 <= b1 && b0 <= a1));
     let mut keep: Vec<usize> = Vec::new();
     loop {
-        let run = reallocate_barriers_in(&mut insns.to_vec(), table, Some(&keep), None, true);
+        let run = reallocate_barriers_in(&mut insns.to_vec(), table, Some(&keep), None, true, None);
         let mut blame: Vec<usize> = Vec::new();
         for (is_rb, first, flight) in &run.over {
             if let Some(a) = run.apart.iter().find(|a| !*is_rb && a.1 == *first) {
@@ -4897,13 +4923,13 @@ pub fn reallocate_barriers(insns: &mut [Instruction], table: Option<&IsaTable>) 
         }
         keep.extend(blame);
     }
-    if std::env::var("CUBIT_DUMP_COLOUR").is_ok() {
+    if !unswitched() && std::env::var("CUBIT_DUMP_COLOUR").is_ok() {
         keep.sort_unstable();
         eprintln!("CONST_ALONE batches kept whole (by their first load): {keep:?}");
     }
     // (the sets first, the numbers behind them: the same trial and the same sentence)
     let back = clause.map(|mode| kind_trial(insns, table, Some(&keep), mode));
-    reallocate_barriers_in(insns, table, Some(&keep), back.as_deref(), false);
+    reallocate_barriers_in(insns, table, Some(&keep), back.as_deref(), false, before);
 }
 
 /// The trial of `CUBIT_SB_KIND` ([`SbKind`]), on copies: the uses of the two kinds that go back
@@ -4913,13 +4939,13 @@ pub fn reallocate_barriers(insns: &mut [Instruction], table: Option<&IsaTable>) 
 /// there is none, nothing goes back for it: it is named and left); the trial is run again until
 /// it finds no use to send back. Its report goes to [`take_kind_report`].
 fn kind_trial(insns: &[Instruction], table: Option<&IsaTable>, const_keep: Option<&[usize]>, mode: SbKind) -> Vec<(bool, usize)> {
-    let base = reallocate_barriers_in(&mut insns.to_vec(), table, const_keep, None, true);
+    let base = reallocate_barriers_in(&mut insns.to_vec(), table, const_keep, None, true, None);
     let touch = |a: &[(usize, usize)], b: &[(usize, usize)]| a.iter().any(|&(a0, a1)| b.iter().any(|&(b0, b1)| a0 <= b1 && b0 <= a1));
     let moved = |run: &ColourReport, k: &(bool, usize), b: u8| run.by_kind.contains(k) && base.coloured.iter().any(|(bk, bb, _)| bk == k && *bb != b);
     let mut back: Vec<(bool, usize)> = Vec::new();
     let mut lost: Vec<(bool, usize)> = Vec::new();
     let run = loop {
-        let run = reallocate_barriers_in(&mut insns.to_vec(), table, const_keep, Some(&back), true);
+        let run = reallocate_barriers_in(&mut insns.to_vec(), table, const_keep, Some(&back), true, None);
         let mut blame: Vec<(bool, usize)> = Vec::new();
         for (is_rb, first, flight) in &run.over {
             let key = (*is_rb, *first);
@@ -4958,20 +4984,26 @@ fn kind_trial(insns: &[Instruction], table: Option<&IsaTable>, const_keep: Optio
 /// The barrier allocator. `const_keep`: `None` without `CUBIT_CONST_ALONE`; under it the batches
 /// of constant loads (by their first load) that stay as they are. `kind_back`: `None` without
 /// `CUBIT_SB_KIND`; under it the uses that are coloured as without the switch ([`kind_trial`]).
-/// `trial`: a run on a copy -- no dump and no verifier line is printed.
+/// `trial`: a run on a copy -- no dump and no verifier line is printed. `before`: `None` but in
+/// the run that writes the schedule under `CUBIT_LOAD_TOP`; there, a word, the read barrier and
+/// the scoreboards it waits in the schedule of the same recipe without the switch (the mirror
+/// clause, `crate::load_top::mirror`).
 fn reallocate_barriers_in(
     insns: &mut [Instruction],
     table: Option<&IsaTable>,
     const_keep: Option<&[usize]>,
     kind_back: Option<&[(bool, usize)]>,
     trial: bool,
+    before: Option<&[(u8, u8)]>,
 ) -> ColourReport {
     let n = insns.len();
     if n == 0 { return ColourReport::default(); }
+    // (the run that asks what the recipe writes without the switches prints nothing either)
+    let quiet = trial || unswitched();
     // Preserve mode: a fully hand-scheduled kernel owns its schedule verbatim
     // (still run the read-only scoreboard verifier on it when requested).
     if insns.iter().all(|x| x.hand_sched) {
-        if !trial && std::env::var("CUBIT_VERIFY").is_ok() {
+        if !quiet && std::env::var("CUBIT_VERIFY").is_ok() {
             verify_scoreboard(insns, table);
         }
         return ColourReport::default();
@@ -5719,7 +5751,7 @@ fn reallocate_barriers_in(
     let sb_share = sb_share_enabled();
     let sb_long: usize = std::env::var("CUBIT_SB_LONG").ok().and_then(|s| s.parse().ok()).unwrap_or(256);
     // CUBIT_DUMP_COLOUR (a look, stderr): one `COL` line a use, in the order of the colouring
-    let dump_colour = !trial && std::env::var("CUBIT_DUMP_COLOUR").is_ok();
+    let dump_colour = !quiet && std::env::var("CUBIT_DUMP_COLOUR").is_ok();
     let mut over_uses: Vec<(bool, usize, Flight)> = Vec::new();
     // CUBIT_SB_KIND (see `SbKind`): the clause's value, the occupancy by kind it reads, the forms
     // of the global loads, and what the trial is told of this run
@@ -6249,7 +6281,7 @@ fn reallocate_barriers_in(
         }
     }
 
-    if !trial && std::env::var("CUBIT_DUMP_USES").is_ok() {
+    if !quiet && std::env::var("CUBIT_DUMP_USES").is_ok() {
         for (u, use_) in uses.iter().enumerate() {
             eprintln!("USE b={} {} setters={:?} waiters={:?} segs={:?}{}",
                 assigned[u], if use_.is_rb {"rb"} else {"wb"}, use_.setters, use_.waiters, use_.segs,
@@ -6306,7 +6338,7 @@ fn reallocate_barriers_in(
                     if drained.is_some() {
                         written_for.push(crate::wait_drained::Written { word: k, sb: b, setters: use_.setters.clone() });
                     }
-                    if !trial && std::env::var("CUBIT_DUMP_USES").is_ok() {
+                    if !quiet && std::env::var("CUBIT_DUMP_USES").is_ok() {
                         eprintln!("PARKED b={b} {} waiter={w} on={k} setters={:?}", if use_.is_rb { "rb" } else { "wb" }, use_.setters);
                     }
                 }
@@ -6361,7 +6393,7 @@ fn reallocate_barriers_in(
         if drained.is_some() {
             written_for.push(crate::wait_drained::Written { word: on, sb: b, setters: uses[u].setters.clone() });
         }
-        if !trial && std::env::var("CUBIT_DUMP_USES").is_ok() {
+        if !quiet && std::env::var("CUBIT_DUMP_USES").is_ok() {
             eprintln!("SHARED b={b} {} for={w} on={on} setters={:?}", if uses[u].is_rb { "rb" } else { "wb" }, uses[u].setters);
         }
     }
@@ -6452,6 +6484,23 @@ fn reallocate_barriers_in(
         }
     }
 
+    // ---- CUBIT_LOAD_TOP, the mirror clause: a word of an ordered event that was a first wait
+    // behind a read barrier stays a wait behind it where the switch gives that read barrier
+    // another scoreboard (see `load_top::mirror`) ----
+    // Behind every clause above, on the fields as they stand, against the fields the same recipe
+    // writes without the switch (`before`), over the paths the wait rule knows. Only waits are
+    // added, on words that keep every bit they have.
+    if let (false, Some(before), Some(c)) = (trial, before.filter(|b| b.len() == n), &cfg) {
+        let paths = crate::wait_drained::paths(insns, c);
+        let now: Vec<(u8, u8)> = insns.iter().map(|x| (x.ctrl.read_bar, crate::store_paths::waits(x))).collect();
+        let able: Vec<bool> = (0..n)
+            .map(|j| crate::wait_drained::ordered_event(&insns[j]) && can_wait[j] && !insns[j].hand_sched)
+            .collect();
+        for (w, b, _) in crate::load_top::mirror(&paths, before, &now, &able) {
+            insns[w].ctrl.wait_mask |= 1 << b;
+        }
+    }
+
     // CUBIT_WAIT_DRAINED: the kernel's count -- the bits that are still off behind the closing
     // clauses, by what stood on their scoreboard
     if let Some(mode) = drained {
@@ -6462,7 +6511,7 @@ fn reallocate_barriers_in(
         crate::wait_drained::put_report(mode, crate::wait_drained::Report { empty, landed, kept, tables, fields });
     }
 
-    if !trial && std::env::var("CUBIT_VERIFY").is_ok() {
+    if !quiet && std::env::var("CUBIT_VERIFY").is_ok() {
         verify_scoreboard(insns, table);
     }
     // CUBIT_CONST_ALONE: what the colouring did, for `reallocate_barriers`

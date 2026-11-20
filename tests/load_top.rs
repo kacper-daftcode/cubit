@@ -18,8 +18,13 @@
 //! its wait; no top in a block that holds a load; a flight that crosses a dispatch is not covered; nothing for
 //! a hand-scheduled load, in a text without a loop, or without `CUBIT_WAIT_POLICY=1`.
 //!
-//! Ten tests fail on the allocator without the switch (the variable is then unknown and changes nothing); five
-//! are controls -- shapes the switch leaves byte for byte.
+//! Of these fifteen tests ten fail on the allocator without the switch (the variable is then unknown and
+//! changes nothing); five are controls -- shapes the switch leaves byte for byte.
+//!
+//! The mirror clause has three tests of its own, under `CUBIT_SB_KIND=wide`: the word of an ordered event that
+//! was the first wait behind a read barrier waits the number the switch gives that read barrier (it fails
+//! without the clause); a wait of the new number in front of the event word is no wait taken off, and a read
+//! barrier that keeps its number gives no bit (two controls of the clause).
 
 use std::process::Command;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -29,6 +34,8 @@ const TABLE: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tables/sm120.json.gz")
 const SYNC: (&str, &str) = ("CUBIT_SYNC_CLASSES", "1");
 const POLICY: (&str, &str) = ("CUBIT_WAIT_POLICY", "1");
 const TOP: (&str, &str) = ("CUBIT_LOAD_TOP", "1");
+const WIDE: (&str, &str) = ("CUBIT_SB_KIND", "wide");
+const APART: (&str, &str) = ("CUBIT_SB_APART", "1");
 const DUMP: (&str, &str) = ("CUBIT_DUMP_USES", "1");
 const VERIFY: (&str, &str) = ("CUBIT_VERIFY", "1");
 
@@ -585,6 +592,108 @@ fn a_hand_scheduled_load_is_not_touched() {
     let k = does_not_move(HAND_SCHEDULED);
     assert_eq!(k.word("IADD3 R8").wait, vec![3], "{:#?}", k.words);
     assert!(k.word("@P0 BRA").wait.is_empty(), "{:#?}", k.words);
+}
+
+/// The mirror clause. Under `CUBIT_SB_KIND=wide` a read barrier joins the lowest scoreboard on which no global
+/// load flies over its flight. Five results fly through the loop on scoreboards 1 to 5, so the load of the loop
+/// takes scoreboard 0. Without the switch it flies to its reader, the second store, whose read barrier joins
+/// scoreboard 1 -- beside the read barrier of the first store, which the `P2R` behind the second store waits (it
+/// rewrites the first store's data register): the `P2R` is the first wait behind the second store's read
+/// barrier. Under the switch the load is waited at the top, the second store's read barrier joins scoreboard
+/// 0, and the `P2R` keeps the one bit it has.
+const MIRROR: &str = "    S2R R2, SR_TID.X ;
+    POPC R21, R3 ;
+    POPC R22, R3 ;
+    POPC R23, R3 ;
+    POPC R24, R3 ;
+    POPC R25, R3 ;
+    MOV R6, R2 ;
+    MOV R7, RZ ;
+    MOV R12, R2 ;
+    MOV R13, RZ ;
+    MOV R20, RZ ;
+    MOV R4, R2 ;
+    MOV R5, R2 ;
+L_top:
+    STG.E desc[UR8][R12.64], R5 ;
+    ISETP.GE.AND P0, PT, R20, 0x8, PT ;
+    @P0 BRA L_out ;
+    ISETP.NE.AND P1, PT, R20, 0x3, PT ;
+    @P1 BRA L_skip ;
+    STG.E desc[UR8][R6.64], R4 ;
+    P2R R5, PR, RZ, 0x7f ;
+L_skip:
+    MOV R4, RZ ;
+    IADD3 R20, PT, PT, R20, 0x1, RZ ;
+    LDG.E R4, desc[UR8][R2.64] ;
+    BRA L_top ;
+L_out:
+    IADD3 R30, PT, PT, R21, R22, RZ ;
+    IADD3 R31, PT, PT, R23, R24, RZ ;
+    IADD3 R32, PT, PT, R25, R30, RZ ;
+    EXIT ;
+";
+
+/// `wide` alone | `wide` and the switch | ... and `CUBIT_SB_APART=1`.
+fn wide_views(body: &str) -> (Build, Build, Build) {
+    let wide = [SYNC, POLICY, WIDE, DUMP, VERIFY];
+    (build(body, &wide), build(body, &[&wide[..], &[TOP][..]].concat()), build(body, &[&wide[..], &[TOP, APART][..]].concat()))
+}
+
+#[test]
+fn the_event_word_that_was_the_first_wait_behind_a_read_barrier_waits_its_new_number() {
+    let (wide, top, apart) = wide_views(MIRROR);
+    let (first, second, event) = (wide.at("STG.E desc[UR8][R12.64]"), wide.at("STG.E desc[UR8][R6.64]"), wide.at("P2R R5"));
+    // without the switch: the two read barriers on one scoreboard, and the event word -- the rewriter of the
+    // first store's data register, one word behind the second store -- is the first word that waits it
+    let a = wide.words[second].rb.expect("the second store carries a read barrier");
+    assert_eq!(wide.words[first].rb, Some(a), "{:#?}", wide.words);
+    assert_eq!(event, second + 1);
+    assert_eq!(wide.words[event].wait, vec![a], "{:#?}", wide.words);
+    for (name, k) in [("the switch", &top), ("both switches", &apart)] {
+        // under the switch the read barrier of the second store has another number, the first store's has not
+        let b = k.words[second].rb.expect("the second store carries a read barrier");
+        assert_ne!(b, a, "{name}: {:#?}", k.words);
+        assert_eq!(k.words[first].rb, Some(a), "{name}: {:#?}", k.words);
+        // the event word keeps its bit for the first store AND waits the new number of the second: it was the
+        // first wait behind that read barrier, and a pending read barrier says the store has not read yet
+        let mut two = vec![a, b];
+        two.sort_unstable();
+        assert_eq!(k.words[event].wait, two, "{name}: the event word waits the read barrier's new number: {:#?}", k.words);
+        assert!(k.word("MOV R4, RZ").wait.contains(&b), "{name}: the rewriter waits the read barrier as before: {:#?}", k.words);
+        assert_eq!(k.lines("MIRROR ").len(), 1, "{name}: the dump names the bit: {}", k.log);
+    }
+}
+
+#[test]
+fn a_wait_of_the_new_number_in_front_of_the_event_word_is_no_wait_taken_off() {
+    // (a control) the same, with a short result between the second store and the event word: its reader waits
+    // scoreboard 0 in both schedules -- under the switch that is a wait behind the store's read barrier, in
+    // front of the event word on the only path
+    let body = MIRROR.replace("    P2R R5,", "    S2R R9, SR_CTAID.X ;\n    IADD3 R10, PT, PT, R9, R20, RZ ;\n    P2R R5,");
+    let (wide, top, _) = wide_views(&body);
+    let (second, reader, event) = (wide.at("STG.E desc[UR8][R6.64]"), wide.at("IADD3 R10"), wide.at("P2R R5"));
+    let (a, b) = (wide.words[second].rb.unwrap(), top.words[second].rb.unwrap());
+    assert_ne!(b, a, "{:#?}", top.words);
+    assert_eq!(wide.words[event].wait, vec![a], "{:#?}", wide.words);
+    assert!(!wide.words[reader].wait.contains(&a), "the event word is the first wait without the switch: {:#?}", wide.words);
+    assert!(top.words[reader].wait.contains(&b), "a wait of the new number stands in front: {:#?}", top.words);
+    assert_eq!(top.words[event].wait, vec![a], "the event word gets no bit: {:#?}", top.words);
+    assert!(top.lines("MIRROR ").is_empty(), "{}", top.log);
+}
+
+#[test]
+fn a_read_barrier_that_keeps_its_number_gives_no_bit() {
+    // (a control) without the five results the load flies on the highest scoreboard and both read barriers
+    // join the lowest, with the switch and without it
+    let body: String = MIRROR.lines().filter(|l| !l.contains("POPC") && !l.contains("IADD3 R3")).map(|l| format!("{l}\n")).collect();
+    let (wide, top, apart) = wide_views(&body);
+    let (second, event) = (wide.at("STG.E desc[UR8][R6.64]"), wide.at("P2R R5"));
+    for k in [&top, &apart] {
+        assert_eq!(k.words[second].rb, wide.words[second].rb, "{:#?}", k.words);
+        assert_eq!(k.words[event].wait, wide.words[event].wait, "{:#?}", k.words);
+        assert!(k.lines("MIRROR ").is_empty(), "{}", k.log);
+    }
 }
 
 #[test]

@@ -877,6 +877,21 @@ fn close(arm: &Armers, g: &Cfg, waits: &[u8], bits: &Bits, cands: &mut Vec<(usiz
     }
 }
 
+/// The successors of every word on the paths this rule knows: the allocator's graph `c`, from
+/// every dispatch the join of its case blocks ([`with_joins`]), and every entry of every table
+/// that can be read ([`put_constants`]). For the mirror clause of `CUBIT_LOAD_TOP`
+/// (`crate::load_top::mirror`), which asks which words are the first waits behind a read
+/// barrier: on more paths a first wait is found, never missed.
+pub(crate) fn paths(insns: &[Instruction], c: &Cfg) -> Vec<Vec<usize>> {
+    let wide = with_joins(c, insns);
+    let constants = CONSTANTS.with(|s| s.borrow().clone());
+    let tables: Vec<(usize, Option<Vec<usize>>)> = (0..insns.len())
+        .filter(|&i| is_dispatch(&insns[i]))
+        .map(|d| (d, constants.as_deref().and_then(|bytes| jump_table(insns, &wide, d, bytes))))
+        .collect();
+    with_tables(&wide, &tables).succ
+}
+
 /// The rule, on the barrier fields as the allocator emitted them. `written` = the wait bits it
 /// wrote for its uses. Only wait bits are taken off; no barrier and no other field moves.
 pub fn apply(insns: &mut [Instruction], c: &Cfg, written: &[Written], mode: Drained) -> Outcome {
