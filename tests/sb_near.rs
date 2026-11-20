@@ -366,3 +366,67 @@ fn a_use_stays_where_no_scoreboard_is_empty_by_the_fields() {
     assert!(near.word("IADD3 R6,").wait.contains(&4), "{:#?}", near.words);
     assert_eq!(moved(&base, &near), vec![THE_COPY_WORD, "IADD3 R6, PT, PT, R6, 0x4, RZ"], "{:#?}", near.words);
 }
+
+/// A loop that holds a copy word. In it two constant loads of one form -- ONE batch on one write barrier --
+/// and, between the two, the rewriter of a shared load's base: it waits the scoreboard of the batch for that
+/// load's read barrier one word behind the FIRST load of the batch. The readers of both loads stand behind
+/// the second.
+const A_REWRITER_BEHIND_THE_FIRST_LOAD_OF_A_BATCH: &str = "    S2R R2, SR_TID.X ;
+    MOV R6, R2 ;
+    MOV R7, RZ ;
+    MOV R12, RZ ;
+    MOV R16, R2 ;
+    MOV R20, RZ ;
+    MOV R30, R2 ;
+    MOV R31, RZ ;
+    MOV R32, R2 ;
+    MOV R33, RZ ;
+L_top:
+    ISETP.GE.AND P0, PT, R20, 0x8, PT ;
+    @P0 BRA L_out ;
+    ISETP.NE.AND P3, PT, R2, RZ, PT ;
+    LDGSTS.E [R12+0x2000], desc[UR8][R6.64], P3 ;
+    LDS R5, [R16+0x100] ;
+    LDCU.64 UR4, c[0x0][0x380] ;
+    IADD3 R16, PT, PT, R16, 0x4, RZ ;
+    LDCU.64 UR6, c[0x0][0x388] ;
+    MOV R41, R2 ;
+    MOV R42, R5 ;
+    IADD.64 R30, R30, UR4 ;
+    IADD.64 R32, R32, UR6 ;
+    IADD3 R6, PT, PT, R6, 0x4, RZ ;
+    IADD3 R20, PT, PT, R20, 0x1, RZ ;
+    BRA L_top ;
+L_out:
+    STG.E desc[UR8][R6.64], R30 ;
+    STG.E desc[UR8][R6.64+0x8], R32 ;
+    EXIT ;
+";
+
+#[test]
+fn a_load_that_leaves_its_batch_is_waited_by_its_own_reader_and_not_by_the_other_load() {
+    let (base, near) = both(A_REWRITER_BEHIND_THE_FIRST_LOAD_OF_A_BATCH);
+    // without the switch: both loads on one write barrier beside the shared load's read barrier, whose
+    // rewriter waits that scoreboard one word behind the first load; the reader of the first load waits it,
+    // the reader of the second carries no bit
+    let b = base.wb("LDCU.64 UR4");
+    assert_eq!(base.wb("LDCU.64 UR6"), b, "{:#?}", base.words);
+    assert_eq!(base.rb("LDS R5"), b, "{:#?}", base.words);
+    assert_eq!(base.word("IADD3 R16,").wait, vec![b], "{:#?}", base.words);
+    assert_eq!(base.word("IADD.64 R30,").wait, vec![b], "{:#?}", base.words);
+    assert!(base.word("IADD.64 R32,").wait.is_empty(), "{:#?}", base.words);
+    // under the switch the first load takes a scoreboard of its own, and the word that waits the new number
+    // is ITS reader -- beside the bit it has; the other load of the batch reads nothing of it: the flight goes
+    // through it and it carries no wait
+    let c = near.wb("LDCU.64 UR4");
+    assert_ne!(c, b, "the first load stands alone: {:#?}", near.words);
+    assert!(near.word("LDCU.64 UR6").wait.is_empty(), "the other load of the batch waits nothing: {:#?}", near.words);
+    let reader = &near.word("IADD.64 R30,").wait;
+    assert!(reader.len() == 2 && reader.contains(&b) && reader.contains(&c), "{:#?}", near.words);
+    // the second load then stands on a scoreboard the reader of the first still waits without reading it: it
+    // leaves too, and its own reader waits it; the rewriter keeps its wait
+    let d = near.wb("LDCU.64 UR6");
+    assert!(d != b && d != c, "the second load stands alone: {:#?}", near.words);
+    assert_eq!(near.word("IADD.64 R32,").wait, vec![d], "{:#?}", near.words);
+    assert_eq!(near.word("IADD3 R16,").wait, vec![b], "{:#?}", near.words);
+}

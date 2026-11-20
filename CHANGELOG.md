@@ -20,7 +20,8 @@ decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `
   nothing armed there inside the flight, no word of the flight that waits it but the words that need the result;
   never below the copy group's —, in text order, each on the fields the moves in front of it left.
 - **A load of a batch leaves it as a use of its own.** The other loads keep the scoreboard and the batch's
-  waiters; the load that leaves is waited by the first words behind it that read or rewrite what it writes.
+  waiters; the load that leaves is waited by the first words behind it that read or rewrite what it writes — its
+  flight goes through the other loads of the batch, which read nothing of it and get no wait.
 - **The read barrier of a copy word stands alone where the word of an ordered event waits behind it for another
   use.** The early release of a far read barrier lands on the first word that can wait — a branch, a `P2R` — and
   that word may stand one word behind a copy word whose own read barrier is armed on the same scoreboard. Such a
@@ -61,8 +62,8 @@ decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `
   lines with and without the variable (no proof of legality either way). Without the variable every schedule is
   byte for byte what it was.
 - Inside: the rule is `src/sb_near.rs` (`REACH`, `moves`); the pass stands at the end of
-  `reallocate_barriers_in`, behind the mirror clause of `CUBIT_LOAD_TOP`. Tests: `tests/sb_near.rs` (8: five of
-  the near result, three of the read barrier of a copy word), `sb_near::tests` (8).
+  `reallocate_barriers_in`, behind the mirror clause of `CUBIT_LOAD_TOP`. Tests: `tests/sb_near.rs` (9: six of
+  the near result, three of the read barrier of a copy word), `sb_near::tests` (9).
 
 ## Unreleased — 2026-11-20 (`CUBIT_SB_APART=1`, opt-in with `CUBIT_WAIT_POLICY=1`: a write-barrier use shares no scoreboard with a read barrier that is pending over its flight)
 

@@ -32,7 +32,8 @@
 //!   word the read barrier first), each on the fields the moves in front of it left.
 //! * **A load of a batch leaves it as a use of its own**: the other loads keep the scoreboard
 //!   and the batch's waiters; the load that leaves is waited by the first words behind it that
-//!   read or rewrite what it writes.
+//!   read or rewrite what it writes -- its flight goes through the other loads of the batch,
+//!   which read nothing of it and get no wait.
 //! * **The registers of a moved copy word count the uniform register of its descriptor**: the
 //!   first word on a path that rewrites it needs the read barrier as the first rewriter of an
 //!   operand register does, and is the word that waits the new number on that path.
@@ -210,14 +211,16 @@ pub(crate) fn moves(paths: &[Vec<usize>], words: &[Word], uses: &[UseView], lowe
             continue;
         }
         let batch = !is_rb && mine.setters.len() > 1;
-        // does word `x` need the use of `s`: a setter of the use, a waiter of it (of a batch of results: one
-        // that reads or rewrites what `s` writes); of a result, a word that reads or rewrites what `s` writes;
-        // of the read barrier of a copy word, a word that rewrites the uniform register of its descriptor
-        let needs = |x: usize| {
-            mine.setters.contains(&x)
-                || (mine.waiters.contains(&x) && !batch)
-                || if is_rb { me.desc.iter().any(|k| words[x].writes.contains(k)) } else { touches(x, s) }
+        // does word `x` end a path of the flight of `s`: a waiter of the use (of a batch of results: one that
+        // reads or rewrites what `s` writes); of a result, a word that reads or rewrites what `s` writes; of
+        // the read barrier of a copy word, a word that rewrites the uniform register of its descriptor
+        let ends = |x: usize| {
+            (mine.waiters.contains(&x) && !batch) || if is_rb { me.desc.iter().any(|k| words[x].writes.contains(k)) } else { touches(x, s) }
         };
+        // does word `x` need the use of `s`: a word that ends a path of its flight, or a setter of the use
+        // -- another load of the batch arms the scoreboard itself and is no false waiter, but the flight of
+        // the load that leaves goes THROUGH it: it reads nothing of that load
+        let needs = |x: usize| mine.setters.contains(&x) || ends(x);
         // ---- named: a first wait of the scoreboard inside the reach that needs nothing of the use and no
         // younger use there -- under a read barrier, only the word of an ordered event ----
         let waits: Vec<u8> = fields.iter().map(|f| f.0).collect();
@@ -250,7 +253,7 @@ pub(crate) fn moves(paths: &[Vec<usize>], words: &[Word], uses: &[UseView], lowe
                 continue;
             }
             seen[j] = true;
-            if needs(j) {
+            if ends(j) {
                 waiters.push(j);
                 if !words[j].guarded {
                     continue;
@@ -474,6 +477,28 @@ mod tests {
         assert_eq!(moves(&paths, &words, &uses, 0), vec![Move { read_barrier: false, setter: 4, from: 0, to: 1, waiters: vec![7, 9] }]);
         words[8].wb = 1;
         assert_eq!(moves(&paths, &words, &uses, 0), vec![Move { read_barrier: false, setter: 4, from: 0, to: 2, waiters: vec![7, 9] }]);
+    }
+
+    #[test]
+    fn the_first_load_of_a_batch_leaves_past_the_other_load_to_its_own_reader() {
+        // two constant loads on scoreboard 1, ONE use; word 3 waits 1 for the read barrier of word 1 one word
+        // behind the first load, of which it reads nothing; the second load stands at word 5; word 8 reads
+        // both and is the batch's waiter
+        let (paths, mut words) = line(12);
+        words[1].rb = 1;
+        constant(&mut words, 2, 40, 1);
+        words[3].waits = 1 << 1;
+        constant(&mut words, 5, 42, 1);
+        words[8].reads = vec![40, 42];
+        words[8].waits = 1 << 1;
+        let uses = vec![rb(1, 3, 1), wb(&[2, 5], &[8], 1)];
+        // the first load is named, and its flight runs THROUGH the other load of the batch -- which reads
+        // nothing of it and gets no wait -- to its own first reader; the second load stays: its first wait is
+        // its reader
+        assert_eq!(moves(&paths, &words, &uses, 0), vec![Move { read_barrier: false, setter: 2, from: 1, to: 0, waiters: vec![8] }]);
+        // a word of that longer flight that arms 0 bars the scoreboard
+        words[6].wb = 0;
+        assert_eq!(moves(&paths, &words, &uses, 0), vec![Move { read_barrier: false, setter: 2, from: 1, to: 2, waiters: vec![8] }]);
     }
 
     /// The read barrier of word 2 (a store) is pending to word 5, its rewriter and the word of an
