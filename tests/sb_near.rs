@@ -2,7 +2,7 @@
 //! the flow graph of `CUBIT_SYNC_CLASSES`): in a loop that holds a copy word, no word waits for a use it does
 //! not need when that use was armed a few words in front of it.
 //!
-//! The clause of these tests is the NEAR RESULT: the result of a constant load or of a register read (`LDC`,
+//! The first clause is the NEAR RESULT: the result of a constant load or of a register read (`LDC`,
 //! `LDCU`, `S2R`, `S2UR`) whose scoreboard the next waiting word waits for ANOTHER use -- the rewriter of a
 //! load's address register, the reader of another load of its batch -- at most eight words behind it. The
 //! word blocks until the near result has landed although it reads nothing of it. Under the switch the result
@@ -10,6 +10,13 @@
 //! there on any path, nothing armed there, no word that waits it but the result's own readers), a load leaves
 //! its batch as a use of its own, the wait of the new number goes on its first reader on every path, and no
 //! wait bit of the schedule without the switch comes off.
+//!
+//! The second clause is the READ BARRIER OF A COPY WORD (`LDGSTS`) where the first word that waits its
+//! scoreboard behind it, at most eight words on, is the word of an ordered event that rewrites none of the
+//! copy word's registers -- it waits there for another use. Under the switch the read barrier takes the
+//! lowest scoreboard that is empty over its flight, the first rewriter of the copy word's registers on every
+//! path waits the new number -- the uniform register of its descriptor counts among them --, the event word
+//! keeps the wait it has, and where no scoreboard is empty the use stays.
 //!
 //! Every text is a kernel WITHOUT control codes; `cubit asm` schedules it and `cubit disassemble --frozen`
 //! gives the words back with the fields the allocator wrote.
@@ -232,4 +239,130 @@ fn the_switch_alone_changes_nothing() {
         assert_eq!(build(body, &[]).cubin, build(body, &[NEAR]).cubin);
         assert_eq!(build(body, &[SYNC]).cubin, build(body, &[SYNC, NEAR]).cubin);
     }
+}
+
+/// A loop that holds a copy word. In front of it a store whose base the word behind the copy word rewrites:
+/// that word is the word of an ordered event (`P2R`, the predicate set as a whole) and waits the store's read
+/// barrier one word behind the copy word, whose own read barrier stands on the same scoreboard. The first
+/// rewriter of the copy word's registers stands two words further on.
+const A_COPY_WORD_IN_FRONT_OF_AN_EVENT_WORD: &str = "    S2R R2, SR_TID.X ;
+    MOV R6, R2 ;
+    MOV R7, RZ ;
+    MOV R12, RZ ;
+    MOV R16, R2 ;
+    MOV R20, RZ ;
+L_top:
+    ISETP.GE.AND P0, PT, R20, 0x8, PT ;
+    @P0 BRA L_out ;
+    ISETP.NE.AND P3, PT, R2, RZ, PT ;
+    STS [R16+0x100], R2 ;
+    LDGSTS.E [R12+0x2000], desc[UR8][R6.64], P3 ;
+    P2R R16, PR, RZ, 0x1 ;
+    IADD3 R10, PT, PT, R2, R16, RZ ;
+    IADD3 R6, PT, PT, R6, 0x4, RZ ;
+    IADD3 R20, PT, PT, R20, 0x1, RZ ;
+    BRA L_top ;
+L_out:
+    STG.E desc[UR8][R6.64], R10 ;
+    EXIT ;
+";
+const THE_COPY_WORD: &str = "LDGSTS.E [R12+0x2000], desc[UR8][R6.64], P3";
+
+#[test]
+fn the_read_barrier_of_a_copy_word_stands_alone_where_an_event_word_waits_behind_it() {
+    let (base, near) = both(A_COPY_WORD_IN_FRONT_OF_AN_EVENT_WORD);
+    // without the switch: the store's read barrier and the copy word's stand on one scoreboard, and the event
+    // word -- the rewriter of the store's base, which rewrites nothing of the copy word -- waits it one word
+    // behind the copy word
+    let r = base.rb("LDGSTS.E");
+    assert_eq!(base.rb("STS"), r, "{:#?}", base.words);
+    assert_eq!(base.word("P2R R16,").wait, vec![r], "{:#?}", base.words);
+    // under the switch the copy word's read barrier takes a scoreboard on which nothing else stands over its
+    // flight; the store's stays, and the event word keeps the wait it has
+    let s = near.rb("LDGSTS.E");
+    assert_ne!(s, r, "the read barrier stands alone: {:#?}", near.words);
+    assert_eq!(near.rb("STS"), r, "{:#?}", near.words);
+    assert_eq!(near.word("P2R R16,").wait, vec![r], "{:#?}", near.words);
+    // nothing else moves but the first rewriter of the copy word's base, which waits the new number
+    assert_eq!(near.word("IADD3 R6,").wait, vec![s], "{:#?}", near.words);
+    assert_eq!(moved(&base, &near), vec![THE_COPY_WORD, "IADD3 R6, PT, PT, R6, 0x4, RZ"], "{:#?}", near.words);
+}
+
+/// The same loop with two paths behind the event word: the one that falls through rewrites the uniform
+/// register of the copy word's descriptor first (`LDCU.64 UR8`), the other goes round it to the word that
+/// advances the copy word's base.
+const TWO_PATHS_BEHIND_A_COPY_WORD: &str = "    S2R R2, SR_TID.X ;
+    MOV R6, R2 ;
+    MOV R7, RZ ;
+    MOV R12, RZ ;
+    MOV R16, R2 ;
+    MOV R20, RZ ;
+L_top:
+    ISETP.GE.AND P0, PT, R20, 0x8, PT ;
+    @P0 BRA L_out ;
+    ISETP.NE.AND P3, PT, R2, RZ, PT ;
+    STS [R16+0x100], R2 ;
+    LDGSTS.E [R12+0x2000], desc[UR8][R6.64], P3 ;
+    P2R R16, PR, RZ, 0x1 ;
+    @P3 BRA L_skip ;
+    LDCU.64 UR8, c[0x0][0x380] ;
+    MOV R40, R2 ;
+L_skip:
+    IADD3 R10, PT, PT, R2, R16, RZ ;
+    IADD3 R6, PT, PT, R6, 0x4, RZ ;
+    IADD3 R20, PT, PT, R20, 0x1, RZ ;
+    BRA L_top ;
+L_out:
+    STG.E desc[UR8][R6.64], R10 ;
+    EXIT ;
+";
+
+#[test]
+fn the_first_rewriter_of_its_registers_waits_the_new_number_on_every_path() {
+    let (base, near) = both(TWO_PATHS_BEHIND_A_COPY_WORD);
+    let (r, s) = (base.rb("LDGSTS.E"), near.rb("LDGSTS.E"));
+    assert_eq!(base.word("P2R R16,").wait, vec![r], "{:#?}", base.words);
+    assert_ne!(s, r, "the read barrier moved: {:#?}", near.words);
+    // the registers of the moved copy word count the uniform register of its descriptor: on the path that
+    // falls through the constant load that rewrites it is the first rewriter, on the path round it the word
+    // that advances the base -- each waits the new number
+    assert!(near.word("LDCU.64 UR8,").wait.contains(&s), "{:#?}", near.words);
+    assert!(near.word("IADD3 R6,").wait.contains(&s), "{:#?}", near.words);
+    // no wait bit comes off, these two are put on, and nothing else moves
+    let mut on = 0;
+    for (x, y) in base.words.iter().zip(&near.words) {
+        assert!(x.wait.iter().all(|b| y.wait.contains(b)), "a wait bit came off `{}`: {:?} -> {:?}", x.text, x.wait, y.wait);
+        on += y.wait.len() - x.wait.len();
+    }
+    assert_eq!(on, 2, "{:#?}", near.words);
+    assert_eq!(moved(&base, &near), vec![THE_COPY_WORD, "LDCU.64 UR8, c[0x0][0x380]", "IADD3 R6, PT, PT, R6, 0x4, RZ"], "{:#?}", near.words);
+}
+
+/// The first loop with register reads the author numbered in front of the store -- one on each scoreboard of
+/// `on` --, each read behind the first rewriter of the copy word's base: over the flight of the copy word's
+/// read barrier a result is pending on every scoreboard of `on`.
+fn with_results_pending_on(on: &[u8]) -> String {
+    let numbered: String = on.iter().map(|b| format!("    [B------:R-:W{b}:-:S01] S2R R{}, SR_CTAID.X ;\n", 29 + b)).collect();
+    let readers: String = on.iter().map(|b| format!("    IADD3 R{}, PT, PT, R{}, R2, RZ ;\n", 39 + b, 29 + b)).collect();
+    let body = A_COPY_WORD_IN_FRONT_OF_AN_EVENT_WORD.replace("    STS [R16+0x100], R2 ;\n", &format!("{numbered}    STS [R16+0x100], R2 ;\n"));
+    let advance = "    IADD3 R6, PT, PT, R6, 0x4, RZ ;\n";
+    assert!(body.contains(advance));
+    body.replace(advance, &format!("{advance}{readers}"))
+}
+
+#[test]
+fn a_use_stays_where_no_scoreboard_is_empty_by_the_fields() {
+    // a result pending on each of the five other scoreboards over the flight: the pair stands in the text and
+    // the use stays -- the build is the build without the switch, byte for byte
+    let (base, near) = both(&with_results_pending_on(&[1, 2, 3, 4, 5]));
+    let r = base.rb("LDGSTS.E");
+    assert_eq!(r, 0, "{:#?}", base.words);
+    assert_eq!(base.word("P2R R16,").wait, vec![r], "{:#?}", base.words);
+    assert_eq!(base.cubin, near.cubin, "{:#?}", near.words);
+    // with scoreboard 4 left alone the read barrier takes it: the lowest that is EMPTY, not the lowest
+    let (base, near) = both(&with_results_pending_on(&[1, 2, 3, 5]));
+    assert_eq!(base.rb("LDGSTS.E"), 0, "{:#?}", base.words);
+    assert_eq!(near.rb("LDGSTS.E"), 4, "{:#?}", near.words);
+    assert!(near.word("IADD3 R6,").wait.contains(&4), "{:#?}", near.words);
+    assert_eq!(moved(&base, &near), vec![THE_COPY_WORD, "IADD3 R6, PT, PT, R6, 0x4, RZ"], "{:#?}", near.words);
 }

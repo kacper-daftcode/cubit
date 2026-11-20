@@ -4,7 +4,7 @@ User-visible changes, newest first. Table syncs name the blackwell-isa revision 
 (`tables/SOURCE.json` pins it byte for byte). Numbered `BUG-NNN` entries are the encoder /
 decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `docs/TESTS.md`).
 
-## Unreleased — 2026-11-20 (`CUBIT_SB_NEAR=1`, opt-in with `CUBIT_WAIT_POLICY=1`: in a loop that holds a copy word, a near result stands alone on its scoreboard)
+## Unreleased — 2026-11-20 (`CUBIT_SB_NEAR=1`, opt-in with `CUBIT_WAIT_POLICY=1`: in a loop that holds a copy word, a near result and the read barrier of a copy word stand alone on their scoreboards)
 
 - **The result of a constant load or of a register read whose scoreboard a near word waits for another use takes
   a scoreboard that is empty over its flight** (`sb_near::moves`, KNOWN_ISSUES A70). A scoreboard counts: a word
@@ -21,29 +21,48 @@ decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `
   never below the copy group's —, in text order, each on the fields the moves in front of it left.
 - **A load of a batch leaves it as a use of its own.** The other loads keep the scoreboard and the batch's
   waiters; the load that leaves is waited by the first words behind it that read or rewrite what it writes.
-- **The wait of the new number goes on the first word that needs the result on every path, and no wait bit comes
+- **The read barrier of a copy word stands alone where the word of an ordered event waits behind it for another
+  use.** The early release of a far read barrier lands on the first word that can wait — a branch, a `P2R` — and
+  that word may stand one word behind a copy word whose own read barrier is armed on the same scoreboard. Such a
+  read barrier is named as a result is — the first word that waits its scoreboard at most eight words behind the
+  copy word is the word of an ordered event (`wait_drained::ordered_event`), is no waiter of the use and needs no
+  younger use there — and takes the lowest scoreboard that is empty over its flight by the fields. **The
+  registers of a moved copy word count the uniform register of its descriptor**: the first word on a path that
+  rewrites it waits the new number as the first rewriter of an operand register does.
+- **The wait of the new number goes on the first word that needs the use on every path, and no wait bit comes
   off.** One scoreboard number changes on the setter and no barrier comes or goes; every word keeps every bit it
   has.
-- **What it does not do.** Nothing outside the loops that hold a copy word, nothing for a result of another kind
-  and nothing for a read barrier. Where no scoreboard is empty by the fields the use stays; so does a use the
-  author numbered, one with a setter under a guard and one with a word that needs the result and cannot carry a
-  wait. Nothing in a trial of the allocator and nothing without the flow graph of `CUBIT_SYNC_CLASSES`. The switch
-  needs neither `CUBIT_LOAD_TOP` nor `CUBIT_SB_APART`.
-- **What it leaves.** The word that waited the old scoreboard for another use issues with the result that moved
-  still in flight, as every word of the flight that is no reader does (`CUBIT_DUMP_USES`: one `NEAR` line a named
-  use). A build under the switch is a candidate only after its own text has been read on both card models.
+- **What it does not do.** Nothing outside the loops that hold a copy word, nothing for a result of another
+  kind, nothing for the read barrier of another word and nothing for a copy word's where the near wait is no
+  word of an ordered event. Where no scoreboard is empty by the fields the use stays; so does a use the author
+  numbered, one with a setter under a guard and one with a word that needs the use and cannot carry a wait.
+  Nothing in a trial of the allocator and nothing without the flow graph of `CUBIT_SYNC_CLASSES`. The switch needs
+  neither `CUBIT_LOAD_TOP` nor `CUBIT_SB_APART`.
+- **What it leaves.** The word that waited the old scoreboard for another use issues with the use that moved
+  still in flight, as every word of the flight that needs nothing of it does (`CUBIT_DUMP_USES`: one `NEAR` line a
+  named use). Behind a copy word that word is the word of an ordered event: it keeps its bit, is no longer a wait
+  on the copy word's operand read, and the latency legaliser no longer asks the arming distance between the two
+  — the copy word's stall may fall. Such a pair is the vendor's practice at these words and was measured at one
+  warp an SM on one card model, no further. A build under the switch is a candidate only after its own text has
+  been read on both card models.
 - **What it writes (static).** In cubit's own frame of `fc2_kernel_ws<4,2,1,0>` under the recipe
   `CUBIT_WAIT_POLICY=1 CUBIT_LOAD_COVER=1 CUBIT_WAIT_DRAINED=paths CUBIT_SB_KIND=wide CUBIT_LOAD_TOP=1
-  CUBIT_SB_APART=1` the switch names two uses, both in the loop round its copy words, and changes the control
-  field of four words: the result of an `S2UR` goes from scoreboard 0 to 3 and its reader, six words on, gets
+  CUBIT_SB_APART=1` the switch names four uses, all in the loop round its copy words, and changes the control
+  field of eight words: the result of an `S2UR` goes from scoreboard 0 to 3 and its reader, six words on, gets
   bit 3 — the rewriter of a global load's address register three words behind the `S2UR` keeps its wait of 0
   —; the second `LDCU.64` of a batch of two goes from scoreboard 2 to 3 and its reader gets bit 3 — the reader
-  of the first load, seven words behind the second, keeps its wait of 2. `CUBIT_VERIFY` names 8 `UNPROTECTED RAW`
-  lines and 144 `RECYCLE-STALE` lines with and without the variable (no proof of legality either way). Without
-  the variable every schedule is byte for byte what it was.
+  of the first load, seven words behind the second, keeps its wait of 2 —; the read barrier of one copy word
+  goes from 0 to 3 and the constant load that rewrites its descriptor's uniform register gets bit 3 — the
+  branch one word behind the copy word keeps its wait of 0 —; the read barrier of a second copy word goes from 0
+  to 4, the result of that `LDCU.64` being in flight on 3 there, and the first rewriter of its base gets bit 4
+  beside the bit 0 it has — the `P2R` one word behind it keeps its wait of 0. The stall of both copy words falls
+  from 2 to 1: the arming distance to the next word, which the legaliser asked while that word waited the copy
+  word's scoreboard, is no longer asked. `CUBIT_VERIFY` names 8 `UNPROTECTED RAW` lines and 144 `RECYCLE-STALE`
+  lines with and without the variable (no proof of legality either way). Without the variable every schedule is
+  byte for byte what it was.
 - Inside: the rule is `src/sb_near.rs` (`REACH`, `moves`); the pass stands at the end of
-  `reallocate_barriers_in`, behind the mirror clause of `CUBIT_LOAD_TOP`. Tests: `tests/sb_near.rs` (5),
-  `sb_near::tests` (5).
+  `reallocate_barriers_in`, behind the mirror clause of `CUBIT_LOAD_TOP`. Tests: `tests/sb_near.rs` (8: five of
+  the near result, three of the read barrier of a copy word), `sb_near::tests` (8).
 
 ## Unreleased — 2026-11-20 (`CUBIT_SB_APART=1`, opt-in with `CUBIT_WAIT_POLICY=1`: a write-barrier use shares no scoreboard with a read barrier that is pending over its flight)
 

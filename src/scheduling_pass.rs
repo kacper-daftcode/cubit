@@ -488,7 +488,7 @@ pub fn sb_apart() -> bool {
 ///
 /// Where the waits stand is written behind the colouring, and there a word comes to wait a
 /// scoreboard a few words behind a setter whose use it neither reads nor rewrites: it stands
-/// until that near use has landed. One clause, at the end of [`reallocate_barriers`], on the
+/// until that near use has landed. Two clauses, at the end of [`reallocate_barriers`], on the
 /// fields of the schedule as every clause in front of it left them:
 ///
 /// * **the result of a constant load or of a register read in the innermost loop round a copy
@@ -498,10 +498,19 @@ pub fn sb_apart() -> bool {
 ///   no word that waits it but the words that need the result; never below the copy group's); a
 ///   load of a batch leaves the batch as a use of its own; the first word that needs the result
 ///   on every path waits the new number.
+/// * **the read barrier of a copy word in such a loop, where that first waiting word is the word
+///   of an ordered event that rewrites none of its registers, takes the lowest scoreboard that
+///   is empty over its flight in the same way**; the first rewriter of the copy word's
+///   registers on every path waits the new number, and the uniform register of its descriptor
+///   counts among them.
 ///
 /// No wait bit comes off and no barrier comes or goes; where no scoreboard is empty the use
 /// stays, and nothing moves outside such a loop, for a use the author numbered or one with a
-/// setter under a guard. The switch needs neither [`load_top`] nor [`sb_apart`].
+/// setter under a guard. The event word behind a moved copy word keeps its bit and no longer
+/// waits the copy word's operand read: such a pair is the vendor's practice at these words and
+/// was measured at one warp an SM on one card model, no further -- a build under the switch is
+/// a candidate only after its own text has been read. The switch needs neither [`load_top`]
+/// nor [`sb_apart`].
 pub fn sb_near() -> bool {
     std::env::var("CUBIT_SB_NEAR").ok().as_deref() == Some("1") && wait_policy() && !unswitched()
 }
@@ -6565,17 +6574,19 @@ fn reallocate_barriers_in(
         }
     }
 
-    // ---- CUBIT_SB_NEAR: in a loop that holds a copy word, the result of a constant load or of a
-    // register read whose scoreboard a near word waits for another use takes a scoreboard that
-    // is empty over its flight (see `sb_near`) ----
+    // ---- CUBIT_SB_NEAR: in a loop that holds a copy word, a use whose scoreboard a near word
+    // waits for another use -- the result of a constant load or of a register read; the read
+    // barrier of a copy word under the word of an ordered event -- takes a scoreboard that is
+    // empty over its flight (see `sb_near`) ----
     // Behind every clause above, on the fields as they stand: one scoreboard number changes on
-    // the setter, the first words that need the result get the wait of the new number, and no
-    // bit comes off.
+    // the setter, the first words that need the use get the wait of the new number, and no bit
+    // comes off.
     if let (true, Some(c)) = (!trial && sb_near(), &cfg) {
         let paths = crate::wait_drained::paths(insns, c);
         // (the innermost loop round every copy word that can run)
+        let can_run = |k: usize| !insns[k].guard.as_ref().is_some_and(|g| g.pred == 7 && g.negated);
         let copy_loops: Vec<(usize, usize)> = (0..n)
-            .filter(|&k| insns[k].opcode == "LDGSTS" && ltop[k] != usize::MAX && !insns[k].guard.as_ref().is_some_and(|g| g.pred == 7 && g.negated))
+            .filter(|&k| insns[k].opcode == "LDGSTS" && ltop[k] != usize::MAX && can_run(k))
             .map(|k| (ltop[k], lback[k]))
             .collect();
         let words: Vec<crate::sb_near::Word> = (0..n)
@@ -6586,6 +6597,17 @@ fn reallocate_barriers_in(
                 reads: reads[j].clone(),
                 writes: writes[j].clone(),
                 constant: matches!(insns[j].opcode.as_str(), "LDC" | "LDCU" | "S2R" | "S2UR" | "CS2R" | "CS2UR"),
+                copy: can_run(j) && insns[j].opcode == "LDGSTS",
+                desc: insns[j]
+                    .operands
+                    .iter()
+                    .filter_map(|o| match o {
+                        crate::ir::Operand::Desc { ur_idx, .. } => Some(*ur_idx as u16),
+                        _ => None,
+                    })
+                    .flat_map(|ur| [rk(true, ur), rk(true, ur + 1)])
+                    .collect(),
+                event: crate::wait_drained::ordered_event(&insns[j]),
                 in_copy_loop: copy_loops.iter().any(|&(top, back)| top <= j && j <= back),
                 guarded: guarded[j],
                 free: !insns[j].hand_sched,
@@ -6603,7 +6625,11 @@ fn reallocate_barriers_in(
             })
             .collect();
         for m in crate::sb_near::moves(&paths, &words, &view, if sb0_reserved { 1 } else { 0 }) {
-            insns[m.setter].ctrl.write_bar = m.to;
+            if m.read_barrier {
+                insns[m.setter].ctrl.read_bar = m.to;
+            } else {
+                insns[m.setter].ctrl.write_bar = m.to;
+            }
             for w in m.waiters {
                 insns[w].ctrl.wait_mask |= 1 << m.to;
             }
